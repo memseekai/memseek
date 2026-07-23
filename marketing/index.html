@@ -1,380 +1,444 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Memseek — the memory an AI agent should use now</title>
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="description" content="Memseek is a memory kit for AI agents. It selects the right, current, cited context from the records you already have — CRM, email, call notes, docs — at ~30× fewer tokens than the raw history.">
-<meta property="og:title" content="Memseek — the memory an AI agent should use now">
-<meta property="og:description" content="Not a database. Not a vector store. A memory kit that serves your agent the current, cited context — from the data you already have.">
-<meta property="og:type" content="website">
+<meta name="description" content="Memseek is a memory kit that serves the right context to your agent at query time: current, dated, and traced to its source. Keep your data where it is.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
-  /* ============ tokens ============ */
-  :root {
-    --bg: #070D10; --surface: #0C1519; --surface-2: #122026; --line: #1B2E33; --line-2: #2C464E;
-    --text: #E9EFEA; --muted: #8FA09B; --faint: #5F7370;
-    --amber: #F2A83B; --amber-ink: #101408;
-    --green: #4FD68A; --rose: #F0688C;
-    --shadow: 0 1px 0 rgba(255,255,255,.03) inset, 0 30px 70px -40px rgba(0,0,0,.8);
-    --serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, "Times New Roman", serif;
-    --mono: ui-monospace, "SF Mono", "JetBrains Mono", "Cascadia Code", Menlo, Consolas, monospace;
-    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-    --maxw: 1140px;
+  /* ============================================================
+     Memseek — index-v2
+     Design system carried over from the hero:
+     dark canvas, orange→pink gradient, JetBrains Mono + Inter.
+     ============================================================ */
+  :root, :root[data-theme="dark"] {
+    --bg: #0c0e11;
+    --surface: #12161b;
+    --surface-2: #1a1f27;
+    --border: #232a33;
+    --border-strong: #33404c;
+    --text: #e8eaed;
+    --muted: #9aa1ab;
+    --faint: #5d6570;
+    --orange: #ff7a2f;
+    --pink: #ff3d67;
+    --cyan: #2fd4c4;
+    --violet: #9b87ff;
+    --green: #58d68d;
+    --amber: #ffb14d;
+    --accent: var(--orange);
+    --shadow: 0 1px 0 rgba(255,255,255,.02) inset, 0 24px 60px -30px rgba(0,0,0,.8);
+    --mono: 'JetBrains Mono', ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    --sans: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    --maxw: 1180px;
+    --grad: linear-gradient(120deg, var(--orange), var(--pink));
     --step--1: clamp(.78rem, .76rem + .1vw, .84rem);
     --step-0: clamp(.95rem, .92rem + .18vw, 1.05rem);
-    --step-1: clamp(1.12rem, 1rem + .5vw, 1.4rem);
-    --step-2: clamp(1.7rem, 1.3rem + 1.9vw, 2.7rem);
-    --step-3: clamp(2.5rem, 1.6rem + 4.2vw, 5rem);
-  }
-  @media (prefers-color-scheme: light) {
-    :root {
-      --bg: #EEF0EA; --surface: #F6F7F3; --surface-2: #FDFDFB; --line: #D8DDD3; --line-2: #B9C2B6;
-      --text: #131E1E; --muted: #52625D; --faint: #7E8C85;
-      --amber: #A96D14; --amber-ink: #FDFDFB;
-      --green: #187A4B; --rose: #C43A62;
-      --shadow: 0 1px 0 rgba(255,255,255,.65) inset, 0 24px 55px -38px rgba(25,45,40,.45);
-    }
-  }
-  :root[data-theme="dark"] {
-    --bg:#070D10; --surface:#0C1519; --surface-2:#122026; --line:#1B2E33; --line-2:#2C464E;
-    --text:#E9EFEA; --muted:#8FA09B; --faint:#5F7370;
-    --amber:#F2A83B; --amber-ink:#101408; --green:#4FD68A; --rose:#F0688C;
-    --shadow:0 1px 0 rgba(255,255,255,.03) inset, 0 30px 70px -40px rgba(0,0,0,.8);
+    --step-1: clamp(1.1rem, 1rem + .5vw, 1.35rem);
+    --step-2: clamp(1.5rem, 1.2rem + 1.4vw, 2.3rem);
+    --step-3: clamp(2.1rem, 1.5rem + 3vw, 4rem);
   }
   :root[data-theme="light"] {
-    --bg:#EEF0EA; --surface:#F6F7F3; --surface-2:#FDFDFB; --line:#D8DDD3; --line-2:#B9C2B6;
-    --text:#131E1E; --muted:#52625D; --faint:#7E8C85;
-    --amber:#A96D14; --amber-ink:#FDFDFB; --green:#187A4B; --rose:#C43A62;
-    --shadow:0 1px 0 rgba(255,255,255,.65) inset, 0 24px 55px -38px rgba(25,45,40,.45);
+    --bg: #f7f7f5;
+    --surface: #ffffff;
+    --surface-2: #f1f2ef;
+    --border: #e3e4df;
+    --border-strong: #cfd1ca;
+    --text: #16191c;
+    --muted: #55606a;
+    --faint: #8a939c;
+    --orange: #e0641c;
+    --pink: #e02a54;
+    --cyan: #0e9e90;
+    --violet: #6d4ae0;
+    --green: #1f9d57;
+    --amber: #c07d16;
+    --shadow: 0 1px 0 rgba(255,255,255,.6) inset, 0 20px 50px -30px rgba(20,30,45,.28);
   }
 
-  /* ============ base ============ */
-  * { box-sizing: border-box; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
   html { scroll-behavior: smooth; }
   @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
   body {
-    margin: 0; background: var(--bg); color: var(--text); font-family: var(--sans);
-    font-size: var(--step-0); line-height: 1.65; -webkit-font-smoothing: antialiased;
-    text-rendering: optimizeLegibility; overflow-x: hidden;
-  }
-  body::after {
-    content: ""; position: fixed; inset: 0; z-index: 90; pointer-events: none; opacity: .05;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='.5'/%3E%3C/svg%3E");
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: var(--step-0);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    overflow-x: hidden;
+    min-height: 100vh;
   }
   .wrap { width: 100%; max-width: var(--maxw); margin-inline: auto; padding-inline: clamp(1.1rem, 4vw, 2.5rem); }
-  a { color: var(--amber); text-decoration: none; }
+  a { color: var(--cyan); text-decoration: none; }
   a:hover { text-decoration: underline; text-underline-offset: 3px; }
-  ::selection { background: var(--amber); color: var(--amber-ink); }
-  :focus-visible { outline: 2px solid var(--amber); outline-offset: 3px; border-radius: 2px; }
+  :focus-visible { outline: 2px solid var(--orange); outline-offset: 3px; border-radius: 2px; }
 
-  .skip { position: absolute; left: -9999px; top: 0; z-index: 100; background: var(--surface-2); color: var(--text); padding: .6rem 1.1rem; border: 1px solid var(--line-2); font-family: var(--mono); font-size: var(--step--1); }
-  .skip:focus { left: 0; }
+  h1, h2, h3 { font-family: var(--mono); font-weight: 700; letter-spacing: -0.02em; line-height: 1.1; text-wrap: balance; }
+  .grad {
+    background: var(--grad);
+    -webkit-background-clip: text; background-clip: text;
+    -webkit-text-fill-color: transparent; color: transparent;
+  }
+  .eyebrow {
+    font-family: var(--mono); font-size: var(--step--1);
+    letter-spacing: 0.22em; text-transform: uppercase;
+    color: var(--hue, var(--orange));
+    display: inline-flex; align-items: center; gap: 0.7em;
+  }
+  .eyebrow::before { content: ""; width: 2.4em; height: 2px; background: var(--hue, var(--orange)); opacity: .7; }
 
-  /* ============ type roles ============ */
-  h1, h2 { font-family: var(--serif); font-weight: 500; letter-spacing: -.015em; line-height: 1.06; margin: 0; text-wrap: balance; }
-  h1 em, h2 em { font-style: italic; color: var(--amber); }
-  h3 { font-family: var(--sans); font-weight: 700; letter-spacing: 0; line-height: 1.2; margin: 0; }
-  .mono { font-family: var(--mono); }
-
-  /* ledger stamp: entry number + rule */
-  .stamp { display: flex; align-items: center; gap: .9rem; font-family: var(--mono); font-size: .7rem; letter-spacing: .18em; text-transform: uppercase; color: var(--faint); }
-  .stamp b { color: var(--amber); font-weight: 600; }
-  .stamp::after { content: ""; flex: 1; height: 1px; background: var(--line); }
-
-  .reveal { opacity: 0; transform: translateY(16px); transition: opacity .65s ease, transform .65s ease; }
+  .reveal { opacity: 0; transform: translateY(18px); transition: opacity .6s, transform .6s; }
   .reveal.in { opacity: 1; transform: none; }
   @media (prefers-reduced-motion: reduce) { .reveal { opacity: 1; transform: none; transition: none; } }
 
-  /* ============ nav ============ */
+  /* ---------- NAV ---------- */
   header.nav {
-    position: sticky; top: 0; z-index: 50; background: color-mix(in srgb, var(--bg) 84%, transparent);
-    backdrop-filter: blur(12px); border-bottom: 1px solid var(--line);
+    position: sticky; top: 0; z-index: 50;
+    background: color-mix(in srgb, var(--bg) 82%, transparent);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
   }
-  .nav-inner { display: flex; align-items: center; justify-content: space-between; height: 60px; }
-  .brand { display: flex; align-items: baseline; font-family: var(--mono); font-weight: 600; letter-spacing: -.02em; font-size: 1.02rem; color: var(--text); }
-  .brand .caret { color: var(--amber); animation: blink 1.2s steps(1) infinite; }
-  @keyframes blink { 50% { opacity: 0; } }
-  @media (prefers-reduced-motion: reduce) { .brand .caret { animation: none; } }
-  .nav-links { display: flex; align-items: center; gap: 1.4rem; }
-  .nav-links a { color: var(--muted); font-size: var(--step--1); font-family: var(--mono); letter-spacing: .02em; }
+  .nav-inner { display: flex; align-items: center; justify-content: space-between; height: 64px; }
+  .brand { display: flex; align-items: center; gap: .6rem; font-family: var(--mono); font-weight: 700; font-size: 1.15rem; color: var(--text); }
+  .brand .dot { width: 12px; height: 12px; border-radius: 50%; background: var(--grad); }
+  .nav-links { display: flex; align-items: center; gap: 1.6rem; }
+  .nav-links a { color: var(--muted); font-family: var(--mono); font-size: var(--step--1); }
   .nav-links a:hover { color: var(--text); text-decoration: none; }
-  .nav-cta { font-family: var(--mono); font-size: var(--step--1); color: var(--amber-ink); background: var(--amber); padding: .5rem .95rem; border-radius: 4px; font-weight: 700; }
-  .nav-cta:hover { text-decoration: none; filter: brightness(1.06); }
-  @media (max-width: 880px) { .nav-links .hide-sm { display: none; } }
+  .nav-cta {
+    font-family: var(--mono); font-weight: 700; font-size: var(--step--1);
+    color: #16090b; background: var(--grad);
+    padding: .55rem 1rem; border-radius: 8px;
+  }
+  .nav-cta:hover { text-decoration: none; filter: brightness(1.07); }
+  .theme-toggle {
+    background: transparent; border: 1px solid var(--border-strong); color: var(--muted);
+    font-family: var(--mono); font-size: .72rem; padding: .35rem .55rem; border-radius: 6px;
+    cursor: pointer; letter-spacing: .05em;
+  }
+  .theme-toggle:hover { color: var(--orange); border-color: var(--orange); }
+  @media (max-width: 900px) { .nav-links .hide-sm { display: none; } }
 
-  /* ============ buttons ============ */
-  .btn { font-family: var(--mono); font-weight: 700; font-size: var(--step--1); padding: .78rem 1.3rem; border-radius: 4px; border: 1px solid transparent; cursor: pointer; display: inline-flex; align-items: center; gap: .5rem; transition: transform .15s ease, border-color .15s ease, color .15s ease, filter .15s ease, background .15s ease; }
-  .btn-primary { background: var(--amber); color: var(--amber-ink); }
+  /* ---------- HERO (from memseek-hero.html) ---------- */
+  .hero { position: relative; padding-top: clamp(2.6rem, 5vw, 5rem); padding-bottom: clamp(2.4rem, 4vw, 3.5rem); overflow: hidden; }
+  .hero::before {
+    content: ""; position: absolute; inset: -35% -10% auto; height: 640px; z-index: 0; pointer-events: none;
+    background:
+      radial-gradient(38% 60% at 16% 30%, color-mix(in srgb, var(--orange) 32%, transparent), transparent 70%),
+      radial-gradient(38% 56% at 60% 16%, color-mix(in srgb, var(--pink) 28%, transparent), transparent 72%),
+      radial-gradient(40% 58% at 90% 42%, color-mix(in srgb, var(--violet) 24%, transparent), transparent 72%);
+    opacity: .9; animation: drift 20s ease-in-out infinite alternate;
+  }
+  @keyframes drift { to { transform: translate3d(4%, 4%, 0) scale(1.08); } }
+  @media (prefers-reduced-motion: reduce) { .hero::before { animation: none; } }
+  .hero .wrap { position: relative; z-index: 1; }
+  .hero-grid { display: grid; grid-template-columns: 1fr 1.05fr; gap: clamp(2rem, 4vw, 3.5rem); align-items: center; }
+  @media (max-width: 980px) { .hero-grid { grid-template-columns: 1fr; } }
+  .hero h1 { font-size: var(--step-3); margin-top: 1.2rem; max-width: 20ch; }
+  .hero h1 .dim { color: var(--faint); }
+  .negation { font-family: var(--mono); font-size: var(--step-1); color: var(--text); margin-top: 1.3rem; line-height: 1.5; letter-spacing: -.01em; }
+  .negation s { text-decoration-color: var(--pink); color: var(--muted); }
+  .lede { color: var(--muted); font-size: var(--step-0); max-width: 50ch; margin-top: 1.2rem; }
+  .lede b { color: var(--text); font-weight: 600; }
+  .hero-cta { display: flex; flex-wrap: wrap; gap: .85rem; margin-top: 2rem; align-items: center; }
+  .btn {
+    font-family: var(--mono); font-weight: 700; font-size: var(--step--1);
+    padding: .85rem 1.4rem; border-radius: 9px; border: 1px solid transparent;
+    cursor: pointer; display: inline-flex; align-items: center; gap: .5rem;
+    transition: transform .15s, border-color .15s, color .15s, filter .15s;
+  }
+  .btn-primary { background: var(--grad); color: #16090b; }
   .btn-primary:hover { text-decoration: none; filter: brightness(1.07); transform: translateY(-1px); }
-  .btn-ghost { background: transparent; color: var(--text); border-color: var(--line-2); }
-  .btn-ghost:hover { text-decoration: none; border-color: var(--amber); color: var(--amber); }
+  .btn-ghost { background: transparent; color: var(--text); border-color: var(--border-strong); }
+  .btn-ghost:hover { text-decoration: none; border-color: var(--violet); color: var(--violet); }
   .cta-note { font-family: var(--mono); font-size: .72rem; color: var(--faint); }
 
-  /* ============ hero ============ */
-  .hero { position: relative; padding-top: clamp(3rem, 7vw, 6rem); padding-bottom: clamp(2.6rem, 5vw, 4.5rem); overflow: hidden; border-bottom: 1px solid var(--line); }
-  #field { position: absolute; inset: 0; z-index: 0; pointer-events: none; }
-  .hero::after { content: ""; position: absolute; inset: 0; z-index: 1; pointer-events: none;
-    background: radial-gradient(90% 70% at 30% 20%, transparent 40%, var(--bg) 100%); }
-  .hero .wrap { position: relative; z-index: 2; }
-  .hero-grid { display: grid; grid-template-columns: 1.05fr 1fr; gap: clamp(2rem, 4.5vw, 4rem); align-items: center; }
-  @media (max-width: 960px) { .hero-grid { grid-template-columns: 1fr; } }
-  .hero h1 { font-size: var(--step-3); margin-top: 1.2rem; }
-  .hero h1 .strike { position: relative; white-space: nowrap; color: var(--muted); }
-  .hero h1 .strike::after { content: ""; position: absolute; left: -2%; right: -2%; top: 54%; height: .06em; min-height: 2px; background: var(--rose); transform: scaleX(0); transform-origin: left; animation: redline .5s ease 1.4s forwards; }
-  @keyframes redline { to { transform: scaleX(1); } }
-  @media (prefers-reduced-motion: reduce) { .hero h1 .strike::after { animation: none; transform: scaleX(1); } }
-  .negation { font-family: var(--mono); font-size: var(--step-1); color: var(--text); margin: 1.4rem 0 0; line-height: 1.55; letter-spacing: -.01em; }
-  .negation s { text-decoration-color: var(--rose); color: var(--muted); }
-  .lede { color: var(--muted); font-size: var(--step-0); max-width: 46ch; margin-top: 1.2rem; line-height: 1.65; }
-  .lede b { color: var(--text); font-weight: 600; }
-  .hero-cta { display: flex; flex-wrap: wrap; gap: .8rem; margin-top: 2rem; align-items: center; }
-
-  /* ============ hero selection pane ============ */
-  .pane { background: color-mix(in srgb, var(--surface) 88%, transparent); backdrop-filter: blur(4px); border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--shadow); overflow: hidden; }
-  .pane-bar { display: flex; align-items: center; gap: .6rem; padding: .65rem .9rem; border-bottom: 1px solid var(--line); background: var(--surface-2); font-family: var(--mono); font-size: var(--step--1); }
+  /* ---------- Selection diagram (hero visual) ---------- */
+  .pane { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; box-shadow: var(--shadow); overflow: hidden; }
+  .pane-bar { display: flex; align-items: center; gap: .6rem; padding: .7rem .95rem; border-bottom: 1px solid var(--border); background: var(--surface-2); font-family: var(--mono); font-size: var(--step--1); }
   .pane-bar .ask { color: var(--muted); }
-  .pane-bar .ask b { color: var(--text); font-weight: 600; }
+  .pane-bar .ask b { color: var(--cyan); font-weight: 600; }
   .sel { display: grid; grid-template-columns: 1fr auto 1fr; gap: .7rem; padding: 1rem 1rem 1.1rem; align-items: stretch; }
-  @media (max-width: 520px) { .sel { grid-template-columns: 1fr; } }
-  .sel .col-h { font-family: var(--mono); font-size: .64rem; letter-spacing: .14em; text-transform: uppercase; color: var(--faint); margin-bottom: .45rem; display: flex; justify-content: space-between; }
+  @media (max-width: 560px) { .sel { grid-template-columns: 1fr; } }
+  .sel .col-h { font-family: var(--mono); font-size: .62rem; letter-spacing: .14em; text-transform: uppercase; color: var(--faint); margin-bottom: .45rem; display: flex; justify-content: space-between; }
   .hist, .served { display: flex; flex-direction: column; gap: .34rem; min-width: 0; }
-  .hi { border: 1px solid var(--line); border-radius: 5px; background: var(--surface-2); padding: .36rem .5rem; opacity: .32; transition: opacity .4s ease, border-color .4s ease, background .4s ease; }
+  .hi { border: 1px solid var(--border); border-radius: 6px; background: var(--surface-2); padding: .38rem .5rem; opacity: .34; transition: opacity .4s, border-color .4s, background .4s; }
   .hi.on { opacity: 1; }
   .hi .mt { font-family: var(--mono); font-size: .54rem; letter-spacing: .05em; text-transform: uppercase; color: var(--faint); }
-  .hi .tx { font-size: .72rem; color: var(--text); line-height: 1.25; }
+  .hi .tx { font-size: .74rem; color: var(--text); line-height: 1.25; }
   .hi.sup.on { opacity: .55; }
-  .hi.sup .tx { text-decoration: line-through; text-decoration-color: var(--rose); color: var(--muted); }
-  .hi.pick.on { border-color: color-mix(in srgb, var(--amber) 55%, var(--line)); background: color-mix(in srgb, var(--amber) 10%, var(--surface-2)); }
+  .hi.sup .tx { text-decoration: line-through; text-decoration-color: var(--pink); color: var(--muted); }
+  .hi.pick.on { border-color: color-mix(in srgb, var(--cyan) 55%, var(--border)); background: color-mix(in srgb, var(--cyan) 12%, var(--surface-2)); }
   .sel-mid { align-self: center; display: flex; flex-direction: column; align-items: center; gap: .3rem; }
-  .sel-mid .chip { font-family: var(--mono); font-size: .56rem; letter-spacing: .08em; text-transform: uppercase; color: var(--amber); border: 1px solid color-mix(in srgb, var(--amber) 45%, var(--line)); border-radius: 20px; padding: .2rem .5rem; }
-  .sel-mid .arw { color: var(--amber); font-family: var(--mono); font-size: .8rem; }
-  @media (max-width: 520px) { .sel-mid { flex-direction: row; padding: .2rem 0; } .sel-mid .arw { transform: rotate(90deg); } }
-  .sv { border: 1px solid color-mix(in srgb, var(--green) 40%, var(--line)); border-radius: 5px; background: color-mix(in srgb, var(--green) 8%, var(--surface-2)); padding: .38rem .5rem; opacity: 0; transform: translateY(6px); transition: opacity .45s ease, transform .45s ease; }
+  .sel-mid .chip { font-family: var(--mono); font-size: .56rem; letter-spacing: .08em; text-transform: uppercase; color: var(--violet); border: 1px solid color-mix(in srgb, var(--violet) 45%, var(--border)); border-radius: 20px; padding: .2rem .5rem; }
+  .sel-mid .arw { color: var(--orange); font-family: var(--mono); font-size: .85rem; }
+  @media (max-width: 560px) { .sel-mid { flex-direction: row; padding: .2rem 0; } .sel-mid .arw { transform: rotate(90deg); } }
+  .sv { border: 1px solid color-mix(in srgb, var(--green) 40%, var(--border)); border-radius: 6px; background: color-mix(in srgb, var(--green) 9%, var(--surface-2)); padding: .4rem .5rem; opacity: 0; transform: translateY(6px); transition: opacity .45s, transform .45s; }
   .sv.on { opacity: 1; transform: none; }
-  .sv .tx { font-size: .72rem; color: var(--text); line-height: 1.25; }
-  .sv .tx b { color: var(--green); }
+  .sv .tx { font-size: .74rem; color: var(--text); line-height: 1.25; }
   .sv .ct { font-family: var(--mono); font-size: .56rem; color: var(--green); margin-top: .15rem; }
-  .tok { margin-top: .5rem; display: flex; align-items: baseline; gap: .5rem; font-family: var(--mono); }
+  .tok { margin-top: .55rem; display: flex; align-items: baseline; gap: .5rem; font-family: var(--mono); }
   .tok .n { font-size: 1rem; color: var(--green); font-variant-numeric: tabular-nums; }
   .tok .l { font-size: .58rem; letter-spacing: .06em; text-transform: uppercase; color: var(--faint); }
-  .tok .was { font-size: .58rem; color: var(--faint); text-decoration: line-through; text-decoration-color: var(--rose); }
+  .tok .was { font-size: .58rem; color: var(--faint); text-decoration: line-through; text-decoration-color: var(--pink); }
 
-  /* ============ source ledger line ============ */
-  .integ { background: var(--surface); }
-  .integ-inner { display: flex; flex-wrap: wrap; align-items: baseline; gap: .5rem 1.6rem; padding-block: .95rem; font-family: var(--mono); font-size: var(--step--1); }
-  .integ-inner .lead { color: var(--faint); letter-spacing: .14em; text-transform: uppercase; font-size: .68rem; }
-  .integ-inner .chip { color: var(--muted); }
-  .integ-inner .chip::before { content: "·"; color: var(--amber); margin-right: .6em; }
-  .integ-inner .chip:first-of-type::before { content: none; }
+  /* ---------- SOURCE STRIP ---------- */
+  .integ { border-block: 1px solid var(--border); background: var(--surface); }
+  .integ-inner { display: flex; flex-wrap: wrap; align-items: center; gap: .8rem 1.7rem; padding-block: 1.1rem; font-family: var(--mono); font-size: var(--step--1); }
+  .integ-inner .lead { color: var(--faint); letter-spacing: .12em; text-transform: uppercase; font-size: .72rem; }
+  .integ-inner .chip { color: var(--muted); display: inline-flex; align-items: center; gap: .5em; }
+  .integ-inner .chip::before { content: ""; width: 7px; height: 7px; border-radius: 2px; }
+  .integ-inner .chip:nth-child(2)::before { background: var(--orange); }
+  .integ-inner .chip:nth-child(3)::before { background: var(--cyan); }
+  .integ-inner .chip:nth-child(4)::before { background: var(--violet); }
+  .integ-inner .chip:nth-child(5)::before { background: var(--pink); }
+  .integ-inner .chip:nth-child(6)::before { background: var(--green); }
+  .integ-inner .chip:nth-child(7)::before { background: var(--amber); }
 
-  /* ============ section scaffolding ============ */
-  section { padding-block: clamp(3.4rem, 7vw, 6.5rem); border-top: 1px solid var(--line); }
-  section:first-of-type, .hero { border-top: 0; }
-  .sec-head { max-width: 70ch; margin-bottom: clamp(2.1rem, 4vw, 3.2rem); }
-  .sec-head h2 { font-size: var(--step-2); margin-top: 1.1rem; }
-  .sec-head > p { color: var(--muted); font-size: var(--step-1); margin: 1rem 0 0; line-height: 1.55; max-width: 58ch; }
-  .band { background: var(--surface); }
+  /* ---------- SECTIONS ---------- */
+  section { padding-block: clamp(3.2rem, 7vw, 6rem); }
+  .alt { background: var(--surface); border-block: 1px solid var(--border); }
+  .sec-head { max-width: 66ch; margin-bottom: clamp(2rem, 4vw, 3rem); }
+  .sec-head h2 { font-size: var(--step-2); margin-top: .9rem; }
+  .sec-head p { color: var(--muted); font-size: var(--step-1); margin-top: 1rem; line-height: 1.5; }
+  .sec-head em { color: var(--text); font-style: normal; text-decoration: underline; text-decoration-color: var(--orange); text-underline-offset: 3px; }
 
-  /* ============ how it works ============ */
-  .steps { display: grid; grid-template-columns: repeat(3,1fr); }
-  @media (max-width: 760px) { .steps { grid-template-columns: 1fr; } }
-  .step { padding: 1.6rem 1.6rem 1.6rem 0; border-top: 2px solid var(--line-2); margin-right: 2rem; position: relative; }
-  .step:last-child { margin-right: 0; }
-  @media (max-width: 760px) { .step { margin-right: 0; padding-right: 0; } }
-  .step .num { font-family: var(--mono); font-weight: 600; font-size: .68rem; letter-spacing: .16em; text-transform: uppercase; color: var(--amber); }
-  .step h3 { font-size: var(--step-1); font-family: var(--serif); font-weight: 500; letter-spacing: -.01em; margin: .8rem 0 .5rem; }
-  .step p { margin: 0; color: var(--muted); font-size: var(--step--1); line-height: 1.6; }
-  .step p b { color: var(--text); font-weight: 600; }
-
-  /* ============ not-RAG compare ============ */
+  /* NOT RAG */
   .vs { display: grid; grid-template-columns: 1fr 1fr; gap: 1.1rem; }
   @media (max-width: 760px) { .vs { grid-template-columns: 1fr; } }
-  .vs-card { border: 1px solid var(--line); border-radius: 10px; padding: 1.6rem 1.6rem; background: var(--surface); }
-  .vs-card.bad { --hue: var(--rose); }
-  .vs-card.good { --hue: var(--green); border-color: color-mix(in srgb, var(--green) 45%, var(--line)); background: linear-gradient(168deg, color-mix(in srgb, var(--green) 8%, var(--surface)), var(--surface)); }
-  .vs-card h3 { font-size: var(--step-1); display: flex; align-items: center; gap: .6rem; font-family: var(--serif); font-weight: 500; }
-  .vs-card h3 .k { font-family: var(--mono); font-size: .62rem; letter-spacing: .12em; text-transform: uppercase; color: var(--hue); border: 1px solid var(--hue); border-radius: 20px; padding: .18rem .55rem; }
-  .vs-card ul { list-style: none; margin: 1.3rem 0 0; padding: 0; display: flex; flex-direction: column; gap: .85rem; }
-  .vs-card li { display: grid; grid-template-columns: auto 1fr; gap: .7rem; color: var(--muted); font-size: var(--step--1); line-height: 1.55; }
+  .vs-card { border: 1px solid var(--border); border-radius: 13px; padding: 1.5rem; background: var(--surface); }
+  .vs-card.bad { --hue: var(--pink); }
+  .vs-card.good { --hue: var(--green); border-color: color-mix(in srgb, var(--green) 45%, var(--border)); background: linear-gradient(168deg, color-mix(in srgb, var(--green) 10%, var(--surface)), var(--surface)); }
+  .vs-card h3 { font-size: var(--step-1); display: flex; align-items: center; gap: .5rem; }
+  .vs-card h3 .k { font-family: var(--mono); font-size: .62rem; letter-spacing: .12em; text-transform: uppercase; color: var(--hue); border: 1px solid var(--hue); border-radius: 20px; padding: .18rem .5rem; }
+  .vs-card ul { list-style: none; margin-top: 1.2rem; display: flex; flex-direction: column; gap: .8rem; }
+  .vs-card li { display: grid; grid-template-columns: auto 1fr; gap: .7rem; color: var(--muted); font-size: var(--step--1); line-height: 1.5; }
   .vs-card li .m { font-family: var(--mono); color: var(--hue); }
   .vs-card.good li b { color: var(--text); font-weight: 600; }
 
-  /* ============ the kit: ruled index ============ */
-  .index { border-top: 1px solid var(--line-2); }
-  .ix { display: grid; grid-template-columns: 4rem 13rem 1fr; gap: 1rem 1.6rem; padding: 1.25rem 0; border-bottom: 1px solid var(--line); align-items: baseline; transition: background .2s ease; position: relative; }
-  .ix:hover { background: linear-gradient(90deg, color-mix(in srgb, var(--amber) 7%, transparent), transparent 70%); }
-  @media (max-width: 720px) { .ix { grid-template-columns: 4rem 1fr; } .ix p { grid-column: 2; } }
-  .ix .no { font-family: var(--mono); font-size: .7rem; color: var(--faint); letter-spacing: .1em; }
-  .ix:hover .no { color: var(--amber); }
-  .ix h3 { font-size: var(--step-0); }
-  .ix h3 span { display: block; font-family: var(--mono); font-weight: 400; font-size: .6rem; letter-spacing: .14em; text-transform: uppercase; color: var(--amber); margin-bottom: .3rem; }
-  .ix p { margin: 0; color: var(--muted); font-size: var(--step--1); line-height: 1.6; max-width: 58ch; }
+  /* THE KIT */
+  .kit { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.1rem; }
+  @media (max-width: 860px) { .kit { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 540px) { .kit { grid-template-columns: 1fr; } }
+  .mod { border: 1px solid color-mix(in srgb, var(--hue) 34%, var(--border)); border-radius: 13px; padding: 1.4rem 1.35rem; background: linear-gradient(165deg, color-mix(in srgb, var(--hue) 13%, var(--surface)), var(--surface)); transition: transform .18s, box-shadow .18s; }
+  .mod:hover { transform: translateY(-3px); box-shadow: 0 14px 44px -24px color-mix(in srgb, var(--hue) 80%, transparent); }
+  .mod .ic { width: 34px; height: 34px; border-radius: 9px; display: grid; place-items: center; font-family: var(--mono); font-weight: 700; font-size: .95rem; color: #0c0e11; background: var(--hue); }
+  .mod h3 { font-size: var(--step-0); font-family: var(--sans); font-weight: 700; letter-spacing: 0; margin: .9rem 0 .4rem; }
+  .mod p { color: var(--muted); font-size: var(--step--1); line-height: 1.55; }
+  .mod .tag { font-family: var(--mono); font-size: .58rem; letter-spacing: .1em; text-transform: uppercase; color: var(--hue); }
 
-  /* ============ reasoning demos ============ */
-  .showcase { display: grid; grid-template-columns: repeat(3,1fr); gap: 1.1rem; }
+  /* REASONING DEMOS */
+  .showcase { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1.1rem; }
   @media (max-width: 900px) { .showcase { grid-template-columns: 1fr; } }
-  .demo { background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; box-shadow: var(--shadow); display: flex; flex-direction: column; }
-  #demoRfl { --hue: var(--amber); } #demoCd { --hue: var(--rose); } #demoTl { --hue: var(--green); }
-  .demo-h { padding: 1.15rem 1.2rem 1.05rem; border-bottom: 1px solid var(--line); }
+  .demo { background: var(--surface); border-top: 2px solid var(--hue, var(--orange)); border-radius: 13px; overflow: hidden; box-shadow: var(--shadow); display: flex; flex-direction: column; transition: transform .18s; }
+  .demo:hover { transform: translateY(-3px); }
+  #demoRfl { --hue: var(--violet); }
+  #demoCd { --hue: var(--pink); }
+  #demoTl { --hue: var(--cyan); }
+  .demo-h { padding: 1.1rem 1.15rem 1rem; border-bottom: 1px solid var(--border); }
   .demo-h .verb { font-family: var(--mono); font-size: .64rem; letter-spacing: .14em; text-transform: uppercase; color: var(--hue); }
-  .demo-h h3 { font-size: var(--step-0); margin: .45rem 0 .3rem; }
-  .demo-h p { margin: 0; color: var(--muted); font-size: var(--step--1); line-height: 1.5; }
+  .demo-h h3 { font-family: var(--sans); font-weight: 700; letter-spacing: 0; font-size: var(--step-0); margin: .4rem 0 .3rem; }
+  .demo-h p { color: var(--muted); font-size: var(--step--1); line-height: 1.5; }
   .demo-body { padding: 1.2rem 1.15rem 1.35rem; flex: 1; display: flex; flex-direction: column; justify-content: center; min-height: 232px; }
-  .rfl-card { border: 1px solid var(--hue); background: color-mix(in srgb, var(--hue) 12%, var(--surface)); border-radius: 7px; padding: .7rem .8rem; opacity: 0; transform: translateY(-8px); transition: opacity .5s ease, transform .5s ease; }
+  .rfl-card { border: 1px solid var(--hue); background: color-mix(in srgb, var(--hue) 14%, var(--surface)); border-radius: 8px; padding: .7rem .8rem; opacity: 0; transform: translateY(-8px); transition: opacity .5s, transform .5s; }
   .rfl-card.show { opacity: 1; transform: none; }
   .rfl-card .tag { font-family: var(--mono); font-size: .56rem; letter-spacing: .1em; text-transform: uppercase; color: var(--hue); }
-  .rfl-card .ins { font-family: var(--serif); font-style: italic; font-size: .95rem; color: var(--text); margin-top: .25rem; line-height: 1.35; }
+  .rfl-card .ins { font-size: .82rem; color: var(--text); margin-top: .25rem; line-height: 1.35; }
   .rfl-up { text-align: center; font-family: var(--mono); font-size: .62rem; color: var(--faint); margin: .55rem 0; }
   .rfl-mems { display: flex; flex-direction: column; gap: .35rem; }
-  .mem { font-size: .72rem; color: var(--muted); border: 1px solid var(--line); border-radius: 5px; padding: .34rem .5rem; background: var(--surface); opacity: .28; transform: translateX(-4px); transition: opacity .4s ease, color .4s ease, transform .4s ease; }
-  .mem.on { opacity: 1; color: var(--text); transform: none; }
+  .mem { font-size: .74rem; color: var(--muted); border: 1px solid var(--border); border-radius: 6px; padding: .34rem .5rem; background: var(--surface-2); opacity: .28; transform: translateX(-4px); transition: opacity .4s, color .4s, transform .4s; }
+  .mem.on { color: var(--text); opacity: 1; transform: none; }
   .cd { display: flex; flex-direction: column; gap: .55rem; }
-  .fact2 { border: 1px solid var(--line); border-radius: 6px; background: var(--surface); padding: .45rem .6rem; display: flex; justify-content: space-between; gap: .6rem; align-items: center; opacity: 0; transform: translateY(6px); transition: opacity .45s ease, transform .45s ease; }
+  .fact2 { border: 1px solid var(--border); border-radius: 7px; background: var(--surface-2); padding: .45rem .6rem; display: flex; justify-content: space-between; gap: .6rem; align-items: center; opacity: 0; transform: translateY(6px); transition: opacity .45s, transform .45s; }
   .fact2.on { opacity: 1; transform: none; }
-  .fact2 .val { font-size: .76rem; color: var(--text); }
+  .fact2 .val { font-size: .78rem; color: var(--text); }
   .fact2 .when { font-family: var(--mono); font-size: .6rem; color: var(--faint); white-space: nowrap; }
-  .fact2.stale .val { text-decoration: line-through; text-decoration-color: var(--rose); color: var(--muted); }
-  .cd-warn { align-self: center; font-family: var(--mono); font-size: .64rem; color: var(--hue); border: 1px solid var(--hue); background: color-mix(in srgb, var(--hue) 10%, var(--surface)); border-radius: 20px; padding: .28rem .75rem; opacity: 0; transform: scale(.92); transition: opacity .4s ease, transform .4s ease; }
+  .fact2.stale .val { text-decoration: line-through; text-decoration-color: var(--pink); color: var(--muted); }
+  .cd-warn { align-self: center; font-family: var(--mono); font-size: .64rem; color: var(--hue); border: 1px solid var(--hue); background: color-mix(in srgb, var(--hue) 12%, var(--surface)); border-radius: 20px; padding: .28rem .75rem; opacity: 0; transform: scale(.92); transition: opacity .4s, transform .4s; }
   .cd-warn.on { opacity: 1; transform: none; }
-  .cd-now { font-size: .78rem; color: var(--text); border-left: 2px solid var(--green); padding-left: .6rem; opacity: 0; transition: opacity .45s ease; }
+  .cd-now { font-size: .8rem; color: var(--text); border-left: 2px solid var(--hue); padding-left: .6rem; opacity: 0; transition: opacity .45s; }
   .cd-now.on { opacity: 1; }
   .cd-now .fk { font-family: var(--mono); font-size: .56rem; letter-spacing: .1em; text-transform: uppercase; color: var(--faint); display: block; }
-  .cd-now b { color: var(--green); }
+  .cd-now b { color: var(--hue); }
   .tl { display: flex; flex-direction: column; gap: 1.1rem; }
   .tl-track { position: relative; display: flex; justify-content: space-between; padding: 0 4px; }
-  .tl-track::before { content: ""; position: absolute; left: 10px; right: 10px; top: 6px; height: 1px; background: var(--line-2); }
-  .tl-dot { position: relative; z-index: 1; display: flex; flex-direction: column; align-items: center; gap: .4rem; font-family: var(--mono); font-size: .58rem; color: var(--faint); transition: color .3s ease; }
-  .tl-dot .d { width: 13px; height: 13px; border-radius: 50%; background: var(--surface); border: 1px solid var(--line-2); transition: background .3s ease, border-color .3s ease, box-shadow .3s ease; }
+  .tl-track::before { content: ""; position: absolute; left: 10px; right: 10px; top: 6px; height: 1px; background: var(--border); }
+  .tl-dot { position: relative; z-index: 1; display: flex; flex-direction: column; align-items: center; gap: .4rem; font-family: var(--mono); font-size: .58rem; color: var(--faint); transition: color .3s; }
+  .tl-dot .d { width: 13px; height: 13px; border-radius: 50%; background: var(--surface-2); border: 1px solid var(--border-strong); transition: background .3s, border-color .3s, box-shadow .3s; }
   .tl-dot.active { color: var(--hue); }
   .tl-dot.active .d { background: var(--hue); border-color: var(--hue); box-shadow: 0 0 0 4px color-mix(in srgb, var(--hue) 25%, transparent); }
-  .tl-readout { border: 1px solid var(--line); border-radius: 7px; background: var(--surface); padding: .75rem .85rem; }
+  .tl-readout { border: 1px solid var(--border); border-radius: 8px; background: var(--surface-2); padding: .75rem .85rem; }
   .tl-readout .fk { font-family: var(--mono); font-size: .56rem; letter-spacing: .1em; text-transform: uppercase; color: var(--faint); }
   .tl-readout .role { font-size: .9rem; color: var(--text); margin-top: .2rem; }
   .tl-readout .meta { font-family: var(--mono); font-size: .62rem; color: var(--muted); margin-top: .4rem; }
   .tl-readout .meta b { color: var(--hue); }
+  .sk { display: flex; flex-direction: column; gap: .5rem; }
+  .sk-step { opacity: 0; transform: translateY(6px); transition: opacity .45s, transform .45s; }
+  .sk-step.on { opacity: 1; transform: none; }
+  .sk-ev { border: 1px solid color-mix(in srgb, var(--pink) 40%, var(--border)); border-radius: 7px; background: color-mix(in srgb, var(--pink) 8%, var(--surface-2)); padding: .45rem .6rem; font-size: .78rem; color: var(--text); }
+  .sk-ev .ek { display: block; font-family: var(--mono); font-size: .56rem; letter-spacing: .1em; text-transform: uppercase; color: var(--pink); margin-bottom: .15rem; }
+  .sk-up { text-align: center; font-family: var(--mono); font-size: .62rem; color: var(--faint); }
+  .sk-diff { border: 1px solid var(--border); border-radius: 8px; background: var(--surface-2); padding: .55rem .6rem; }
+  .sk-diff .dk { font-family: var(--mono); font-size: .56rem; letter-spacing: .1em; text-transform: uppercase; color: var(--faint); display: block; margin-bottom: .35rem; }
+  .sk-diff .dl { font-family: var(--mono); font-size: .7rem; line-height: 1.4; padding: .12rem .35rem; border-radius: 4px; }
+  .sk-diff .dl.del { color: var(--muted); text-decoration: line-through; text-decoration-color: var(--pink); background: color-mix(in srgb, var(--pink) 7%, transparent); }
+  .sk-diff .dl.add { color: var(--text); background: color-mix(in srgb, var(--green) 12%, transparent); border-left: 2px solid var(--green); margin-top: .2rem; }
+  .sk-gate { display: flex; align-items: center; flex-wrap: wrap; gap: .5rem; }
+  .sk-gate .gk { font-family: var(--mono); font-size: .56rem; letter-spacing: .1em; text-transform: uppercase; color: var(--faint); }
+  .sk-gate .btn-promote { font-family: var(--mono); font-size: .66rem; letter-spacing: .04em; color: #0c0e11; background: var(--green); border-radius: 6px; padding: .3rem .62rem; font-weight: 700; }
+  .sk-gate.on .btn-promote { animation: skpulse 1.7s ease-in-out infinite; }
+  .sk-gate .ghint { font-size: .64rem; color: var(--muted); }
+  @keyframes skpulse { 0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--green) 55%, transparent); } 50% { box-shadow: 0 0 0 6px color-mix(in srgb, var(--green) 0%, transparent); } }
+  @media (prefers-reduced-motion: reduce) { .sk-gate.on .btn-promote { animation: none; } }
 
-  /* ============ benchmarks ============ */
-  .bench { display: grid; grid-template-columns: repeat(4,1fr); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
-  @media (max-width: 820px) { .bench { grid-template-columns: repeat(2,1fr); } }
-  .bm { background: var(--surface); padding: 1.6rem 1.4rem; }
-  .bm .n { font-family: var(--mono); font-size: clamp(2rem,1.2rem+2.6vw,3rem); color: var(--text); letter-spacing: -.04em; font-variant-numeric: tabular-nums; line-height: 1; }
-  .bm.delta .n { color: var(--green); }
-  .bm .n small { font-size: .45em; letter-spacing: 0; color: var(--muted); }
-  .bm .metric { margin-top: .6rem; color: var(--text); font-size: var(--step--1); font-weight: 600; }
-  .bm .bench-name { margin-top: .3rem; color: var(--muted); font-size: .78rem; line-height: 1.4; font-family: var(--mono); }
-  .tokens { margin-top: 1.1rem; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); padding: 1.6rem 1.6rem; }
+  /* BENCHMARKS */
+  .bench { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: var(--border); border: 1px solid var(--border); border-radius: 13px; overflow: hidden; }
+  @media (max-width: 820px) { .bench { grid-template-columns: repeat(2, 1fr); } }
+  .bm { background: var(--surface); padding: 1.5rem 1.35rem; border-top: 2px solid var(--hue); }
+  .bm:nth-child(1) { --hue: var(--orange); }
+  .bm:nth-child(2) { --hue: var(--cyan); }
+  .bm:nth-child(3) { --hue: var(--violet); }
+  .bm:nth-child(4) { --hue: var(--pink); }
+  .bm .n { font-family: var(--mono); color: var(--hue); font-size: 2.4rem; letter-spacing: -.03em; font-variant-numeric: tabular-nums; line-height: 1; }
+  .bm .metric { margin-top: .55rem; color: var(--text); font-size: var(--step--1); font-weight: 600; }
+  .bm .bench-name { margin-top: .3rem; color: var(--muted); font-size: .78rem; line-height: 1.4; }
+  .tokens { margin-top: 1.1rem; border: 1px solid var(--border); border-radius: 13px; background: var(--surface); padding: 1.5rem; }
   .tokens .th { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: .5rem; margin-bottom: 1.1rem; }
-  .tokens .th h3 { font-size: var(--step-1); font-family: var(--serif); font-weight: 500; }
-  .tokens .th .mult { font-family: var(--mono); color: var(--green); font-weight: 700; font-size: var(--step-1); font-variant-numeric: tabular-nums; }
+  .tokens .th h3 { font-size: var(--step-1); }
+  .tokens .th .mult { font-family: var(--mono); color: var(--green); font-weight: 700; font-size: var(--step-1); }
   .trow { display: grid; grid-template-columns: 9rem 1fr; gap: .8rem; align-items: center; margin-bottom: .7rem; }
   @media (max-width: 560px) { .trow { grid-template-columns: 1fr; gap: .2rem; } }
   .trow .lab { font-family: var(--mono); font-size: .72rem; color: var(--muted); }
-  .tbar { height: 20px; border-radius: 4px; background: var(--surface-2); overflow: hidden; position: relative; }
-  .tbar > i { position: absolute; left: 0; top: 0; bottom: 0; width: 0; border-radius: 4px; transition: width 1.1s cubic-bezier(.2,.7,.3,1); }
-  .tbar.full > i { background: repeating-linear-gradient(-45deg, color-mix(in srgb, var(--rose) 55%, var(--surface-2)) 0 6px, color-mix(in srgb, var(--rose) 35%, var(--surface-2)) 6px 12px); }
-  .tbar.mem > i { background: var(--green); }
-  .tbar .v { position: absolute; right: .5rem; top: 50%; transform: translateY(-50%); font-family: var(--mono); font-size: .64rem; color: var(--text); font-variant-numeric: tabular-nums; }
-  .tbar.mem .v { color: var(--amber-ink); }
+  .tbar { height: 20px; border-radius: 5px; background: var(--surface-2); overflow: hidden; position: relative; }
+  .tbar > i { position: absolute; left: 0; top: 0; bottom: 0; width: 0; border-radius: 5px; transition: width 1.1s cubic-bezier(.2,.7,.3,1); }
+  .tbar.full > i { background: linear-gradient(90deg, color-mix(in srgb, var(--pink) 60%, var(--surface-2)), var(--pink)); }
+  .tbar.mem > i { background: linear-gradient(90deg, var(--green), var(--cyan)); }
+  .tbar .v { position: absolute; right: .5rem; top: 50%; transform: translateY(-50%); font-family: var(--mono); font-size: .64rem; color: var(--text); }
+  .tbar.mem .v { color: #0c0e11; }
   .bench-foot { margin-top: 1.1rem; color: var(--faint); font-size: var(--step--1); font-family: var(--mono); line-height: 1.5; }
 
-  /* ============ outputs ============ */
-  .outs { display: grid; grid-template-columns: repeat(4,1fr); gap: 1.1rem; }
-  @media (max-width: 860px) { .outs { grid-template-columns: repeat(2,1fr); } }
+  /* OUTPUTS */
+  .outs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1.1rem; }
+  @media (max-width: 860px) { .outs { grid-template-columns: repeat(2, 1fr); } }
   @media (max-width: 480px) { .outs { grid-template-columns: 1fr; } }
-  .out { border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--surface); display: flex; flex-direction: column; transition: border-color .2s ease; }
-  .out:hover { border-color: color-mix(in srgb, var(--amber) 45%, var(--line)); }
-  .out .oh { padding: 1rem 1.1rem .2rem; flex: 1; }
-  .out .oh .tag { font-family: var(--mono); font-size: .58rem; letter-spacing: .1em; text-transform: uppercase; color: var(--amber); }
-  .out .oh h3 { font-size: var(--step-0); margin: .35rem 0 .3rem; }
-  .out .oh p { margin: 0 0 .8rem; color: var(--muted); font-size: var(--step--1); line-height: 1.5; }
-  .out pre { margin: 0; border-top: 1px solid var(--line); background: var(--surface-2); padding: .75rem .9rem; font-family: var(--mono); font-size: .68rem; line-height: 1.55; color: var(--text); overflow-x: auto; }
+  .out { border: 1px solid color-mix(in srgb, var(--hue) 34%, var(--border)); border-radius: 12px; overflow: hidden; background: var(--surface); }
+  .out:nth-child(1) { --hue: var(--cyan); }
+  .out:nth-child(2) { --hue: var(--orange); }
+  .out:nth-child(3) { --hue: var(--violet); }
+  .out:nth-child(4) { --hue: var(--pink); }
+  .out .oh { padding: 1rem 1.1rem .2rem; }
+  .out .oh .tag { font-family: var(--mono); font-size: .58rem; letter-spacing: .1em; text-transform: uppercase; color: var(--hue); }
+  .out .oh h3 { font-size: var(--step-0); font-family: var(--sans); font-weight: 700; letter-spacing: 0; margin: .35rem 0 .3rem; }
+  .out .oh p { margin-bottom: .8rem; color: var(--muted); font-size: var(--step--1); line-height: 1.5; }
+  .out pre { border-top: 1px solid var(--border); background: var(--surface-2); padding: .75rem .9rem; font-family: var(--mono); font-size: .68rem; line-height: 1.55; color: var(--text); overflow-x: auto; }
 
-  /* ============ account memory / code ============ */
-  .code { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--shadow); overflow: hidden; }
-  .code-tabs { display: flex; border-bottom: 1px solid var(--line); background: var(--surface-2); font-family: var(--mono); font-size: var(--step--1); }
-  .code-tabs .t { padding: .7rem 1.1rem; color: var(--amber); box-shadow: inset 0 -2px 0 var(--amber); }
-  .code pre { margin: 0; padding: 1.3rem 1.4rem; overflow-x: auto; font-family: var(--mono); font-size: .82rem; line-height: 1.7; color: var(--text); }
-  .cm { color: var(--faint); } .cs { color: var(--green); } .cn { color: var(--amber); } .cf { color: var(--amber); }
-  .feature-grid { display: grid; grid-template-columns: 1fr 1.05fr; gap: clamp(2rem,4vw,3.5rem); align-items: center; }
+  /* DEV MEMORY */
+  .feature-grid { display: grid; grid-template-columns: 1fr 1.05fr; gap: clamp(2rem, 4vw, 3.5rem); align-items: center; }
   @media (max-width: 900px) { .feature-grid { grid-template-columns: 1fr; } }
-  .feature-grid h2 { font-size: var(--step-2); margin-top: 1.1rem; }
-  .acct-list { list-style: none; margin: 1.5rem 0 0; padding: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 0 1.4rem; }
-  @media (max-width: 520px) { .acct-list { grid-template-columns: 1fr; } }
-  .acct-list li { display: grid; grid-template-columns: auto 1fr; gap: .6rem; color: var(--muted); font-size: var(--step--1); line-height: 1.5; padding: .5rem 0; border-bottom: 1px solid var(--line); }
-  .acct-list .m { color: var(--amber); font-family: var(--mono); }
+  .feature-grid h2 { font-size: var(--step-2); margin-top: .9rem; }
+  .feature-grid > div > p { color: var(--muted); margin-top: 1rem; max-width: 48ch; }
+  .devmem-list { list-style: none; margin-top: 1.4rem; display: grid; grid-template-columns: 1fr 1fr; gap: .7rem 1.2rem; }
+  @media (max-width: 520px) { .devmem-list { grid-template-columns: 1fr; } }
+  .devmem-list li { display: grid; grid-template-columns: auto 1fr; gap: .6rem; color: var(--muted); font-size: var(--step--1); line-height: 1.45; }
+  .devmem-list .m { color: var(--green); font-family: var(--mono); }
+  .code { background: var(--surface); border: 1px solid var(--border); border-radius: 13px; box-shadow: var(--shadow); overflow: hidden; }
+  .code-tabs { display: flex; border-bottom: 1px solid var(--border); background: var(--surface-2); font-family: var(--mono); font-size: var(--step--1); }
+  .code-tabs .t { padding: .7rem 1.1rem; color: var(--orange); box-shadow: inset 0 -2px 0 var(--orange); }
+  .code pre { padding: 1.3rem 1.4rem; overflow-x: auto; font-family: var(--mono); font-size: .82rem; line-height: 1.7; color: var(--text); }
+  .cm { color: var(--faint); } .cs { color: var(--cyan); } .cn { color: var(--green); } .cf { color: var(--violet); }
 
-  /* ============ buy vs build ============ */
-  .bvb { display: grid; grid-template-columns: repeat(3,1fr); gap: 1.1rem; }
+  /* BUY VS BUILD */
+  .bvb { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.1rem; }
   @media (max-width: 820px) { .bvb { grid-template-columns: 1fr; } }
-  .bvb-card { border: 1px solid var(--line); border-radius: 10px; padding: 1.6rem 1.5rem; background: var(--surface); }
-  .bvb-card .ic { font-family: var(--mono); color: var(--amber); font-size: 1.3rem; }
-  .bvb-card h3 { font-size: var(--step-0); margin: .7rem 0 .4rem; }
-  .bvb-card p { margin: 0; color: var(--muted); font-size: var(--step--1); line-height: 1.6; }
+  .bvb-card { border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem 1.4rem; background: var(--surface); }
+  .bvb-card .ic { font-family: var(--mono); color: var(--hue); font-size: 1.4rem; }
+  .bvb-card:nth-child(1) { --hue: var(--orange); }
+  .bvb-card:nth-child(2) { --hue: var(--violet); }
+  .bvb-card:nth-child(3) { --hue: var(--cyan); }
+  .bvb-card h3 { font-size: var(--step-0); font-family: var(--sans); font-weight: 700; letter-spacing: 0; margin: .7rem 0 .4rem; }
+  .bvb-card p { color: var(--muted); font-size: var(--step--1); line-height: 1.55; }
   .bvb-card p b { color: var(--text); font-weight: 600; }
 
-  /* ============ FAQ ============ */
-  .faq { max-width: 800px; display: flex; flex-direction: column; }
-  .faq details { border-bottom: 1px solid var(--line); }
-  .faq details:first-child { border-top: 1px solid var(--line-2); }
-  .faq summary { list-style: none; cursor: pointer; padding: 1.15rem .2rem; display: flex; justify-content: space-between; align-items: center; gap: 1rem; font-family: var(--serif); font-size: var(--step-1); color: var(--text); font-weight: 500; letter-spacing: -.01em; }
-  .faq summary:hover { color: var(--amber); }
+  /* FAQ */
+  .faq { max-width: 800px; margin: 0 auto; display: flex; flex-direction: column; gap: .7rem; }
+  .faq details { border: 1px solid var(--border); border-radius: 11px; background: var(--surface); overflow: hidden; transition: border-color .2s; }
+  .faq details[open] { border-color: color-mix(in srgb, var(--violet) 40%, var(--border)); }
+  .faq summary { list-style: none; cursor: pointer; padding: 1.05rem 1.2rem; display: flex; justify-content: space-between; align-items: center; gap: 1rem; font-family: var(--mono); font-size: var(--step-0); color: var(--text); font-weight: 600; letter-spacing: -.01em; }
   .faq summary::-webkit-details-marker { display: none; }
-  .faq summary .pm { font-family: var(--mono); color: var(--amber); font-size: 1.2rem; flex: none; transition: transform .25s ease; line-height: 1; }
+  .faq summary .pm { font-family: var(--mono); color: var(--violet); font-size: 1.2rem; flex: 0 0 auto; transition: transform .25s; line-height: 1; }
   .faq details[open] summary .pm { transform: rotate(45deg); }
-  .faq .ans { padding: 0 .2rem 1.25rem; color: var(--muted); font-size: var(--step--1); line-height: 1.7; max-width: 64ch; }
+  .faq .ans { padding: 0 1.2rem 1.15rem; color: var(--muted); font-size: var(--step--1); line-height: 1.65; max-width: 68ch; }
   .faq .ans b { color: var(--text); font-weight: 600; }
 
-  /* ============ cta ============ */
+  /* CTA */
   .cta { text-align: center; }
-  .cta-card { border: 1px solid var(--line-2); border-radius: 14px; padding: clamp(2.8rem, 6vw, 5rem) clamp(1.2rem,4vw,3rem); box-shadow: var(--shadow); position: relative; overflow: hidden; background: var(--surface); }
-  .cta-card::before { content:""; position:absolute; inset:0; pointer-events:none;
-    background: radial-gradient(75% 90% at 50% -20%, color-mix(in srgb,var(--amber) 14%,transparent), transparent 62%); }
-  .cta h2 { font-size: clamp(1.9rem,1.2rem+2.8vw,3.1rem); position: relative; max-width: 24ch; margin: .5rem auto 0; }
-  .cta-card > p { color: var(--muted); max-width: 52ch; margin: 1.2rem auto 0; position: relative; }
-  .cta .hero-cta { justify-content: center; margin-top: 2.1rem; position: relative; }
-  .cta .stamp { justify-content: center; }
-  .cta .stamp::after { content: none; }
+  .cta-card { border: 1px solid var(--border-strong); border-radius: 18px; padding: clamp(2.6rem, 6vw, 4.6rem) clamp(1.2rem, 4vw, 3rem); box-shadow: var(--shadow); position: relative; overflow: hidden; background: var(--surface); }
+  .cta-card::before {
+    content: ""; position: absolute; inset: 0; pointer-events: none;
+    background:
+      radial-gradient(70% 80% at 20% -10%, color-mix(in srgb, var(--orange) 22%, transparent), transparent 60%),
+      radial-gradient(70% 80% at 80% -10%, color-mix(in srgb, var(--pink) 22%, transparent), transparent 60%),
+      radial-gradient(60% 70% at 50% 120%, color-mix(in srgb, var(--violet) 18%, transparent), transparent 60%);
+  }
+  .cta h2 { position: relative; font-size: var(--step-2); max-width: 22ch; margin: .4rem auto 0; }
+  .cta-card > p { color: var(--muted); max-width: 50ch; margin: 1.1rem auto 0; position: relative; }
+  .cta .hero-cta { justify-content: center; margin-top: 2rem; position: relative; }
+  .cta .eyebrow { justify-content: center; }
+  .waitlist-form { position: relative; max-width: 620px; margin: 1.75rem auto 0; text-align: left; }
+  .waitlist-form iframe { display: block; width: 100%; min-height: 420px; border: 0; }
+  .waitlist-fallback { position: relative; margin-top: 1.25rem; font-family: var(--mono); font-size: var(--step--1); }
 
-  /* ============ footer ============ */
-  footer { border-top: 1px solid var(--line); padding-block: 2.5rem; }
+  /* FOOTER */
+  footer { border-top: 1px solid var(--border); padding-block: 2.5rem; }
   .foot { display: flex; flex-wrap: wrap; gap: 1rem 2rem; align-items: center; justify-content: space-between; font-family: var(--mono); font-size: var(--step--1); color: var(--faint); }
   .foot a { color: var(--muted); }
   .foot .fl { display: flex; gap: 1.4rem; flex-wrap: wrap; }
-  .theme-toggle { background: transparent; border: 1px solid var(--line-2); color: var(--muted); font-family: var(--mono); font-size: .72rem; padding: .35rem .55rem; border-radius: 4px; cursor: pointer; letter-spacing: .05em; }
-  .theme-toggle:hover { color: var(--amber); border-color: var(--amber); }
 </style>
+</head>
+<body>
 
-<a class="skip" href="#main">Skip to content</a>
-
+<!-- ============ NAV ============ -->
 <header class="nav">
   <div class="wrap nav-inner">
-    <div class="brand">memseek<span class="caret">▌</span></div>
-    <nav class="nav-links" aria-label="Main">
-      <a href="#how" class="hide-sm">How it works</a>
+    <div class="brand"><span class="dot"></span>memseek</div>
+    <nav class="nav-links">
       <a href="#why" class="hide-sm">Why not RAG</a>
       <a href="#kit" class="hide-sm">The kit</a>
       <a href="#benchmarks" class="hide-sm">Benchmarks</a>
+      <a href="#devmem" class="hide-sm">Coding agents</a>
       <a href="#faq" class="hide-sm">FAQ</a>
       <button class="theme-toggle" id="themeBtn" aria-label="Toggle color theme">THEME</button>
-      <a href="#start" class="nav-cta">Start building</a>
+      <a href="#waitlist" class="nav-cta">Join the waitlist</a>
     </nav>
   </div>
 </header>
 
-<main id="main">
-  <!-- HERO -->
+<main>
+  <!-- ============ HERO (first — from memseek-hero.html) ============ -->
   <section class="hero">
-    <canvas id="field" aria-hidden="true"></canvas>
     <div class="wrap hero-grid">
       <div>
-        <span class="stamp"><b>memseek</b><span>ai memory infrastructure</span></span>
-        <h1>Your records say <span class="strike">$40k</span>&hairsp;$25k.<br>Memory serves what's true <em>now</em>.</h1>
-        <p class="negation">Not a database. Not a vector store.<br><s>Not another RAG wrapper.</s></p>
-        <p class="lede">Memseek is a <b>memory kit</b> that sits between the records you already have and the models that need them — and serves the <b>right context</b> at query time: current, dated, and traced to its source. <b>Keep your data where it is.</b></p>
+        <span class="eyebrow">Memory layer for coding agents</span>
+        <h1>
+          Your agent keeps re-suggesting <span class="dim">what the team rejected in March.</span>
+          Memseek remembers <span class="grad">what's true now.</span>
+        </h1>
+        <p class="lede">
+          One layer between your records and the model. <b>Current, dated, source-linked</b> context —
+          not similar-looking chunks. <b>Your data stays where it is.</b>
+        </p>
         <div class="hero-cta">
-          <a href="#start" class="btn btn-primary">Start building →</a>
+          <a href="#waitlist" class="btn btn-primary">Join the waitlist →</a>
           <a href="#benchmarks" class="btn btn-ghost">See the benchmarks</a>
           <span class="cta-note">Runs on cheap, self-hostable models</span>
         </div>
       </div>
 
-      <!-- SELECTION PANE: full history -> select the right context -> served -->
+      <!-- Selection diagram: full history → select the right context → served -->
       <div class="pane" id="sel-pane" aria-label="How Memseek selects the right context from a long history">
         <div class="pane-bar">
           <span class="ask">agent asks: <b>"what should I know before the Acme call?"</b></span>
@@ -382,12 +446,12 @@
         <div class="sel">
           <div class="hist">
             <div class="col-h"><span>the full history</span><span>~101k tok</span></div>
-            <div class="hi sup" data-i="0"><div class="mt">CRM · Feb</div><div class="tx">Budget approved: $40k</div></div>
-            <div class="hi pick" data-i="1"><div class="mt">call notes · May</div><div class="tx">Budget cut to $25k this year</div></div>
-            <div class="hi pick" data-i="2"><div class="mt">email · Jun</div><div class="tx">Wants SSO before they sign</div></div>
-            <div class="hi pick" data-i="3"><div class="mt">note</div><div class="tx">Prefers email over calls</div></div>
-            <div class="hi" data-i="4"><div class="mt">support</div><div class="tx">Billing complaint — resolved</div></div>
-            <div class="hi" data-i="5"><div class="mt">marketing</div><div class="tx">Opened the newsletter</div></div>
+            <div class="hi sup"><div class="mt">CRM · Feb</div><div class="tx">Budget approved: $40k</div></div>
+            <div class="hi pick"><div class="mt">call notes · May</div><div class="tx">Budget cut to $25k this year</div></div>
+            <div class="hi pick"><div class="mt">email · Jun</div><div class="tx">Wants SSO before they sign</div></div>
+            <div class="hi pick"><div class="mt">note</div><div class="tx">Prefers email over calls</div></div>
+            <div class="hi"><div class="mt">support</div><div class="tx">Billing complaint — resolved</div></div>
+            <div class="hi"><div class="mt">marketing</div><div class="tx">Opened the newsletter</div></div>
           </div>
           <div class="sel-mid" aria-hidden="true">
             <span class="chip">select · reconcile</span>
@@ -395,9 +459,9 @@
           </div>
           <div class="served">
             <div class="col-h"><span>served to the agent</span></div>
-            <div class="sv" data-i="0"><div class="tx">Budget is now <b>$25k</b> this year</div><div class="ct">cites call notes · May</div></div>
-            <div class="sv" data-i="1"><div class="tx">Blocker: <b>needs SSO</b> before signing</div><div class="ct">cites email · Jun</div></div>
-            <div class="sv" data-i="2"><div class="tx">Reach out by email, not calls</div><div class="ct">supersedes the old $40k</div></div>
+            <div class="sv"><div class="tx">Budget is now <b>$25k</b> this year</div><div class="ct">cites call notes · May</div></div>
+            <div class="sv"><div class="tx">Blocker: <b>needs SSO</b> before signing</div><div class="ct">cites email · Jun</div></div>
+            <div class="sv"><div class="tx">Reach out by email, not calls</div><div class="ct">supersedes the old $40k</div></div>
             <div class="tok"><span class="n" id="tokN">~101,000</span><span class="l">tokens served</span><span class="was" id="tokWas"></span></div>
           </div>
         </div>
@@ -405,40 +469,25 @@
     </div>
   </section>
 
-  <!-- SOURCE LEDGER LINE -->
+  <!-- ============ SOURCE STRIP ============ -->
   <div class="integ">
     <div class="wrap integ-inner">
-      <span class="lead">Reads in place</span>
-      <span class="chip">CRM</span>
-      <span class="chip">Email &amp; chat logs</span>
-      <span class="chip">Call notes &amp; transcripts</span>
-      <span class="chip">Support tickets</span>
+      <span class="lead">Plugs into what you already have</span>
+      <span class="chip">Databases</span>
+      <span class="chip">Vector stores</span>
+      <span class="chip">Code repos</span>
+      <span class="chip">Chat &amp; conversation logs</span>
       <span class="chip">Documents</span>
-      <span class="chip">Databases &amp; vector stores</span>
+      <span class="chip">Business apps</span>
     </div>
   </div>
 
-  <!-- HOW IT WORKS -->
-  <section id="how">
+  <!-- ============ NOT RAG ============ -->
+  <section id="why">
     <div class="wrap">
       <div class="sec-head reveal">
-        <div class="stamp"><b>entry 01</b><span>how it works</span></div>
-        <h2>Three steps between your records and your agent.</h2>
-      </div>
-      <div class="steps reveal">
-        <div class="step"><span class="num">01 · connect</span><h3>Point it at your sources</h3><p>CRM, inbox, call notes, tickets, docs — read <b>in place</b>. Nothing migrates, nothing gets copied into yet another store.</p></div>
-        <div class="step"><span class="num">02 · reconcile</span><h3>It keeps the story straight</h3><p>Every fact stays <b>dated and cited</b>. When new evidence contradicts the old — a budget cut, a new decision maker — the current truth wins and the history is kept.</p></div>
-        <div class="step"><span class="num">03 · serve</span><h3>Your agent gets a brief</h3><p>At query time: the few records that matter, <b>current and sourced</b>, at ~30× fewer tokens than dumping the raw history into the prompt.</p></div>
-      </div>
-    </div>
-  </section>
-
-  <!-- NOT RAG -->
-  <section id="why" class="band">
-    <div class="wrap">
-      <div class="sec-head reveal">
-        <div class="stamp"><b>entry 02</b><span>why it isn't rag</span></div>
-        <h2>Retrieval finds what looks similar.<br>Memory knows what's true <em>now</em>.</h2>
+        <span class="eyebrow" style="--hue:var(--pink)">why it isn't RAG</span>
+        <h2>Retrieval finds what looks similar.<br>Memory knows what's true now.</h2>
         <p>Reliable memory is about context <em>selection</em>, not context <em>volume</em>. That's the part a vector search was never built to do.</p>
       </div>
       <div class="vs reveal">
@@ -446,8 +495,8 @@
           <h3><span class="k">plain RAG</span> vector search</h3>
           <ul>
             <li><span class="m">✕</span><div>Returns chunks that <em>look</em> similar — no idea which is current.</div></li>
-            <li><span class="m">✕</span><div>The old $40k budget and the new $25k surface side by side; the model guesses.</div></li>
-            <li><span class="m">✕</span><div>Dumps the whole account history into the prompt to be safe.</div></li>
+            <li><span class="m">✕</span><div>Contradictions surface side by side; the model guesses.</div></li>
+            <li><span class="m">✕</span><div>Dumps the whole history into the prompt to be safe.</div></li>
             <li><span class="m">✕</span><div>Re-derives a different answer on every call.</div></li>
             <li><span class="m">✕</span><div>Sources and dates fall off along the way.</div></li>
           </ul>
@@ -466,60 +515,60 @@
     </div>
   </section>
 
-  <!-- THE KIT: ruled index -->
-  <section id="kit">
+  <!-- ============ THE KIT ============ -->
+  <section id="kit" class="alt">
     <div class="wrap">
       <div class="sec-head reveal">
-        <div class="stamp"><b>entry 03</b><span>what's in the kit</span></div>
+        <span class="eyebrow" style="--hue:var(--cyan)">what's in the kit</span>
         <h2>One layer. The jobs a vector store can't do.</h2>
         <p>Memseek is a composable harness, not a single trick. The same layer handles direct recall, evolving profiles, temporal reasoning, and multi-document retrieval.</p>
       </div>
-      <div class="index reveal">
-        <article class="ix"><span class="no">k/01</span><h3><span>recall</span>Find the needle</h3><p>Surface the one record that matters in years of account history — the promise made on a call last spring, buried under thousands of touchpoints.</p></article>
-        <article class="ix"><span class="no">k/02</span><h3><span>temporal</span>Know what changed</h3><p>Track what was superseded and what still holds, so the agent quotes this year's budget — not last year's approved number.</p></article>
-        <article class="ix"><span class="no">k/03</span><h3><span>conflict</span>Resolve disagreements</h3><p>When the CRM and the latest call notes say different things, reconcile to the current truth instead of handing the model a contradiction.</p></article>
-        <article class="ix"><span class="no">k/04</span><h3><span>cross-source</span>Connect the evidence</h3><p>Link related facts across the CRM, inbox, call notes, and tickets into one picture — multi-hop, not single-shot.</p></article>
-        <article class="ix"><span class="no">k/05</span><h3><span>provenance</span>Keep the receipts</h3><p>Every piece of served context stays attached to a dated, verbatim source you can open and verify.</p></article>
-        <article class="ix"><span class="no">k/06</span><h3><span>outputs</span>Any shape you need</h3><p>Return raw context, a direct answer, an update-ready account profile, or a playbook digest — from the same layer.</p></article>
+      <div class="kit reveal">
+        <article class="mod" style="--hue:var(--amber)"><div class="ic">↯</div><span class="tag">recall</span><h3>Find the needle</h3><p>Surface the right record in a long, messy history — where the answer is one line buried under thousands.</p></article>
+        <article class="mod" style="--hue:var(--cyan)"><div class="ic">⟲</div><span class="tag">temporal</span><h3>Know what changed</h3><p>Track what was superseded and what still holds, so the agent gets the latest valid fact — not last year's decision.</p></article>
+        <article class="mod" style="--hue:var(--pink)"><div class="ic">⚡</div><span class="tag">conflict</span><h3>Resolve disagreements</h3><p>When two sources say different things, reconcile to the current truth instead of handing the model a contradiction.</p></article>
+        <article class="mod" style="--hue:var(--violet)"><div class="ic">⇄</div><span class="tag">cross-source</span><h3>Connect the evidence</h3><p>Link related facts across repos, docs, chats, and apps into one picture — multi-hop, not single-shot.</p></article>
+        <article class="mod" style="--hue:var(--green)"><div class="ic">⌖</div><span class="tag">provenance</span><h3>Keep the receipts</h3><p>Every piece of served context stays attached to a dated, verbatim source you can open and verify.</p></article>
+        <article class="mod" style="--hue:var(--orange)"><div class="ic">◨</div><span class="tag">outputs</span><h3>Any shape you need</h3><p>Return raw context, a direct answer, an update-ready profile, or a skill digest — from the same layer.</p></article>
       </div>
     </div>
   </section>
 
-  <!-- REASONING DEMOS -->
-  <section id="reasoning" class="band">
+  <!-- ============ REASONING DEMOS ============ -->
+  <section id="reasoning">
     <div class="wrap">
       <div class="sec-head reveal">
-        <div class="stamp"><b>entry 04</b><span>watch the hard parts work</span></div>
+        <span class="eyebrow" style="--hue:var(--violet)">watch the hard parts work</span>
         <h2>The intelligence, not the plumbing.</h2>
-        <p>Distilling patterns, catching contradictions, and reasoning across time are the parts teams get wrong. Here's each one, live — on a real account.</p>
+        <p>Distilling patterns, catching contradictions, reasoning across time, and improving a skill from real feedback are the parts teams get wrong. Here's each one, live.</p>
       </div>
       <div class="showcase">
         <article class="demo reveal" id="demoRfl">
-          <div class="demo-h"><span class="verb">digest</span><h3>Distills signals into insight</h3><p>Reads many small moments across calls, emails, and notes — and writes one higher-level, cited takeaway.</p></div>
+          <div class="demo-h"><span class="verb">digest</span><h3>Distills patterns into insight</h3><p>Reads many small signals and writes one higher-level, cited takeaway.</p></div>
           <div class="demo-body">
-            <div class="rfl-card"><span class="tag">digest · cites 4 signals</span><div class="ins">"Loop in the CFO early — that's where this deal moves."</div></div>
+            <div class="rfl-card"><span class="tag">digest · cites 4 signals</span><div class="ins">"Prefers small, reviewed PRs over big drops."</div></div>
             <div class="rfl-up" aria-hidden="true">↑ synthesized from</div>
             <div class="rfl-mems">
-              <div class="mem">Deal stalled 3 weeks until the CFO joined the thread</div>
-              <div class="mem">CFO asked for the ROI summary directly</div>
-              <div class="mem">Fastest replies always came from finance</div>
-              <div class="mem">Discount approved same day the CFO was cc'd</div>
+              <div class="mem">Split a 900-line PR on request</div>
+              <div class="mem">Asked for smaller commits twice</div>
+              <div class="mem">Reverted a large refactor</div>
+              <div class="mem">Praised an incremental migration</div>
             </div>
           </div>
         </article>
         <article class="demo reveal" id="demoCd">
-          <div class="demo-h"><span class="verb">conflict</span><h3>Catches facts that collide</h3><p>When new evidence contradicts the old, it's flagged — and the current, cited fact wins.</p></div>
+          <div class="demo-h"><span class="verb">conflict</span><h3>Catches beliefs that collide</h3><p>When new evidence contradicts the old, it's flagged — and the current, cited fact wins.</p></div>
           <div class="demo-body">
             <div class="cd">
-              <div class="fact2 f-old"><span class="val">Signs off: Dana — VP Ops</span><span class="when">Jan</span></div>
-              <div class="fact2 f-new"><span class="val">Signs off: Priya — CFO</span><span class="when">Mar</span></div>
+              <div class="fact2 f-old"><span class="val">Auth: JWT in gateway</span><span class="when">Jan</span></div>
+              <div class="fact2 f-new"><span class="val">Auth: httpOnly cookies</span><span class="when">Mar</span></div>
               <div class="cd-warn">⚡ superseded — resolved</div>
-              <div class="cd-now"><span class="fk">served now</span><b>Priya (CFO)</b> approves the deal · cites call notes, Mar</div>
+              <div class="cd-now"><span class="fk">served now</span><b>httpOnly cookies</b> · cites PR #482</div>
             </div>
           </div>
         </article>
         <article class="demo reveal" id="demoTl">
-          <div class="demo-h"><span class="verb">temporal</span><h3>Knows what held, and when</h3><p>Ask what the account looked like last quarter — the history is preserved, not overwritten.</p></div>
+          <div class="demo-h"><span class="verb">temporal</span><h3>Knows what held, and when</h3><p>Ask what was true last quarter — the history is preserved, not overwritten.</p></div>
           <div class="demo-body">
             <div class="tl">
               <div class="tl-track">
@@ -528,10 +577,25 @@
                 <div class="tl-dot"><span class="d"></span>Jul</div>
               </div>
               <div class="tl-readout">
-                <span class="fk">the account, as of then</span>
-                <div class="role">Starter — 5 seats</div>
-                <div class="meta">as of Jan · source <b>order form</b></div>
+                <span class="fk">auth pattern, as of then</span>
+                <div class="role">Session cookies (trial)</div>
+                <div class="meta">as of Apr · source <b>PR #451</b></div>
               </div>
+            </div>
+          </div>
+        </article>
+        <article class="demo reveal" id="demoSk">
+          <div class="demo-h"><span class="verb">maintain</span><h3>Improves the skill from feedback</h3><p>Turns what real work taught into a cited draft — and leaves the decision to ship it with you.</p></div>
+          <div class="demo-body">
+            <div class="sk">
+              <div class="sk-ev sk-step"><span class="ek">exception · INC-2417</span>Paged 18 min late — the "wait for monitoring" rule blocked it</div>
+              <div class="sk-up sk-step" aria-hidden="true">↓ skill pipeline drafts · cites 2 records</div>
+              <div class="sk-diff sk-step">
+                <span class="dk">pitfalls · draft</span>
+                <div class="dl del">− wait for monitoring to confirm before paging</div>
+                <div class="dl add">+ two matching customer reports = confirmation; page now</div>
+              </div>
+              <div class="sk-gate sk-step"><span class="gk">your call</span><span class="btn-promote">promote →</span><span class="ghint">nothing goes live until you do</span></div>
             </div>
           </div>
         </article>
@@ -539,19 +603,19 @@
     </div>
   </section>
 
-  <!-- BENCHMARKS -->
-  <section id="benchmarks">
+  <!-- ============ BENCHMARKS ============ -->
+  <section id="benchmarks" class="alt">
     <div class="wrap">
       <div class="sec-head reveal">
-        <div class="stamp"><b>entry 05</b><span>public benchmarks</span></div>
+        <span class="eyebrow" style="--hue:var(--green)">public benchmarks</span>
         <h2>Better context. A fraction of the tokens.</h2>
         <p>These test exactly the failures agents hit today: finding the right thing in a long history, handling updates and contradictions, and connecting evidence across sources.</p>
       </div>
       <div class="bench reveal" id="benchGrid">
         <div class="bm"><div class="n"><span data-count="82" data-dec="0">0</span>%</div><div class="metric">recall &amp; reasoning accuracy</div><div class="bench-name">LongMemEval-S · long-conversation memory</div></div>
         <div class="bm"><div class="n"><span data-count="91" data-dec="0">0</span>%</div><div class="metric">picks the latest valid fact</div><div class="bench-name">LongMemEval-S · after facts change over time</div></div>
-        <div class="bm delta"><div class="n">+<span data-count="7.5" data-dec="1">0</span><small> pts</small></div><div class="metric">exact match vs. dense retrieval</div><div class="bench-name">MuSiQue · multi-hop QA</div></div>
-        <div class="bm delta"><div class="n">+<span data-count="10.8" data-dec="1">0</span><small> pts</small></div><div class="metric">exact match vs. dense retrieval</div><div class="bench-name">2WikiMultiHopQA · multi-hop QA</div></div>
+        <div class="bm"><div class="n">+<span data-count="7.5" data-dec="1">0</span><span style="font-size:.5em"> pts</span></div><div class="metric">exact match vs. dense retrieval</div><div class="bench-name">MuSiQue · multi-hop QA</div></div>
+        <div class="bm"><div class="n">+<span data-count="10.8" data-dec="1">0</span><span style="font-size:.5em"> pts</span></div><div class="metric">exact match vs. dense retrieval</div><div class="bench-name">2WikiMultiHopQA · multi-hop QA</div></div>
       </div>
 
       <div class="tokens reveal" id="tokChart">
@@ -561,77 +625,76 @@
         </div>
         <div class="trow">
           <span class="lab">Full history</span>
-          <div class="tbar full"><i style="width:0" data-w="100"></i><span class="v">~101,000</span></div>
+          <div class="tbar full"><i data-w="100"></i><span class="v">~101,000</span></div>
         </div>
         <div class="trow">
           <span class="lab">Memseek</span>
-          <div class="tbar mem"><i style="width:0" data-w="3.2"></i><span class="v">~3,200</span></div>
+          <div class="tbar mem"><i data-w="3.2"></i><span class="v">~3,200</span></div>
         </div>
-        <p class="bench-foot">On inexpensive, self-hostable models — no indexing-time LLM calls, no frontier-model crutch. A production pilot then measures correction rate and downstream task success on your data.</p>
+        <p class="bench-foot">On inexpensive, self-hostable models — no indexing-time LLM calls, no frontier-model crutch. On your own data, measure correction rate and downstream task success from the first integration.</p>
       </div>
     </div>
   </section>
 
-  <!-- OUTPUTS -->
-  <section id="outputs" class="band">
+  <!-- ============ OUTPUTS ============ -->
+  <section id="outputs">
     <div class="wrap">
       <div class="sec-head reveal">
-        <div class="stamp"><b>entry 06</b><span>flexible outputs</span></div>
+        <span class="eyebrow" style="--hue:var(--cyan)">flexible outputs</span>
         <h2>Ask once. Get the shape you need.</h2>
         <p>The same query-time layer returns whatever your application is built to consume — no second pipeline.</p>
       </div>
       <div class="outs reveal">
         <article class="out"><div class="oh"><span class="tag">context</span><h3>Raw evidence</h3><p>The relevant, current records with dates and sources attached.</p></div><pre>[ {id, text, date, src},
   … ]</pre></article>
-        <article class="out"><div class="oh"><span class="tag">answer</span><h3>Direct answer</h3><p>A resolved answer to the question, with its citations.</p></div><pre>"Budget is $25k this year"
-cites: [call-notes · May]</pre></article>
-        <article class="out"><div class="oh"><span class="tag">profile</span><h3>Update-ready profile</h3><p>A current, keyed view of the account you can drop into a prompt or store.</p></div><pre>stage: negotiation
-blocker: needs SSO
-signs_off: Priya (CFO)</pre></article>
-        <article class="out"><div class="oh"><span class="tag">skill</span><h3>Playbook digest</h3><p>A distilled how-we-do-it for a recurring play — renewals, escalations, handoffs.</p></div><pre>renewal_playbook:
-steps: […]  pitfalls: […]</pre></article>
+        <article class="out"><div class="oh"><span class="tag">answer</span><h3>Direct answer</h3><p>A resolved answer to the question, with its citations.</p></div><pre>"httpOnly cookies"
+cites: [pr#482, auth.md]</pre></article>
+        <article class="out"><div class="oh"><span class="tag">profile</span><h3>Update-ready profile</h3><p>A current, keyed view you can drop into a prompt or store.</p></div><pre>role: VP Eng
+prefers: small PRs</pre></article>
+        <article class="out"><div class="oh"><span class="tag">skill</span><h3>Skill digest</h3><p>A distilled how-we-do-it for a recurring task.</p></div><pre>steps: [&hellip;]
+pitfalls: [&hellip;]</pre></article>
       </div>
     </div>
   </section>
 
-  <!-- LIVING ACCOUNT MEMORY -->
-  <section id="accounts">
+  <!-- ============ LIVING DEVELOPER MEMORY ============ -->
+  <section id="devmem" class="alt">
     <div class="wrap feature-grid">
       <div class="reveal">
-        <div class="stamp"><b>entry 07</b><span>put it to work</span></div>
-        <h2>Living memory for every account.</h2>
-        <p style="color:var(--muted);margin-top:1rem;max-width:48ch;">Keep an accurate, evolving picture of every customer relationship — so your agent walks into each call already knowing what changed since the last one.</p>
-        <ul class="acct-list">
-          <li><span class="m">›</span>Stakeholders &amp; who signs off</li>
-          <li><span class="m">›</span>Budget &amp; pricing history</li>
-          <li><span class="m">›</span>Objections &amp; open blockers</li>
-          <li><span class="m">›</span>Promises your team made</li>
-          <li><span class="m">›</span>Support history &amp; escalations</li>
-          <li><span class="m">›</span>Channel &amp; cadence preferences</li>
+        <span class="eyebrow" style="--hue:var(--amber)">first product</span>
+        <h2>Living memory for coding agents.</h2>
+        <p>Keep an accurate, evolving understanding of how a team actually builds — so the agent stops re-suggesting what was already rejected.</p>
+        <ul class="devmem-list">
+          <li><span class="m">›</span>Developer preferences</li>
+          <li><span class="m">›</span>Repo conventions</li>
+          <li><span class="m">›</span>Architecture decisions</li>
+          <li><span class="m">›</span>Accepted &amp; rejected approaches</li>
+          <li><span class="m">›</span>Recurring mistakes</li>
+          <li><span class="m">›</span>Review feedback</li>
         </ul>
       </div>
       <div class="code reveal" aria-label="Example integration">
         <div class="code-tabs"><span class="t">agent.py</span></div>
 <pre><span class="cm"># point it at the sources you already have</span>
-mem = <span class="cf">Memseek</span>(sources=[crm, email, calls, support])
+mem = <span class="cf">Memseek</span>(sources=[repo, chat, docs])
 
-brief = mem.<span class="cf">context</span>(
-    query=<span class="cs">"what should I know before the Acme renewal?"</span>,
-    shape=<span class="cs">"profile"</span>,  <span class="cm"># context | answer | profile | skill</span>
+ctx = mem.<span class="cf">context</span>(
+    query=<span class="cs">"what's our auth pattern?"</span>,
+    shape=<span class="cs">"answer"</span>,   <span class="cm"># context | answer | profile | skill</span>
 )
 
-brief.profile     <span class="cm"># stage, budget, blocker, who signs off…</span>
-brief.citations   <span class="cm"># [call-notes · May, email · Jun]</span>
-brief.tokens      <span class="cn">3200</span>            <span class="cm"># not 101,000</span></pre>
+ctx.answer      <span class="cm"># "httpOnly session cookies…"</span>
+ctx.citations   <span class="cm"># [pr#482, auth.md]</span>
+ctx.tokens      <span class="cn">3200</span>            <span class="cm"># not 101,000</span></pre>
       </div>
     </div>
   </section>
 
-  <!-- BUY VS BUILD -->
-  <section id="buildvsbuy" class="band">
+  <!-- ============ BUY VS BUILD ============ -->
+  <section id="buildvsbuy">
     <div class="wrap">
       <div class="sec-head reveal">
-        <div class="stamp"><b>entry 08</b><span>buy vs. build</span></div>
+        <span class="eyebrow" style="--hue:var(--violet)">buy vs. build</span>
         <h2>The same reason you don't hand-roll your own Postgres.</h2>
         <p>A real context layer is substantial engineering most teams don't solve well. The question isn't whether you could build it — it's whether that's the best use of your team.</p>
       </div>
@@ -643,12 +706,12 @@ brief.tokens      <span class="cn">3200</span>            <span class="cm"># not
     </div>
   </section>
 
-  <!-- FAQ -->
-  <section id="faq">
+  <!-- ============ FAQ ============ -->
+  <section id="faq" class="alt">
     <div class="wrap">
       <div class="sec-head reveal">
-        <div class="stamp"><b>entry 09</b><span>straight answers</span></div>
-        <h2>The questions teams actually ask.</h2>
+        <span class="eyebrow" style="--hue:var(--pink)">straight answers</span>
+        <h2>The questions engineers actually ask.</h2>
       </div>
       <div class="faq reveal">
         <details open>
@@ -656,20 +719,16 @@ brief.tokens      <span class="cn">3200</span>            <span class="cm"># not
           <div class="ans">No. RAG retrieves text that looks similar. Memseek <b>selects the right, current context</b>, resolves contradictions, keeps every source and date, and serves <b>~30× fewer tokens</b>. On public benchmarks it beats standard dense retrieval by <b>+7.5 to +10.8 points</b> — and it does it without indexing-time LLM calls.</div>
         </details>
         <details>
-          <summary>Does it replace my CRM?<span class="pm">+</span></summary>
-          <div class="ans">No. Your CRM stays the system of record. Memseek <b>reads it</b> — along with email, call notes, and support tickets — and serves your agent the current, reconciled picture that no single system holds on its own.</div>
-        </details>
-        <details>
           <summary>Is it a database? Do I move my data into it?<span class="pm">+</span></summary>
-          <div class="ans">No, and no. Your data stays exactly where it is. Memseek builds a lightweight access structure <b>over your existing sources</b> — CRMs, databases, vector stores, email and chat logs, call notes, docs — and decides what your agent should see.</div>
+          <div class="ans">No, and no. Your data stays exactly where it is. Memseek builds a lightweight access structure <b>over your existing sources</b> — databases, vector stores, repos, chat logs, docs, business apps — and decides what your agent should see.</div>
         </details>
         <details>
           <summary>Does it need an expensive frontier model?<span class="pm">+</span></summary>
           <div class="ans">No. The results above are on <b>inexpensive, self-hostable models</b>, with no indexing-time LLM calls. Performance and low cost — not one at the expense of the other.</div>
         </details>
-        <details>
+        <details open>
           <summary>What do I actually get back?<span class="pm">+</span></summary>
-          <div class="ans">Whatever shape your app consumes: <b>raw context</b>, a <b>direct answer</b>, an <b>update-ready account profile</b>, or a <b>playbook digest</b> — all from the same query-time layer.</div>
+          <div class="ans">Whatever shape your app consumes: <b>raw context</b>, a <b>direct answer</b>, an <b>update-ready profile</b>, or a <b>skill digest</b> — all from the same query-time layer.</div>
         </details>
         <details>
           <summary>Can I run it privately / on my own infra?<span class="pm">+</span></summary>
@@ -677,24 +736,32 @@ brief.tokens      <span class="cn">3200</span>            <span class="cm"># not
         </details>
         <details>
           <summary>How do I know it's actually helping?<span class="pm">+</span></summary>
-          <div class="ans">Evaluation is built in: it shows <b>what context was served for every request</b> and whether it improved the outcome, so a pilot can prove lift on correction rate and task success on your data.</div>
+          <div class="ans">Evaluation is built in: it shows <b>what context was served for every request</b> and whether it improved the outcome, so you can prove lift on correction rate and task success on your own data.</div>
         </details>
       </div>
     </div>
   </section>
 
-  <!-- CTA -->
-  <section id="start" class="cta">
+  <!-- ============ CTA ============ -->
+  <section id="waitlist" class="cta">
     <div class="wrap">
       <div class="cta-card reveal">
-        <div class="stamp"><b>entry 10</b><span>get started</span></div>
-        <h2>Turn your records into the memory your agent should use <em>now</em>.</h2>
-        <p>Point it at the CRM, inbox, and call notes you already have and serve better context from the first integration. Bring your own model — cheap and self-hostable is the point.</p>
-        <div class="hero-cta">
-          <a href="#" class="btn btn-primary">Start building →</a>
-          <a href="#" class="btn btn-ghost">Read the docs</a>
-          <span class="cta-note">Talk to us about a pilot</span>
+        <span class="eyebrow" style="--hue:var(--amber)">early access</span>
+        <h2>Give your agents memory they can <span class="grad">trust.</span></h2>
+        <p>Join the waitlist for early access to Memseek and be among the first teams to give agents current, source-linked context.</p>
+        <div class="waitlist-form">
+          <iframe
+            data-tally-src="https://tally.so/embed/EkrGDN?alignLeft=1&amp;hideTitle=1&amp;transparentBackground=1&amp;dynamicHeight=1"
+            loading="lazy"
+            width="100%"
+            height="500"
+            frameborder="0"
+            marginheight="0"
+            marginwidth="0"
+            title="Join the Memseek waitlist"></iframe>
         </div>
+        <span class="cta-note">Early access for coding-agent teams</span>
+        <noscript><p class="waitlist-fallback"><a href="https://tally.so/r/EkrGDN">Join the Memseek waitlist</a></p></noscript>
       </div>
     </div>
   </section>
@@ -702,43 +769,55 @@ brief.tokens      <span class="cn">3200</span>            <span class="cm"># not
 
 <footer>
   <div class="wrap foot">
-    <div class="brand" style="font-size:.95rem;">memseek<span class="caret">▌</span></div>
+    <div class="brand" style="font-size:.95rem;"><span class="dot"></span>memseek</div>
     <div class="fl">
-      <a href="#how">How it works</a>
       <a href="#why">Why not RAG</a>
       <a href="#kit">The kit</a>
       <a href="#benchmarks">Benchmarks</a>
-      <a href="#accounts">Account memory</a>
+      <a href="#devmem">Coding agents</a>
       <a href="#faq">FAQ</a>
     </div>
-    <div>© 2026 Memseek · AI memory infrastructure</div>
+    <div>AI memory infrastructure</div>
   </div>
 </footer>
 
 <script>
+var d = document, w = "https://tally.so/widgets/embed.js", v = function () {
+  if (typeof Tally !== "undefined") {
+    Tally.loadEmbeds();
+  } else {
+    d.querySelectorAll("iframe[data-tally-src]:not([src])").forEach(function (e) { e.src = e.dataset.tallySrc; });
+  }
+};
+if (typeof Tally !== "undefined") {
+  v();
+} else if (d.querySelector('script[src="' + w + '"]') === null) {
+  var s = d.createElement("script");
+  s.src = w;
+  s.onload = v;
+  s.onerror = v;
+  d.body.appendChild(s);
+}
+
 (function () {
   var root = document.documentElement;
   var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-  /* theme toggle, persisted */
+  /* ===== theme toggle, persisted ===== */
   try {
     var saved = localStorage.getItem('ms-theme');
     if (saved === 'dark' || saved === 'light') root.setAttribute('data-theme', saved);
   } catch (e) {}
-  document.getElementById('themeBtn').addEventListener('click', function () {
-    var cur = root.getAttribute('data-theme');
-    if (!cur) cur = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-    var next = cur === 'dark' ? 'light' : 'dark';
-    root.setAttribute('data-theme', next);
-    try { localStorage.setItem('ms-theme', next); } catch (e) {}
-  });
-
-  function isDark() {
-    var t = root.getAttribute('data-theme');
-    if (t) return t === 'dark';
-    return window.matchMedia('(prefers-color-scheme: dark)').matches;
+  var themeBtn = document.getElementById('themeBtn');
+  if (themeBtn) {
+    themeBtn.addEventListener('click', function () {
+      var next = root.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+      root.setAttribute('data-theme', next);
+      try { localStorage.setItem('ms-theme', next); } catch (e) {}
+    });
   }
 
+  /* ===== reveal on scroll ===== */
   var revs = Array.prototype.slice.call(document.querySelectorAll('.reveal'));
   if (reduce || !('IntersectionObserver' in window)) {
     revs.forEach(function (e) { e.classList.add('in'); });
@@ -749,6 +828,7 @@ brief.tokens      <span class="cn">3200</span>            <span class="cm"># not
     revs.forEach(function (e) { ro.observe(e); });
   }
 
+  /* run fn once the element scrolls into view (or immediately when reduced) */
   function onView(el, fn) {
     if (!el) return;
     if (reduce || !('IntersectionObserver' in window)) { fn(true); return; }
@@ -757,99 +837,6 @@ brief.tokens      <span class="cn">3200</span>            <span class="cm"># not
     }, { threshold: 0.4 });
     ob.observe(el);
   }
-
-  /* ===== hero field: drifting record ticks; a few get selected ===== */
-  (function () {
-    var cv = document.getElementById('field');
-    if (!cv || !cv.getContext) return;
-    var ctx = cv.getContext('2d');
-    var hero = cv.parentElement;
-    var ticks = [], W = 0, H = 0, dpr = 1, running = false, raf = 0, lastSel = 0;
-
-    function build() {
-      dpr = Math.min(2, window.devicePixelRatio || 1);
-      W = hero.clientWidth; H = hero.clientHeight;
-      cv.width = W * dpr; cv.height = H * dpr;
-      cv.style.width = W + 'px'; cv.style.height = H + 'px';
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      ticks = [];
-      var rows = Math.max(14, Math.floor(H / 26));
-      var cols = Math.max(10, Math.floor(W / 84));
-      for (var r = 0; r < rows; r++) {
-        for (var c = 0; c < cols; c++) {
-          ticks.push({
-            x: (c + Math.random() * .8) * (W / cols),
-            y: (r + .5) * (H / rows),
-            w: 8 + Math.random() * 22,
-            a: .04 + Math.random() * .08,
-            drift: .04 + Math.random() * .12,
-            sel: 0 // 0 idle, >0 selection progress
-          });
-        }
-      }
-    }
-
-    function frame(ts) {
-      if (!running) return;
-      ctx.clearRect(0, 0, W, H);
-      var dark = isDark();
-      var base = dark ? '233,239,234' : '19,30,30';
-      var amber = dark ? '242,168,59' : '169,109,20';
-      if (ts - lastSel > 2600) {
-        lastSel = ts;
-        for (var k = 0; k < 3; k++) {
-          var t = ticks[Math.floor(Math.random() * ticks.length)];
-          if (t.sel === 0) t.sel = 0.0001;
-        }
-      }
-      for (var i = 0; i < ticks.length; i++) {
-        var t = ticks[i];
-        t.x += t.drift; if (t.x > W + 30) t.x = -30;
-        if (t.sel > 0) {
-          t.sel += .012;
-          if (t.sel >= 1) { t.sel = 0; }
-          else {
-            var pulse = Math.sin(t.sel * Math.PI);
-            ctx.fillStyle = 'rgba(' + amber + ',' + (t.a + pulse * .55) + ')';
-            ctx.fillRect(t.x, t.y, t.w, 2);
-            ctx.fillStyle = 'rgba(' + amber + ',' + (pulse * .12) + ')';
-            ctx.fillRect(t.x - 3, t.y - 3, t.w + 6, 8);
-            continue;
-          }
-        }
-        ctx.fillStyle = 'rgba(' + base + ',' + t.a + ')';
-        ctx.fillRect(t.x, t.y, t.w, 1.5);
-      }
-      raf = requestAnimationFrame(frame);
-    }
-
-    function staticPaint() {
-      ctx.clearRect(0, 0, W, H);
-      var base = isDark() ? '233,239,234' : '19,30,30';
-      ticks.forEach(function (t) {
-        ctx.fillStyle = 'rgba(' + base + ',' + t.a + ')';
-        ctx.fillRect(t.x, t.y, t.w, 1.5);
-      });
-    }
-
-    function start() { if (!running && !reduce) { running = true; raf = requestAnimationFrame(frame); } }
-    function stop() { running = false; cancelAnimationFrame(raf); }
-
-    build();
-    if (reduce) { staticPaint(); }
-    else if ('IntersectionObserver' in window) {
-      new IntersectionObserver(function (es) {
-        es.forEach(function (en) { en.isIntersecting ? start() : stop(); });
-      }, { threshold: 0.05 }).observe(hero);
-    } else { start(); }
-    document.addEventListener('visibilitychange', function () { document.hidden ? stop() : start(); });
-    var rt;
-    window.addEventListener('resize', function () {
-      clearTimeout(rt);
-      rt = setTimeout(function () { build(); if (reduce) staticPaint(); }, 150);
-    });
-    document.getElementById('themeBtn').addEventListener('click', function () { if (reduce) staticPaint(); });
-  })();
 
   /* ===== hero selection pane ===== */
   (function () {
@@ -882,7 +869,7 @@ brief.tokens      <span class="cn">3200</span>            <span class="cm"># not
       var base = 400 + his.length * 420 + 300;
       svs.forEach(function (s, i) { timers.push(setTimeout(function () { s.classList.add('on'); }, base + i * 450)); });
       timers.push(setTimeout(countDown, base + svs.length * 450 + 150));
-      if (!reduce) timers.push(setTimeout(play, base + svs.length * 450 + 4200));
+      timers.push(setTimeout(play, base + svs.length * 450 + 4200));
     }
     if (reduce) {
       his.forEach(function (h) { h.classList.add('on'); });
@@ -961,9 +948,9 @@ brief.tokens      <span class="cn">3200</span>            <span class="cm"># not
     var dots = Array.prototype.slice.call(w.querySelectorAll('.tl-dot'));
     var role = w.querySelector('.role'), meta = w.querySelector('.meta');
     var data = [
-      { r: 'Starter — 5 seats', src: 'order form', when: 'Jan' },
-      { r: 'Growth trial — 40 seats', src: 'trial agreement', when: 'Apr' },
-      { r: 'Enterprise — 200 seats + SSO', src: 'contract v3', when: 'Jul' }
+      { r: 'JWT in the gateway', src: 'auth.md', when: 'Jan' },
+      { r: 'Session cookies (trial)', src: 'PR #451', when: 'Apr' },
+      { r: 'httpOnly cookies', src: 'PR #482', when: 'Jul' }
     ];
     function show(i) {
       dots.forEach(function (d, k) { d.classList.toggle('active', k === i); });
@@ -975,5 +962,23 @@ brief.tokens      <span class="cn">3200</span>            <span class="cm"># not
     function run() { show(i); i = (i + 1) % data.length; t.push(setTimeout(run, 2200)); }
     run();
   });
+
+  /* ===== skill maintenance demo ===== */
+  onView(document.getElementById('demoSk'), function (staticMode) {
+    var w = document.getElementById('demoSk');
+    var steps = Array.prototype.slice.call(w.querySelectorAll('.sk-step'));
+    if (staticMode) { steps.forEach(function (s) { s.classList.add('on'); }); return; }
+    var t = [];
+    function run() {
+      t.forEach(clearTimeout); t = [];
+      steps.forEach(function (s) { s.classList.remove('on'); });
+      steps.forEach(function (s, i) { t.push(setTimeout(function () { s.classList.add('on'); }, 450 + i * 850)); });
+      t.push(setTimeout(run, 450 + steps.length * 850 + 4200));
+    }
+    run();
+  });
 })();
 </script>
+
+</body>
+</html>
