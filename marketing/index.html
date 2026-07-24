@@ -295,6 +295,103 @@
   @keyframes skpulse { 0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--green) 55%, transparent); } 50% { box-shadow: 0 0 0 6px color-mix(in srgb, var(--green) 0%, transparent); } }
   @media (prefers-reduced-motion: reduce) { .sk-gate.on .btn-promote { animation: none; } }
 
+  /* LIVING PROFILE */
+  .profile-demo { border: 1px solid var(--border-strong); border-radius: 15px; background: var(--surface); overflow: hidden; box-shadow: var(--shadow); }
+  .profile-demo-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: .9rem 1.1rem; background: var(--surface-2); border-bottom: 1px solid var(--border); }
+  .profile-demo-title { display: flex; align-items: center; gap: .7rem; font-family: var(--mono); font-size: var(--step--1); font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+  .profile-demo-title .mark { width: 10px; height: 10px; border-radius: 50%; background: var(--grad); box-shadow: 0 0 0 4px color-mix(in srgb, var(--orange) 12%, transparent); }
+  .profile-demo-run { font-family: var(--mono); font-size: .62rem; color: var(--faint); }
+  .profile-demo-state { display: inline-flex; align-items: center; gap: .42rem; font-family: var(--mono); font-size: .62rem; color: var(--green); white-space: nowrap; }
+  .profile-demo-state::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--green); box-shadow: 0 0 0 3px color-mix(in srgb, var(--green) 15%, transparent); }
+  .profile-demo-state.flash { animation: profileflash .7s ease-out; }
+  @keyframes profileflash { 50% { color: var(--text); transform: translateY(-1px); } }
+  .profile-demo-grid { display: grid; grid-template-columns: 1fr 1.05fr 1.25fr; }
+  .profile-pipeline, .profile-derivation { position: relative; padding: 1.3rem 1.25rem 1.4rem; border-right: 1px solid var(--border); }
+  .profile-pipeline::after, .profile-derivation::after { content: "→"; position: absolute; z-index: 2; top: 50%; right: -.65rem; display: grid; place-items: center; width: 1.3rem; height: 1.3rem; border: 1px solid var(--border-strong); border-radius: 50%; background: var(--surface-2); color: var(--orange); font-family: var(--mono); font-size: .8rem; transform: translateY(-50%); }
+  .profile-act { font-family: var(--mono); font-size: .62rem; letter-spacing: .13em; text-transform: uppercase; color: var(--amber); }
+  .profile-pipeline h3 { font-family: var(--sans); font-size: var(--step-1); letter-spacing: 0; margin-top: .55rem; }
+  .profile-pipeline > p { color: var(--muted); font-size: var(--step--1); line-height: 1.5; margin-top: .5rem; }
+  /* left column · raw source events (arrive, then sit untouched) */
+  .profile-inbox { display: flex; flex-direction: column; gap: .5rem; margin-top: 1.2rem; min-height: 8rem; }
+  .profile-raw { --hue: var(--orange); position: relative; padding: .58rem .7rem; border: 1px solid color-mix(in srgb, var(--hue) 38%, var(--border)); border-left-width: 3px; border-radius: 8px; background: color-mix(in srgb, var(--hue) 6%, var(--surface-2)); transition: box-shadow .28s, border-color .28s, opacity .28s; }
+  .profile-raw.arrive { animation: rawarrive .55s cubic-bezier(.2,.75,.25,1) both; }
+  @keyframes rawarrive { 0% { opacity: 0; transform: translateX(-22px) scale(.96); } 60% { transform: translateX(3px); } 100% { opacity: 1; transform: none; } }
+  .profile-raw.active { border-color: var(--hue); box-shadow: 0 0 0 3px color-mix(in srgb, var(--hue) 15%, transparent); }
+  .profile-raw.done { border-color: color-mix(in srgb, var(--green) 45%, var(--border)); }
+  .profile-raw.rejected { opacity: .5; }
+  .profile-raw-head { display: flex; align-items: center; justify-content: space-between; gap: .5rem; font-family: var(--mono); font-size: .5rem; letter-spacing: .08em; text-transform: uppercase; }
+  .profile-raw-head .src { color: var(--hue); }
+  .profile-raw-head .st { color: var(--faint); white-space: nowrap; }
+  .profile-raw.active .profile-raw-head .st { color: var(--hue); }
+  .profile-raw.done .profile-raw-head .st { color: var(--green); }
+  .profile-raw.rejected .profile-raw-head .st { color: var(--faint); }
+  .profile-raw-msg { display: block; margin-top: .35rem; color: var(--text); font-size: .72rem; line-height: 1.4; }
+
+  .profile-card-wrap { padding: 1.3rem 1.25rem 1.4rem; background: linear-gradient(150deg, color-mix(in srgb, var(--green) 7%, var(--surface)), var(--surface)); }
+
+  /* middle column · linear pipeline (enrich → derive → judge light up in sequence) */
+  .profile-derivation h3 { font-family: var(--sans); font-size: var(--step-1); letter-spacing: 0; margin-top: .55rem; }
+  .profile-derivation > p { color: var(--muted); font-size: var(--step--1); line-height: 1.5; margin-top: .5rem; }
+  .pipe { list-style: none; position: relative; display: flex; flex-direction: column; gap: .6rem; margin: 1.2rem 0 0; padding: 0; }
+  .pipe::before { content: ""; position: absolute; left: 1.6rem; top: 1rem; bottom: 1rem; width: 2px; transform: translateX(-1px); background: color-mix(in srgb, var(--green) 28%, var(--border)); opacity: .5; }
+  .pipe-step { position: relative; display: grid; grid-template-columns: 1.9rem 1fr; gap: .65rem; align-items: start; padding: .6rem .65rem; border: 1px solid var(--border); border-radius: 9px; background: var(--surface-2); opacity: .5; transition: opacity .25s, border-color .25s, background .25s, transform .25s, box-shadow .25s; }
+  .pipe-num { position: relative; z-index: 1; display: grid; place-items: center; width: 1.9rem; height: 1.9rem; border: 1px solid var(--border-strong); border-radius: 6px; background: var(--surface-2); font-family: var(--mono); font-size: .6rem; color: var(--faint); transition: color .25s, border-color .25s, background .25s; }
+  .pipe-body strong { display: block; font-family: var(--mono); font-size: .66rem; text-transform: uppercase; letter-spacing: .05em; color: var(--text); }
+  .pipe-body span { display: block; margin-top: .16rem; font-size: .66rem; line-height: 1.4; color: var(--faint); }
+  .pipe-step.active { opacity: 1; border-color: color-mix(in srgb, var(--cyan) 55%, var(--border)); background: color-mix(in srgb, var(--cyan) 9%, var(--surface-2)); transform: translateX(4px); box-shadow: 0 0 0 3px color-mix(in srgb, var(--cyan) 10%, transparent); }
+  .pipe-step.active .pipe-num { color: var(--cyan); border-color: var(--cyan); }
+  .pipe-step.done { opacity: 1; border-color: color-mix(in srgb, var(--green) 35%, var(--border)); }
+  .pipe-step.done .pipe-num { color: transparent; border-color: var(--green); background: color-mix(in srgb, var(--green) 12%, var(--surface-2)); }
+  .pipe-step.done .pipe-num::after { content: "✓"; position: absolute; inset: 0; display: grid; place-items: center; color: var(--green); }
+  .pipe-result { margin-top: 1rem; padding: .62rem .7rem; border-left: 2px solid var(--border-strong); background: var(--surface-2); font-family: var(--mono); font-size: .6rem; line-height: 1.4; color: var(--muted); transition: border-color .25s; }
+  .pipe-result b { color: var(--text); }
+  .pipe-result.update { border-left-color: var(--green); }
+  .pipe-result.update b { color: var(--green); }
+  .pipe-result.reject { border-left-color: var(--faint); }
+  .pipe-result.reject b { color: var(--faint); }
+  /* right column · summary clause that just changed */
+  .profile-summary .sf { border-radius: 3px; padding: 0 .06em; }
+  .profile-summary .sf.hot { animation: sfhot 1.2s ease-out; }
+  @keyframes sfhot { 0%, 25% { background: color-mix(in srgb, var(--green) 32%, transparent); color: var(--text); } 100% { background: transparent; } }
+  .profile-card { border: 1px solid color-mix(in srgb, var(--green) 44%, var(--border)); border-radius: 11px; background: color-mix(in srgb, var(--green) 4%, var(--surface)); overflow: hidden; transition: border-color .25s, box-shadow .25s; }
+  .profile-card.pulse { border-color: var(--green); box-shadow: 0 0 0 4px color-mix(in srgb, var(--green) 10%, transparent); }
+  .profile-card.nudge { animation: cardnudge .5s ease-out; }
+  @keyframes cardnudge { 0%, 100% { transform: none; } 25% { transform: translateX(-3px); } 75% { transform: translateX(3px); } }
+  .profile-card-top { display: flex; align-items: flex-start; justify-content: space-between; gap: .8rem; padding: 1rem 1rem .85rem; border-bottom: 1px solid var(--border); }
+  .profile-person { font-family: var(--mono); font-size: .78rem; color: var(--text); font-weight: 700; text-transform: uppercase; letter-spacing: .06em; }
+  .profile-company { display: block; color: var(--muted); font-size: .68rem; font-weight: 400; letter-spacing: 0; text-transform: none; margin-top: .15rem; }
+  .profile-live { font-family: var(--mono); color: var(--green); font-size: .56rem; letter-spacing: .1em; text-transform: uppercase; border: 1px solid color-mix(in srgb, var(--green) 50%, var(--border)); border-radius: 20px; padding: .22rem .45rem; white-space: nowrap; }
+  .profile-summary { padding: 1rem 1rem .85rem; color: var(--text); font-size: .84rem; line-height: 1.5; }
+  .profile-summary.changing { animation: summarychange .85s ease-out; }
+  @keyframes summarychange { 0% { opacity: .35; transform: translateY(5px); } 35% { color: var(--green); } 100% { opacity: 1; transform: none; } }
+  .profile-summary::before { content: "“"; color: var(--green); font-family: Georgia, serif; font-size: 1.5em; line-height: 0; vertical-align: -.18em; margin-right: .15em; }
+  .profile-slots { display: flex; flex-direction: column; gap: .45rem; padding: 0 1rem 1rem; }
+  .profile-slot { display: grid; grid-template-columns: 6.1rem minmax(0, 1fr) auto; gap: .55rem; align-items: baseline; padding-top: .48rem; border-top: 1px solid var(--border); }
+  .profile-slot .label { font-family: var(--mono); font-size: .58rem; color: var(--green); text-transform: uppercase; letter-spacing: .08em; }
+  .profile-slot .value { min-width: 0; color: var(--text); font-size: .72rem; line-height: 1.35; }
+  .profile-slot .cite { font-family: var(--mono); color: var(--faint); font-size: .55rem; white-space: nowrap; }
+  .profile-slot.quiet .value, .profile-slot.quiet .cite { color: var(--faint); }
+  .profile-slot.changed { animation: slotchange 1s ease-out; }
+  @keyframes slotchange { 0%, 35% { background: color-mix(in srgb, var(--green) 22%, transparent); } 100% { background: transparent; } }
+  .profile-update { margin: 0 1rem 1rem; padding: .65rem .7rem; border-left: 2px solid var(--amber); background: color-mix(in srgb, var(--amber) 8%, var(--surface-2)); color: var(--muted); font-size: .7rem; line-height: 1.4; }
+  .profile-update .update-label { display: block; font-family: var(--mono); font-size: .55rem; letter-spacing: .1em; text-transform: uppercase; color: var(--amber); margin-bottom: .2rem; }
+  @media (max-width: 980px) {
+    .profile-demo-grid { grid-template-columns: 1fr; }
+    .profile-pipeline, .profile-derivation { border-right: 0; border-bottom: 1px solid var(--border); }
+    .profile-pipeline::after, .profile-derivation::after { content: "↓"; top: auto; right: 50%; bottom: -.65rem; transform: translateX(50%); }
+  }
+  @media (max-width: 560px) {
+    .profile-demo-head { align-items: flex-start; flex-direction: column; gap: .45rem; }
+    .profile-demo-run { display: none; }
+    .profile-pipeline, .profile-derivation, .profile-card-wrap { padding-inline: .9rem; }
+    .profile-inbox, .pipe { margin-top: 1rem; }
+    .profile-slot { grid-template-columns: 1fr auto; gap: .25rem .55rem; }
+    .profile-slot .label { grid-column: 1; }
+    .profile-slot .cite { grid-column: 2; grid-row: 1; }
+    .profile-slot .value { grid-column: 1 / -1; grid-row: 2; }
+  }
+  @media (prefers-reduced-motion: reduce) { .profile-demo-state.flash { animation: none; } .profile-summary.changing, .profile-summary .sf.hot, .profile-slot.changed, .profile-raw.arrive, .profile-card.nudge { animation: none; } .profile-card, .pipe-step, .profile-raw { transition: none; } }
+
   /* BENCHMARKS */
   .bench { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: var(--border); border: 1px solid var(--border); border-radius: 13px; overflow: hidden; }
   @media (max-width: 820px) { .bench { grid-template-columns: repeat(2, 1fr); } }
@@ -409,7 +506,8 @@
       <a href="#why" class="hide-sm">Why not RAG</a>
       <a href="#kit" class="hide-sm">The kit</a>
       <a href="#benchmarks" class="hide-sm">Benchmarks</a>
-      <a href="#devmem" class="hide-sm">Coding agents</a>
+      <a href="#devmem" class="hide-sm">Agents</a>
+      <a href="#living-profile" class="hide-sm">Living profile</a>
       <a href="#faq" class="hide-sm">FAQ</a>
       <button class="theme-toggle" id="themeBtn" aria-label="Toggle color theme">THEME</button>
       <a href="#waitlist" class="nav-cta">Join the waitlist</a>
@@ -422,7 +520,7 @@
   <section class="hero">
     <div class="wrap hero-grid">
       <div>
-        <span class="eyebrow">Memory layer for coding agents</span>
+        <span class="eyebrow">Memory layer for agents</span>
         <h1>
           Your agent keeps re-suggesting <span class="dim">what the team rejected in March.</span>
           Memseek remembers <span class="grad">what's true now.</span>
@@ -546,13 +644,13 @@
         <article class="demo reveal" id="demoRfl">
           <div class="demo-h"><span class="verb">digest</span><h3>Distills patterns into insight</h3><p>Reads many small signals and writes one higher-level, cited takeaway.</p></div>
           <div class="demo-body">
-            <div class="rfl-card"><span class="tag">digest · cites 4 signals</span><div class="ins">"Prefers small, reviewed PRs over big drops."</div></div>
+            <div class="rfl-card"><span class="tag">digest · cites 4 signals</span><div class="ins">"Prefers a quick call over long email threads."</div></div>
             <div class="rfl-up" aria-hidden="true">↑ synthesized from</div>
             <div class="rfl-mems">
-              <div class="mem">Split a 900-line PR on request</div>
-              <div class="mem">Asked for smaller commits twice</div>
-              <div class="mem">Reverted a large refactor</div>
-              <div class="mem">Praised an incremental migration</div>
+              <div class="mem">Answered calls within a minute</div>
+              <div class="mem">Left three email threads unread</div>
+              <div class="mem">Said "just call me next time"</div>
+              <div class="mem">Thanked us for a two-line recap</div>
             </div>
           </div>
         </article>
@@ -560,10 +658,10 @@
           <div class="demo-h"><span class="verb">conflict</span><h3>Catches beliefs that collide</h3><p>When new evidence contradicts the old, it's flagged — and the current, cited fact wins.</p></div>
           <div class="demo-body">
             <div class="cd">
-              <div class="fact2 f-old"><span class="val">Auth: JWT in gateway</span><span class="when">Jan</span></div>
-              <div class="fact2 f-new"><span class="val">Auth: httpOnly cookies</span><span class="when">Mar</span></div>
+              <div class="fact2 f-old"><span class="val">Plan: Pro, monthly</span><span class="when">Jan</span></div>
+              <div class="fact2 f-new"><span class="val">Plan: Enterprise, annual</span><span class="when">Mar</span></div>
               <div class="cd-warn">⚡ superseded — resolved</div>
-              <div class="cd-now"><span class="fk">served now</span><b>httpOnly cookies</b> · cites PR #482</div>
+              <div class="cd-now"><span class="fk">served now</span><b>Enterprise, annual</b> · cites the Mar renewal</div>
             </div>
           </div>
         </article>
@@ -577,9 +675,9 @@
                 <div class="tl-dot"><span class="d"></span>Jul</div>
               </div>
               <div class="tl-readout">
-                <span class="fk">auth pattern, as of then</span>
-                <div class="role">Session cookies (trial)</div>
-                <div class="meta">as of Apr · source <b>PR #451</b></div>
+                <span class="fk">title, as of then</span>
+                <div class="role">Team Lead, Support</div>
+                <div class="meta">as of Apr · source <b>the Apr org note</b></div>
               </div>
             </div>
           </div>
@@ -588,17 +686,71 @@
           <div class="demo-h"><span class="verb">maintain</span><h3>Improves the skill from feedback</h3><p>Turns what real work taught into a cited draft — and leaves the decision to ship it with you.</p></div>
           <div class="demo-body">
             <div class="sk">
-              <div class="sk-ev sk-step"><span class="ek">exception · INC-2417</span>Paged 18 min late — the "wait for monitoring" rule blocked it</div>
+              <div class="sk-ev sk-step"><span class="ek">exception · case #8842</span>A loyal customer waited a day — the "escalate every refund over $200" rule held it up</div>
               <div class="sk-up sk-step" aria-hidden="true">↓ skill pipeline drafts · cites 2 records</div>
               <div class="sk-diff sk-step">
                 <span class="dk">pitfalls · draft</span>
-                <div class="dl del">− wait for monitoring to confirm before paging</div>
-                <div class="dl add">+ two matching customer reports = confirmation; page now</div>
+                <div class="dl del">− escalate every refund over $200</div>
+                <div class="dl add">+ repeat customers under $500 → approve on the spot</div>
               </div>
               <div class="sk-gate sk-step"><span class="gk">your call</span><span class="btn-promote">promote →</span><span class="ghint">nothing goes live until you do</span></div>
             </div>
           </div>
         </article>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ LIVING PROFILE DEMO ============ -->
+  <section id="living-profile" class="alt">
+    <div class="wrap">
+      <div class="sec-head reveal">
+        <span class="eyebrow" style="--hue:var(--amber)">from the living profile</span>
+        <h2>A CRM memory that rewrites itself.</h2>
+        <p>Seed an account playbook and a few CRM events. Memseek scores the signal, keeps the receipts, and derives a profile that stays current as new evidence arrives.</p>
+      </div>
+
+      <div class="profile-demo reveal" id="profileDemo">
+        <div class="profile-demo-head">
+          <div class="profile-demo-title"><span class="mark"></span><span>the living profile</span><span class="profile-demo-run">· run 8770fd</span></div>
+          <span class="profile-demo-state" id="profileState">live · self-updating</span>
+        </div>
+        <div class="profile-demo-grid">
+          <div class="profile-pipeline">
+            <span class="profile-act">1 · source events</span>
+            <h3>Raw events arrive.</h3>
+            <p>CRM notes, closed deals, calls, chatter — each lands as raw evidence and stays untouched here.</p>
+            <div class="profile-inbox" id="profileInbox" aria-label="Incoming source events"></div>
+          </div>
+
+          <div class="profile-derivation">
+            <span class="profile-act">2 · memory pipeline</span>
+            <h3>Enrich, derive, judge.</h3>
+            <p>Each batch runs through the same three steps, top to bottom, before anything changes.</p>
+            <ol class="pipe" id="profilePipe" aria-label="Memory pipeline steps">
+              <li class="pipe-step" data-step="enrich"><span class="pipe-num">01</span><div class="pipe-body"><strong>enrich</strong><span>Extract type, date, source, confidence.</span></div></li>
+              <li class="pipe-step" data-step="derive"><span class="pipe-num">02</span><div class="pipe-body"><strong>derive</strong><span>Compare against the current profile.</span></div></li>
+              <li class="pipe-step" data-step="judge"><span class="pipe-num">03</span><div class="pipe-body"><strong>judge</strong><span>Decide whether it becomes truth.</span></div></li>
+            </ol>
+            <div class="pipe-result" id="profilePipeResult"><b>ready</b> · waiting for events</div>
+          </div>
+
+          <div class="profile-card-wrap">
+            <div class="profile-card" id="profileCard">
+              <div class="profile-card-top">
+                <div class="profile-person">Avery Chen<span class="profile-company">Acme Cloud</span></div>
+                <span class="profile-live">current</span>
+              </div>
+              <p class="profile-summary" id="profileSummary">Avery Chen is <span class="sf" data-sf="role">VP of Product at Acme Cloud, owning enterprise collaboration</span>; the Acme Cloud account has <span class="sf" data-sf="sales">$0</span> in new bookings this quarter; and Avery prefers <span class="sf" data-sf="preferences">concise written updates the day before any call</span>.</p>
+              <div class="profile-slots">
+                <div class="profile-slot" data-profile-slot="role"><span class="label">role</span><span class="value">VP of Product at Acme Cloud, owning enterprise collaboration.</span><span class="cite">1 cited</span></div>
+                <div class="profile-slot quiet" data-profile-slot="sales"><span class="label">new bookings</span><span class="value">$0 — no deals logged this quarter.</span><span class="cite">—</span></div>
+                <div class="profile-slot" data-profile-slot="preferences"><span class="label">comms</span><span class="value">Concise written updates the day before any call.</span><span class="cite">1 cited</span></div>
+              </div>
+              <div class="profile-update" aria-live="polite"><span class="update-label">latest self-update</span><span id="profileUpdate">profile seeded · role, comms · each with a source</span></div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </section>
@@ -662,7 +814,7 @@ pitfalls: [&hellip;]</pre></article>
     <div class="wrap feature-grid">
       <div class="reveal">
         <span class="eyebrow" style="--hue:var(--amber)">first product</span>
-        <h2>Living memory for coding agents.</h2>
+        <h2>Living memory for agents.</h2>
         <p>Keep an accurate, evolving understanding of how a team actually builds — so the agent stops re-suggesting what was already rejected.</p>
         <ul class="devmem-list">
           <li><span class="m">›</span>Developer preferences</li>
@@ -760,7 +912,7 @@ ctx.tokens      <span class="cn">3200</span>            <span class="cm"># not 1
             marginwidth="0"
             title="Join the Memseek waitlist"></iframe>
         </div>
-        <span class="cta-note">Early access for coding-agent teams</span>
+        <span class="cta-note">Early access for agent teams</span>
         <noscript><p class="waitlist-fallback"><a href="https://tally.so/r/EkrGDN">Join the Memseek waitlist</a></p></noscript>
       </div>
     </div>
@@ -774,7 +926,8 @@ ctx.tokens      <span class="cn">3200</span>            <span class="cm"># not 1
       <a href="#why">Why not RAG</a>
       <a href="#kit">The kit</a>
       <a href="#benchmarks">Benchmarks</a>
-      <a href="#devmem">Coding agents</a>
+      <a href="#devmem">Agents</a>
+      <a href="#living-profile">Living profile</a>
       <a href="#faq">FAQ</a>
     </div>
     <div>AI memory infrastructure</div>
@@ -878,6 +1031,243 @@ if (typeof Tally !== "undefined") {
     } else { play(); }
   })();
 
+  /* ===== living profile demo ===== */
+  (function () {
+    var demo = document.getElementById('profileDemo');
+    if (!demo) return;
+    var card = document.getElementById('profileCard');
+    var state = document.getElementById('profileState');
+    var summary = document.getElementById('profileSummary');
+    var update = document.getElementById('profileUpdate');
+    var pipe = document.getElementById('profilePipe');
+    var result = document.getElementById('profilePipeResult');
+    var inbox = document.getElementById('profileInbox');
+    var steps = Array.prototype.slice.call(pipe.querySelectorAll('.pipe-step'));
+
+    // Current, self-updating profile. The scripted scenes below keep it current.
+    var profile = {
+      role: 'VP of Product at Acme Cloud, owning enterprise collaboration',
+      sales: 0,   // thousands of USD in new bookings this quarter
+      preferences: 'concise written updates the day before any call'
+    };
+    function fmtSales(k) { return '$' + k + 'K'; }
+
+    // Ordered storyline: raw events arrive → the pipeline runs top-to-bottom →
+    // the profile updates (or, for noise, is left unchanged).
+    var SCENES = [
+      {
+        events: [
+          { src: 'Salesforce', kind: 'crm update', hue: 'var(--orange)',
+            msg: 'Avery Chen promoted to SVP — now leads product and design.' }
+        ],
+        outcome: 'update', field: 'role',
+        value: 'SVP of Product at Acme Cloud, leading product and design',
+        slot: { value: 'SVP of Product at Acme Cloud, leading product and design.', cite: 'promotion · cited' },
+        note: 'role promoted · SVP of Product · cites the promotion event',
+        result: 'role slot replaced · now current truth'
+      },
+      {
+        events: [
+          { src: 'Salesforce', kind: 'closed-won', hue: 'var(--cyan)', amount: 120, msg: 'Closed-won: Acme Retail rollout — $120K.' },
+          { src: 'Salesforce', kind: 'closed-won', hue: 'var(--cyan)', amount: 85,  msg: 'Closed-won: Northwind expansion — $85K.' },
+          { src: 'Salesforce', kind: 'expansion',  hue: 'var(--cyan)', amount: 45,  msg: 'Expansion: Globex add-on seats — $45K.' },
+          { src: 'Salesforce', kind: 'new logo',   hue: 'var(--cyan)', amount: 60,  msg: 'New logo: Initech pilot — $60K.' }
+        ],
+        outcome: 'sum', field: 'sales',
+        note: '4 sales events merged · summed into new bookings · each with a source',
+        result: '4 events summed → new-bookings slot updated'
+      },
+      {
+        events: [
+          { src: 'Slack', kind: 'chat', hue: 'var(--faint)', msg: '“thanks, talk soon 👋”' }
+        ],
+        outcome: 'reject',
+        note: 'chat noise · no durable signal · profile unchanged',
+        result: 'no durable signal → profile unchanged'
+      },
+      {
+        events: [
+          { src: 'Gong', kind: 'call note', hue: 'var(--violet)',
+            msg: 'Call note: Avery wants a short written recap before every call.' }
+        ],
+        outcome: 'update', field: 'preferences',
+        value: 'a short written recap before every call',
+        slot: { value: 'Short written recap before every call.', cite: 'Gong call · cited' },
+        note: 'preference refined · cites the latest Gong call',
+        result: 'comms slot replaced · now current truth'
+      }
+    ];
+
+    var timers = [];
+    function at(ms, fn) { timers.push(setTimeout(fn, ms)); }
+    function clearTimers() { timers.forEach(clearTimeout); timers = []; }
+    function reAnimate(el, cls) { el.classList.remove(cls); void el.offsetWidth; el.classList.add(cls); }
+
+    function summaryHTML() {
+      return 'Avery Chen is <span class="sf" data-sf="role">' + profile.role + '</span>; '
+        + 'the Acme Cloud account has <span class="sf" data-sf="sales">' + fmtSales(profile.sales) + '</span> in new bookings this quarter; '
+        + 'and Avery prefers <span class="sf" data-sf="preferences">' + profile.preferences + '</span>.';
+    }
+    function renderSummary(hotField) {
+      summary.innerHTML = summaryHTML();
+      reAnimate(summary, 'changing');
+      if (hotField) { var s = summary.querySelector('[data-sf="' + hotField + '"]'); if (s) s.classList.add('hot'); }
+    }
+
+    function setResult(cls, label, msg) {
+      result.className = 'pipe-result' + (cls ? ' ' + cls : '');
+      result.innerHTML = '<b>' + label + '</b> · ' + msg;
+    }
+
+    // -1 none active; 0..2 that step active + earlier ones done; 3 all done.
+    function setSteps(activeIndex) {
+      steps.forEach(function (el, i) {
+        el.classList.toggle('active', i === activeIndex);
+        el.classList.toggle('done', i < activeIndex);
+      });
+    }
+
+    // Render the scene's raw events into the inbox with a staggered arrival.
+    function renderEvents(events) {
+      inbox.innerHTML = '';
+      events.forEach(function (ev, i) {
+        var el = document.createElement('div');
+        el.className = 'profile-raw';
+        el.style.setProperty('--hue', ev.hue || 'var(--orange)');
+        el.style.opacity = '0';
+        el.innerHTML = '<span class="profile-raw-head"><span class="src">' + ev.src
+          + '</span><span class="st" data-st>incoming</span></span>'
+          + '<span class="profile-raw-msg">' + ev.msg + '</span>';
+        inbox.appendChild(el);
+        at(120 + i * 160, function () { el.style.opacity = ''; reAnimate(el, 'arrive'); });
+      });
+    }
+    function setRaw(label, cls) {
+      Array.prototype.slice.call(inbox.querySelectorAll('.profile-raw')).forEach(function (c) {
+        c.classList.remove('active', 'done', 'rejected');
+        if (cls) c.classList.add(cls);
+        var st = c.querySelector('[data-st]'); if (st) st.textContent = label;
+      });
+    }
+
+    function afterPromote(scene) {
+      setRaw('promoted', 'done');
+      update.textContent = scene.note;
+      state.textContent = 'profile updated';
+      reAnimate(state, 'flash');
+      card.classList.add('pulse');
+      at(900, function () { card.classList.remove('pulse'); });
+    }
+
+    function applyUpdate(scene) {
+      profile[scene.field] = scene.value;
+      var slot = demo.querySelector('[data-profile-slot="' + scene.field + '"]');
+      if (slot) {
+        slot.querySelector('.value').textContent = scene.slot.value;
+        slot.querySelector('.cite').textContent = scene.slot.cite;
+        slot.classList.remove('quiet');
+        reAnimate(slot, 'changed');
+      }
+      renderSummary(scene.field);
+      afterPromote(scene);
+    }
+
+    // Sum several events into one numeric slot, ticking the total up per event.
+    function applySum(scene) {
+      var slot = demo.querySelector('[data-profile-slot="sales"]');
+      var valEl = slot ? slot.querySelector('.value') : null;
+      var amounts = scene.events.map(function (e) { return e.amount; });
+      var total = 0;
+      if (slot) slot.classList.remove('quiet');
+      amounts.forEach(function (amt, i) {
+        at(i * 240, function () {
+          total += amt;
+          profile.sales = total;
+          if (valEl) valEl.textContent = fmtSales(total) + ' committed this quarter · ' + (i + 1) + ' of ' + amounts.length + ' deals.';
+          renderSummary('sales');
+        });
+      });
+      at(amounts.length * 240 + 140, function () {
+        if (valEl) valEl.textContent = fmtSales(total) + ' committed this quarter · ' + amounts.length + ' closed-won deals.';
+        if (slot) { slot.querySelector('.cite').textContent = amounts.length + ' events · cited'; reAnimate(slot, 'changed'); }
+        renderSummary('sales');
+        afterPromote(scene);
+      });
+    }
+
+    function applyReject(scene) {
+      setRaw('discarded', 'rejected');
+      update.textContent = scene.note;
+      state.textContent = 'no change';
+      reAnimate(state, 'flash');
+      reAnimate(card, 'nudge');
+    }
+
+    // Play one scene, then invoke done().
+    function runScene(scene, done) {
+      var many = scene.events.length > 1;
+      setSteps(-1);
+      setResult('', 'received', 'raw evidence entering the memory layer');
+      state.textContent = 'event' + (many ? 's' : '') + ' arrived';
+      renderEvents(scene.events);
+      var base = 300 + scene.events.length * 160;   // let the events land first
+
+      at(base,        function () { setRaw('processing', 'active'); });
+      at(base + 200,  function () { setSteps(0); setResult('', 'enrich', 'extract type, date, source, confidence'); state.textContent = 'enriching'; });
+      at(base + 1200, function () { setSteps(1); setResult('', 'derive', 'compare against the current profile'); state.textContent = 'deriving'; });
+      at(base + 2200, function () { setSteps(2); setResult('', 'judge', 'decide whether it becomes truth'); state.textContent = 'judging'; });
+      at(base + 3200, function () {
+        setSteps(3);
+        if (scene.outcome === 'reject') { setResult('reject', 'no change', scene.result); applyReject(scene); }
+        else { setResult('update', 'updated', scene.result); (scene.outcome === 'sum' ? applySum : applyUpdate)(scene); }
+      });
+      at(base + 5600, function () { state.textContent = 'live · self-updating'; done(); });
+    }
+
+    var si = 0;
+    function loop() {
+      clearTimers();
+      runScene(SCENES[si], function () { si = (si + 1) % SCENES.length; loop(); });
+    }
+
+    // Reduced motion / no animation: show the fully-updated resting profile at once.
+    function finalState() {
+      SCENES.forEach(function (scene) {
+        if (scene.outcome === 'update') {
+          profile[scene.field] = scene.value;
+          var slot = demo.querySelector('[data-profile-slot="' + scene.field + '"]');
+          if (slot) { slot.querySelector('.value').textContent = scene.slot.value; slot.querySelector('.cite').textContent = scene.slot.cite; slot.classList.remove('quiet'); }
+        } else if (scene.outcome === 'sum') {
+          var total = scene.events.reduce(function (a, e) { return a + e.amount; }, 0);
+          profile.sales = total;
+          var s = demo.querySelector('[data-profile-slot="sales"]');
+          if (s) { s.querySelector('.value').textContent = fmtSales(total) + ' committed this quarter · ' + scene.events.length + ' closed-won deals.'; s.querySelector('.cite').textContent = scene.events.length + ' events · cited'; s.classList.remove('quiet'); }
+        }
+      });
+      renderEvents(SCENES[0].events);
+      setRaw('cited', 'done');
+      renderSummary();
+      setSteps(3);
+      setResult('update', 'current', 'all events processed · profile up to date');
+      update.textContent = 'profile current · role, new bookings, comms · each with a source';
+      state.textContent = 'live · self-updating';
+    }
+
+    summary.innerHTML = summaryHTML();   // normalize first paint
+    function begin() { if (reduce) finalState(); else loop(); }
+
+    // Begin when the demo scrolls into view. Low threshold so it also fires on
+    // narrow screens where the stacked demo is taller than the viewport.
+    if (reduce || !('IntersectionObserver' in window)) {
+      begin();
+    } else {
+      var ob = new IntersectionObserver(function (es) {
+        es.forEach(function (en) { if (en.isIntersecting) { begin(); ob.unobserve(en.target); } });
+      }, { threshold: 0.15 });
+      ob.observe(demo);
+    }
+  })();
+
   /* ===== benchmark count-ups ===== */
   onView(document.getElementById('benchGrid'), function (staticMode) {
     var nums = Array.prototype.slice.call(document.querySelectorAll('#benchGrid [data-count]'));
@@ -948,9 +1338,9 @@ if (typeof Tally !== "undefined") {
     var dots = Array.prototype.slice.call(w.querySelectorAll('.tl-dot'));
     var role = w.querySelector('.role'), meta = w.querySelector('.meta');
     var data = [
-      { r: 'JWT in the gateway', src: 'auth.md', when: 'Jan' },
-      { r: 'Session cookies (trial)', src: 'PR #451', when: 'Apr' },
-      { r: 'httpOnly cookies', src: 'PR #482', when: 'Jul' }
+      { r: 'Support Specialist', src: 'the Jan intro call', when: 'Jan' },
+      { r: 'Team Lead, Support', src: 'the Apr org note', when: 'Apr' },
+      { r: 'Manager, Customer Success', src: 'the Jul promotion', when: 'Jul' }
     ];
     function show(i) {
       dots.forEach(function (d, k) { d.classList.toggle('active', k === i); });
