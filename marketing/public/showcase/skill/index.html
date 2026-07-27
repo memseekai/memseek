@@ -1,0 +1,377 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="Real outcomes become a cited draft revision of an agent's playbook — and a human decides whether it ships. Nothing the model writes goes live on its own." />
+    <title>The maintained skill — memseek</title>
+    <link rel="canonical" href="https://memseek.pages.dev/showcase/skill/" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Memseek" />
+    <meta property="og:title" content="The maintained skill — memseek" />
+    <meta property="og:description" content="Real outcomes become a cited draft revision of an agent's playbook — and a human decides whether it ships. Nothing the model writes goes live on its own." />
+    <meta property="og:url" content="https://memseek.pages.dev/showcase/skill/" />
+    <meta property="og:image" content="https://memseek.pages.dev/og-default.png" />
+    <meta name="twitter:card" content="summary_large_image" />
+
+    <!-- Applied before first paint so a light-theme reader never sees a dark flash. -->
+    <script>
+      try {
+        var t = localStorage.getItem('ms-theme');
+        if (t === 'dark' || t === 'light') document.documentElement.setAttribute('data-theme', t);
+        else if (window.matchMedia('(prefers-color-scheme: light)').matches)
+          document.documentElement.setAttribute('data-theme', 'light');
+      } catch (e) {}
+    </script>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="../showcase.css" />
+    <link rel="stylesheet" href="../showcase-page.css" />
+  </head>
+  <body>
+    <script>document.documentElement.className += ' js';</script>
+    <a class="skip" href="#main">Skip to content</a>
+
+    <header class="nav">
+      <div class="wrap nav-inner">
+        <a class="brand" href="/">memseek<span class="caret">▌</span></a>
+        <nav class="nav-right">
+          <a class="navlink" href="#install">The skill</a>
+          <a class="navlink" href="#bind">Bind a use</a>
+          <a class="navlink" href="#report">Report outcomes</a>
+          <a class="navlink" href="#draft">The draft & the gate</a>
+          <a class="navlink" href="#use">From your app</a>
+          <a class="navlink" href="/showcase/">All showcases</a>
+          <button class="theme-toggle" id="theme" type="button" aria-label="Toggle colour theme">
+            <svg class="moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+            <svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+          </button>
+          <a class="nav-cta" href="#start">Start building</a>
+        </nav>
+      </div>
+    </header>
+
+    <main id="main">
+      <!-- ============ hero ============ -->
+      <section class="hero" id="top" style="--hue: var(--green)">
+        <div class="wrap hero-grid">
+          <div>
+            <p class="eyebrow">worked example · skill maintenance</p>
+            <h1>A skill that learns from <span class="grad">what actually happened.</span></h1>
+            <p class="lede">A support assistant runs on a playbook: keyed <code>steps</code>, <code>pitfalls</code>, and <code>examples</code>. One rule keeps backfiring. Here is the loop that fixes it — evidence, a cited draft, and a human gate that the model cannot open.</p>
+            <div class="hero-cta">
+              <a class="btn btn-primary" href="#install">Follow the loop <span aria-hidden="true">→</span></a>
+              <a class="btn btn-ghost" href="#draft">See the gate</a>
+            </div>
+            <p class="cta-note" style="margin-top:1.1rem">one ID to remember · nothing promoted automatically</p>
+          </div>
+
+          <div class="panel rv">
+            <div class="panel-head">
+              <span class="t">maintained_skill · candidate</span>
+              <span class="badge" style="--bh: var(--amber)">awaiting review</span>
+            </div>
+            <div class="panel-body">
+              <div class="diff">
+                <span class="dk">pitfalls · drafted from 3 cited signals</span>
+                <div class="dl del">− attach a discount code to every refund reply</div>
+                <div class="dl add">+ when the charge was our own error, apologise and refund in full — no discount code</div>
+                <div class="dl keep">= steps, examples unchanged</div>
+              </div>
+              <div class="gate" style="margin-top:.85rem">
+                <span class="gk">your call</span>
+                <span class="go">promote →</span>
+                <span class="hint">the assistant keeps running the old skill until you do</span>
+              </div>
+            </div>
+            <div class="panel-foot">The model wrote the draft. It cannot ship it.</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ install ============ -->
+      <section class="region" id="install" style="--hue: var(--green)">
+        <div class="wrap">
+          <div class="region-head rv">
+            <p class="eyebrow">01 · the skill</p>
+            <h2>A playbook is three keyed records.</h2>
+            <p class="lede">Not a prompt string in your codebase — records in a keyed collection, so the playbook has versions, provenance, and a current head the agent reads at render time.</p>
+          </div>
+
+          <div class="work rv">
+            <div class="panel">
+              <div class="panel-head"><span class="t">skills · keyed · active now</span><span class="badge" style="--bh: var(--green)">one current version per key</span></div>
+              <div class="panel-body">
+                <div class="kcard" style="--hue: var(--green); border:0; background:transparent">
+                  <div class="slot"><span class="lab">steps</span><span class="val">Read the charge history · confirm the error class · draft the reply · attach the credit</span><span class="cite">v1</span></div>
+                  <div class="slot"><span class="lab">pitfalls</span><span class="val">Attach a discount code to every refund reply</span><span class="cite">v1</span></div>
+                  <div class="slot"><span class="lab">examples</span><span class="val">Two worked refunds, one partial and one full</span><span class="cite">v1</span></div>
+                </div>
+              </div>
+            </div>
+            <div>
+              <div class="surface-head"><span>why keyed, not a prompt file</span><span>4 consequences</span></div>
+              <div class="trow"><span class="n">supersede</span><span class="kd">records</span><span class="bind">→ rewrite ≠ overwrite</span><p>A new version of <code>pitfalls</code> supersedes the old one. The old one is still addressable, so "what was the playbook in March?" has an answer.</p></div>
+              <div class="trow"><span class="n">render</span><span class="kd">artifact</span><span class="bind">→ maintained_skill@1</span><p>The agent never reads the collection directly. It renders an artifact, which pins the exact heads it used.</p></div>
+              <div class="trow"><span class="n">improve</span><span class="kd">derivation</span><span class="bind">→ skill</span><p>A derivation can propose a new version of any of the three keys — but only as a draft.</p></div>
+              <div class="trow"><span class="n">audit</span><span class="kd">runs</span><span class="bind">→ every change has a run</span><p>Each version names the run that wrote it and the evidence that run stood on.</p></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ bind ============ -->
+      <section class="region" id="bind" style="--hue: var(--cyan)">
+        <div class="wrap">
+          <div class="region-head rv">
+            <p class="eyebrow">02 · bind a use</p>
+            <h2>One short ID is all your app remembers.</h2>
+            <p class="lede">Rendering the prompt gives you text. <em>Binding</em> the render gives you a handle: the artifact identity, its content hash, and the exact promoted skill heads that were in force when the assistant ran. Store that ID beside your own result and you are done.</p>
+          </div>
+
+          <div class="work flip rv">
+            <div>
+              <ul class="flow" style="--hue: var(--cyan)">
+                <li><span class="n">01</span><div><b>the artifact declares its learning target</b><span>Feedback about this prompt is about the skill it carried — not the calendar, not the retrieved memory. The artifact says so, once.</span></div></li>
+                <li><span class="n">02</span><div><b>the bind resolves it</b><span>You get back a use ID plus the promoted skill version that produced this exact render.</span></div></li>
+                <li><span class="n">03</span><div><b>deliberately not observability</b><span>A use holds no prompt, no response, no tool calls, no token counts, no spans. It expires on a retention setting.</span></div></li>
+                <li><span class="n">04</span><div><b>correlation stays optional</b><span>OpenTelemetry integration is a bounded map of scalar attributes and an optional dependency — the SDK works without it.</span></div></li>
+              </ul>
+            </div>
+            <div class="panel">
+              <div class="panel-head"><span class="t">artifacts/agent_prompt.yaml</span><span class="badge" style="--bh: var(--cyan)">learning target</span></div>
+<pre class="code"><span class="k">artifacts</span>:
+  - <span class="k">name</span>: daily_agent_prompt
+    <span class="k">kind</span>: prompt
+    <span class="k">lifecycle</span>: live
+    <span class="k">blocks</span>:
+      <span class="k">skill</span>:    {<span class="k">document</span>: {<span class="k">collections</span>: [skills]}}
+      <span class="k">calendar</span>: {<span class="k">view</span>: upcoming_calendar@1}
+      <span class="k">memory</span>:   {<span class="k">view</span>: agent_relevant_memory@1}
+    <span class="c"># Feedback about a render of this prompt is about the
+    # maintained skill it carried, not about the calendar or the
+    # retrieved memory. Binding a use resolves this to the exact
+    # promoted skill heads that were in force.</span>
+    <span class="k">learning</span>:
+      <span class="k">target_block</span>: skill
+      <span class="k">artifact</span>: maintained_skill@1</pre>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ report ============ -->
+      <section class="region" id="report" style="--hue: var(--amber)">
+        <div class="wrap">
+          <div class="region-head rv">
+            <p class="eyebrow">03 · report what happened</p>
+            <h2>Outcomes become ordinary records.</h2>
+            <p class="lede">A thumbs-down, a correction, an evaluation score, a task result — each one lands as a <code>learning_signals</code> record naming the precise skill version that produced the bad reply. No special store, no privileged pipeline.</p>
+          </div>
+
+          <div class="work rv">
+            <div class="panel">
+              <div class="panel-head"><span class="t">learning_signals · from one use ID</span><span class="badge" style="--bh: var(--amber)">cited to a version</span></div>
+              <div class="panel-body">
+                <div class="ev" style="--hue: var(--amber)">
+                  <div class="meta"><span class="src">thumbs_down</span><span class="sc">case #8842</span></div>
+                  <span class="tx">Discount code attached to a refund that was our own billing error. Customer read it as an insult.</span>
+                </div>
+                <div class="ev" style="--hue: var(--amber)">
+                  <div class="meta"><span class="src">correction</span><span class="sc">expected reply</span></div>
+                  <span class="tx">"We've refunded the full charge and fixed the cause. No code needed."</span>
+                </div>
+                <div class="ev" style="--hue: var(--amber)">
+                  <div class="meta"><span class="src">evaluation</span><span class="sc">score 0.2</span></div>
+                  <span class="tx">Tone mismatch on company-error refunds, third occurrence this month.</span>
+                </div>
+              </div>
+            </div>
+            <div>
+              <div class="surface-head"><span>the one step memseek leaves to you</span><span>routing</span></div>
+              <div class="trow"><span class="n">signals land</span><span class="kd">automatic</span><span class="bind">→ learning_signals</span><p>Submitting an outcome against a use ID always writes a record. That part needs no decision.</p></div>
+              <div class="trow"><span class="n">what counts as evidence</span><span class="kd">yours</span><span class="bind">→ your routing rule</span><p>Whether a single thumbs-down is worth revising a playbook — or whether it takes three, or a score below a threshold — is a product judgement, so the catalog does not guess it. Your application routes the signals it considers evidence into the collection the skill pipeline watches.</p></div>
+              <div class="trow"><span class="n">nothing implicit</span><span class="kd">by design</span><span class="bind">→ no auto-promotion</span><p>A signal never changes the skill on its own, and never promotes anything.</p></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ draft ============ -->
+      <section class="region" id="draft" style="--hue: var(--green)">
+        <div class="wrap">
+          <div class="region-head rv">
+            <p class="eyebrow">04 · the draft, and the gate</p>
+            <h2>The model proposes. You dispose.</h2>
+            <p class="lede">The shipped <code>skill</code> derivation fires on new evidence, under a cooldown, and emits all three sections at once as a <em>candidate</em>. Because the reviewed artifact names the complete key set, a partial draft cannot be promoted over a working playbook.</p>
+          </div>
+
+          <div class="work flip rv">
+            <div>
+              <div class="surface-head"><span>what the gate guarantees</span><span>3 things</span></div>
+              <div class="trow"><span class="n">complete_keys</span><span class="kd">contract</span><span class="bind">→ [steps, pitfalls, examples]</span><p>A candidate must cover all three, so promotion can never leave the playbook half-updated.</p></div>
+              <div class="trow"><span class="n">stale guard</span><span class="kd">compare-and-set</span><span class="bind">→ heads re-checked at promote</span><p>If the live skill moved while the draft sat in review, activation is rejected rather than clobbering it.</p></div>
+              <div class="trow"><span class="n">declining is free</span><span class="kd">no-op</span><span class="bind">→ drafts stay in the audit trail</span><p>Decline and the skill simply never changed — with a permanent record of what was proposed and refused.</p></div>
+            </div>
+            <div class="panel">
+              <div class="panel-head"><span class="t">derivations/skill.yaml</span><span class="badge" style="--bh: var(--green)">shipped</span></div>
+<pre class="code"><span class="k">name</span>: skill
+<span class="k">trigger</span>:
+  <span class="k">write</span>:
+    <span class="k">collections</span>: [main, outcomes]
+    <span class="k">types</span>: [skill_brief, outcome, observation, exception, feedback]
+  <span class="k">cooldown_s</span>: <span class="z">600</span>          <span class="c"># don't redraft on every signal</span>
+<span class="k">sources</span>:
+  <span class="k">new_evidence</span>:  {<span class="k">kind</span>: changes, <span class="k">max_records</span>: <span class="z">100</span>}
+  <span class="k">current_skill</span>: {<span class="k">kind</span>: current, <span class="k">keys</span>: [steps, pitfalls, examples]}
+<span class="k">model</span>: strong
+<span class="k">limits</span>:
+  <span class="k">max_tasks</span>: <span class="z">2</span>
+  <span class="k">max_llm_calls</span>: <span class="z">4</span>
+  <span class="k">max_total_tokens</span>: <span class="z">50000</span>
+
+<span class="c"># artifacts/skill.yaml — the reviewed contract</span>
+<span class="k">artifacts</span>:
+  - <span class="k">name</span>: maintained_skill
+    <span class="k">kind</span>: skill
+    <span class="k">lifecycle</span>: reviewed        <span class="c"># not live — promotion required</span>
+    <span class="k">candidate_processor</span>: skill
+    <span class="k">complete_keys</span>: [steps, pitfalls, examples]</pre>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ use ============ -->
+      <section class="region" id="use" style="--hue: var(--orange)">
+        <div class="wrap">
+          <div class="region-head rv">
+            <p class="eyebrow">05 · from your app</p>
+            <h2>Bind, report, review, promote.</h2>
+            <p class="lede">Four calls across the whole loop, and only the last one is a decision.</p>
+          </div>
+
+          <div class="work one rv">
+            <div class="panel">
+              <div class="panel-head"><span class="t">app.py</span><span class="badge" style="--bh: var(--orange)">public SDK</span></div>
+<pre class="code"><span class="c"># 1 · render the prompt your assistant will run on, and bind it</span>
+prompt = memseek.<span class="z">artifact</span>(<span class="s">"daily_agent_prompt"</span>)
+use = <span class="k">await</span> prompt.<span class="z">bind</span>(entity=<span class="s">"agent:support"</span>)
+
+use[<span class="s">"id"</span>]              <span class="c"># store this one ID beside your own reply</span>
+use[<span class="s">"learning_target"</span>]  <span class="c"># the exact promoted skill heads in force</span>
+
+<span class="c"># 2 · later, report what the reply actually caused</span>
+<span class="k">await</span> memseek.feedback.<span class="z">thumbs_down</span>(
+    use_id=use[<span class="s">"id"</span>],
+    note=<span class="s">"Discount code on a refund that was our own billing error."</span>,
+)
+<span class="k">await</span> memseek.feedback.<span class="z">correction</span>(
+    use_id=use[<span class="s">"id"</span>],
+    expected=<span class="s">"We've refunded the full charge and fixed the cause."</span>,
+)
+
+<span class="c"># 3 · draft a revision from the evidence, then read the candidate</span>
+queued = <span class="k">await</span> memseek.<span class="z">run_processor</span>(<span class="s">"skill"</span>, entity=<span class="s">"agent:support"</span>)
+job = <span class="k">await</span> memseek.<span class="z">job</span>(queued[<span class="s">"job_id"</span>])       <span class="c"># poll to a run id</span>
+review = <span class="k">await</span> memseek.<span class="z">run</span>(job[<span class="s">"successful_run_id"</span>])
+
+candidate = review[<span class="s">"run"</span>][<span class="s">"content"</span>][<span class="s">"candidate_set"</span>]
+candidate[<span class="s">"covered_keys"</span>]   <span class="c"># ["steps", "pitfalls", "examples"]</span>
+candidate[<span class="s">"divergence"</span>]     <span class="c"># what actually moved, per key</span>
+
+<span class="c"># 4 · the decision. this is the only line that changes the skill.</span>
+<span class="k">if</span> approved_by_a_human(candidate[<span class="s">"divergence"</span>]):
+    <span class="k">await</span> memseek.<span class="z">promote</span>(
+        entity=<span class="s">"agent:support"</span>,
+        source_run_id=job[<span class="s">"successful_run_id"</span>],
+        artifact=<span class="s">"maintained_skill"</span>,
+    )</pre>
+            </div>
+          </div>
+
+          <p class="disclosure rv">The artifact's <code>learning:</code> declaration, the <code>skill</code> derivation's trigger and limits, and the <code>maintained_skill</code> reviewed contract are the checked-in catalog; the loop is <code>examples/skill_maintenance.py</code>. The drafted wording is representative of a real provider run, not a captured transcript.</p>
+        </div>
+      </section>
+
+      <!-- ============ close ============ -->
+      <section class="close" id="start" style="--hue: var(--orange)">
+        <div class="wrap close-grid">
+          <div class="rv">
+            <p class="eyebrow">start building</p>
+            <h2>Run the loop, then refuse the draft.</h2>
+            <p>The script installs a skill, binds a real render, reports outcomes against it, drafts a cited revision — and then stops and asks you. Declining is the interesting path: the skill never changes, and the proposal stays on the record.</p>
+            <div class="hero-cta">
+              <a class="btn btn-primary" href="/#waitlist">Join the waitlist <span aria-hidden="true">→</span></a>
+              <a class="btn btn-ghost" href="/#quickstart">See the quickstart</a>
+            </div>
+          </div>
+
+          <div class="term rv">
+            <div class="term-bar">
+              <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+              <span class="path">examples/skill_maintenance.py</span>
+            </div>
+            <div class="term-body">
+              <div class="c"># postgres, the api, and a worker</div>
+              <div><span class="p">$</span> <span class="hl">make database &amp;&amp; source .env.sh</span></div>
+              <div><span class="p">$</span> <span class="hl">uv run memseek migrate</span></div>
+              <div><span class="p">$</span> <span class="hl">uv run uvicorn memseek.api:app &amp;</span></div>
+              <div><span class="p">$</span> <span class="hl">uv run memseek worker &amp;</span></div>
+              <div class="c"># then the loop</div>
+              <div><span class="p">$</span> <span class="hl">uv run python examples/skill_maintenance.py</span></div>
+              <div class="o" style="margin-top:.5rem">promote this candidate? <span class="hl">[y/N]</span></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="region" style="--hue: var(--orange)">
+        <div class="wrap">
+          <div class="region-head rv" style="margin-bottom:1.4rem">
+            <p class="eyebrow">keep going</p>
+            <h2>The other walkthroughs.</h2>
+          </div>
+          <div class="rv">
+        <div class="siblings">
+          <a class="sib" href="/showcase/living-profile/"><b>The living profile</b><span>A CRM profile that rewrites itself as evidence arrives, every slot cited.</span></a>
+          <a class="sib" href="/showcase/self-audit/"><b>The self-auditing mind</b><span>Observations become convictions, then catch themselves contradicting.</span></a>
+          <a class="sib" href="/showcase/generative-agents/"><b>Generative agents</b><span>Park et al.'s memory architecture, declared as one catalog.</span></a>
+        </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <div class="wrap foot">
+        <span>memseek · the maintained skill</span>
+        <span class="foot-links">
+          <a href="/showcase/">All showcases</a>
+          <a href="/#uses">Use cases</a>
+          <a href="/blog/">Blog</a>
+        </span>
+      </div>
+    </footer>
+
+    <script src="../showcase.js"></script>
+    <script>
+      /* code tabs — one switcher for every .tabwrap on the page */
+      document.querySelectorAll('.tabwrap').forEach(function (box) {
+        var tabs = [].slice.call(box.querySelectorAll('.tab'));
+        var panes = [].slice.call(box.querySelectorAll('pre.code'));
+        tabs.forEach(function (tab, i) {
+          tab.addEventListener('click', function () {
+            tabs.forEach(function (t, k) { t.setAttribute('aria-selected', String(k === i)); });
+            panes.forEach(function (p, k) { p.classList.toggle('on', k === i); });
+          });
+        });
+      });
+    </script>
+  </body>
+</html>

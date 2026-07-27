@@ -1,0 +1,340 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="The memory architecture from Park et al. (UIST '23) — memory stream, importance, retrieval score, reflection, agent summary — declared as one memseek catalog instead of built." />
+    <title>Generative agents — memseek</title>
+    <link rel="canonical" href="https://memseek.pages.dev/showcase/generative-agents/" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Memseek" />
+    <meta property="og:title" content="Generative agents — memseek" />
+    <meta property="og:description" content="The memory architecture from Park et al. (UIST '23) — memory stream, importance, retrieval score, reflection, agent summary — declared as one memseek catalog instead of built." />
+    <meta property="og:url" content="https://memseek.pages.dev/showcase/generative-agents/" />
+    <meta property="og:image" content="https://memseek.pages.dev/og-default.png" />
+    <meta name="twitter:card" content="summary_large_image" />
+
+    <!-- Applied before first paint so a light-theme reader never sees a dark flash. -->
+    <script>
+      try {
+        var t = localStorage.getItem('ms-theme');
+        if (t === 'dark' || t === 'light') document.documentElement.setAttribute('data-theme', t);
+        else if (window.matchMedia('(prefers-color-scheme: light)').matches)
+          document.documentElement.setAttribute('data-theme', 'light');
+      } catch (e) {}
+    </script>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="../showcase.css" />
+    <link rel="stylesheet" href="../showcase-page.css" />
+  </head>
+  <body>
+    <script>document.documentElement.className += ' js';</script>
+    <a class="skip" href="#main">Skip to content</a>
+
+    <header class="nav">
+      <div class="wrap nav-inner">
+        <a class="brand" href="/">memseek<span class="caret">▌</span></a>
+        <nav class="nav-right">
+          <a class="navlink" href="#map">The mapping</a>
+          <a class="navlink" href="#score">Retrieval score</a>
+          <a class="navlink" href="#days">Three days</a>
+          <a class="navlink" href="#boundary">The boundary</a>
+          <a class="navlink" href="#use">From your app</a>
+          <a class="navlink" href="/showcase/">All showcases</a>
+          <button class="theme-toggle" id="theme" type="button" aria-label="Toggle colour theme">
+            <svg class="moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+            <svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+          </button>
+          <a class="nav-cta" href="#start">Start building</a>
+        </nav>
+      </div>
+    </header>
+
+    <main id="main">
+      <!-- ============ hero ============ -->
+      <section class="hero" id="top" style="--hue: var(--violet)">
+        <div class="wrap hero-grid">
+          <div>
+            <p class="eyebrow">worked example · generative agents</p>
+            <h1>Park et al.'s memory architecture, <span class="grad">declared.</span></h1>
+            <p class="lede">The 2023 paper's agents remember, score what mattered, retrieve by relevance-importance-recency, reflect overnight, and summarise themselves. Every one of those is a primitive here — so the memory module is configuration, and only the simulation is code.</p>
+            <div class="hero-cta">
+              <a class="btn btn-primary" href="#map">See the mapping <span aria-hidden="true">→</span></a>
+              <a class="btn btn-ghost" href="#days">Three simulated days</a>
+            </div>
+            <p class="cta-note" style="margin-top:1.1rem">3 game days · gossip that leaves a traversable graph</p>
+          </div>
+
+          <div class="panel rv">
+            <div class="panel-head">
+              <span class="t">retrieval score · rank expression</span>
+              <span class="badge" style="--bh: var(--violet)">declared</span>
+            </div>
+            <div class="panel-body" style="padding:0">
+<pre class="code"><span class="c"># the paper's retrieval function, as a portable rank AST</span>
+<span class="k">score</span>:
+  <span class="k">sum</span>:
+    - <span class="k">normalize</span>: relevance      <span class="c"># embedding + lexical match</span>
+    - <span class="k">normalize</span>: importance     <span class="c"># the 1–10 llm score</span>
+    - <span class="k">decay</span>:                    <span class="c"># recency</span>
+        <span class="k">field</span>: occurred_at
+        <span class="k">half_life_s</span>: <span class="z">3600</span></pre>
+            </div>
+            <div class="panel-foot">Relevance, importance, recency — the three terms from the paper, weighted in YAML instead of application code.</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ map ============ -->
+      <section class="region" id="map" style="--hue: var(--violet)">
+        <div class="wrap">
+          <div class="region-head rv">
+            <p class="eyebrow">01 · the mapping</p>
+            <h2>Nine paper concepts, nine catalog primitives.</h2>
+            <p class="lede">Nothing on this list was added for this example. Each row is a primitive that already exists because other memory products need it too.</p>
+          </div>
+
+          <div class="rv">
+            <div class="maplist">
+              <div class="maphead" aria-hidden="true"><span>park et al. (uist '23)</span><span class="arrow">→</span><span>memseek</span></div>
+              <div class="maprow"><div class="from"><b>memory stream</b><small>an append-only log of what the agent saw and said</small></div><span class="arrow" aria-hidden="true">→</span><div class="to"><b>main records</b><small>immutable observation / chat events</small></div></div>
+              <div class="maprow"><div class="from"><b>importance (1–10)</b><small>&ldquo;how poignant was this?&rdquo;, asked of the model</small></div><span class="arrow" aria-hidden="true">→</span><div class="to"><b>importance score processor</b><small>shipped; mirrored into scores.importance</small></div></div>
+              <div class="maprow"><div class="from"><b>relevance</b><small>similarity to the current query</small></div><span class="arrow" aria-hidden="true">→</span><div class="to"><b>hybrid search</b><small>embedding similarity + lexical match</small></div></div>
+              <div class="maprow"><div class="from"><b>recency</b><small>exponential decay since last access</small></div><span class="arrow" aria-hidden="true">→</span><div class="to"><b>decay term</b><small>a node in the rank expression</small></div></div>
+              <div class="maprow"><div class="from"><b>retrieval score</b><small>the weighted sum of the three</small></div><span class="arrow" aria-hidden="true">→</span><div class="to"><b>rank AST</b><small>declared per search profile</small></div></div>
+              <div class="maprow"><div class="from"><b>reflection</b><small>periodic higher-level insight, with evidence</small></div><span class="arrow" aria-hidden="true">→</span><div class="to"><b>reflection derivation</b><small>accumulator at 150 summed importance, as in the paper</small></div></div>
+              <div class="maprow"><div class="from"><b>agent summary</b><small>the self-description injected into prompts</small></div><span class="arrow" aria-hidden="true">→</span><div class="to"><b>profile derivation</b><small>keyed: role, preferences, commitments, open_threads, timeline</small></div></div>
+              <div class="maprow"><div class="from"><b>plans &amp; calendar</b><small>the day the agent intends to have</small></div><span class="arrow" aria-hidden="true">→</span><div class="to"><b>plans / calendar_events</b><small>keyed records your simulator authors</small></div></div>
+              <div class="maprow"><div class="from"><b>prompt assembly</b><small>summary + schedule + retrieved memory</small></div><span class="arrow" aria-hidden="true">→</span><div class="to"><b>daily_agent_prompt artifact</b><small>token-budgeted blocks + an input manifest</small></div></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ score ============ -->
+      <section class="region" id="score" style="--hue: var(--cyan)">
+        <div class="wrap">
+          <div class="region-head rv">
+            <p class="eyebrow">02 · the retrieval score</p>
+            <h2>The weighting is data, so you can argue with it.</h2>
+            <p class="lede">In the paper the retrieval function is code. Here it is a rank expression attached to a search profile — which means you can change how much recency matters, or how much the importance score counts, without touching the simulator.</p>
+          </div>
+
+          <div class="work rv">
+            <div class="panel">
+              <div class="panel-head"><span class="t">views/agent_memory.yaml</span><span class="badge" style="--bh: var(--cyan)">multi-source RRF</span></div>
+<pre class="code"><span class="k">views</span>:
+  - <span class="k">name</span>: agent_relevant_memory
+    <span class="k">query</span>:
+      <span class="k">sources</span>:
+        - <span class="k">name</span>: observations
+          <span class="k">scope</span>: {<span class="k">collections</span>: [main]}
+        - <span class="k">name</span>: plans
+          <span class="k">scope</span>: {<span class="k">collections</span>: [plans]}
+        - <span class="k">name</span>: reflections
+          <span class="k">scope</span>: {<span class="k">collections</span>: [reflections]}
+      <span class="k">fuse</span>: {<span class="k">kind</span>: rrf, <span class="k">rank_constant</span>: <span class="z">60</span>}</pre>
+            </div>
+            <div>
+              <div class="surface-head"><span>what this buys the simulation</span><span>3 things</span></div>
+              <div class="trow"><span class="n">one query, three streams</span><span class="kd">rrf</span><span class="bind">→ observations · plans · reflections</span><p>An agent about to act retrieves from what it saw, what it intended, and what it concluded — fused by reciprocal rank rather than a hand-tuned blend.</p></div>
+              <div class="trow"><span class="n">tunable without code</span><span class="kd">rank AST</span><span class="bind">→ per search profile</span><p>Half-life, term weights, and boosts are catalog values. Re-publishing the package re-tunes the whole population.</p></div>
+              <div class="trow"><span class="n">the same view feeds the prompt</span><span class="kd">artifact block</span><span class="bind">→ daily_agent_prompt</span><p>Retrieval and prompt assembly share one definition, so what the agent recalls is what the agent is told.</p></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ days ============ -->
+      <section class="region" id="days" style="--hue: var(--amber)">
+        <div class="wrap">
+          <div class="region-head rv">
+            <p class="eyebrow">03 · three simulated days</p>
+            <h2>Gossip that leaves a traversable graph.</h2>
+            <p class="lede">When an agent relays something it heard, the relayed memory stores a <code>derived_from</code> edge back to the fact it came from. Diffusion therefore stops being &ldquo;similar text in two places&rdquo; and becomes a graph you can walk — which is how the paper's interview measurement becomes a query instead of an eyeball.</p>
+          </div>
+
+          <div class="work flip rv">
+            <div>
+              <ul class="flow" style="--hue: var(--amber)">
+                <li><span class="n">d1</span><div><b>wake, meet, gossip</b><span>Agents start with seed memories, plans, and calendars, then trade what they know. Each relay writes a provenance edge, not a copy.</span></div></li>
+                <li><span class="n">↓</span><div><b>overnight: reflect</b><span>The accumulator has crossed 150 summed importance, so each agent's day becomes cited insight — and every insight opens onto the scored memories under it.</span></div></li>
+                <li><span class="n">d2</span><div><b>re-plan, meet again</b><span>Plans are revised from those reflections. The party happens, or it doesn't.</span></div></li>
+                <li><span class="n">m</span><div><b>measure</b><span>A paper-style interview measures how far one fact actually diffused, dawn → day 2 — answered from the graph.</span></div></li>
+                <li><span class="n">d3</span><div><b>distil &amp; open the glass box</b><span>The profile derivation turns each stream into a cited agent summary, and one belief is opened to its roots: the run that wrote it, the resolved model, and the events it fused.</span></div></li>
+              </ul>
+            </div>
+            <div class="panel">
+              <div class="panel-head"><span class="t">one relayed memory</span><span class="badge" style="--bh: var(--amber)">provenance, not duplication</span></div>
+              <div class="panel-body">
+                <div class="descent">
+                  <div class="dstep" style="--d:0; --dh: var(--amber)"><span class="lvl">relay</span><div><span class="rec">main / chat · isabella → tom</span><p class="tx">"Maria's throwing something at Hobbs on Tuesday — you should come."</p></div></div>
+                  <div class="dstep" style="--d:1; --dh: var(--violet)"><span class="lvl">↳ heard from</span><div><span class="rec">main / chat · maria → isabella</span><p class="tx">"I'm planning a party at Hobbs Cafe on Tuesday."</p></div></div>
+                  <div class="dstep" style="--d:2; --dh: var(--green)"><span class="lvl">↳ origin</span><div><span class="rec">plans / plan · maria · depth 0</span><p class="tx">"Throw a Valentine's party at Hobbs Cafe."</p></div></div>
+                  <div class="descent-foot">3 hops · the interview answer is a traversal, not a guess</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ boundary ============ -->
+      <section class="region" id="boundary" style="--hue: var(--green)">
+        <div class="wrap">
+          <div class="region-head rv">
+            <p class="eyebrow">04 · the boundary</p>
+            <h2>Memseek is not the simulator.</h2>
+            <p class="lede">This distinction is the reason the example is honest: the interesting generative behaviour stays application code, and it calls its own model. Memseek stores what happened and decides what to recall.</p>
+          </div>
+
+          <div class="split rv">
+            <div class="col" style="--ch: var(--amber)">
+              <h3>The simulation owns</h3>
+              <ul>
+                <li>Simulated <b>time</b>, and who is in the same place</li>
+                <li>Who <b>meets</b> whom, and what they say</li>
+                <li>Its own <b>LLM calls</b> for in-character dialogue and planning</li>
+                <li>Deciding to <b>act</b> — memseek never moves an agent</li>
+              </ul>
+            </div>
+            <div class="col" style="--ch: var(--green)">
+              <h3>Memseek owns</h3>
+              <ul>
+                <li>The immutable <b>memory stream</b> and its provenance edges</li>
+                <li><b>Importance</b> scoring on write, and the fused <b>retrieval score</b></li>
+                <li><b>Reflection</b> and <b>profile</b> derivations, with citations required</li>
+                <li>Deterministic <b>prompt assembly</b> with a hashed input manifest</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ use ============ -->
+      <section class="region" id="use" style="--hue: var(--orange)">
+        <div class="wrap">
+          <div class="region-head rv">
+            <p class="eyebrow">05 · from your app</p>
+            <h2>The simulator's whole memory interface.</h2>
+            <p class="lede">Observations in, ranked recall and an assembled prompt out. The example borrows memseek's configured provider seam for its own in-character generation, so the model aliases stay in one place.</p>
+          </div>
+
+          <div class="work one rv">
+            <div class="panel">
+              <div class="panel-head"><span class="t">simulation.py</span><span class="badge" style="--bh: var(--orange)">public SDK</span></div>
+<pre class="code"><span class="c"># 1 · the agent saw something. importance is scored on write.</span>
+<span class="k">await</span> memseek.records.<span class="z">ingest</span>(
+    collection=<span class="s">"main"</span>, type=<span class="s">"observation"</span>, entity=<span class="s">"agent:isabella"</span>,
+    text=<span class="s">"Maria said she is planning a party at Hobbs Cafe on Tuesday."</span>,
+    content={<span class="s">"heard_from"</span>: <span class="s">"agent:maria"</span>},
+    derived_from=[origin_record_id],   <span class="c"># ← makes diffusion traversable</span>
+)
+
+<span class="c"># 2 · about to act: recall across observations, plans, reflections</span>
+recall = <span class="k">await</span> memseek.<span class="z">search</span>(
+    query=<span class="s">"what should I do this afternoon?"</span>,
+    entity=<span class="s">"agent:isabella"</span>, mode=<span class="s">"hybrid"</span>, k=<span class="z">12</span>,
+    include=[<span class="s">"text"</span>, <span class="s">"scores"</span>, <span class="s">"occurred_at"</span>],
+)
+<span class="k">for</span> hit <span class="k">in</span> recall[<span class="s">"hits"</span>]:
+    hit[<span class="s">"scores"</span>][<span class="s">"importance"</span>]   <span class="c"># the paper's term, on the record</span>
+
+<span class="c"># 3 · assemble the prompt: summary + schedule + relevant memory</span>
+prompt = <span class="k">await</span> memseek.<span class="z">render_artifact</span>(
+    <span class="s">"daily_agent_prompt"</span>, entity=<span class="s">"agent:isabella"</span>,
+)
+prompt[<span class="s">"rendered"</span>]                        <span class="c"># hand this to your model</span>
+prompt[<span class="s">"manifest"</span>][<span class="s">"input_record_ids"</span>]   <span class="c"># exactly what it knew</span>
+
+<span class="c"># 4 · your simulator's own call — memseek is not in this loop</span>
+line = <span class="k">await</span> your_model.<span class="z">say</span>(prompt[<span class="s">"rendered"</span>], in_character=<span class="s">"isabella"</span>)</pre>
+            </div>
+          </div>
+
+          <p class="disclosure rv">The mapping, the three-day arc, and the ownership boundary are <code>examples/generative_agents_toy.py</code> and the shipped catalog it runs on. Dialogue and insight text come from a real provider at run time, so what you see here is representative wording rather than a captured transcript. Park et al., <em>Generative Agents</em>, UIST '23.</p>
+        </div>
+      </section>
+
+      <!-- ============ close ============ -->
+      <section class="close" id="start" style="--hue: var(--orange)">
+        <div class="wrap close-grid">
+          <div class="rv">
+            <p class="eyebrow">start building</p>
+            <h2>Run three simulated days.</h2>
+            <p>The script drives the simulation, the gossip, the overnight reflections, and the paper-style interview — then opens one belief all the way down to the observation that produced it.</p>
+            <div class="hero-cta">
+              <a class="btn btn-primary" href="/#waitlist">Join the waitlist <span aria-hidden="true">→</span></a>
+              <a class="btn btn-ghost" href="/#quickstart">See the quickstart</a>
+            </div>
+          </div>
+
+          <div class="term rv">
+            <div class="term-bar">
+              <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+              <span class="path">examples/generative_agents_toy.py</span>
+            </div>
+            <div class="term-body">
+              <div class="c"># postgres, the api, and a worker</div>
+              <div><span class="p">$</span> <span class="hl">make database &amp;&amp; source .env.sh</span></div>
+              <div><span class="p">$</span> <span class="hl">uv run memseek migrate</span></div>
+              <div><span class="p">$</span> <span class="hl">uv run uvicorn memseek.api:app &amp;</span></div>
+              <div><span class="p">$</span> <span class="hl">uv run memseek worker &amp;</span></div>
+              <div class="c"># then the simulation</div>
+              <div><span class="p">$</span> <span class="hl">uv run python examples/generative_agents_toy.py</span></div>
+              <div class="o" style="margin-top:.5rem">day 2 · interview: <span class="hl">4 of 5 agents know about the party</span></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="region" style="--hue: var(--orange)">
+        <div class="wrap">
+          <div class="region-head rv" style="margin-bottom:1.4rem">
+            <p class="eyebrow">keep going</p>
+            <h2>The other walkthroughs.</h2>
+          </div>
+          <div class="rv">
+        <div class="siblings">
+          <a class="sib" href="/showcase/living-profile/"><b>The living profile</b><span>A CRM profile that rewrites itself as evidence arrives, every slot cited.</span></a>
+          <a class="sib" href="/showcase/skill/"><b>The maintained skill</b><span>Feedback becomes a cited draft; you decide whether it ships.</span></a>
+          <a class="sib" href="/showcase/self-audit/"><b>The self-auditing mind</b><span>Observations become convictions, then catch themselves contradicting.</span></a>
+        </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <div class="wrap foot">
+        <span>memseek · generative agents</span>
+        <span class="foot-links">
+          <a href="/showcase/">All showcases</a>
+          <a href="/#uses">Use cases</a>
+          <a href="/blog/">Blog</a>
+        </span>
+      </div>
+    </footer>
+
+    <script src="../showcase.js"></script>
+    <script>
+      /* code tabs — one switcher for every .tabwrap on the page */
+      document.querySelectorAll('.tabwrap').forEach(function (box) {
+        var tabs = [].slice.call(box.querySelectorAll('.tab'));
+        var panes = [].slice.call(box.querySelectorAll('pre.code'));
+        tabs.forEach(function (tab, i) {
+          tab.addEventListener('click', function () {
+            tabs.forEach(function (t, k) { t.setAttribute('aria-selected', String(k === i)); });
+            panes.forEach(function (p, k) { p.classList.toggle('on', k === i); });
+          });
+        });
+      });
+    </script>
+  </body>
+</html>

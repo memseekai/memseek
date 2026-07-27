@@ -3,15 +3,19 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Memseek — the memory an AI agent should use now</title>
-<meta name="description" content="Memseek is a memory kit that serves the right context to your agent at query time: current, dated, and traced to its source. Keep your data where it is.">
+<title>Memseek — agent memory you declare, not build</title>
+<meta name="description" content="Your app writes records. Memseek scores them, derives what they mean, and serves the few facts that are true now — dated, cited, never overwritten. Declared in YAML, running on your own Postgres.">
+<meta property="og:title" content="Memseek — agent memory you declare, not build">
+<meta property="og:description" content="Events in, cited current beliefs out. A memory layer declared in YAML and run on your own Postgres.">
+<meta property="og:type" content="website">
+<meta property="og:image" content="/og-default.png">
+<meta name="twitter:card" content="summary_large_image">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
   /* ============================================================
-     Memseek — index-v2
-     Design system carried over from the hero:
+     Memseek — landing page
      dark canvas, orange→pink gradient, JetBrains Mono + Inter.
      ============================================================ */
   :root, :root[data-theme="dark"] {
@@ -35,11 +39,14 @@
     --sans: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     --maxw: 1180px;
     --grad: linear-gradient(120deg, var(--orange), var(--pink));
+    --step--2: clamp(.68rem, .66rem + .08vw, .74rem);
     --step--1: clamp(.78rem, .76rem + .1vw, .84rem);
     --step-0: clamp(.95rem, .92rem + .18vw, 1.05rem);
     --step-1: clamp(1.1rem, 1rem + .5vw, 1.35rem);
     --step-2: clamp(1.5rem, 1.2rem + 1.4vw, 2.3rem);
-    --step-3: clamp(2.1rem, 1.5rem + 3vw, 4rem);
+    /* The h1 is monospace, so it eats width fast: the low end has to keep
+       "declare, not build." inside a 390px viewport. */
+    --step-3: clamp(1.7rem, 1.05rem + 3.4vw, 3.7rem);
   }
   :root[data-theme="light"] {
     --bg: #f7f7f5;
@@ -58,6 +65,12 @@
     --amber: #c07d16;
     --shadow: 0 1px 0 rgba(255,255,255,.6) inset, 0 20px 50px -30px rgba(20,30,45,.28);
   }
+  /* On the light canvas the gradient darkens, so near-black label text on it
+     reads muddy — and --faint is too pale for code comments people must read. */
+  :root[data-theme="light"] .nav-cta,
+  :root[data-theme="light"] .btn-primary { color: #fff; }
+  :root[data-theme="light"] .cm,
+  :root[data-theme="light"] .yc { color: #6f7a85; }
 
   * { margin: 0; padding: 0; box-sizing: border-box; }
   html { scroll-behavior: smooth; }
@@ -106,7 +119,7 @@
   .nav-inner { display: flex; align-items: center; justify-content: space-between; height: 64px; }
   .brand { display: flex; align-items: center; gap: .6rem; font-family: var(--mono); font-weight: 700; font-size: 1.15rem; color: var(--text); }
   .brand .dot { width: 12px; height: 12px; border-radius: 50%; background: var(--grad); }
-  .nav-links { display: flex; align-items: center; gap: 1.6rem; }
+  .nav-links { display: flex; align-items: center; gap: 1.5rem; }
   .nav-links a { color: var(--muted); font-family: var(--mono); font-size: var(--step--1); }
   .nav-links a:hover { color: var(--text); text-decoration: none; }
   .nav-cta {
@@ -121,10 +134,16 @@
     cursor: pointer; letter-spacing: .05em;
   }
   .theme-toggle:hover { color: var(--orange); border-color: var(--orange); }
-  @media (max-width: 900px) { .nav-links .hide-sm { display: none; } }
+  @media (max-width: 980px) { .nav-links .hide-sm { display: none; } }
+  /* Below ~500px only the theme toggle and the CTA still fit; the footer
+     carries every link, so nothing becomes unreachable. */
+  @media (max-width: 620px) {
+    .nav-links { gap: .85rem; }
+    .nav-links a:not(.nav-cta) { display: none; }
+  }
 
-  /* ---------- HERO (from memseek-hero.html) ---------- */
-  .hero { position: relative; padding-top: clamp(2.6rem, 5vw, 5rem); padding-bottom: clamp(2.4rem, 4vw, 3.5rem); overflow: hidden; }
+  /* ---------- HERO ---------- */
+  .hero { position: relative; padding-top: clamp(2.4rem, 4.5vw, 4.2rem); padding-bottom: clamp(2.4rem, 4vw, 3.5rem); overflow: hidden; }
   .hero::before {
     content: ""; position: absolute; inset: -35% -10% auto; height: 640px; z-index: 0; pointer-events: none;
     background:
@@ -136,15 +155,12 @@
   @keyframes drift { to { transform: translate3d(4%, 4%, 0) scale(1.08); } }
   @media (prefers-reduced-motion: reduce) { .hero::before { animation: none; } }
   .hero .wrap { position: relative; z-index: 1; }
-  .hero-grid { display: grid; grid-template-columns: 1fr 1.05fr; gap: clamp(2rem, 4vw, 3.5rem); align-items: center; }
-  @media (max-width: 980px) { .hero-grid { grid-template-columns: 1fr; } }
-  .hero h1 { font-size: var(--step-3); margin-top: 1.2rem; max-width: 20ch; }
-  .hero h1 .dim { color: var(--faint); }
-  .negation { font-family: var(--mono); font-size: var(--step-1); color: var(--text); margin-top: 1.3rem; line-height: 1.5; letter-spacing: -.01em; }
-  .negation s { text-decoration-color: var(--pink); color: var(--muted); }
-  .lede { color: var(--muted); font-size: var(--step-0); max-width: 50ch; margin-top: 1.2rem; }
+  .hero-top { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); gap: clamp(1.6rem, 4vw, 3.4rem); align-items: end; }
+  @media (max-width: 900px) { .hero-top { grid-template-columns: 1fr; align-items: start; } }
+  .hero h1 { font-size: var(--step-3); margin-top: 1.1rem; max-width: 24ch; }
+  .lede { color: var(--muted); font-size: var(--step-1); max-width: 54ch; margin-top: 1.2rem; line-height: 1.5; }
   .lede b { color: var(--text); font-weight: 600; }
-  .hero-cta { display: flex; flex-wrap: wrap; gap: .85rem; margin-top: 2rem; align-items: center; }
+  .hero-cta { display: flex; flex-wrap: wrap; gap: .85rem; margin-top: 1.8rem; align-items: center; }
   .btn {
     font-family: var(--mono); font-weight: 700; font-size: var(--step--1);
     padding: .85rem 1.4rem; border-radius: 9px; border: 1px solid transparent;
@@ -157,38 +173,107 @@
   .btn-ghost:hover { text-decoration: none; border-color: var(--violet); color: var(--violet); }
   .cta-note { font-family: var(--mono); font-size: .72rem; color: var(--faint); }
 
-  /* ---------- Selection diagram (hero visual) ---------- */
-  .pane { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; box-shadow: var(--shadow); overflow: hidden; }
-  .pane-bar { display: flex; align-items: center; gap: .6rem; padding: .7rem .95rem; border-bottom: 1px solid var(--border); background: var(--surface-2); font-family: var(--mono); font-size: var(--step--1); }
-  .pane-bar .ask { color: var(--muted); }
-  .pane-bar .ask b { color: var(--cyan); font-weight: 600; }
-  .sel { display: grid; grid-template-columns: 1fr auto 1fr; gap: .7rem; padding: 1rem 1rem 1.1rem; align-items: stretch; }
-  @media (max-width: 560px) { .sel { grid-template-columns: 1fr; } }
-  .sel .col-h { font-family: var(--mono); font-size: .62rem; letter-spacing: .14em; text-transform: uppercase; color: var(--faint); margin-bottom: .45rem; display: flex; justify-content: space-between; }
-  .hist, .served { display: flex; flex-direction: column; gap: .34rem; min-width: 0; }
-  .hi { border: 1px solid var(--border); border-radius: 6px; background: var(--surface-2); padding: .38rem .5rem; opacity: .34; transition: opacity .4s, border-color .4s, background .4s; }
-  .hi.on { opacity: 1; }
-  .hi .mt { font-family: var(--mono); font-size: .54rem; letter-spacing: .05em; text-transform: uppercase; color: var(--faint); }
-  .hi .tx { font-size: .74rem; color: var(--text); line-height: 1.25; }
-  .hi.sup.on { opacity: .55; }
-  .hi.sup .tx { text-decoration: line-through; text-decoration-color: var(--pink); color: var(--muted); }
-  .hi.pick.on { border-color: color-mix(in srgb, var(--cyan) 55%, var(--border)); background: color-mix(in srgb, var(--cyan) 12%, var(--surface-2)); }
-  .sel-mid { align-self: center; display: flex; flex-direction: column; align-items: center; gap: .3rem; }
-  .sel-mid .chip { font-family: var(--mono); font-size: .56rem; letter-spacing: .08em; text-transform: uppercase; color: var(--violet); border: 1px solid color-mix(in srgb, var(--violet) 45%, var(--border)); border-radius: 20px; padding: .2rem .5rem; }
-  .sel-mid .arw { color: var(--orange); font-family: var(--mono); font-size: .85rem; }
-  @media (max-width: 560px) { .sel-mid { flex-direction: row; padding: .2rem 0; } .sel-mid .arw { transform: rotate(90deg); } }
-  .sv { border: 1px solid color-mix(in srgb, var(--green) 40%, var(--border)); border-radius: 6px; background: color-mix(in srgb, var(--green) 9%, var(--surface-2)); padding: .4rem .5rem; opacity: 0; transform: translateY(6px); transition: opacity .45s, transform .45s; }
-  .sv.on { opacity: 1; transform: none; }
-  .sv .tx { font-size: .74rem; color: var(--text); line-height: 1.25; }
-  .sv .ct { font-family: var(--mono); font-size: .56rem; color: var(--green); margin-top: .15rem; }
-  .tok { margin-top: .55rem; display: flex; align-items: baseline; gap: .5rem; font-family: var(--mono); }
-  .tok .n { font-size: 1rem; color: var(--green); font-variant-numeric: tabular-nums; }
-  .tok .l { font-size: .58rem; letter-spacing: .06em; text-transform: uppercase; color: var(--faint); }
-  .tok .was { font-size: .58rem; color: var(--faint); text-decoration: line-through; text-decoration-color: var(--pink); }
+  /* proof column */
+  .proof { list-style: none; display: grid; gap: .85rem; }
+  @media (max-width: 900px) { .proof { grid-template-columns: repeat(3, 1fr); margin-top: 2rem; } }
+  @media (max-width: 520px) { .proof { grid-template-columns: 1fr; } }
+  .proof li { border-left: 2px solid var(--hue, var(--orange)); padding-left: .8rem; }
+  .proof li:nth-child(1) { --hue: var(--orange); }
+  .proof li:nth-child(2) { --hue: var(--cyan); }
+  .proof li:nth-child(3) { --hue: var(--green); }
+  .proof .n { font-family: var(--mono); font-weight: 700; font-size: 1.5rem; color: var(--hue); line-height: 1.1; font-variant-numeric: tabular-nums; }
+  .proof .l { display: block; font-size: var(--step--2); color: var(--muted); line-height: 1.35; margin-top: .15rem; }
+  .proof .s { display: block; font-family: var(--mono); font-size: .6rem; color: var(--faint); letter-spacing: .04em; }
+
+  /* ---------- HERO PANE: declare → run → read ---------- */
+  .pane { background: var(--surface); border: 1px solid var(--border-strong); border-radius: 14px; box-shadow: var(--shadow); overflow: hidden; }
+  .hero-pane { margin-top: clamp(2rem, 4vw, 3rem); }
+  .pane-bar { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: .55rem .7rem .55rem .8rem; border-bottom: 1px solid var(--border); background: var(--surface-2); flex-wrap: wrap; }
+  .ytabs { display: flex; gap: .3rem; flex-wrap: wrap; }
+  .ytab {
+    font-family: var(--mono); font-size: .66rem; letter-spacing: .01em;
+    color: var(--muted); background: transparent; border: 1px solid var(--border);
+    border-radius: 6px; padding: .32rem .55rem; cursor: pointer; white-space: nowrap;
+    transition: color .15s, border-color .15s, background .15s;
+  }
+  .ytab:hover { color: var(--text); }
+  .ytab[aria-selected="true"] { color: var(--orange); border-color: color-mix(in srgb, var(--orange) 55%, var(--border)); background: color-mix(in srgb, var(--orange) 10%, transparent); }
+  .live { display: inline-flex; align-items: center; gap: .42rem; font-family: var(--mono); font-size: .62rem; color: var(--green); white-space: nowrap; padding-right: .3rem; }
+  .live::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--green); box-shadow: 0 0 0 3px color-mix(in srgb, var(--green) 15%, transparent); }
+
+  .pane-grid { display: grid; grid-template-columns: minmax(0, 1.06fr) minmax(0, 1fr); }
+  @media (max-width: 900px) { .pane-grid { grid-template-columns: 1fr; } }
+  .zone { padding: .95rem 1rem 1.1rem; min-width: 0; }
+  .zone + .zone { border-left: 1px solid var(--border); }
+  @media (max-width: 900px) { .zone + .zone { border-left: 0; border-top: 1px solid var(--border); } }
+  .zone-h { display: flex; align-items: center; gap: .5rem; font-family: var(--mono); font-size: .58rem; letter-spacing: .16em; text-transform: uppercase; color: var(--faint); margin-bottom: .7rem; }
+  .zone-h b { color: var(--hue, var(--orange)); font-weight: 700; }
+  .zone-h::after { content: ""; flex: 1; height: 1px; background: var(--border); }
+
+  /* yaml */
+  .yz { display: none; }
+  .yz.on { display: block; }
+  pre.y { font-family: var(--mono); font-size: .69rem; line-height: 1.62; overflow-x: auto; color: var(--text); }
+  @media (min-width: 1040px) { pre.y { font-size: .72rem; } }
+  .yk { color: var(--violet); }
+  .ys { color: var(--cyan); }
+  .yn { color: var(--green); }
+  .yc { color: var(--faint); }
+  .ypath { color: var(--muted); }
+  .yfile { font-family: var(--mono); font-size: .6rem; color: var(--faint); margin-bottom: .45rem; }
+
+  /* run zone */
+  .ev { border: 1px solid color-mix(in srgb, var(--orange) 40%, var(--border)); border-left-width: 3px; border-radius: 8px; background: color-mix(in srgb, var(--orange) 7%, var(--surface-2)); padding: .5rem .6rem; }
+  .ev.arrive { animation: evin .5s cubic-bezier(.2,.75,.25,1) both; }
+  @keyframes evin { 0% { opacity: 0; transform: translateX(-18px) scale(.97); } 100% { opacity: 1; transform: none; } }
+  .ev-h { display: flex; justify-content: space-between; gap: .5rem; font-family: var(--mono); font-size: .53rem; letter-spacing: .09em; text-transform: uppercase; }
+  .ev-h .src { color: var(--orange); }
+  .ev-h .st { color: var(--faint); }
+  .ev-tx { display: block; margin-top: .3rem; font-size: .74rem; line-height: 1.4; color: var(--text); }
+  .pips { display: flex; flex-wrap: wrap; gap: .35rem; margin: .7rem 0 .9rem; }
+  .pip {
+    font-family: var(--mono); font-size: .58rem; letter-spacing: .03em;
+    border: 1px solid var(--border); border-radius: 20px; padding: .22rem .55rem;
+    color: var(--faint); background: var(--surface-2); opacity: .5;
+    transition: opacity .25s, color .25s, border-color .25s, background .25s;
+  }
+  .pip b { color: inherit; }
+  .pip.on { opacity: 1; color: var(--cyan); border-color: color-mix(in srgb, var(--cyan) 50%, var(--border)); background: color-mix(in srgb, var(--cyan) 10%, var(--surface-2)); }
+  .pip.held { opacity: 1; color: var(--amber); border-color: color-mix(in srgb, var(--amber) 50%, var(--border)); background: color-mix(in srgb, var(--amber) 10%, var(--surface-2)); }
+  .pip.fire { opacity: 1; color: var(--green); border-color: color-mix(in srgb, var(--green) 50%, var(--border)); background: color-mix(in srgb, var(--green) 12%, var(--surface-2)); }
+
+  /* memory card */
+  .mcard { border: 1px solid color-mix(in srgb, var(--green) 42%, var(--border)); border-radius: 11px; background: color-mix(in srgb, var(--green) 4%, var(--surface)); overflow: hidden; transition: box-shadow .25s, border-color .25s; }
+  .mcard.pulse { border-color: var(--green); box-shadow: 0 0 0 4px color-mix(in srgb, var(--green) 10%, transparent); }
+  .mcard-h { display: flex; align-items: center; justify-content: space-between; gap: .6rem; padding: .6rem .7rem; border-bottom: 1px solid var(--border); font-family: var(--mono); }
+  .mcard-h .ent { font-size: .68rem; color: var(--text); }
+  .mcard-h .badge { font-size: .53rem; letter-spacing: .1em; text-transform: uppercase; color: var(--green); border: 1px solid color-mix(in srgb, var(--green) 50%, var(--border)); border-radius: 20px; padding: .18rem .42rem; }
+  .ms { display: grid; grid-template-columns: 5.6rem minmax(0, 1fr) auto; gap: .5rem; align-items: baseline; padding: .5rem .7rem; border-bottom: 1px solid var(--border); }
+  .ms .k { font-family: var(--mono); font-size: .56rem; letter-spacing: .08em; text-transform: uppercase; color: var(--green); }
+  .ms .v { font-size: .72rem; line-height: 1.4; color: var(--text); min-width: 0; }
+  .ms .c { font-family: var(--mono); font-size: .55rem; color: var(--faint); white-space: nowrap; }
+  .ms.empty .v, .ms.empty .c { color: var(--faint); }
+  .ms.hot { animation: mshot 1.1s ease-out; }
+  @keyframes mshot { 0%, 30% { background: color-mix(in srgb, var(--green) 20%, transparent); } 100% { background: transparent; } }
+  .ms.sup { animation: mssup 1.1s ease-out; }
+  @keyframes mssup { 0%, 30% { background: color-mix(in srgb, var(--amber) 20%, transparent); } 100% { background: transparent; } }
+  @media (max-width: 560px) {
+    .ms { grid-template-columns: 1fr auto; gap: .2rem .5rem; }
+    .ms .k { grid-column: 1; } .ms .c { grid-column: 2; grid-row: 1; } .ms .v { grid-column: 1 / -1; grid-row: 2; }
+  }
+  .mnote { padding: .5rem .7rem; font-family: var(--mono); font-size: .59rem; line-height: 1.45; color: var(--muted); border-left: 2px solid var(--green); margin: .55rem .7rem .6rem; background: color-mix(in srgb, var(--green) 6%, transparent); }
+  .mnote.held { border-left-color: var(--amber); }
+  .mfoot { display: flex; flex-wrap: wrap; gap: .3rem .9rem; align-items: baseline; margin-top: .7rem; font-family: var(--mono); font-size: .6rem; color: var(--faint); }
+  .mfoot .big { font-size: .95rem; color: var(--green); font-variant-numeric: tabular-nums; }
+  .mfoot s { text-decoration-color: var(--pink); }
+  @media (prefers-reduced-motion: reduce) {
+    .ev.arrive, .ms.hot, .ms.sup { animation: none; }
+    .pip, .mcard { transition: none; }
+  }
 
   /* ---------- SOURCE STRIP ---------- */
   .integ { border-block: 1px solid var(--border); background: var(--surface); }
-  .integ-inner { display: flex; flex-wrap: wrap; align-items: center; gap: .8rem 1.7rem; padding-block: 1.1rem; font-family: var(--mono); font-size: var(--step--1); }
+  .integ-inner { display: flex; flex-wrap: wrap; align-items: center; gap: .7rem 1.25rem; padding-block: 1rem; font-family: var(--mono); font-size: var(--step--1); }
   .integ-inner .lead { color: var(--faint); letter-spacing: .12em; text-transform: uppercase; font-size: .72rem; }
   .integ-inner .chip { color: var(--muted); display: inline-flex; align-items: center; gap: .5em; }
   .integ-inner .chip::before { content: ""; width: 7px; height: 7px; border-radius: 2px; }
@@ -200,211 +285,163 @@
   .integ-inner .chip:nth-child(7)::before { background: var(--amber); }
 
   /* ---------- SECTIONS ---------- */
-  section { padding-block: clamp(3.2rem, 7vw, 6rem); }
+  section { padding-block: clamp(3rem, 6vw, 5.2rem); }
   .alt { background: var(--surface); border-block: 1px solid var(--border); }
-  .sec-head { max-width: 66ch; margin-bottom: clamp(2rem, 4vw, 3rem); }
-  .sec-head h2 { font-size: var(--step-2); margin-top: .9rem; }
-  .sec-head p { color: var(--muted); font-size: var(--step-1); margin-top: 1rem; line-height: 1.5; }
+  .sec-head { max-width: 64ch; margin-bottom: clamp(1.8rem, 3.5vw, 2.6rem); }
+  .sec-head h2 { font-size: var(--step-2); margin-top: .8rem; }
+  .sec-head p { color: var(--muted); font-size: var(--step-1); margin-top: .9rem; line-height: 1.5; }
   .sec-head em { color: var(--text); font-style: normal; text-decoration: underline; text-decoration-color: var(--orange); text-underline-offset: 3px; }
 
-  /* NOT RAG */
+  /* ---------- QUICKSTART ---------- */
+  .steps { display: flex; flex-direction: column; gap: 1.1rem; }
+  .step { display: grid; grid-template-columns: minmax(0, .78fr) minmax(0, 1.22fr); gap: clamp(1rem, 2.5vw, 2rem); align-items: start; }
+  @media (max-width: 900px) { .step { grid-template-columns: 1fr; gap: 1rem; } }
+  .step-side { position: sticky; top: 84px; }
+  @media (max-width: 900px) { .step-side { position: static; } }
+  .step-n { font-family: var(--mono); font-size: .66rem; letter-spacing: .16em; color: var(--hue, var(--orange)); }
+  .step h3 { font-family: var(--sans); font-weight: 700; letter-spacing: -.01em; font-size: var(--step-1); margin: .35rem 0 .5rem; }
+  .step-side p { color: var(--muted); font-size: var(--step--1); line-height: 1.6; max-width: 42ch; }
+  .step-side p b { color: var(--text); font-weight: 600; }
+  .step:nth-child(1) { --hue: var(--orange); }
+  .step:nth-child(2) { --hue: var(--violet); }
+  .step:nth-child(3) { --hue: var(--cyan); }
+  .code { background: var(--surface-2); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+  .alt .code { background: var(--bg); }
+  .code-tabs { display: flex; gap: .25rem; flex-wrap: wrap; padding: .45rem .5rem; border-bottom: 1px solid var(--border); }
+  .code-tabs .t {
+    font-family: var(--mono); font-size: .64rem; color: var(--muted);
+    background: transparent; border: 1px solid transparent; border-radius: 6px;
+    padding: .3rem .55rem; cursor: pointer; white-space: nowrap;
+  }
+  .code-tabs .t:hover { color: var(--text); }
+  .code-tabs .t[aria-selected="true"] { color: var(--cyan); border-color: color-mix(in srgb, var(--cyan) 50%, var(--border)); background: color-mix(in srgb, var(--cyan) 10%, transparent); }
+  .code-tabs .fname { margin-left: auto; align-self: center; font-family: var(--mono); font-size: .6rem; color: var(--faint); padding-right: .35rem; }
+  .code pre { padding: 1rem 1.1rem 1.15rem; overflow-x: auto; font-family: var(--mono); font-size: .73rem; line-height: 1.72; color: var(--text); }
+  @media (min-width: 1040px) { .code pre { font-size: .77rem; } }
+  .code pre.p { display: none; }
+  .code pre.p.on { display: block; }
+  .cm { color: var(--faint); } .cs { color: var(--cyan); } .cn { color: var(--green); }
+  .cf { color: var(--violet); } .ck { color: var(--pink); } .cp { color: var(--muted); }
+  .quick-foot { margin-top: 1.4rem; display: flex; flex-wrap: wrap; gap: .5rem 1.4rem; font-family: var(--mono); font-size: var(--step--1); color: var(--muted); }
+  .quick-foot span { display: inline-flex; align-items: center; gap: .45rem; }
+  .quick-foot span::before { content: "›"; color: var(--green); }
+  .quick-foot code { color: var(--text); background: var(--surface-2); border: 1px solid var(--border); border-radius: 5px; padding: .05rem .3rem; font-size: .95em; }
+  .alt .quick-foot code { background: var(--bg); }
+
+  /* ---------- PRIMITIVES STRIP ---------- */
+  .prims { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: var(--border); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; margin-bottom: 1.6rem; }
+  @media (max-width: 860px) { .prims { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 460px) { .prims { grid-template-columns: 1fr; } }
+  .prim { background: var(--surface); padding: .8rem .9rem .85rem; }
+  .alt .prim { background: var(--bg); }
+  .prim b { display: block; font-family: var(--mono); font-size: .66rem; color: var(--hue, var(--orange)); letter-spacing: .02em; }
+  .prim span { display: block; font-size: var(--step--2); color: var(--muted); line-height: 1.45; margin-top: .2rem; }
+  .prim:nth-child(1) { --hue: var(--orange); } .prim:nth-child(2) { --hue: var(--cyan); }
+  .prim:nth-child(3) { --hue: var(--violet); } .prim:nth-child(4) { --hue: var(--pink); }
+  .prim:nth-child(5) { --hue: var(--green); } .prim:nth-child(6) { --hue: var(--amber); }
+  .prim:nth-child(7) { --hue: var(--cyan); } .prim:nth-child(8) { --hue: var(--violet); }
+
+  /* ---------- USE CASES ----------
+     Two tiers, because seven equal cards read as a list and a list has no
+     argument. Three featured cases carry the story; the rest are a compact
+     shelf. Every card is a single <a>, so the whole surface is the target. */
+  .feat { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; }
+  @media (max-width: 980px) { .feat { grid-template-columns: 1fr 1fr; } }
+  @media (max-width: 680px) { .feat { grid-template-columns: 1fr; } }
+  .case {
+    position: relative; display: flex; flex-direction: column; gap: .55rem;
+    border: 1px solid color-mix(in srgb, var(--hue) 30%, var(--border)); border-top: 2px solid var(--hue);
+    border-radius: 12px; padding: 1.15rem 1.2rem 1.2rem;
+    background: linear-gradient(168deg, color-mix(in srgb, var(--hue) 10%, var(--surface)), var(--surface));
+    color: inherit; text-decoration: none;
+    transition: transform .18s, box-shadow .18s, border-color .18s;
+  }
+  .alt .case { background: linear-gradient(168deg, color-mix(in srgb, var(--hue) 10%, var(--bg)), var(--bg)); }
+  .case:hover { text-decoration: none; transform: translateY(-3px); border-color: var(--hue); box-shadow: 0 18px 48px -26px color-mix(in srgb, var(--hue) 85%, transparent); }
+  .case:nth-child(1) { --hue: var(--amber); }
+  .case:nth-child(2) { --hue: var(--cyan); }
+  .case:nth-child(3) { --hue: var(--pink); }
+  .case .kick { font-family: var(--mono); font-size: .56rem; letter-spacing: .12em; text-transform: uppercase; color: var(--hue); padding-right: 1.6rem; }
+  .case h3 { font-family: var(--sans); font-weight: 700; letter-spacing: -.01em; font-size: var(--step-1); }
+  .case p { color: var(--muted); font-size: var(--step--1); line-height: 1.55; flex: 1; }
+  .case p b { color: var(--text); font-weight: 600; }
+  .case .tags { display: flex; flex-wrap: wrap; gap: .28rem; }
+  .case .tags i {
+    font-style: normal; font-family: var(--mono); font-size: .55rem; letter-spacing: .03em;
+    color: var(--muted); border: 1px solid var(--border); border-radius: 5px; padding: .12rem .35rem;
+  }
+  .case .run { font-family: var(--mono); font-size: .6rem; color: var(--faint); border-top: 1px solid var(--border); padding-top: .55rem; overflow-x: auto; white-space: nowrap; }
+  .case .run::before { content: "$ "; color: var(--hue); }
+  /* the dreams card ends in a caption, not a command — no shell prompt */
+  .case .run.note { white-space: normal; }
+  .case .run.note::before { content: "▸ "; }
+  /* the affordance: the card is the target, the arrow just says so */
+  .case .arw {
+    position: absolute; top: .95rem; right: 1rem;
+    font-family: var(--mono); font-size: .8rem; color: var(--hue); opacity: .55;
+    transition: opacity .18s, transform .18s;
+  }
+  .case:hover .arw { opacity: 1; transform: translateX(3px); }
+
+  /* compact shelf — same grammar, less weight */
+  .more { display: grid; grid-template-columns: repeat(4, 1fr); gap: .8rem; margin-top: .8rem; }
+  @media (max-width: 980px) { .more { grid-template-columns: 1fr 1fr; } }
+  @media (max-width: 520px) { .more { grid-template-columns: 1fr; } }
+  .mini {
+    position: relative; display: flex; flex-direction: column; gap: .3rem;
+    border: 1px solid var(--border); border-left: 2px solid var(--hue);
+    border-radius: 9px; padding: .85rem .9rem .9rem; background: var(--surface);
+    color: inherit; text-decoration: none;
+    transition: transform .18s, border-color .18s, background .18s;
+  }
+  .alt .mini { background: var(--bg); }
+  .mini:hover { text-decoration: none; transform: translateY(-2px); border-color: var(--hue); background: color-mix(in srgb, var(--hue) 7%, var(--surface)); }
+  .alt .mini:hover { background: color-mix(in srgb, var(--hue) 7%, var(--bg)); }
+  .mini:nth-child(1) { --hue: var(--green); }
+  .mini:nth-child(2) { --hue: var(--violet); }
+  .mini:nth-child(3) { --hue: var(--orange); }
+  .mini:nth-child(4) { --hue: var(--cyan); }
+  .mini .kick { font-family: var(--mono); font-size: .54rem; letter-spacing: .11em; text-transform: uppercase; color: var(--hue); }
+  .mini b { font-family: var(--sans); font-weight: 700; font-size: var(--step-0); letter-spacing: -.01em; color: var(--text); line-height: 1.25; }
+  .mini span { font-size: var(--step--2); color: var(--muted); line-height: 1.5; }
+
+
+  .callout { margin-top: 1.1rem; border: 1px solid var(--border); border-left: 2px solid var(--orange); border-radius: 10px; background: var(--surface); padding: 1.05rem 1.2rem; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: .4rem 1.1rem; align-items: baseline; }
+  .alt .callout { background: var(--bg); }
+  @media (max-width: 700px) { .callout { grid-template-columns: 1fr; } }
+  .callout .ck2 { font-family: var(--mono); font-size: .58rem; letter-spacing: .12em; text-transform: uppercase; color: var(--orange); white-space: nowrap; }
+  .callout p { color: var(--muted); font-size: var(--step--1); line-height: 1.6; }
+  .callout p b { color: var(--text); font-weight: 600; }
+
+  /* ---------- NOT RAG ---------- */
   .vs { display: grid; grid-template-columns: 1fr 1fr; gap: 1.1rem; }
   @media (max-width: 760px) { .vs { grid-template-columns: 1fr; } }
-  .vs-card { border: 1px solid var(--border); border-radius: 13px; padding: 1.5rem; background: var(--surface); }
+  .vs-card { border: 1px solid var(--border); border-radius: 13px; padding: 1.4rem; background: var(--surface); }
+  .alt .vs-card { background: var(--bg); }
   .vs-card.bad { --hue: var(--pink); }
   .vs-card.good { --hue: var(--green); border-color: color-mix(in srgb, var(--green) 45%, var(--border)); background: linear-gradient(168deg, color-mix(in srgb, var(--green) 10%, var(--surface)), var(--surface)); }
-  .vs-card h3 { font-size: var(--step-1); display: flex; align-items: center; gap: .5rem; }
+  .vs-card h3 { font-size: var(--step-1); display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
   .vs-card h3 .k { font-family: var(--mono); font-size: .62rem; letter-spacing: .12em; text-transform: uppercase; color: var(--hue); border: 1px solid var(--hue); border-radius: 20px; padding: .18rem .5rem; }
-  .vs-card ul { list-style: none; margin-top: 1.2rem; display: flex; flex-direction: column; gap: .8rem; }
+  .vs-card ul { list-style: none; margin-top: 1.1rem; display: flex; flex-direction: column; gap: .75rem; }
   .vs-card li { display: grid; grid-template-columns: auto 1fr; gap: .7rem; color: var(--muted); font-size: var(--step--1); line-height: 1.5; }
   .vs-card li .m { font-family: var(--mono); color: var(--hue); }
   .vs-card.good li b { color: var(--text); font-weight: 600; }
 
-  /* THE KIT */
-  .kit { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.1rem; }
-  @media (max-width: 860px) { .kit { grid-template-columns: repeat(2, 1fr); } }
-  @media (max-width: 540px) { .kit { grid-template-columns: 1fr; } }
-  .mod { border: 1px solid color-mix(in srgb, var(--hue) 34%, var(--border)); border-radius: 13px; padding: 1.4rem 1.35rem; background: linear-gradient(165deg, color-mix(in srgb, var(--hue) 13%, var(--surface)), var(--surface)); transition: transform .18s, box-shadow .18s; }
-  .mod:hover { transform: translateY(-3px); box-shadow: 0 14px 44px -24px color-mix(in srgb, var(--hue) 80%, transparent); }
-  .mod .ic { width: 34px; height: 34px; border-radius: 9px; display: grid; place-items: center; font-family: var(--mono); font-weight: 700; font-size: .95rem; color: #0c0e11; background: var(--hue); }
-  .mod h3 { font-size: var(--step-0); font-family: var(--sans); font-weight: 700; letter-spacing: 0; margin: .9rem 0 .4rem; }
-  .mod p { color: var(--muted); font-size: var(--step--1); line-height: 1.55; }
-  .mod .tag { font-family: var(--mono); font-size: .58rem; letter-spacing: .1em; text-transform: uppercase; color: var(--hue); }
-
-  /* REASONING DEMOS */
-  .showcase { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1.1rem; }
-  @media (max-width: 900px) { .showcase { grid-template-columns: 1fr; } }
-  .demo { background: var(--surface); border-top: 2px solid var(--hue, var(--orange)); border-radius: 13px; overflow: hidden; box-shadow: var(--shadow); display: flex; flex-direction: column; transition: transform .18s; }
-  .demo:hover { transform: translateY(-3px); }
-  #demoRfl { --hue: var(--violet); }
-  #demoCd { --hue: var(--pink); }
-  #demoTl { --hue: var(--cyan); }
-  .demo-h { padding: 1.1rem 1.15rem 1rem; border-bottom: 1px solid var(--border); }
-  .demo-h .verb { font-family: var(--mono); font-size: .64rem; letter-spacing: .14em; text-transform: uppercase; color: var(--hue); }
-  .demo-h h3 { font-family: var(--sans); font-weight: 700; letter-spacing: 0; font-size: var(--step-0); margin: .4rem 0 .3rem; }
-  .demo-h p { color: var(--muted); font-size: var(--step--1); line-height: 1.5; }
-  .demo-body { padding: 1.2rem 1.15rem 1.35rem; flex: 1; display: flex; flex-direction: column; justify-content: center; min-height: 232px; }
-  .rfl-card { border: 1px solid var(--hue); background: color-mix(in srgb, var(--hue) 14%, var(--surface)); border-radius: 8px; padding: .7rem .8rem; opacity: 0; transform: translateY(-8px); transition: opacity .5s, transform .5s; }
-  .rfl-card.show { opacity: 1; transform: none; }
-  .rfl-card .tag { font-family: var(--mono); font-size: .56rem; letter-spacing: .1em; text-transform: uppercase; color: var(--hue); }
-  .rfl-card .ins { font-size: .82rem; color: var(--text); margin-top: .25rem; line-height: 1.35; }
-  .rfl-up { text-align: center; font-family: var(--mono); font-size: .62rem; color: var(--faint); margin: .55rem 0; }
-  .rfl-mems { display: flex; flex-direction: column; gap: .35rem; }
-  .mem { font-size: .74rem; color: var(--muted); border: 1px solid var(--border); border-radius: 6px; padding: .34rem .5rem; background: var(--surface-2); opacity: .28; transform: translateX(-4px); transition: opacity .4s, color .4s, transform .4s; }
-  .mem.on { color: var(--text); opacity: 1; transform: none; }
-  .cd { display: flex; flex-direction: column; gap: .55rem; }
-  .fact2 { border: 1px solid var(--border); border-radius: 7px; background: var(--surface-2); padding: .45rem .6rem; display: flex; justify-content: space-between; gap: .6rem; align-items: center; opacity: 0; transform: translateY(6px); transition: opacity .45s, transform .45s; }
-  .fact2.on { opacity: 1; transform: none; }
-  .fact2 .val { font-size: .78rem; color: var(--text); }
-  .fact2 .when { font-family: var(--mono); font-size: .6rem; color: var(--faint); white-space: nowrap; }
-  .fact2.stale .val { text-decoration: line-through; text-decoration-color: var(--pink); color: var(--muted); }
-  .cd-warn { align-self: center; font-family: var(--mono); font-size: .64rem; color: var(--hue); border: 1px solid var(--hue); background: color-mix(in srgb, var(--hue) 12%, var(--surface)); border-radius: 20px; padding: .28rem .75rem; opacity: 0; transform: scale(.92); transition: opacity .4s, transform .4s; }
-  .cd-warn.on { opacity: 1; transform: none; }
-  .cd-now { font-size: .8rem; color: var(--text); border-left: 2px solid var(--hue); padding-left: .6rem; opacity: 0; transition: opacity .45s; }
-  .cd-now.on { opacity: 1; }
-  .cd-now .fk { font-family: var(--mono); font-size: .56rem; letter-spacing: .1em; text-transform: uppercase; color: var(--faint); display: block; }
-  .cd-now b { color: var(--hue); }
-  .tl { display: flex; flex-direction: column; gap: 1.1rem; }
-  .tl-track { position: relative; display: flex; justify-content: space-between; padding: 0 4px; }
-  .tl-track::before { content: ""; position: absolute; left: 10px; right: 10px; top: 6px; height: 1px; background: var(--border); }
-  .tl-dot { position: relative; z-index: 1; display: flex; flex-direction: column; align-items: center; gap: .4rem; font-family: var(--mono); font-size: .58rem; color: var(--faint); transition: color .3s; }
-  .tl-dot .d { width: 13px; height: 13px; border-radius: 50%; background: var(--surface-2); border: 1px solid var(--border-strong); transition: background .3s, border-color .3s, box-shadow .3s; }
-  .tl-dot.active { color: var(--hue); }
-  .tl-dot.active .d { background: var(--hue); border-color: var(--hue); box-shadow: 0 0 0 4px color-mix(in srgb, var(--hue) 25%, transparent); }
-  .tl-readout { border: 1px solid var(--border); border-radius: 8px; background: var(--surface-2); padding: .75rem .85rem; }
-  .tl-readout .fk { font-family: var(--mono); font-size: .56rem; letter-spacing: .1em; text-transform: uppercase; color: var(--faint); }
-  .tl-readout .role { font-size: .9rem; color: var(--text); margin-top: .2rem; }
-  .tl-readout .meta { font-family: var(--mono); font-size: .62rem; color: var(--muted); margin-top: .4rem; }
-  .tl-readout .meta b { color: var(--hue); }
-  .sk { display: flex; flex-direction: column; gap: .5rem; }
-  .sk-step { opacity: 0; transform: translateY(6px); transition: opacity .45s, transform .45s; }
-  .sk-step.on { opacity: 1; transform: none; }
-  .sk-ev { border: 1px solid color-mix(in srgb, var(--pink) 40%, var(--border)); border-radius: 7px; background: color-mix(in srgb, var(--pink) 8%, var(--surface-2)); padding: .45rem .6rem; font-size: .78rem; color: var(--text); }
-  .sk-ev .ek { display: block; font-family: var(--mono); font-size: .56rem; letter-spacing: .1em; text-transform: uppercase; color: var(--pink); margin-bottom: .15rem; }
-  .sk-up { text-align: center; font-family: var(--mono); font-size: .62rem; color: var(--faint); }
-  .sk-diff { border: 1px solid var(--border); border-radius: 8px; background: var(--surface-2); padding: .55rem .6rem; }
-  .sk-diff .dk { font-family: var(--mono); font-size: .56rem; letter-spacing: .1em; text-transform: uppercase; color: var(--faint); display: block; margin-bottom: .35rem; }
-  .sk-diff .dl { font-family: var(--mono); font-size: .7rem; line-height: 1.4; padding: .12rem .35rem; border-radius: 4px; }
-  .sk-diff .dl.del { color: var(--muted); text-decoration: line-through; text-decoration-color: var(--pink); background: color-mix(in srgb, var(--pink) 7%, transparent); }
-  .sk-diff .dl.add { color: var(--text); background: color-mix(in srgb, var(--green) 12%, transparent); border-left: 2px solid var(--green); margin-top: .2rem; }
-  .sk-gate { display: flex; align-items: center; flex-wrap: wrap; gap: .5rem; }
-  .sk-gate .gk { font-family: var(--mono); font-size: .56rem; letter-spacing: .1em; text-transform: uppercase; color: var(--faint); }
-  .sk-gate .btn-promote { font-family: var(--mono); font-size: .66rem; letter-spacing: .04em; color: #0c0e11; background: var(--green); border-radius: 6px; padding: .3rem .62rem; font-weight: 700; }
-  .sk-gate.on .btn-promote { animation: skpulse 1.7s ease-in-out infinite; }
-  .sk-gate .ghint { font-size: .64rem; color: var(--muted); }
-  @keyframes skpulse { 0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--green) 55%, transparent); } 50% { box-shadow: 0 0 0 6px color-mix(in srgb, var(--green) 0%, transparent); } }
-  @media (prefers-reduced-motion: reduce) { .sk-gate.on .btn-promote { animation: none; } }
-
-  /* LIVING PROFILE */
-  .profile-demo { border: 1px solid var(--border-strong); border-radius: 15px; background: var(--surface); overflow: hidden; box-shadow: var(--shadow); }
-  .profile-demo-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: .9rem 1.1rem; background: var(--surface-2); border-bottom: 1px solid var(--border); }
-  .profile-demo-title { display: flex; align-items: center; gap: .7rem; font-family: var(--mono); font-size: var(--step--1); font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
-  .profile-demo-title .mark { width: 10px; height: 10px; border-radius: 50%; background: var(--grad); box-shadow: 0 0 0 4px color-mix(in srgb, var(--orange) 12%, transparent); }
-  .profile-demo-run { font-family: var(--mono); font-size: .62rem; color: var(--faint); }
-  .profile-demo-state { display: inline-flex; align-items: center; gap: .42rem; font-family: var(--mono); font-size: .62rem; color: var(--green); white-space: nowrap; }
-  .profile-demo-state::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--green); box-shadow: 0 0 0 3px color-mix(in srgb, var(--green) 15%, transparent); }
-  .profile-demo-state.flash { animation: profileflash .7s ease-out; }
-  @keyframes profileflash { 50% { color: var(--text); transform: translateY(-1px); } }
-  .profile-demo-grid { display: grid; grid-template-columns: 1fr 1.05fr 1.25fr; }
-  .profile-pipeline, .profile-derivation { position: relative; padding: 1.3rem 1.25rem 1.4rem; border-right: 1px solid var(--border); }
-  .profile-pipeline::after, .profile-derivation::after { content: "→"; position: absolute; z-index: 2; top: 50%; right: -.65rem; display: grid; place-items: center; width: 1.3rem; height: 1.3rem; border: 1px solid var(--border-strong); border-radius: 50%; background: var(--surface-2); color: var(--orange); font-family: var(--mono); font-size: .8rem; transform: translateY(-50%); }
-  .profile-act { font-family: var(--mono); font-size: .62rem; letter-spacing: .13em; text-transform: uppercase; color: var(--amber); }
-  .profile-pipeline h3 { font-family: var(--sans); font-size: var(--step-1); letter-spacing: 0; margin-top: .55rem; }
-  .profile-pipeline > p { color: var(--muted); font-size: var(--step--1); line-height: 1.5; margin-top: .5rem; }
-  /* left column · raw source events (arrive, then sit untouched) */
-  .profile-inbox { display: flex; flex-direction: column; gap: .5rem; margin-top: 1.2rem; min-height: 8rem; }
-  .profile-raw { --hue: var(--orange); position: relative; padding: .58rem .7rem; border: 1px solid color-mix(in srgb, var(--hue) 38%, var(--border)); border-left-width: 3px; border-radius: 8px; background: color-mix(in srgb, var(--hue) 6%, var(--surface-2)); transition: box-shadow .28s, border-color .28s, opacity .28s; }
-  .profile-raw.arrive { animation: rawarrive .55s cubic-bezier(.2,.75,.25,1) both; }
-  @keyframes rawarrive { 0% { opacity: 0; transform: translateX(-22px) scale(.96); } 60% { transform: translateX(3px); } 100% { opacity: 1; transform: none; } }
-  .profile-raw.active { border-color: var(--hue); box-shadow: 0 0 0 3px color-mix(in srgb, var(--hue) 15%, transparent); }
-  .profile-raw.done { border-color: color-mix(in srgb, var(--green) 45%, var(--border)); }
-  .profile-raw.rejected { opacity: .5; }
-  .profile-raw-head { display: flex; align-items: center; justify-content: space-between; gap: .5rem; font-family: var(--mono); font-size: .5rem; letter-spacing: .08em; text-transform: uppercase; }
-  .profile-raw-head .src { color: var(--hue); }
-  .profile-raw-head .st { color: var(--faint); white-space: nowrap; }
-  .profile-raw.active .profile-raw-head .st { color: var(--hue); }
-  .profile-raw.done .profile-raw-head .st { color: var(--green); }
-  .profile-raw.rejected .profile-raw-head .st { color: var(--faint); }
-  .profile-raw-msg { display: block; margin-top: .35rem; color: var(--text); font-size: .72rem; line-height: 1.4; }
-
-  .profile-card-wrap { padding: 1.3rem 1.25rem 1.4rem; background: linear-gradient(150deg, color-mix(in srgb, var(--green) 7%, var(--surface)), var(--surface)); }
-
-  /* middle column · linear pipeline (enrich → derive → judge light up in sequence) */
-  .profile-derivation h3 { font-family: var(--sans); font-size: var(--step-1); letter-spacing: 0; margin-top: .55rem; }
-  .profile-derivation > p { color: var(--muted); font-size: var(--step--1); line-height: 1.5; margin-top: .5rem; }
-  .pipe { list-style: none; position: relative; display: flex; flex-direction: column; gap: .6rem; margin: 1.2rem 0 0; padding: 0; }
-  .pipe::before { content: ""; position: absolute; left: 1.6rem; top: 1rem; bottom: 1rem; width: 2px; transform: translateX(-1px); background: color-mix(in srgb, var(--green) 28%, var(--border)); opacity: .5; }
-  .pipe-step { position: relative; display: grid; grid-template-columns: 1.9rem 1fr; gap: .65rem; align-items: start; padding: .6rem .65rem; border: 1px solid var(--border); border-radius: 9px; background: var(--surface-2); opacity: .5; transition: opacity .25s, border-color .25s, background .25s, transform .25s, box-shadow .25s; }
-  .pipe-num { position: relative; z-index: 1; display: grid; place-items: center; width: 1.9rem; height: 1.9rem; border: 1px solid var(--border-strong); border-radius: 6px; background: var(--surface-2); font-family: var(--mono); font-size: .6rem; color: var(--faint); transition: color .25s, border-color .25s, background .25s; }
-  .pipe-body strong { display: block; font-family: var(--mono); font-size: .66rem; text-transform: uppercase; letter-spacing: .05em; color: var(--text); }
-  .pipe-body span { display: block; margin-top: .16rem; font-size: .66rem; line-height: 1.4; color: var(--faint); }
-  .pipe-step.active { opacity: 1; border-color: color-mix(in srgb, var(--cyan) 55%, var(--border)); background: color-mix(in srgb, var(--cyan) 9%, var(--surface-2)); transform: translateX(4px); box-shadow: 0 0 0 3px color-mix(in srgb, var(--cyan) 10%, transparent); }
-  .pipe-step.active .pipe-num { color: var(--cyan); border-color: var(--cyan); }
-  .pipe-step.done { opacity: 1; border-color: color-mix(in srgb, var(--green) 35%, var(--border)); }
-  .pipe-step.done .pipe-num { color: transparent; border-color: var(--green); background: color-mix(in srgb, var(--green) 12%, var(--surface-2)); }
-  .pipe-step.done .pipe-num::after { content: "✓"; position: absolute; inset: 0; display: grid; place-items: center; color: var(--green); }
-  .pipe-result { margin-top: 1rem; padding: .62rem .7rem; border-left: 2px solid var(--border-strong); background: var(--surface-2); font-family: var(--mono); font-size: .6rem; line-height: 1.4; color: var(--muted); transition: border-color .25s; }
-  .pipe-result b { color: var(--text); }
-  .pipe-result.update { border-left-color: var(--green); }
-  .pipe-result.update b { color: var(--green); }
-  .pipe-result.reject { border-left-color: var(--faint); }
-  .pipe-result.reject b { color: var(--faint); }
-  /* right column · summary clause that just changed */
-  .profile-summary .sf { border-radius: 3px; padding: 0 .06em; }
-  .profile-summary .sf.hot { animation: sfhot 1.2s ease-out; }
-  @keyframes sfhot { 0%, 25% { background: color-mix(in srgb, var(--green) 32%, transparent); color: var(--text); } 100% { background: transparent; } }
-  .profile-card { border: 1px solid color-mix(in srgb, var(--green) 44%, var(--border)); border-radius: 11px; background: color-mix(in srgb, var(--green) 4%, var(--surface)); overflow: hidden; transition: border-color .25s, box-shadow .25s; }
-  .profile-card.pulse { border-color: var(--green); box-shadow: 0 0 0 4px color-mix(in srgb, var(--green) 10%, transparent); }
-  .profile-card.nudge { animation: cardnudge .5s ease-out; }
-  @keyframes cardnudge { 0%, 100% { transform: none; } 25% { transform: translateX(-3px); } 75% { transform: translateX(3px); } }
-  .profile-card-top { display: flex; align-items: flex-start; justify-content: space-between; gap: .8rem; padding: 1rem 1rem .85rem; border-bottom: 1px solid var(--border); }
-  .profile-person { font-family: var(--mono); font-size: .78rem; color: var(--text); font-weight: 700; text-transform: uppercase; letter-spacing: .06em; }
-  .profile-company { display: block; color: var(--muted); font-size: .68rem; font-weight: 400; letter-spacing: 0; text-transform: none; margin-top: .15rem; }
-  .profile-live { font-family: var(--mono); color: var(--green); font-size: .56rem; letter-spacing: .1em; text-transform: uppercase; border: 1px solid color-mix(in srgb, var(--green) 50%, var(--border)); border-radius: 20px; padding: .22rem .45rem; white-space: nowrap; }
-  .profile-summary { padding: 1rem 1rem .85rem; color: var(--text); font-size: .84rem; line-height: 1.5; }
-  .profile-summary.changing { animation: summarychange .85s ease-out; }
-  @keyframes summarychange { 0% { opacity: .35; transform: translateY(5px); } 35% { color: var(--green); } 100% { opacity: 1; transform: none; } }
-  .profile-summary::before { content: "“"; color: var(--green); font-family: Georgia, serif; font-size: 1.5em; line-height: 0; vertical-align: -.18em; margin-right: .15em; }
-  .profile-slots { display: flex; flex-direction: column; gap: .45rem; padding: 0 1rem 1rem; }
-  .profile-slot { display: grid; grid-template-columns: 6.1rem minmax(0, 1fr) auto; gap: .55rem; align-items: baseline; padding-top: .48rem; border-top: 1px solid var(--border); }
-  .profile-slot .label { font-family: var(--mono); font-size: .58rem; color: var(--green); text-transform: uppercase; letter-spacing: .08em; }
-  .profile-slot .value { min-width: 0; color: var(--text); font-size: .72rem; line-height: 1.35; }
-  .profile-slot .cite { font-family: var(--mono); color: var(--faint); font-size: .55rem; white-space: nowrap; }
-  .profile-slot.quiet .value, .profile-slot.quiet .cite { color: var(--faint); }
-  .profile-slot.changed { animation: slotchange 1s ease-out; }
-  @keyframes slotchange { 0%, 35% { background: color-mix(in srgb, var(--green) 22%, transparent); } 100% { background: transparent; } }
-  .profile-update { margin: 0 1rem 1rem; padding: .65rem .7rem; border-left: 2px solid var(--amber); background: color-mix(in srgb, var(--amber) 8%, var(--surface-2)); color: var(--muted); font-size: .7rem; line-height: 1.4; }
-  .profile-update .update-label { display: block; font-family: var(--mono); font-size: .55rem; letter-spacing: .1em; text-transform: uppercase; color: var(--amber); margin-bottom: .2rem; }
-  @media (max-width: 980px) {
-    .profile-demo-grid { grid-template-columns: 1fr; }
-    .profile-pipeline, .profile-derivation { border-right: 0; border-bottom: 1px solid var(--border); }
-    .profile-pipeline::after, .profile-derivation::after { content: "↓"; top: auto; right: 50%; bottom: -.65rem; transform: translateX(50%); }
-  }
-  @media (max-width: 560px) {
-    .profile-demo-head { align-items: flex-start; flex-direction: column; gap: .45rem; }
-    .profile-demo-run { display: none; }
-    .profile-pipeline, .profile-derivation, .profile-card-wrap { padding-inline: .9rem; }
-    .profile-inbox, .pipe { margin-top: 1rem; }
-    .profile-slot { grid-template-columns: 1fr auto; gap: .25rem .55rem; }
-    .profile-slot .label { grid-column: 1; }
-    .profile-slot .cite { grid-column: 2; grid-row: 1; }
-    .profile-slot .value { grid-column: 1 / -1; grid-row: 2; }
-  }
-  @media (prefers-reduced-motion: reduce) { .profile-demo-state.flash { animation: none; } .profile-summary.changing, .profile-summary .sf.hot, .profile-slot.changed, .profile-raw.arrive, .profile-card.nudge { animation: none; } .profile-card, .pipe-step, .profile-raw { transition: none; } }
-
-  /* BENCHMARKS */
+  /* ---------- BENCHMARKS ---------- */
   .bench { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: var(--border); border: 1px solid var(--border); border-radius: 13px; overflow: hidden; }
   @media (max-width: 820px) { .bench { grid-template-columns: repeat(2, 1fr); } }
-  .bm { background: var(--surface); padding: 1.5rem 1.35rem; border-top: 2px solid var(--hue); }
+  .bm { background: var(--surface); padding: 1.35rem 1.25rem; border-top: 2px solid var(--hue); }
+  .alt .bm { background: var(--bg); }
   .bm:nth-child(1) { --hue: var(--orange); }
   .bm:nth-child(2) { --hue: var(--cyan); }
   .bm:nth-child(3) { --hue: var(--violet); }
   .bm:nth-child(4) { --hue: var(--pink); }
-  .bm .n { font-family: var(--mono); color: var(--hue); font-size: 2.4rem; letter-spacing: -.03em; font-variant-numeric: tabular-nums; line-height: 1; }
-  .bm .metric { margin-top: .55rem; color: var(--text); font-size: var(--step--1); font-weight: 600; }
-  .bm .bench-name { margin-top: .3rem; color: var(--muted); font-size: .78rem; line-height: 1.4; }
-  .tokens { margin-top: 1.1rem; border: 1px solid var(--border); border-radius: 13px; background: var(--surface); padding: 1.5rem; }
-  .tokens .th { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: .5rem; margin-bottom: 1.1rem; }
+  .bm .n { font-family: var(--mono); color: var(--hue); font-size: 2.2rem; letter-spacing: -.03em; font-variant-numeric: tabular-nums; line-height: 1; }
+  .bm .metric { margin-top: .5rem; color: var(--text); font-size: var(--step--1); font-weight: 600; }
+  .bm .bench-name { margin-top: .28rem; color: var(--muted); font-size: .76rem; line-height: 1.4; }
+  .tokens { margin-top: 1rem; border: 1px solid var(--border); border-radius: 13px; background: var(--surface); padding: 1.4rem; }
+  .alt .tokens { background: var(--bg); }
+  .tokens .th { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: .5rem; margin-bottom: 1rem; }
   .tokens .th h3 { font-size: var(--step-1); }
   .tokens .th .mult { font-family: var(--mono); color: var(--green); font-weight: 700; font-size: var(--step-1); }
   .trow { display: grid; grid-template-columns: 9rem 1fr; gap: .8rem; align-items: center; margin-bottom: .7rem; }
@@ -414,66 +451,41 @@
   .tbar > i { position: absolute; left: 0; top: 0; bottom: 0; width: 0; border-radius: 5px; transition: width 1.1s cubic-bezier(.2,.7,.3,1); }
   .tbar.full > i { background: linear-gradient(90deg, color-mix(in srgb, var(--pink) 60%, var(--surface-2)), var(--pink)); }
   .tbar.mem > i { background: linear-gradient(90deg, var(--green), var(--cyan)); }
+  /* The label sits over the track, so it must stay readable even when the bar
+     itself is only a few percent wide (which is the whole point of this chart). */
   .tbar .v { position: absolute; right: .5rem; top: 50%; transform: translateY(-50%); font-family: var(--mono); font-size: .64rem; color: var(--text); }
-  .tbar.mem .v { color: #0c0e11; }
-  .bench-foot { margin-top: 1.1rem; color: var(--faint); font-size: var(--step--1); font-family: var(--mono); line-height: 1.5; }
+  .tbar.mem .v { color: var(--green); }
+  .bench-foot { margin-top: 1rem; color: var(--faint); font-size: var(--step--1); font-family: var(--mono); line-height: 1.5; }
 
-  /* OUTPUTS */
-  .outs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1.1rem; }
-  @media (max-width: 860px) { .outs { grid-template-columns: repeat(2, 1fr); } }
-  @media (max-width: 480px) { .outs { grid-template-columns: 1fr; } }
-  .out { border: 1px solid color-mix(in srgb, var(--hue) 34%, var(--border)); border-radius: 12px; overflow: hidden; background: var(--surface); }
-  .out:nth-child(1) { --hue: var(--cyan); }
-  .out:nth-child(2) { --hue: var(--orange); }
-  .out:nth-child(3) { --hue: var(--violet); }
-  .out:nth-child(4) { --hue: var(--pink); }
-  .out .oh { padding: 1rem 1.1rem .2rem; }
-  .out .oh .tag { font-family: var(--mono); font-size: .58rem; letter-spacing: .1em; text-transform: uppercase; color: var(--hue); }
-  .out .oh h3 { font-size: var(--step-0); font-family: var(--sans); font-weight: 700; letter-spacing: 0; margin: .35rem 0 .3rem; }
-  .out .oh p { margin-bottom: .8rem; color: var(--muted); font-size: var(--step--1); line-height: 1.5; }
-  .out pre { border-top: 1px solid var(--border); background: var(--surface-2); padding: .75rem .9rem; font-family: var(--mono); font-size: .68rem; line-height: 1.55; color: var(--text); overflow-x: auto; }
-
-  /* DEV MEMORY */
-  .feature-grid { display: grid; grid-template-columns: 1fr 1.05fr; gap: clamp(2rem, 4vw, 3.5rem); align-items: center; }
-  @media (max-width: 900px) { .feature-grid { grid-template-columns: 1fr; } }
-  .feature-grid h2 { font-size: var(--step-2); margin-top: .9rem; }
-  .feature-grid > div > p { color: var(--muted); margin-top: 1rem; max-width: 48ch; }
-  .devmem-list { list-style: none; margin-top: 1.4rem; display: grid; grid-template-columns: 1fr 1fr; gap: .7rem 1.2rem; }
-  @media (max-width: 520px) { .devmem-list { grid-template-columns: 1fr; } }
-  .devmem-list li { display: grid; grid-template-columns: auto 1fr; gap: .6rem; color: var(--muted); font-size: var(--step--1); line-height: 1.45; }
-  .devmem-list .m { color: var(--green); font-family: var(--mono); }
-  .code { background: var(--surface); border: 1px solid var(--border); border-radius: 13px; box-shadow: var(--shadow); overflow: hidden; }
-  .code-tabs { display: flex; border-bottom: 1px solid var(--border); background: var(--surface-2); font-family: var(--mono); font-size: var(--step--1); }
-  .code-tabs .t { padding: .7rem 1.1rem; color: var(--orange); box-shadow: inset 0 -2px 0 var(--orange); }
-  .code pre { padding: 1.3rem 1.4rem; overflow-x: auto; font-family: var(--mono); font-size: .82rem; line-height: 1.7; color: var(--text); }
-  .cm { color: var(--faint); } .cs { color: var(--cyan); } .cn { color: var(--green); } .cf { color: var(--violet); }
-
-  /* BUY VS BUILD */
+  /* ---------- BUY VS BUILD ---------- */
   .bvb { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.1rem; }
   @media (max-width: 820px) { .bvb { grid-template-columns: 1fr; } }
-  .bvb-card { border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem 1.4rem; background: var(--surface); }
+  .bvb-card { border: 1px solid var(--border); border-radius: 12px; padding: 1.4rem 1.3rem; background: var(--surface); }
+  .alt .bvb-card { background: var(--bg); }
   .bvb-card .ic { font-family: var(--mono); color: var(--hue); font-size: 1.4rem; }
   .bvb-card:nth-child(1) { --hue: var(--orange); }
   .bvb-card:nth-child(2) { --hue: var(--violet); }
   .bvb-card:nth-child(3) { --hue: var(--cyan); }
-  .bvb-card h3 { font-size: var(--step-0); font-family: var(--sans); font-weight: 700; letter-spacing: 0; margin: .7rem 0 .4rem; }
+  .bvb-card h3 { font-size: var(--step-0); font-family: var(--sans); font-weight: 700; letter-spacing: 0; margin: .6rem 0 .4rem; }
   .bvb-card p { color: var(--muted); font-size: var(--step--1); line-height: 1.55; }
   .bvb-card p b { color: var(--text); font-weight: 600; }
 
-  /* FAQ */
-  .faq { max-width: 800px; margin: 0 auto; display: flex; flex-direction: column; gap: .7rem; }
+  /* ---------- FAQ ---------- */
+  .faq { max-width: 820px; display: flex; flex-direction: column; gap: .65rem; }
   .faq details { border: 1px solid var(--border); border-radius: 11px; background: var(--surface); overflow: hidden; transition: border-color .2s; }
+  .alt .faq details { background: var(--bg); }
   .faq details[open] { border-color: color-mix(in srgb, var(--violet) 40%, var(--border)); }
-  .faq summary { list-style: none; cursor: pointer; padding: 1.05rem 1.2rem; display: flex; justify-content: space-between; align-items: center; gap: 1rem; font-family: var(--mono); font-size: var(--step-0); color: var(--text); font-weight: 600; letter-spacing: -.01em; }
+  .faq summary { list-style: none; cursor: pointer; padding: .95rem 1.1rem; display: flex; justify-content: space-between; align-items: center; gap: 1rem; font-family: var(--mono); font-size: var(--step-0); color: var(--text); font-weight: 600; letter-spacing: -.01em; }
   .faq summary::-webkit-details-marker { display: none; }
   .faq summary .pm { font-family: var(--mono); color: var(--violet); font-size: 1.2rem; flex: 0 0 auto; transition: transform .25s; line-height: 1; }
   .faq details[open] summary .pm { transform: rotate(45deg); }
-  .faq .ans { padding: 0 1.2rem 1.15rem; color: var(--muted); font-size: var(--step--1); line-height: 1.65; max-width: 68ch; }
+  .faq .ans { padding: 0 1.1rem 1.1rem; color: var(--muted); font-size: var(--step--1); line-height: 1.65; max-width: 70ch; }
   .faq .ans b { color: var(--text); font-weight: 600; }
+  .faq .ans code { font-family: var(--mono); font-size: .95em; color: var(--text); }
 
-  /* CTA */
+  /* ---------- CTA ---------- */
   .cta { text-align: center; }
-  .cta-card { border: 1px solid var(--border-strong); border-radius: 18px; padding: clamp(2.6rem, 6vw, 4.6rem) clamp(1.2rem, 4vw, 3rem); box-shadow: var(--shadow); position: relative; overflow: hidden; background: var(--surface); }
+  .cta-card { border: 1px solid var(--border-strong); border-radius: 18px; padding: clamp(2.2rem, 5vw, 4rem) clamp(1.2rem, 4vw, 3rem); box-shadow: var(--shadow); position: relative; overflow: hidden; background: var(--surface); }
   .cta-card::before {
     content: ""; position: absolute; inset: 0; pointer-events: none;
     background:
@@ -481,16 +493,15 @@
       radial-gradient(70% 80% at 80% -10%, color-mix(in srgb, var(--pink) 22%, transparent), transparent 60%),
       radial-gradient(60% 70% at 50% 120%, color-mix(in srgb, var(--violet) 18%, transparent), transparent 60%);
   }
-  .cta h2 { position: relative; font-size: var(--step-2); max-width: 22ch; margin: .4rem auto 0; }
-  .cta-card > p { color: var(--muted); max-width: 50ch; margin: 1.1rem auto 0; position: relative; }
-  .cta .hero-cta { justify-content: center; margin-top: 2rem; position: relative; }
+  .cta h2 { position: relative; font-size: var(--step-2); max-width: 24ch; margin: .4rem auto 0; }
+  .cta-card > p { color: var(--muted); max-width: 52ch; margin: 1rem auto 0; position: relative; }
   .cta .eyebrow { justify-content: center; }
-  .waitlist-form { position: relative; max-width: 620px; margin: 1.75rem auto 0; text-align: left; }
+  .waitlist-form { position: relative; max-width: 620px; margin: 1.6rem auto 0; text-align: left; }
   .waitlist-form iframe { display: block; width: 100%; min-height: 420px; border: 0; }
   .waitlist-fallback { position: relative; margin-top: 1.25rem; font-family: var(--mono); font-size: var(--step--1); }
 
-  /* FOOTER */
-  footer { border-top: 1px solid var(--border); padding-block: 2.5rem; }
+  /* ---------- FOOTER ---------- */
+  footer { border-top: 1px solid var(--border); padding-block: 2.4rem; }
   .foot { display: flex; flex-wrap: wrap; gap: 1rem 2rem; align-items: center; justify-content: space-between; font-family: var(--mono); font-size: var(--step--1); color: var(--faint); }
   .foot a { color: var(--muted); }
   .foot .fl { display: flex; gap: 1.4rem; flex-wrap: wrap; }
@@ -503,12 +514,10 @@
   <div class="wrap nav-inner">
     <div class="brand"><span class="dot"></span>memseek</div>
     <nav class="nav-links">
+      <a href="#quickstart" class="hide-sm">Quickstart</a>
+      <a href="#uses" class="hide-sm">Use cases</a>
       <a href="#why" class="hide-sm">Why not RAG</a>
-      <a href="#kit" class="hide-sm">The kit</a>
       <a href="#benchmarks" class="hide-sm">Benchmarks</a>
-      <a href="#devmem" class="hide-sm">Agents</a>
-      <a href="#living-profile" class="hide-sm">Living profile</a>
-      <a href="#faq" class="hide-sm">FAQ</a>
       <a href="/showcase/">Showcases</a>
       <a href="/blog/">Blog</a>
       <button class="theme-toggle" id="themeBtn" aria-label="Toggle color theme">THEME</button>
@@ -518,51 +527,139 @@
 </header>
 
 <main>
-  <!-- ============ HERO (first — from memseek-hero.html) ============ -->
+  <!-- ============ HERO ============ -->
   <section class="hero">
-    <div class="wrap hero-grid">
-      <div>
-        <span class="eyebrow">Memory layer for agents</span>
-        <h1>
-          Your agent keeps re-suggesting <span class="dim">what the team rejected in March.</span>
-          Memseek remembers <span class="grad">what's true now.</span>
-        </h1>
-        <p class="lede">
-          One layer between your records and the model. <b>Current, dated, source-linked</b> context —
-          not similar-looking chunks. <b>Your data stays where it is.</b>
-        </p>
-        <div class="hero-cta">
-          <a href="#waitlist" class="btn btn-primary">Join the waitlist →</a>
-          <a href="#benchmarks" class="btn btn-ghost">See the benchmarks</a>
-          <span class="cta-note">Runs on cheap, self-hostable models</span>
+    <div class="wrap">
+      <div class="hero-top">
+        <div>
+          <span class="eyebrow">Memory infrastructure for agents</span>
+          <h1>Agent memory you <span class="grad">declare</span>, not build.</h1>
+          <p class="lede">
+            Your app writes records. Memseek scores them, derives what they mean, and serves the
+            few facts that are <b>true now</b> — each dated and cited to the event it came from.
+            Nothing is ever overwritten.
+          </p>
+          <div class="hero-cta">
+            <a href="#waitlist" class="btn btn-primary">Join the waitlist →</a>
+            <a href="#quickstart" class="btn btn-ghost">See the code</a>
+            <span class="cta-note">Runs on your own Postgres · cheap, self-hostable models</span>
+          </div>
         </div>
+        <ul class="proof">
+          <li><span class="n">82%</span><span class="l">recall &amp; reasoning accuracy<span class="s">LongMemEval-S</span></span></li>
+          <li><span class="n">91%</span><span class="l">picks the latest valid fact<span class="s">after facts change over time</span></span></li>
+          <li><span class="n">32×</span><span class="l">fewer tokens per question<span class="s">~3,200 vs. ~101,000</span></span></li>
+        </ul>
       </div>
 
-      <!-- Selection diagram: full history → select the right context → served -->
-      <div class="pane" id="sel-pane" aria-label="How Memseek selects the right context from a long history">
+      <!-- declare → run → read, in one panel -->
+      <div class="pane hero-pane">
         <div class="pane-bar">
-          <span class="ask">agent asks: <b>"what should I know before the Acme call?"</b></span>
+          <div class="ytabs" id="ytabs" role="tablist" aria-label="Catalog definitions">
+            <button class="ytab" role="tab" aria-selected="true" data-y="0">collections/crm.yaml</button>
+            <button class="ytab" role="tab" aria-selected="false" data-y="1">derivations/crm_profile.yaml</button>
+            <button class="ytab" role="tab" aria-selected="false" data-y="2">artifacts/profile_brief.yaml</button>
+          </div>
+          <span class="live">live · self-maintaining</span>
         </div>
-        <div class="sel">
-          <div class="hist">
-            <div class="col-h"><span>the full history</span><span>~101k tok</span></div>
-            <div class="hi sup"><div class="mt">CRM · Feb</div><div class="tx">Budget approved: $40k</div></div>
-            <div class="hi pick"><div class="mt">call notes · May</div><div class="tx">Budget cut to $25k this year</div></div>
-            <div class="hi pick"><div class="mt">email · Jun</div><div class="tx">Wants SSO before they sign</div></div>
-            <div class="hi pick"><div class="mt">note</div><div class="tx">Prefers email over calls</div></div>
-            <div class="hi"><div class="mt">support</div><div class="tx">Billing complaint — resolved</div></div>
-            <div class="hi"><div class="mt">marketing</div><div class="tx">Opened the newsletter</div></div>
+
+        <div class="pane-grid">
+          <div class="zone">
+            <div class="zone-h"><b>you declare</b> · yaml, checked into your repo</div>
+
+            <div class="yz on" id="y0" role="tabpanel">
+<pre class="y"><span class="yk">collections</span>:
+  - <span class="yk">name</span>: <span class="ys">crm_events</span>
+    <span class="yk">mode</span>: <span class="ys">event</span>              <span class="yc"># immutable, append-only</span>
+    <span class="yk">required_processors</span>:
+      - <span class="ys">crm_embedding</span>       <span class="yc"># findable by meaning</span>
+      - <span class="ys">importance</span>          <span class="yc"># 1-10: should this change
+                            #   a durable profile?</span>
+
+  - <span class="yk">name</span>: <span class="ys">user_profiles</span>
+    <span class="yk">mode</span>: <span class="ys">keyed</span>              <span class="yc"># one current version per key;
+                            #   rewrites supersede, never erase</span></pre>
+            </div>
+
+            <div class="yz" id="y1" role="tabpanel">
+<pre class="y"><span class="yk">name</span>: <span class="ys">crm_profile</span>
+<span class="yk">trigger</span>:
+  <span class="yk">accumulator</span>: {<span class="yk">metric</span>: <span class="ys">importance</span>, <span class="yk">threshold</span>: <span class="yn">6</span>}
+<span class="yk">sources</span>:                    <span class="yc"># what the run may see</span>
+  <span class="yk">new_crm_events</span>:  {<span class="yk">kind</span>: <span class="ys">changes</span>, <span class="yk">collections</span>: [<span class="ys">crm_events</span>]}
+  <span class="yk">current_profile</span>: {<span class="yk">kind</span>: <span class="ys">current</span>,  <span class="yk">keys</span>: [<span class="ys">role</span>, <span class="ys">commitments</span>]}
+  <span class="yk">commitment_history</span>: {<span class="yk">kind</span>: <span class="ys">view</span>, <span class="yk">view</span>: <span class="ys">crm_history</span>}
+<span class="yk">limits</span>:                     <span class="yc"># hard, per run</span>
+  <span class="yk">max_llm_calls</span>: <span class="yn">2</span>
+  <span class="yk">max_total_tokens</span>: <span class="yn">20000</span>
+  <span class="yk">max_wall_s</span>: <span class="yn">60</span>
+<span class="yk">emit</span>:
+  <span class="yk">collection</span>: <span class="ys">user_profiles</span>
+  <span class="yk">keys</span>: [<span class="ys">role</span>, <span class="ys">commitments</span>, <span class="ys">preferences</span>, <span class="ys">open_threads</span>]
+  <span class="yc"># every emitted record cites the events it stands
+  #   on — uncited output is rejected, not stored</span></pre>
+            </div>
+
+            <div class="yz" id="y2" role="tabpanel">
+<pre class="y"><span class="yk">artifacts</span>:
+  - <span class="yk">name</span>: <span class="ys">crm_profile_brief</span>
+    <span class="yk">kind</span>: <span class="ys">prompt</span>
+    <span class="yk">lifecycle</span>: <span class="ys">live</span>
+    <span class="yk">blocks</span>:                  <span class="yc"># token-budgeted, in order</span>
+      <span class="yk">profile</span>:  {<span class="yk">document</span>: {<span class="yk">entity</span>: <span class="ys">"{{entity}}"</span>}, <span class="yk">max_tokens</span>: <span class="yn">2000</span>}
+      <span class="yk">evidence</span>: {<span class="yk">view</span>: <span class="ys">crm_history@1</span>, <span class="yk">max_tokens</span>: <span class="yn">3000</span>}
+    <span class="yk">template</span>: |
+      CRM PROFILE
+      {{profile}}
+
+      SUPPORTING CRM EVENTS
+      {{evidence}}
+<span class="yc"># one render → exact input manifest + content hash.
+#   same inputs, same bytes. replayable.</span></pre>
+            </div>
           </div>
-          <div class="sel-mid" aria-hidden="true">
-            <span class="chip">select · reconcile</span>
-            <span class="arw">→</span>
-          </div>
-          <div class="served">
-            <div class="col-h"><span>served to the agent</span></div>
-            <div class="sv"><div class="tx">Budget is now <b>$25k</b> this year</div><div class="ct">cites call notes · May</div></div>
-            <div class="sv"><div class="tx">Blocker: <b>needs SSO</b> before signing</div><div class="ct">cites email · Jun</div></div>
-            <div class="sv"><div class="tx">Reach out by email, not calls</div><div class="ct">supersedes the old $40k</div></div>
-            <div class="tok"><span class="n" id="tokN">~101,000</span><span class="l">tokens served</span><span class="was" id="tokWas"></span></div>
+
+          <div class="zone">
+            <div class="zone-h" style="--hue:var(--cyan)"><b>memseek runs</b> · worker, no code of yours</div>
+            <div class="ev" id="ev">
+              <div class="ev-h"><span class="src" id="evSrc">salesforce · commitment</span><span class="st" id="evSt">ingested</span></div>
+              <span class="ev-tx" id="evTx">Avery now owns the Atlas migration and committed to an August launch.</span>
+            </div>
+            <div class="pips" id="pips">
+              <span class="pip" data-p="embed">embed</span>
+              <span class="pip" data-p="score">importance <b>—</b></span>
+              <span class="pip" data-p="trig">accumulator</span>
+              <span class="pip" data-p="derive">derive</span>
+            </div>
+
+            <div class="zone-h" style="--hue:var(--green)"><b>your agent reads</b> · one document</div>
+            <div class="mcard" id="mcard">
+              <div class="mcard-h">
+                <span class="ent">entity: contact:avery-chen</span>
+                <span class="badge">current</span>
+              </div>
+              <div class="ms" data-slot="role">
+                <span class="k">role</span>
+                <span class="v">VP of Product at Acme Cloud, owns enterprise collaboration</span>
+                <span class="c">1 cited</span>
+              </div>
+              <div class="ms empty" data-slot="commitments">
+                <span class="k">commitments</span>
+                <span class="v">—</span>
+                <span class="c">—</span>
+              </div>
+              <div class="ms empty" data-slot="preferences">
+                <span class="k">preferences</span>
+                <span class="v">—</span>
+                <span class="c">—</span>
+              </div>
+              <div class="mnote" id="mnote">seeded · every slot carries the events it was fused from</div>
+            </div>
+            <div class="mfoot">
+              <span><b class="big">~3,200</b> tokens served</span>
+              <span><s>~101,000 full history</s></span>
+              <span id="citeN">1 citation</span>
+            </div>
           </div>
         </div>
       </div>
@@ -572,186 +669,248 @@
   <!-- ============ SOURCE STRIP ============ -->
   <div class="integ">
     <div class="wrap integ-inner">
-      <span class="lead">Plugs into what you already have</span>
-      <span class="chip">Databases</span>
-      <span class="chip">Vector stores</span>
-      <span class="chip">Code repos</span>
-      <span class="chip">Chat &amp; conversation logs</span>
+      <span class="lead">Feed it what you already have</span>
+      <span class="chip">CRM &amp; business apps</span>
+      <span class="chip">Calls &amp; transcripts</span>
+      <span class="chip">Email &amp; chat</span>
       <span class="chip">Documents</span>
-      <span class="chip">Business apps</span>
+      <span class="chip">Code repos</span>
+      <span class="chip">Agent traces</span>
     </div>
   </div>
 
-  <!-- ============ NOT RAG ============ -->
+  <!-- ============ QUICKSTART ============ -->
+  <section id="quickstart">
+    <div class="wrap">
+      <div class="sec-head reveal">
+        <span class="eyebrow">direct usage</span>
+        <h2>A catalog, an ingest, a read.</h2>
+        <p>No orchestration code, no cron, no queue of your own. Publish the definitions, write records, read what's true. The worker does the rest.</p>
+      </div>
+
+      <div class="steps">
+        <div class="step reveal">
+          <div class="step-side">
+            <span class="step-n">01 · DECLARE</span>
+            <h3>A memory product is a directory.</h3>
+            <p>Collections, processors, derivations, views, artifacts and a package manifest — <b>versioned YAML, reviewed in a PR</b>. This is the whole CRM example; it ships in the repo.</p>
+          </div>
+          <div class="code">
+            <div class="code-tabs"><button class="t" aria-selected="true" tabindex="-1">catalog</button><span class="fname">examples/crm_profile_catalog/</span></div>
+<pre class="p on"><span class="cp">crm_profile_catalog/</span>
+├── <span class="cs">collections/crm.yaml</span>            <span class="cm"># crm_events (event) · user_profiles (keyed)</span>
+├── <span class="cs">conf/processors.yaml</span>            <span class="cm"># embedding · importance score · deal signals</span>
+├── <span class="cs">derivations/crm_profile.yaml</span>    <span class="cm"># accumulator trigger → cited keyed profile</span>
+├── <span class="cs">views/crm_history.yaml</span>          <span class="cm"># hybrid search over the events</span>
+├── <span class="cs">artifacts/profile_brief.yaml</span>    <span class="cm"># deterministic prompt block</span>
+└── <span class="cs">packages/crm_user_profile.yaml</span>  <span class="cm"># the versioned bundle you publish</span></pre>
+          </div>
+        </div>
+
+        <div class="step reveal">
+          <div class="step-side">
+            <span class="step-n">02 · WRITE</span>
+            <h3>Publish it, then just append events.</h3>
+            <p>Ingest returns immediately. The worker embeds, scores importance, and — once the accumulator trips — derives the profile. <b>Your application never orchestrates a pipeline.</b></p>
+          </div>
+          <div class="code">
+            <div class="code-tabs"><button class="t" aria-selected="true" tabindex="-1">python</button><span class="fname">app.py</span></div>
+<pre class="p on"><span class="ck">from</span> memseek.sdk <span class="ck">import</span> MemseekClient
+
+<span class="ck">async with</span> <span class="cf">MemseekClient</span>(BASE_URL, API_KEY) <span class="ck">as</span> memseek:
+    <span class="ck">await</span> memseek.catalog.<span class="cf">publish</span>(
+        package=<span class="cs">"crm_user_profile@2.0.0"</span>,
+        directory=<span class="cs">"examples/crm_profile_catalog"</span>,
+    )
+
+    <span class="ck">await</span> memseek.records.<span class="cf">ingest_many</span>([{
+        <span class="cs">"collection"</span>: <span class="cs">"crm_events"</span>,
+        <span class="cs">"entity"</span>:     <span class="cs">"contact:avery-chen"</span>,
+        <span class="cs">"type"</span>:       <span class="cs">"crm_event"</span>,
+        <span class="cs">"text"</span>:       <span class="cs">"Avery now owns the Atlas migration and "</span>
+                      <span class="cs">"committed to an August launch."</span>,
+        <span class="cs">"content"</span>:    {<span class="cs">"source"</span>: <span class="cs">"salesforce"</span>,
+                       <span class="cs">"event_kind"</span>: <span class="cs">"commitment"</span>,
+                       <span class="cs">"account_id"</span>: <span class="cs">"acme-cloud"</span>},
+        <span class="cs">"dedupe_key"</span>: <span class="cs">"sf:evt:88421"</span>,   <span class="cm"># replay-safe</span>
+    }])</pre>
+          </div>
+        </div>
+
+        <div class="step reveal">
+          <div class="step-side">
+            <span class="step-n">03 · READ</span>
+            <h3>Four shapes, one layer.</h3>
+            <p>Current cited beliefs, a bounded cited answer, a deterministic prompt block, or a small MCP tool surface. <b>Same catalog, no second pipeline.</b></p>
+          </div>
+          <div class="code" id="readCode">
+            <div class="code-tabs" role="tablist" aria-label="Read shapes">
+              <button class="t" role="tab" aria-selected="true" data-r="0">document</button>
+              <button class="t" role="tab" aria-selected="false" data-r="1">answer</button>
+              <button class="t" role="tab" aria-selected="false" data-r="2">artifact</button>
+              <button class="t" role="tab" aria-selected="false" data-r="3">mcp</button>
+            </div>
+<pre class="p on" role="tabpanel"><span class="cm"># the current, keyed profile — plus how fresh it is</span>
+doc = <span class="ck">await</span> memseek.<span class="cf">document</span>(
+    entity=<span class="cs">"contact:avery-chen"</span>, collections=<span class="cs">"user_profiles"</span>,
+)
+
+<span class="ck">for</span> belief <span class="ck">in</span> doc[<span class="cs">"beliefs"</span>]:
+    <span class="cf">print</span>(belief[<span class="cs">"key"</span>], belief[<span class="cs">"text"</span>], belief[<span class="cs">"citations"</span>])
+
+<span class="cm"># role         VP of Product at Acme Cloud, owns enterprise…  [9f1c…]
+# commitments  Owns the Atlas migration; August launch committed  [b704…]
+# preferences  Concise written updates the day before any call    [4d18…]</span>
+
+doc[<span class="cs">"freshness"</span>]   <span class="cm"># {"crm_profile": {"stale": false, …}} — is it caught up?</span></pre>
+<pre class="p" role="tabpanel"><span class="cm"># one bounded, cited synthesis — with the gaps named</span>
+res = <span class="ck">await</span> memseek.<span class="cf">answer</span>(
+    question=<span class="cs">"What did we promise Acme for August?"</span>,
+)
+
+res[<span class="cs">"answer"</span>]      <span class="cm"># "An Atlas migration launch, owned by Avery Chen…"</span>
+res[<span class="cs">"citations"</span>]   <span class="cm"># ["9f1c…", "b704…"] — every claim traceable</span>
+res[<span class="cs">"gaps"</span>]        <span class="cm"># ["no signed amendment on file"] — it says what it lacks</span>
+
+<span class="cm"># save=True writes the answer back as a provenance-carrying record.</span></pre>
+<pre class="p" role="tabpanel"><span class="cm"># a deterministic prompt block: profile + evidence, token-budgeted</span>
+brief = <span class="ck">await</span> memseek.<span class="cf">render_artifact</span>(
+    <span class="cs">"crm_profile_brief"</span>,
+    entity=<span class="cs">"contact:avery-chen"</span>,
+    query=<span class="cs">"commitments and launch dates"</span>,
+)
+
+brief[<span class="cs">"rendered"</span>]                          <span class="cm"># drop straight into your prompt</span>
+brief[<span class="cs">"manifest"</span>][<span class="cs">"tokens"</span>]                <span class="cm"># 3184</span>
+brief[<span class="cs">"manifest"</span>][<span class="cs">"input_record_ids"</span>]      <span class="cm"># exactly what went in</span>
+brief[<span class="cs">"manifest"</span>][<span class="cs">"rendered_sha256"</span>]       <span class="cm"># same inputs → same bytes</span></pre>
+<pre class="p" role="tabpanel"><span class="cm"># mcp/crm_memory.yaml — the ONLY tools the agent can see.
+# nothing becomes a tool just because it exists.</span>
+<span class="yk">tools</span>:
+  - {<span class="yk">name</span>: <span class="cs">search_crm_memory</span>, <span class="yk">kind</span>: <span class="cs">view</span>,     <span class="yk">view</span>: <span class="cs">crm_history@1</span>}
+  - {<span class="yk">name</span>: <span class="cs">crm_brief</span>,         <span class="yk">kind</span>: <span class="cs">artifact</span>, <span class="yk">artifact</span>: <span class="cs">crm_profile_brief@1</span>}
+
+<span class="cm"># then bridge the declared surface to any MCP client over stdio:</span>
+$ memseek mcp
+
+<span class="cm"># GET /tools returns the same declaration, per workspace.</span></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="quick-foot reveal">
+        <span>Runs on your infra: <code>uvicorn memseek.api:app</code> + <code>memseek worker</code> + PostgreSQL/pgvector</span>
+        <span>Python SDK, HTTP API, or MCP</span>
+        <span>Swap models by alias, not by redesign</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ USE CASES ============ -->
+  <section id="uses" class="alt">
+    <div class="wrap">
+      <div class="sec-head reveal">
+        <span class="eyebrow" style="--hue:var(--cyan)">what you can build</span>
+        <h2>Eight primitives. Very different memory products.</h2>
+        <p>Each one opens into a walkthrough, and most ship as a runnable example in the repo — same primitives, different YAML. Nothing bespoke, no graph database, no services to write.</p>
+      </div>
+
+      <div class="prims reveal">
+        <div class="prim"><b>collections</b><span>Typed, versioned, immutable records. Append or one-current-per-key.</span></div>
+        <div class="prim"><b>processors</b><span>Embeddings, scores, structured enrichment on write.</span></div>
+        <div class="prim"><b>derivations</b><span>Bounded pipelines that turn events into cited beliefs.</span></div>
+        <div class="prim"><b>triggers</b><span>Accumulator, census, or cron — memory maintains itself.</span></div>
+        <div class="prim"><b>views</b><span>Named search, graph, and orphan queries over one route.</span></div>
+        <div class="prim"><b>artifacts</b><span>Deterministic prompt assembly with a hashed input manifest.</span></div>
+        <div class="prim"><b>packages</b><span>The versioned bundle you publish into a workspace.</span></div>
+        <div class="prim"><b>mcp</b><span>An explicit, reviewable tool allowlist for agents.</span></div>
+      </div>
+
+      <div class="feat reveal">
+        <a class="case" href="/showcase/living-profile/">
+          <span class="arw" aria-hidden="true">→</span>
+          <span class="kick">crm · the living profile</span>
+          <h3>An account profile that rewrites itself</h3>
+          <p>Events land, importance is scored, the accumulator trips, and a <b>fully cited</b> role / commitments / preferences profile updates itself. Open any slot down to the run and the raw events it fused.</p>
+          <div class="tags"><i>collections</i><i>score processor</i><i>derivation</i><i>accumulator</i><i>view</i><i>artifact</i></div>
+          <div class="run">uv run python examples/sdk_crm_profile.py</div>
+        </a>
+
+        <a class="case" href="/showcase/gbrain/">
+          <span class="arw" aria-hidden="true">→</span>
+          <span class="kick">knowledge · gbrain</span>
+          <h3>A knowledge base that assembles itself</h3>
+          <p>Five markdown pages land; the graph and the fact index extract themselves at <b>zero model calls</b>; one transcript starts the cited cascade. Every answer opens down to the line a human actually wrote.</p>
+          <div class="tags"><i>graph view</i><i>graph_orphans</i><i>fact index</i><i>answer</i><i>mcp</i></div>
+          <div class="run">uv run python examples/gbrain_showcase.py</div>
+        </a>
+
+        <a class="case" href="/showcase/dreams/">
+          <span class="arw" aria-hidden="true">→</span>
+          <span class="kick">curation · vs. anthropic dreams</span>
+          <h3>Memory that reorganizes itself</h3>
+          <p>A hosted dream hands back a second store to eyeball. Here the same idea is one bounded, cited derivation — and what you adopt is a <b>classified diff</b>, added / changed / removed / kept, by compare-and-set.</p>
+          <div class="tags"><i>snapshot source</i><i>complete emit</i><i>review: required</i><i>promotion</i></div>
+          <div class="run note">read the comparison, side by side</div>
+        </a>
+      </div>
+
+      <div class="more reveal">
+        <a class="mini" href="/showcase/skill/">
+          <span class="kick">agents · skill</span>
+          <b>A skill that learns from real outcomes</b>
+          <span>Feedback becomes a cited draft revision. You promote it, or it never ships.</span>
+        </a>
+        <a class="mini" href="/showcase/self-audit/">
+          <span class="kick">reasoning · self audit</span>
+          <b>A memory that catches its own contradictions</b>
+          <span>Four tiers, three trigger kinds, provenance depth 0→3.</span>
+        </a>
+        <a class="mini" href="/showcase/generative-agents/">
+          <span class="kick">simulation · generative agents</span>
+          <b>Park et al.'s architecture, declared</b>
+          <span>Memory stream, importance, retrieval score, reflection — as catalog YAML.</span>
+        </a>
+        <a class="mini" href="/showcase/mcp/">
+          <span class="kick">integration · mcp</span>
+          <b>Plug memory into an existing agent</b>
+          <span>A package declares five tools; the bridge compiles them over stdio.</span>
+        </a>
+      </div>
+
+      <div class="callout reveal">
+        <span class="ck2">first-party</span>
+        <p><b>Living memory for coding agents</b> is our own first product on these primitives: developer preferences, repo conventions, architecture decisions, accepted and rejected approaches, recurring mistakes, review feedback — so the agent stops re-suggesting what the team already rejected. Same eight primitives, same YAML, no privileged internals.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ WHY NOT RAG ============ -->
   <section id="why">
     <div class="wrap">
       <div class="sec-head reveal">
         <span class="eyebrow" style="--hue:var(--pink)">why it isn't RAG</span>
         <h2>Retrieval finds what looks similar.<br>Memory knows what's true now.</h2>
-        <p>Reliable memory is about context <em>selection</em>, not context <em>volume</em>. That's the part a vector search was never built to do.</p>
+        <p>Reliable memory is context <em>selection</em>, not context <em>volume</em> — the part a vector search was never built to do.</p>
       </div>
       <div class="vs reveal">
         <div class="vs-card bad">
           <h3><span class="k">plain RAG</span> vector search</h3>
           <ul>
-            <li><span class="m">✕</span><div>Returns chunks that <em>look</em> similar — no idea which is current.</div></li>
-            <li><span class="m">✕</span><div>Contradictions surface side by side; the model guesses.</div></li>
+            <li><span class="m">✕</span><div>Returns chunks that <em>look</em> similar — no idea which one is current.</div></li>
+            <li><span class="m">✕</span><div>Contradictions arrive side by side and the model guesses.</div></li>
             <li><span class="m">✕</span><div>Dumps the whole history into the prompt to be safe.</div></li>
-            <li><span class="m">✕</span><div>Re-derives a different answer on every call.</div></li>
             <li><span class="m">✕</span><div>Sources and dates fall off along the way.</div></li>
           </ul>
         </div>
         <div class="vs-card good">
-          <h3><span class="k">memseek</span> context harness</h3>
+          <h3><span class="k">memseek</span> declared memory</h3>
           <ul>
-            <li><span class="m">✓</span><div>Selects the <b>few records that matter</b> for this question.</div></li>
-            <li><span class="m">✓</span><div>Knows what <b>changed and what's superseded</b> — serves the current truth.</div></li>
-            <li><span class="m">✓</span><div>Resolves conflicts across sources into <b>one coherent picture</b>.</div></li>
-            <li><span class="m">✓</span><div>Compact context — <b>~30× fewer tokens</b> than the full history.</div></li>
-            <li><span class="m">✓</span><div>Every item stays <b>dated and linked to its source</b>.</div></li>
+            <li><span class="m">✓</span><div>Serves the <b>few facts that hold now</b>, with what they superseded still on record.</div></li>
+            <li><span class="m">✓</span><div>Reconciles sources into <b>one coherent picture</b>, and flags real contradictions as events.</div></li>
+            <li><span class="m">✓</span><div>Compact context — <b>~32× fewer tokens</b> than the full history.</div></li>
+            <li><span class="m">✓</span><div>Every belief <b>cites its evidence</b> or is rejected. Point-in-time replay included.</div></li>
           </ul>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- ============ THE KIT ============ -->
-  <section id="kit" class="alt">
-    <div class="wrap">
-      <div class="sec-head reveal">
-        <span class="eyebrow" style="--hue:var(--cyan)">what's in the kit</span>
-        <h2>One layer. The jobs a vector store can't do.</h2>
-        <p>Memseek is a composable harness, not a single trick. The same layer handles direct recall, evolving profiles, temporal reasoning, and multi-document retrieval.</p>
-      </div>
-      <div class="kit reveal">
-        <article class="mod" style="--hue:var(--amber)"><div class="ic">↯</div><span class="tag">recall</span><h3>Find the needle</h3><p>Surface the right record in a long, messy history — where the answer is one line buried under thousands.</p></article>
-        <article class="mod" style="--hue:var(--cyan)"><div class="ic">⟲</div><span class="tag">temporal</span><h3>Know what changed</h3><p>Track what was superseded and what still holds, so the agent gets the latest valid fact — not last year's decision.</p></article>
-        <article class="mod" style="--hue:var(--pink)"><div class="ic">⚡</div><span class="tag">conflict</span><h3>Resolve disagreements</h3><p>When two sources say different things, reconcile to the current truth instead of handing the model a contradiction.</p></article>
-        <article class="mod" style="--hue:var(--violet)"><div class="ic">⇄</div><span class="tag">cross-source</span><h3>Connect the evidence</h3><p>Link related facts across repos, docs, chats, and apps into one picture — multi-hop, not single-shot.</p></article>
-        <article class="mod" style="--hue:var(--green)"><div class="ic">⌖</div><span class="tag">provenance</span><h3>Keep the receipts</h3><p>Every piece of served context stays attached to a dated, verbatim source you can open and verify.</p></article>
-        <article class="mod" style="--hue:var(--orange)"><div class="ic">◨</div><span class="tag">outputs</span><h3>Any shape you need</h3><p>Return raw context, a direct answer, an update-ready profile, or a skill digest — from the same layer.</p></article>
-      </div>
-    </div>
-  </section>
-
-  <!-- ============ REASONING DEMOS ============ -->
-  <section id="reasoning">
-    <div class="wrap">
-      <div class="sec-head reveal">
-        <span class="eyebrow" style="--hue:var(--violet)">watch the hard parts work</span>
-        <h2>The intelligence, not the plumbing.</h2>
-        <p>Distilling patterns, catching contradictions, reasoning across time, and improving a skill from real feedback are the parts teams get wrong. Here's each one, live.</p>
-      </div>
-      <div class="showcase">
-        <article class="demo reveal" id="demoRfl">
-          <div class="demo-h"><span class="verb">digest</span><h3>Distills patterns into insight</h3><p>Reads many small signals and writes one higher-level, cited takeaway.</p></div>
-          <div class="demo-body">
-            <div class="rfl-card"><span class="tag">digest · cites 4 signals</span><div class="ins">"Prefers a quick call over long email threads."</div></div>
-            <div class="rfl-up" aria-hidden="true">↑ synthesized from</div>
-            <div class="rfl-mems">
-              <div class="mem">Answered calls within a minute</div>
-              <div class="mem">Left three email threads unread</div>
-              <div class="mem">Said "just call me next time"</div>
-              <div class="mem">Thanked us for a two-line recap</div>
-            </div>
-          </div>
-        </article>
-        <article class="demo reveal" id="demoCd">
-          <div class="demo-h"><span class="verb">conflict</span><h3>Catches beliefs that collide</h3><p>When new evidence contradicts the old, it's flagged — and the current, cited fact wins.</p></div>
-          <div class="demo-body">
-            <div class="cd">
-              <div class="fact2 f-old"><span class="val">Plan: Pro, monthly</span><span class="when">Jan</span></div>
-              <div class="fact2 f-new"><span class="val">Plan: Enterprise, annual</span><span class="when">Mar</span></div>
-              <div class="cd-warn">⚡ superseded — resolved</div>
-              <div class="cd-now"><span class="fk">served now</span><b>Enterprise, annual</b> · cites the Mar renewal</div>
-            </div>
-          </div>
-        </article>
-        <article class="demo reveal" id="demoTl">
-          <div class="demo-h"><span class="verb">temporal</span><h3>Knows what held, and when</h3><p>Ask what was true last quarter — the history is preserved, not overwritten.</p></div>
-          <div class="demo-body">
-            <div class="tl">
-              <div class="tl-track">
-                <div class="tl-dot"><span class="d"></span>Jan</div>
-                <div class="tl-dot"><span class="d"></span>Apr</div>
-                <div class="tl-dot"><span class="d"></span>Jul</div>
-              </div>
-              <div class="tl-readout">
-                <span class="fk">title, as of then</span>
-                <div class="role">Team Lead, Support</div>
-                <div class="meta">as of Apr · source <b>the Apr org note</b></div>
-              </div>
-            </div>
-          </div>
-        </article>
-        <article class="demo reveal" id="demoSk">
-          <div class="demo-h"><span class="verb">maintain</span><h3>Improves the skill from feedback</h3><p>Turns what real work taught into a cited draft — and leaves the decision to ship it with you.</p></div>
-          <div class="demo-body">
-            <div class="sk">
-              <div class="sk-ev sk-step"><span class="ek">exception · case #8842</span>A loyal customer waited a day — the "escalate every refund over $200" rule held it up</div>
-              <div class="sk-up sk-step" aria-hidden="true">↓ skill pipeline drafts · cites 2 records</div>
-              <div class="sk-diff sk-step">
-                <span class="dk">pitfalls · draft</span>
-                <div class="dl del">− escalate every refund over $200</div>
-                <div class="dl add">+ repeat customers under $500 → approve on the spot</div>
-              </div>
-              <div class="sk-gate sk-step"><span class="gk">your call</span><span class="btn-promote">promote →</span><span class="ghint">nothing goes live until you do</span></div>
-            </div>
-          </div>
-        </article>
-      </div>
-    </div>
-  </section>
-
-  <!-- ============ LIVING PROFILE DEMO ============ -->
-  <section id="living-profile" class="alt">
-    <div class="wrap">
-      <div class="sec-head reveal">
-        <span class="eyebrow" style="--hue:var(--amber)">from the living profile</span>
-        <h2>A CRM memory that rewrites itself.</h2>
-        <p>Seed an account playbook and a few CRM events. Memseek scores the signal, keeps the receipts, and derives a profile that stays current as new evidence arrives.</p>
-      </div>
-
-      <div class="profile-demo reveal" id="profileDemo">
-        <div class="profile-demo-head">
-          <div class="profile-demo-title"><span class="mark"></span><span>the living profile</span><span class="profile-demo-run">· run 8770fd</span></div>
-          <span class="profile-demo-state" id="profileState">live · self-updating</span>
-        </div>
-        <div class="profile-demo-grid">
-          <div class="profile-pipeline">
-            <span class="profile-act">1 · source events</span>
-            <h3>Raw events arrive.</h3>
-            <p>CRM notes, closed deals, calls, chatter — each lands as raw evidence and stays untouched here.</p>
-            <div class="profile-inbox" id="profileInbox" aria-label="Incoming source events"></div>
-          </div>
-
-          <div class="profile-derivation">
-            <span class="profile-act">2 · memory pipeline</span>
-            <h3>Enrich, derive, judge.</h3>
-            <p>Each batch runs through the same three steps, top to bottom, before anything changes.</p>
-            <ol class="pipe" id="profilePipe" aria-label="Memory pipeline steps">
-              <li class="pipe-step" data-step="enrich"><span class="pipe-num">01</span><div class="pipe-body"><strong>enrich</strong><span>Extract type, date, source, confidence.</span></div></li>
-              <li class="pipe-step" data-step="derive"><span class="pipe-num">02</span><div class="pipe-body"><strong>derive</strong><span>Compare against the current profile.</span></div></li>
-              <li class="pipe-step" data-step="judge"><span class="pipe-num">03</span><div class="pipe-body"><strong>judge</strong><span>Decide whether it becomes truth.</span></div></li>
-            </ol>
-            <div class="pipe-result" id="profilePipeResult"><b>ready</b> · waiting for events</div>
-          </div>
-
-          <div class="profile-card-wrap">
-            <div class="profile-card" id="profileCard">
-              <div class="profile-card-top">
-                <div class="profile-person">Avery Chen<span class="profile-company">Acme Cloud</span></div>
-                <span class="profile-live">current</span>
-              </div>
-              <p class="profile-summary" id="profileSummary">Avery Chen is <span class="sf" data-sf="role">VP of Product at Acme Cloud, owning enterprise collaboration</span>; the Acme Cloud account has <span class="sf" data-sf="sales">$0</span> in new bookings this quarter; and Avery prefers <span class="sf" data-sf="preferences">concise written updates the day before any call</span>.</p>
-              <div class="profile-slots">
-                <div class="profile-slot" data-profile-slot="role"><span class="label">role</span><span class="value">VP of Product at Acme Cloud, owning enterprise collaboration.</span><span class="cite">1 cited</span></div>
-                <div class="profile-slot quiet" data-profile-slot="sales"><span class="label">new bookings</span><span class="value">$0 — no deals logged this quarter.</span><span class="cite">—</span></div>
-                <div class="profile-slot" data-profile-slot="preferences"><span class="label">comms</span><span class="value">Concise written updates the day before any call.</span><span class="cite">1 cited</span></div>
-              </div>
-              <div class="profile-update" aria-live="polite"><span class="update-label">latest self-update</span><span id="profileUpdate">profile seeded · role, comms · each with a source</span></div>
-            </div>
-          </div>
         </div>
       </div>
     </div>
@@ -763,7 +922,7 @@
       <div class="sec-head reveal">
         <span class="eyebrow" style="--hue:var(--green)">public benchmarks</span>
         <h2>Better context. A fraction of the tokens.</h2>
-        <p>These test exactly the failures agents hit today: finding the right thing in a long history, handling updates and contradictions, and connecting evidence across sources.</p>
+        <p>These test exactly what agents get wrong today: finding the right thing in a long history, handling updates and contradictions, and connecting evidence across sources.</p>
       </div>
       <div class="bench reveal" id="benchGrid">
         <div class="bm"><div class="n"><span data-count="82" data-dec="0">0</span>%</div><div class="metric">recall &amp; reasoning accuracy</div><div class="bench-name">LongMemEval-S · long-conversation memory</div></div>
@@ -785,61 +944,7 @@
           <span class="lab">Memseek</span>
           <div class="tbar mem"><i data-w="3.2"></i><span class="v">~3,200</span></div>
         </div>
-        <p class="bench-foot">On inexpensive, self-hostable models — no indexing-time LLM calls, no frontier-model crutch. On your own data, measure correction rate and downstream task success from the first integration.</p>
-      </div>
-    </div>
-  </section>
-
-  <!-- ============ OUTPUTS ============ -->
-  <section id="outputs">
-    <div class="wrap">
-      <div class="sec-head reveal">
-        <span class="eyebrow" style="--hue:var(--cyan)">flexible outputs</span>
-        <h2>Ask once. Get the shape you need.</h2>
-        <p>The same query-time layer returns whatever your application is built to consume — no second pipeline.</p>
-      </div>
-      <div class="outs reveal">
-        <article class="out"><div class="oh"><span class="tag">context</span><h3>Raw evidence</h3><p>The relevant, current records with dates and sources attached.</p></div><pre>[ {id, text, date, src},
-  … ]</pre></article>
-        <article class="out"><div class="oh"><span class="tag">answer</span><h3>Direct answer</h3><p>A resolved answer to the question, with its citations.</p></div><pre>"httpOnly cookies"
-cites: [pr#482, auth.md]</pre></article>
-        <article class="out"><div class="oh"><span class="tag">profile</span><h3>Update-ready profile</h3><p>A current, keyed view you can drop into a prompt or store.</p></div><pre>role: VP Eng
-prefers: small PRs</pre></article>
-        <article class="out"><div class="oh"><span class="tag">skill</span><h3>Skill digest</h3><p>A distilled how-we-do-it for a recurring task.</p></div><pre>steps: [&hellip;]
-pitfalls: [&hellip;]</pre></article>
-      </div>
-    </div>
-  </section>
-
-  <!-- ============ LIVING DEVELOPER MEMORY ============ -->
-  <section id="devmem" class="alt">
-    <div class="wrap feature-grid">
-      <div class="reveal">
-        <span class="eyebrow" style="--hue:var(--amber)">first product</span>
-        <h2>Living memory for agents.</h2>
-        <p>Keep an accurate, evolving understanding of how a team actually builds — so the agent stops re-suggesting what was already rejected.</p>
-        <ul class="devmem-list">
-          <li><span class="m">›</span>Developer preferences</li>
-          <li><span class="m">›</span>Repo conventions</li>
-          <li><span class="m">›</span>Architecture decisions</li>
-          <li><span class="m">›</span>Accepted &amp; rejected approaches</li>
-          <li><span class="m">›</span>Recurring mistakes</li>
-          <li><span class="m">›</span>Review feedback</li>
-        </ul>
-      </div>
-      <div class="code reveal" aria-label="Example integration">
-        <div class="code-tabs"><span class="t">agent.py</span></div>
-<pre><span class="cm"># point it at the sources you already have</span>
-mem = <span class="cf">Memseek</span>(sources=[repo, chat, docs])
-
-ctx = mem.<span class="cf">context</span>(
-    query=<span class="cs">"what's our auth pattern?"</span>,
-    shape=<span class="cs">"answer"</span>,   <span class="cm"># context | answer | profile | skill</span>
-)
-
-ctx.answer      <span class="cm"># "httpOnly session cookies…"</span>
-ctx.citations   <span class="cm"># [pr#482, auth.md]</span>
-ctx.tokens      <span class="cn">3200</span>            <span class="cm"># not 101,000</span></pre>
+        <p class="bench-foot">Measured on inexpensive, self-hostable models — no frontier model in the loop. On your own data, every derivation is an audited run, so you can measure correction rate and task success from the first integration.</p>
       </div>
     </div>
   </section>
@@ -850,12 +955,12 @@ ctx.tokens      <span class="cn">3200</span>            <span class="cm"># not 1
       <div class="sec-head reveal">
         <span class="eyebrow" style="--hue:var(--violet)">buy vs. build</span>
         <h2>The same reason you don't hand-roll your own Postgres.</h2>
-        <p>A real context layer is substantial engineering most teams don't solve well. The question isn't whether you could build it — it's whether that's the best use of your team.</p>
+        <p>A real memory layer is substantial engineering most teams don't solve well. The question isn't whether you could build it — it's whether that's the best use of your team.</p>
       </div>
       <div class="bvb reveal">
-        <div class="bvb-card"><div class="ic">◐</div><h3>Value on day one</h3><p>Better context out of the box, <b>faster than an internal build</b>, over your existing storage — no months of research and evaluation.</p></div>
-        <div class="bvb-card"><div class="ic">◔</div><h3>It compounds</h3><p>The learning loop tunes ranking, routing, and temporal rules to <b>your data</b> — until replacing it means rebuilding how your app reads its own history.</p></div>
-        <div class="bvb-card"><div class="ic">✓</div><h3>You can see it working</h3><p>Built-in evaluation shows <b>exactly what context was served</b> and whether it improved the outcome. No black box.</p></div>
+        <div class="bvb-card"><div class="ic">◐</div><h3>Value on day one</h3><p>Declare a catalog and you have a working memory product — <b>faster than an internal build</b>, with triggers, limits, retries, and audits already solved.</p></div>
+        <div class="bvb-card"><div class="ic">◔</div><h3>It compounds</h3><p>Ranking, routing, and temporal rules tune to <b>your data</b>, and every belief keeps its lineage — until replacing it means rebuilding how your app reads its own history.</p></div>
+        <div class="bvb-card"><div class="ic">✓</div><h3>You can see it working</h3><p>Every derivation is an <b>audited run</b> with its trigger, model, inputs, and citations. No black box, and nothing promoted behind your back.</p></div>
       </div>
     </div>
   </section>
@@ -870,27 +975,27 @@ ctx.tokens      <span class="cn">3200</span>            <span class="cm"># not 1
       <div class="faq reveal">
         <details open>
           <summary>Isn't this just RAG?<span class="pm">+</span></summary>
-          <div class="ans">No. RAG retrieves text that looks similar. Memseek <b>selects the right, current context</b>, resolves contradictions, keeps every source and date, and serves <b>~30× fewer tokens</b>. On public benchmarks it beats standard dense retrieval by <b>+7.5 to +10.8 points</b> — and it does it without indexing-time LLM calls.</div>
+          <div class="ans">No. RAG retrieves text that looks similar. Memseek maintains <b>current, keyed beliefs</b> derived from immutable events: it knows what superseded what, flags contradictions as first-class records, requires a citation for every derived belief, and serves <b>~32× fewer tokens</b>. On public benchmarks it beats standard dense retrieval by <b>+7.5 to +10.8 points</b> on multi-hop QA. Hybrid retrieval is <em>one</em> primitive inside it, not the product.</div>
         </details>
         <details>
-          <summary>Is it a database? Do I move my data into it?<span class="pm">+</span></summary>
-          <div class="ans">No, and no. Your data stays exactly where it is. Memseek builds a lightweight access structure <b>over your existing sources</b> — databases, vector stores, repos, chat logs, docs, business apps — and decides what your agent should see.</div>
-        </details>
-        <details>
-          <summary>Does it need an expensive frontier model?<span class="pm">+</span></summary>
-          <div class="ans">No. The results above are on <b>inexpensive, self-hostable models</b>, with no indexing-time LLM calls. Performance and low cost — not one at the expense of the other.</div>
+          <summary>Where does my data live?<span class="pm">+</span></summary>
+          <div class="ans">On <b>your own PostgreSQL</b> (16 + pgvector). You run the API and the worker; nothing leaves your infrastructure except the model calls you configure — and those can point at a self-hosted model. Records are append-only: a rewrite supersedes, it never overwrites, so point-in-time reconstruction and recursive-closure erase both stay possible.</div>
         </details>
         <details open>
           <summary>What do I actually get back?<span class="pm">+</span></summary>
-          <div class="ans">Whatever shape your app consumes: <b>raw context</b>, a <b>direct answer</b>, an <b>update-ready profile</b>, or a <b>skill digest</b> — all from the same query-time layer.</div>
+          <div class="ans">Four shapes from the same catalog: a <b>document</b> of current cited beliefs, a bounded <b>cited answer</b> with declared gaps, a deterministic <b>prompt artifact</b> with a hashed input manifest, or a small <b>MCP tool surface</b>. Plus ordinary hybrid search when you want the raw records.</div>
         </details>
         <details>
-          <summary>Can I run it privately / on my own infra?<span class="pm">+</span></summary>
-          <div class="ans">Yes. Private and local deployment is a first-class path for teams where data control, latency, or infrastructure constraints matter.</div>
+          <summary>How much control do I have over cost and behavior?<span class="pm">+</span></summary>
+          <div class="ans">Every derivation declares hard limits — <code>max_llm_calls</code>, <code>max_retrieved_records</code>, <code>max_total_tokens</code>, <code>max_wall_s</code> — and models are referenced by alias, so swapping providers is a config change, not a redesign. Several adapters run with <code>max_llm_calls: 0</code>: structural extraction with no model in the loop.</div>
         </details>
         <details>
-          <summary>How do I know it's actually helping?<span class="pm">+</span></summary>
-          <div class="ans">Evaluation is built in: it shows <b>what context was served for every request</b> and whether it improved the outcome, so you can prove lift on correction rate and task success on your own data.</div>
+          <summary>Will it change things without asking?<span class="pm">+</span></summary>
+          <div class="ans">Only what you declared. Write-triggered derivations maintain the slots they own; anything gated — a revised skill, a rebuilt profile — lands as a <b>reviewed draft</b> that stays in the audit trail until you promote it. Feedback becomes ordinary records, never an automatic change.</div>
+        </details>
+        <details>
+          <summary>Does it need an expensive frontier model?<span class="pm">+</span></summary>
+          <div class="ans">No. The benchmark results above are on <b>inexpensive, self-hostable models</b>. Model aliases let you put a strong model on the one derivation that needs it and a cheap one everywhere else.</div>
         </details>
       </div>
     </div>
@@ -902,7 +1007,7 @@ ctx.tokens      <span class="cn">3200</span>            <span class="cm"># not 1
       <div class="cta-card reveal">
         <span class="eyebrow" style="--hue:var(--amber)">early access</span>
         <h2>Give your agents memory they can <span class="grad">trust.</span></h2>
-        <p>Join the waitlist for early access to Memseek and be among the first teams to give agents current, source-linked context.</p>
+        <p>Join the waitlist for early access — and tell us what your agent keeps forgetting.</p>
         <div class="waitlist-form">
           <iframe
             data-tally-src="https://tally.so/embed/EkrGDN?alignLeft=1&amp;hideTitle=1&amp;transparentBackground=1&amp;dynamicHeight=1"
@@ -925,11 +1030,10 @@ ctx.tokens      <span class="cn">3200</span>            <span class="cm"># not 1
   <div class="wrap foot">
     <div class="brand" style="font-size:.95rem;"><span class="dot"></span>memseek</div>
     <div class="fl">
+      <a href="#quickstart">Quickstart</a>
+      <a href="#uses">Use cases</a>
       <a href="#why">Why not RAG</a>
-      <a href="#kit">The kit</a>
       <a href="#benchmarks">Benchmarks</a>
-      <a href="#devmem">Agents</a>
-      <a href="#living-profile">Living profile</a>
       <a href="#faq">FAQ</a>
       <a href="/showcase/">Showcases</a>
       <a href="/blog/">Blog</a>
@@ -982,7 +1086,7 @@ if (typeof Tally !== "undefined") {
   } else {
     var ro = new IntersectionObserver(function (es) {
       es.forEach(function (en) { if (en.isIntersecting) { en.target.classList.add('in'); ro.unobserve(en.target); } });
-    }, { threshold: 0.15, rootMargin: '0px 0px -8% 0px' });
+    }, { threshold: 0.12, rootMargin: '0px 0px -6% 0px' });
     revs.forEach(function (e) { ro.observe(e); });
   }
 
@@ -996,281 +1100,201 @@ if (typeof Tally !== "undefined") {
     ob.observe(el);
   }
 
-  /* ===== hero selection pane ===== */
+  /* ===== hero: YAML tabs (auto-rotate until the visitor picks one) ===== */
   (function () {
-    var pane = document.getElementById('sel-pane');
-    if (!pane) return;
-    var his = Array.prototype.slice.call(pane.querySelectorAll('.hi'));
-    var svs = Array.prototype.slice.call(pane.querySelectorAll('.sv'));
-    var tokN = document.getElementById('tokN');
-    var tokWas = document.getElementById('tokWas');
-    var timers = [];
-    function clr() { timers.forEach(clearTimeout); timers = []; }
-    function countDown() {
-      var start = 101000, end = 3200, t0 = null;
-      function frame(ts) {
-        if (t0 === null) t0 = ts;
-        var p = Math.min(1, (ts - t0) / 900);
-        var v = Math.round(start + (end - start) * (p * (2 - p)));
-        tokN.textContent = '~' + v.toLocaleString();
-        if (p < 1) requestAnimationFrame(frame);
-        else { tokN.textContent = '~3,200'; tokWas.textContent = 'was ~101,000'; }
-      }
-      requestAnimationFrame(frame);
+    var bar = document.getElementById('ytabs');
+    if (!bar) return;
+    var tabs = Array.prototype.slice.call(bar.querySelectorAll('.ytab'));
+    var panes = tabs.map(function (t) { return document.getElementById('y' + t.getAttribute('data-y')); });
+    var i = 0, timer = null, manual = false;
+
+    function show(n) {
+      i = n;
+      tabs.forEach(function (t, k) { t.setAttribute('aria-selected', k === n ? 'true' : 'false'); });
+      panes.forEach(function (p, k) { if (p) p.classList.toggle('on', k === n); });
     }
-    function play() {
-      clr();
-      his.forEach(function (h) { h.classList.remove('on'); });
-      svs.forEach(function (s) { s.classList.remove('on'); });
-      tokN.textContent = '~101,000'; tokWas.textContent = '';
-      his.forEach(function (h, i) { timers.push(setTimeout(function () { h.classList.add('on'); }, 400 + i * 420)); });
-      var base = 400 + his.length * 420 + 300;
-      svs.forEach(function (s, i) { timers.push(setTimeout(function () { s.classList.add('on'); }, base + i * 450)); });
-      timers.push(setTimeout(countDown, base + svs.length * 450 + 150));
-      timers.push(setTimeout(play, base + svs.length * 450 + 4200));
+    function rotate() { show((i + 1) % tabs.length); timer = setTimeout(rotate, 7000); }
+
+    tabs.forEach(function (t, k) {
+      t.addEventListener('click', function () {
+        manual = true;
+        if (timer) { clearTimeout(timer); timer = null; }
+        show(k);
+      });
+    });
+
+    if (!reduce) {
+      onView(bar, function (staticMode) {
+        if (staticMode || manual) return;
+        timer = setTimeout(rotate, 7000);
+      });
     }
-    if (reduce) {
-      his.forEach(function (h) { h.classList.add('on'); });
-      svs.forEach(function (s) { s.classList.add('on'); });
-      tokN.textContent = '~3,200'; tokWas.textContent = 'was ~101,000';
-    } else { play(); }
   })();
 
-  /* ===== living profile demo ===== */
+  /* ===== hero: events → worker → current document ===== */
   (function () {
-    var demo = document.getElementById('profileDemo');
-    if (!demo) return;
-    var card = document.getElementById('profileCard');
-    var state = document.getElementById('profileState');
-    var summary = document.getElementById('profileSummary');
-    var update = document.getElementById('profileUpdate');
-    var pipe = document.getElementById('profilePipe');
-    var result = document.getElementById('profilePipeResult');
-    var inbox = document.getElementById('profileInbox');
-    var steps = Array.prototype.slice.call(pipe.querySelectorAll('.pipe-step'));
+    var mcard = document.getElementById('mcard');
+    if (!mcard) return;
+    var evBox = document.getElementById('ev');
+    var evSrc = document.getElementById('evSrc');
+    var evSt = document.getElementById('evSt');
+    var evTx = document.getElementById('evTx');
+    var pips = Array.prototype.slice.call(document.querySelectorAll('#pips .pip'));
+    var note = document.getElementById('mnote');
+    var citeN = document.getElementById('citeN');
+    var slots = {};
+    Array.prototype.slice.call(mcard.querySelectorAll('.ms')).forEach(function (el) {
+      slots[el.getAttribute('data-slot')] = el;
+    });
 
-    // Current, self-updating profile. The scripted scenes below keep it current.
-    var profile = {
-      role: 'VP of Product at Acme Cloud, owning enterprise collaboration',
-      sales: 0,   // thousands of USD in new bookings this quarter
-      preferences: 'concise written updates the day before any call'
-    };
-    function fmtSales(k) { return '$' + k + 'K'; }
-
-    // Ordered storyline: raw events arrive → the pipeline runs top-to-bottom →
-    // the profile updates (or, for noise, is left unchanged).
-    var SCENES = [
+    /* Each scene is one ingested event. importance < 6 does not trip the
+       accumulator, which is the point of scene 3. */
+    var scenes = [
       {
-        events: [
-          { src: 'Salesforce', kind: 'crm update', hue: 'var(--orange)',
-            msg: 'Avery Chen promoted to SVP — now leads product and design.' }
-        ],
-        outcome: 'update', field: 'role',
-        value: 'SVP of Product at Acme Cloud, leading product and design',
-        slot: { value: 'SVP of Product at Acme Cloud, leading product and design.', cite: 'promotion · cited' },
-        note: 'role promoted · SVP of Product · cites the promotion event',
-        result: 'role slot replaced · now current truth'
+        src: 'salesforce · commitment', imp: 9,
+        tx: 'Avery now owns the Atlas migration and committed to an August launch.',
+        slot: 'commitments', val: 'Owns the Atlas migration; August launch committed', cites: 1,
+        note: 'commitments derived · cites 1 event · run 8770fd'
       },
       {
-        events: [
-          { src: 'Salesforce', kind: 'closed-won', hue: 'var(--cyan)', amount: 120, msg: 'Closed-won: Acme Retail rollout — $120K.' },
-          { src: 'Salesforce', kind: 'closed-won', hue: 'var(--cyan)', amount: 85,  msg: 'Closed-won: Northwind expansion — $85K.' },
-          { src: 'Salesforce', kind: 'expansion',  hue: 'var(--cyan)', amount: 45,  msg: 'Expansion: Globex add-on seats — $45K.' },
-          { src: 'Salesforce', kind: 'new logo',   hue: 'var(--cyan)', amount: 60,  msg: 'New logo: Initech pilot — $60K.' }
-        ],
-        outcome: 'sum', field: 'sales',
-        note: '4 sales events merged · summed into new bookings · each with a source',
-        result: '4 events summed → new-bookings slot updated'
+        src: 'support · preference', imp: 7,
+        tx: 'Asked for a written recap the day before every call.',
+        slot: 'preferences', val: 'Concise written updates the day before any call', cites: 1,
+        note: 'preferences derived · cites 1 event · run 91b4c2'
       },
       {
-        events: [
-          { src: 'Slack', kind: 'chat', hue: 'var(--faint)', msg: '“thanks, talk soon 👋”' }
-        ],
-        outcome: 'reject',
-        note: 'chat noise · no durable signal · profile unchanged',
-        result: 'no durable signal → profile unchanged'
+        src: 'product · interaction', imp: 2,
+        tx: 'Opened the release-notes email.',
+        held: true,
+        note: 'no change · importance below threshold, nothing derived'
       },
       {
-        events: [
-          { src: 'Gong', kind: 'call note', hue: 'var(--violet)',
-            msg: 'Call note: Avery wants a short written recap before every call.' }
-        ],
-        outcome: 'update', field: 'preferences',
-        value: 'a short written recap before every call',
-        slot: { value: 'Short written recap before every call.', cite: 'Gong call · cited' },
-        note: 'preference refined · cites the latest Gong call',
-        result: 'comms slot replaced · now current truth'
+        src: 'hubspot · role', imp: 8,
+        tx: 'Avery promoted to SVP Product; platform now in scope.',
+        slot: 'role', val: 'SVP Product at Acme Cloud — product and platform', cites: 2,
+        supersede: true,
+        note: 'role rewritten · previous version kept, superseded not erased'
+      },
+      {
+        src: 'support · open thread', imp: 8,
+        tx: 'SSO has to ship before they sign the renewal.',
+        slot: 'commitments', val: 'Atlas launch in August · SSO before the renewal signature', cites: 2,
+        note: 'commitments accumulated · 2 cited events · nothing dropped'
       }
     ];
 
     var timers = [];
+    function clr() { timers.forEach(clearTimeout); timers = []; }
     function at(ms, fn) { timers.push(setTimeout(fn, ms)); }
-    function clearTimers() { timers.forEach(clearTimeout); timers = []; }
-    function reAnimate(el, cls) { el.classList.remove(cls); void el.offsetWidth; el.classList.add(cls); }
+    function pip(name) { return pips.filter(function (p) { return p.getAttribute('data-p') === name; })[0]; }
 
-    function summaryHTML() {
-      return 'Avery Chen is <span class="sf" data-sf="role">' + profile.role + '</span>; '
-        + 'the Acme Cloud account has <span class="sf" data-sf="sales">' + fmtSales(profile.sales) + '</span> in new bookings this quarter; '
-        + 'and Avery prefers <span class="sf" data-sf="preferences">' + profile.preferences + '</span>.';
-    }
-    function renderSummary(hotField) {
-      summary.innerHTML = summaryHTML();
-      reAnimate(summary, 'changing');
-      if (hotField) { var s = summary.querySelector('[data-sf="' + hotField + '"]'); if (s) s.classList.add('hot'); }
-    }
-
-    function setResult(cls, label, msg) {
-      result.className = 'pipe-result' + (cls ? ' ' + cls : '');
-      result.innerHTML = '<b>' + label + '</b> · ' + msg;
+    var cites = 1;
+    function setSlot(sc) {
+      var el = slots[sc.slot];
+      if (!el) return;
+      el.classList.remove('empty');
+      el.querySelector('.v').textContent = sc.val;
+      el.querySelector('.c').textContent = sc.cites + ' cited';
+      el.classList.remove('hot', 'sup');
+      /* reflow so the highlight replays on every pass */
+      void el.offsetWidth;
+      el.classList.add(sc.supersede ? 'sup' : 'hot');
+      cites += 1;
+      citeN.textContent = cites + (cites === 1 ? ' citation' : ' citations');
     }
 
-    // -1 none active; 0..2 that step active + earlier ones done; 3 all done.
-    function setSteps(activeIndex) {
-      steps.forEach(function (el, i) {
-        el.classList.toggle('active', i === activeIndex);
-        el.classList.toggle('done', i < activeIndex);
+    function resetPips() {
+      pips.forEach(function (p) { p.classList.remove('on', 'held', 'fire'); });
+      pip('score').innerHTML = 'importance <b>—</b>';
+      pip('trig').textContent = 'accumulator';
+      pip('derive').textContent = 'derive';
+    }
+
+    function scene(n) {
+      var sc = scenes[n];
+      resetPips();
+      evSrc.textContent = sc.src;
+      evSt.textContent = 'ingested';
+      evTx.textContent = sc.tx;
+      evBox.classList.remove('arrive');
+      void evBox.offsetWidth;
+      evBox.classList.add('arrive');
+
+      at(500, function () { pip('embed').classList.add('on'); });
+      at(950, function () {
+        pip('score').innerHTML = 'importance <b>' + sc.imp + '</b>';
+        pip('score').classList.add('on');
       });
-    }
 
-    // Render the scene's raw events into the inbox with a staggered arrival.
-    function renderEvents(events) {
-      inbox.innerHTML = '';
-      events.forEach(function (ev, i) {
-        var el = document.createElement('div');
-        el.className = 'profile-raw';
-        el.style.setProperty('--hue', ev.hue || 'var(--orange)');
-        el.style.opacity = '0';
-        el.innerHTML = '<span class="profile-raw-head"><span class="src">' + ev.src
-          + '</span><span class="st" data-st>incoming</span></span>'
-          + '<span class="profile-raw-msg">' + ev.msg + '</span>';
-        inbox.appendChild(el);
-        at(120 + i * 160, function () { el.style.opacity = ''; reAnimate(el, 'arrive'); });
-      });
-    }
-    function setRaw(label, cls) {
-      Array.prototype.slice.call(inbox.querySelectorAll('.profile-raw')).forEach(function (c) {
-        c.classList.remove('active', 'done', 'rejected');
-        if (cls) c.classList.add(cls);
-        var st = c.querySelector('[data-st]'); if (st) st.textContent = label;
-      });
-    }
-
-    function afterPromote(scene) {
-      setRaw('promoted', 'done');
-      update.textContent = scene.note;
-      state.textContent = 'profile updated';
-      reAnimate(state, 'flash');
-      card.classList.add('pulse');
-      at(900, function () { card.classList.remove('pulse'); });
-    }
-
-    function applyUpdate(scene) {
-      profile[scene.field] = scene.value;
-      var slot = demo.querySelector('[data-profile-slot="' + scene.field + '"]');
-      if (slot) {
-        slot.querySelector('.value').textContent = scene.slot.value;
-        slot.querySelector('.cite').textContent = scene.slot.cite;
-        slot.classList.remove('quiet');
-        reAnimate(slot, 'changed');
-      }
-      renderSummary(scene.field);
-      afterPromote(scene);
-    }
-
-    // Sum several events into one numeric slot, ticking the total up per event.
-    function applySum(scene) {
-      var slot = demo.querySelector('[data-profile-slot="sales"]');
-      var valEl = slot ? slot.querySelector('.value') : null;
-      var amounts = scene.events.map(function (e) { return e.amount; });
-      var total = 0;
-      if (slot) slot.classList.remove('quiet');
-      amounts.forEach(function (amt, i) {
-        at(i * 240, function () {
-          total += amt;
-          profile.sales = total;
-          if (valEl) valEl.textContent = fmtSales(total) + ' committed this quarter · ' + (i + 1) + ' of ' + amounts.length + ' deals.';
-          renderSummary('sales');
+      if (sc.held) {
+        at(1450, function () {
+          pip('trig').textContent = 'accumulator · held';
+          pip('trig').classList.add('held');
+          evSt.textContent = 'stored, not derived';
         });
-      });
-      at(amounts.length * 240 + 140, function () {
-        if (valEl) valEl.textContent = fmtSales(total) + ' committed this quarter · ' + amounts.length + ' closed-won deals.';
-        if (slot) { slot.querySelector('.cite').textContent = amounts.length + ' events · cited'; reAnimate(slot, 'changed'); }
-        renderSummary('sales');
-        afterPromote(scene);
-      });
+        at(1900, function () {
+          pip('derive').textContent = 'no run';
+          note.textContent = sc.note;
+          note.classList.add('held');
+        });
+      } else {
+        at(1450, function () {
+          pip('trig').textContent = 'accumulator · trips';
+          pip('trig').classList.add('fire');
+        });
+        at(1950, function () {
+          pip('derive').textContent = 'derive · cited';
+          pip('derive').classList.add('fire');
+          mcard.classList.add('pulse');
+        });
+        at(2400, function () {
+          setSlot(sc);
+          note.classList.remove('held');
+          note.textContent = sc.note;
+          evSt.textContent = 'folded in';
+        });
+        at(3200, function () { mcard.classList.remove('pulse'); });
+      }
+
+      at(4600, function () { scene((n + 1) % scenes.length); });
     }
 
-    function applyReject(scene) {
-      setRaw('discarded', 'rejected');
-      update.textContent = scene.note;
-      state.textContent = 'no change';
-      reAnimate(state, 'flash');
-      reAnimate(card, 'nudge');
-    }
-
-    // Play one scene, then invoke done().
-    function runScene(scene, done) {
-      var many = scene.events.length > 1;
-      setSteps(-1);
-      setResult('', 'received', 'raw evidence entering the memory layer');
-      state.textContent = 'event' + (many ? 's' : '') + ' arrived';
-      renderEvents(scene.events);
-      var base = 300 + scene.events.length * 160;   // let the events land first
-
-      at(base,        function () { setRaw('processing', 'active'); });
-      at(base + 200,  function () { setSteps(0); setResult('', 'enrich', 'extract type, date, source, confidence'); state.textContent = 'enriching'; });
-      at(base + 1200, function () { setSteps(1); setResult('', 'derive', 'compare against the current profile'); state.textContent = 'deriving'; });
-      at(base + 2200, function () { setSteps(2); setResult('', 'judge', 'decide whether it becomes truth'); state.textContent = 'judging'; });
-      at(base + 3200, function () {
-        setSteps(3);
-        if (scene.outcome === 'reject') { setResult('reject', 'no change', scene.result); applyReject(scene); }
-        else { setResult('update', 'updated', scene.result); (scene.outcome === 'sum' ? applySum : applyUpdate)(scene); }
-      });
-      at(base + 5600, function () { state.textContent = 'live · self-updating'; done(); });
-    }
-
-    var si = 0;
-    function loop() {
-      clearTimers();
-      runScene(SCENES[si], function () { si = (si + 1) % SCENES.length; loop(); });
-    }
-
-    // Reduced motion / no animation: show the fully-updated resting profile at once.
     function finalState() {
-      SCENES.forEach(function (scene) {
-        if (scene.outcome === 'update') {
-          profile[scene.field] = scene.value;
-          var slot = demo.querySelector('[data-profile-slot="' + scene.field + '"]');
-          if (slot) { slot.querySelector('.value').textContent = scene.slot.value; slot.querySelector('.cite').textContent = scene.slot.cite; slot.classList.remove('quiet'); }
-        } else if (scene.outcome === 'sum') {
-          var total = scene.events.reduce(function (a, e) { return a + e.amount; }, 0);
-          profile.sales = total;
-          var s = demo.querySelector('[data-profile-slot="sales"]');
-          if (s) { s.querySelector('.value').textContent = fmtSales(total) + ' committed this quarter · ' + scene.events.length + ' closed-won deals.'; s.querySelector('.cite').textContent = scene.events.length + ' events · cited'; s.classList.remove('quiet'); }
-        }
+      /* reduced motion: show the end state, no loop */
+      scenes.forEach(function (sc) {
+        if (!sc.slot) return;
+        var el = slots[sc.slot];
+        el.classList.remove('empty');
+        el.querySelector('.v').textContent = sc.val;
+        el.querySelector('.c').textContent = sc.cites + ' cited';
       });
-      renderEvents(SCENES[0].events);
-      setRaw('cited', 'done');
-      renderSummary();
-      setSteps(3);
-      setResult('update', 'current', 'all events processed · profile up to date');
-      update.textContent = 'profile current · role, new bookings, comms · each with a source';
-      state.textContent = 'live · self-updating';
+      citeN.textContent = '5 citations';
+      pips.forEach(function (p) { p.classList.add('on'); });
+      pip('score').innerHTML = 'importance <b>8</b>';
+      pip('trig').textContent = 'accumulator · trips';
+      pip('derive').textContent = 'derive · cited';
+      note.textContent = 'current · every slot cites the events it was fused from';
     }
 
-    summary.innerHTML = summaryHTML();   // normalize first paint
-    function begin() { if (reduce) finalState(); else loop(); }
+    onView(mcard, function (staticMode) {
+      clr();
+      if (staticMode) { finalState(); return; }
+      scene(0);
+    });
+  })();
 
-    // Begin when the demo scrolls into view. Low threshold so it also fires on
-    // narrow screens where the stacked demo is taller than the viewport.
-    if (reduce || !('IntersectionObserver' in window)) {
-      begin();
-    } else {
-      var ob = new IntersectionObserver(function (es) {
-        es.forEach(function (en) { if (en.isIntersecting) { begin(); ob.unobserve(en.target); } });
-      }, { threshold: 0.15 });
-      ob.observe(demo);
-    }
+  /* ===== quickstart: read-shape tabs ===== */
+  (function () {
+    var box = document.getElementById('readCode');
+    if (!box) return;
+    var tabs = Array.prototype.slice.call(box.querySelectorAll('.t'));
+    var panes = Array.prototype.slice.call(box.querySelectorAll('pre.p'));
+    tabs.forEach(function (t, k) {
+      t.addEventListener('click', function () {
+        tabs.forEach(function (o, i) { o.setAttribute('aria-selected', i === k ? 'true' : 'false'); });
+        panes.forEach(function (p, i) { p.classList.toggle('on', i === k); });
+      });
+    });
   })();
 
   /* ===== benchmark count-ups ===== */
@@ -1296,81 +1320,9 @@ if (typeof Tally !== "undefined") {
   onView(document.getElementById('tokChart'), function () {
     var bars = document.querySelectorAll('#tokChart .tbar > i');
     bars.forEach(function (b) {
-      var w = parseFloat(b.getAttribute('data-w'));
-      requestAnimationFrame(function () { b.style.width = w + '%'; });
+      var wpc = parseFloat(b.getAttribute('data-w'));
+      requestAnimationFrame(function () { b.style.width = wpc + '%'; });
     });
-  });
-
-  /* ===== digest demo ===== */
-  onView(document.getElementById('demoRfl'), function (staticMode) {
-    var w = document.getElementById('demoRfl');
-    var mems = Array.prototype.slice.call(w.querySelectorAll('.mem'));
-    var card = w.querySelector('.rfl-card');
-    if (staticMode) { mems.forEach(function (m) { m.classList.add('on'); }); card.classList.add('show'); return; }
-    var t = [];
-    function run() {
-      t.forEach(clearTimeout); t = [];
-      mems.forEach(function (m) { m.classList.remove('on'); }); card.classList.remove('show');
-      mems.forEach(function (m, i) { t.push(setTimeout(function () { m.classList.add('on'); }, 350 + i * 460)); });
-      t.push(setTimeout(function () { card.classList.add('show'); }, 350 + mems.length * 460 + 350));
-      t.push(setTimeout(run, 350 + mems.length * 460 + 350 + 3600));
-    }
-    run();
-  });
-
-  /* ===== conflict demo ===== */
-  onView(document.getElementById('demoCd'), function (staticMode) {
-    var w = document.getElementById('demoCd');
-    var f1 = w.querySelector('.f-old'), f2 = w.querySelector('.f-new');
-    var warn = w.querySelector('.cd-warn'), now = w.querySelector('.cd-now');
-    if (staticMode) { [f1, f2, warn, now].forEach(function (e) { e.classList.add('on'); }); f1.classList.add('stale'); return; }
-    var t = [];
-    function run() {
-      t.forEach(clearTimeout); t = [];
-      [f1, f2, warn, now].forEach(function (e) { e.classList.remove('on'); }); f1.classList.remove('stale');
-      t.push(setTimeout(function () { f1.classList.add('on'); }, 400));
-      t.push(setTimeout(function () { f2.classList.add('on'); }, 1150));
-      t.push(setTimeout(function () { warn.classList.add('on'); f1.classList.add('stale'); }, 1950));
-      t.push(setTimeout(function () { now.classList.add('on'); }, 2550));
-      t.push(setTimeout(run, 6200));
-    }
-    run();
-  });
-
-  /* ===== temporal demo ===== */
-  onView(document.getElementById('demoTl'), function (staticMode) {
-    var w = document.getElementById('demoTl');
-    var dots = Array.prototype.slice.call(w.querySelectorAll('.tl-dot'));
-    var role = w.querySelector('.role'), meta = w.querySelector('.meta');
-    var data = [
-      { r: 'Support Specialist', src: 'the Jan intro call', when: 'Jan' },
-      { r: 'Team Lead, Support', src: 'the Apr org note', when: 'Apr' },
-      { r: 'Manager, Customer Success', src: 'the Jul promotion', when: 'Jul' }
-    ];
-    function show(i) {
-      dots.forEach(function (d, k) { d.classList.toggle('active', k === i); });
-      role.textContent = data[i].r;
-      meta.innerHTML = 'as of ' + data[i].when + ' · source <b>' + data[i].src + '</b>';
-    }
-    if (staticMode) { show(data.length - 1); return; }
-    var i = 0, t = [];
-    function run() { show(i); i = (i + 1) % data.length; t.push(setTimeout(run, 2200)); }
-    run();
-  });
-
-  /* ===== skill maintenance demo ===== */
-  onView(document.getElementById('demoSk'), function (staticMode) {
-    var w = document.getElementById('demoSk');
-    var steps = Array.prototype.slice.call(w.querySelectorAll('.sk-step'));
-    if (staticMode) { steps.forEach(function (s) { s.classList.add('on'); }); return; }
-    var t = [];
-    function run() {
-      t.forEach(clearTimeout); t = [];
-      steps.forEach(function (s) { s.classList.remove('on'); });
-      steps.forEach(function (s, i) { t.push(setTimeout(function () { s.classList.add('on'); }, 450 + i * 850)); });
-      t.push(setTimeout(run, 450 + steps.length * 850 + 4200));
-    }
-    run();
   });
 })();
 </script>

@@ -395,10 +395,10 @@
             <p class="eyebrow">worked example · gbrain</p>
             <h1>An entire brain, <span class="grad">declared.</span> <span class="dim">Not built.</span></h1>
             <p class="sell">
-              Above is a real memseek workspace, and right now it is <strong>empty</strong>.
-              Scroll, and a complete knowledge product assembles itself in it — a cited graph,
-              a fact index, durable memory, and answers that show their evidence.
-              <strong>Nothing below is a service someone wrote.</strong> It is one catalog of YAML.
+              The workspace above is real, and right now it is <strong>empty</strong>. Scroll, and a
+              knowledge product assembles itself in it: a cited graph, a fact index, durable memory,
+              and answers that show their evidence. <strong>None of it is a service someone
+              wrote</strong> — it is one catalog of YAML.
             </p>
             <div class="hero-cta">
               <a class="btn btn-primary" href="#start">Start building <span aria-hidden="true">→</span></a>
@@ -477,9 +477,9 @@
             <h2>The structure extracts itself.</h2>
             <p class="lede">
               The moment those pages land, memseek resolves the links, classifies them into typed
-              predicates, and folds every <code>## Facts</code> bullet into one current index.
-              <strong>Both of those cost zero model calls.</strong> No inference, no bill, no drift
-              — the same input always produces the same graph.
+              predicates, and folds every <code>## Facts</code> bullet into one current index —
+              <strong>both at zero model calls</strong>. No inference, no bill, no drift: the same
+              input always produces the same graph.
             </p>
           </div>
 
@@ -682,8 +682,8 @@
             <h2>Now it answers — and shows the receipts.</h2>
             <p class="lede">
               One hybrid query spans every collection at once, weighted by graph distance from an
-              anchor page. The answer names the records it used and, just as importantly,
-              <strong>what it could not establish.</strong>
+              anchor page. The answer names the records it used — and, just as importantly,
+              <strong>what it could not establish</strong>.
             </p>
           </div>
 
@@ -808,6 +808,51 @@
             rather than a captured transcript, because that text varies by model. Run it yourself
             below and you will get your own.
           </p>
+        </div>
+      </section>
+
+      <!-- ============ 05b · direct usage ============ -->
+      <section class="region" id="use" style="--hue: var(--green)">
+        <div class="wrap">
+          <div class="region-head rv">
+            <p class="eyebrow">05b · from your app</p>
+            <h2>Three calls, and you have all of it.</h2>
+            <p class="lede">
+              Your application writes markdown and asks questions. It never orchestrates the
+              extraction, the cascade, or the ranking — those are the catalog's job.
+            </p>
+          </div>
+
+          <div class="work rv" style="align-items:start">
+            <div class="panel" style="overflow:hidden">
+              <div class="panel-head"><span class="t">app.py</span><span class="badge" style="--bh: var(--green)">public SDK</span></div>
+<pre class="code"><span class="c"># 1 · write a page. the edges and the fact index follow, no model calls.</span>
+<span class="k">await</span> memseek.records.<span class="z">ingest</span>(
+    collection=<span class="s">"pages"</span>, key=<span class="s">"people/maya"</span>, type=<span class="s">"page"</span>,
+    entity=ENTITY,
+    text=<span class="s">"Maya founded [Acme](companies/acme).\n\n## Facts\n- Maya founded Acme."</span>,
+)
+
+<span class="c"># 2 · ask. hybrid over every collection, boosted around an anchor page.</span>
+res = <span class="k">await</span> memseek.<span class="z">answer</span>(question=<span class="s">"What should I know about Maya?"</span>)
+
+res[<span class="s">"answer"</span>]      <span class="c"># "Maya Ortiz founded Acme and invested in Orbit…"</span>
+res[<span class="s">"citations"</span>]   <span class="c"># ["9c1b77e0…", "4b7ee54f…"]</span>
+res[<span class="s">"gaps"</span>]        <span class="c"># ["meeting date"] — what it could not establish</span>
+
+<span class="c"># 3 · descend. any citation dereferences to the record it stands on.</span>
+rec = <span class="k">await</span> memseek.<span class="z">record</span>(res[<span class="s">"citations"</span>][<span class="z">0</span>])
+rec[<span class="s">"derived_from"</span>]  <span class="c"># its parents — walk down to depth 0</span></pre>
+            </div>
+
+            <div>
+              <div class="surface-head"><span>what your code never does</span><span>4 things</span></div>
+              <div class="trow"><span class="n">extract</span><span class="kd">catalog</span><span class="bind">→ link_extraction · fact_extraction</span><p>Runs on every write, deterministically, at zero model calls.</p></div>
+              <div class="trow"><span class="n">cascade</span><span class="kd">catalog</span><span class="bind">→ atoms · patterns · concepts · takes</span><p>Bounded derivations fire themselves when evidence accumulates.</p></div>
+              <div class="trow"><span class="n">rank</span><span class="kd">catalog</span><span class="bind">→ search profile + graph boost</span><p>Fusion, weighting, and anchor distance are declared, not coded.</p></div>
+              <div class="trow"><span class="n">cite</span><span class="kd">contract</span><span class="bind">→ schema-required UUIDs</span><p>An uncited belief is rejected, so provenance is never optional.</p></div>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -980,7 +1025,7 @@
             </p>
             <div class="hero-cta">
               <a class="btn btn-primary" href="/#waitlist">Start building <span aria-hidden="true">→</span></a>
-              <a class="btn btn-ghost" href="/#kit">Read the walkthrough</a>
+              <a class="btn btn-ghost" href="/#quickstart">See the quickstart</a>
             </div>
           </div>
 

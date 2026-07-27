@@ -716,11 +716,11 @@
             <p class="eyebrow">worked example · dreams</p>
             <h1>A memory that <span class="grad">reorganizes itself.</span> <span class="dim">And shows you the diff.</span></h1>
             <p class="sell">
-              Anthropic’s <strong>Dreams</strong> let Claude re-read an agent’s memory and past
-              sessions, then rebuild a cleaner store — duplicates merged, stale entries replaced,
-              new insights surfaced — without touching the input. On memseek that isn’t a gated
-              endpoint. It’s <strong>one bounded, cited derivation</strong> over immutable records,
-              and you adopt the result as a reviewable diff.
+              Anthropic’s <strong>Dreams</strong> let Claude re-read an agent’s memory store and up to
+              100 past sessions, then hand back a <em>second, reorganized store</em> — duplicates
+              merged, stale entries replaced, new insights surfaced, input never touched. On memseek
+              the same idea is <strong>one bounded, cited derivation</strong> you own, and what you
+              adopt is a <strong>classified diff</strong> rather than a store to eyeball.
             </p>
             <div class="hero-cta">
               <a class="btn btn-primary" href="#diff">Run a dream <span aria-hidden="true">→</span></a>
@@ -813,9 +813,9 @@
               <div class="to"><b>run lifecycle</b><small>audited, streamable, cited outputs</small></div>
             </div>
             <div class="maprow">
-              <div class="from"><b>instructions (steering)</b><small>focus areas, keep/drop rules</small></div>
+              <div class="from"><b>instructions (steering)</b><small>focus areas, 4,096 chars, a synthesis pass — not a line editor</small></div>
               <span class="arrow" aria-hidden="true">→</span>
-              <div class="to"><b>Task input / prompt</b><small>per-run guidance, still bounded</small></div>
+              <div class="to"><b>a guarded policy record</b><small>rewriting it supersedes; the old policy stays on file</small></div>
             </div>
           </div>
         </div>
@@ -828,9 +828,8 @@
             <p class="eyebrow">02 · run it</p>
             <h2>Run a dream. See exactly what it changed.</h2>
             <p>
-              An interactive model of the derivation output. Steer it with <code>instructions</code>,
-              choose how many sessions to mine, then open any curated memory to see
-              <strong>the records and sessions it cites</strong>. The tally above fills as the
+              Steer the curation policy, pick how many sessions to mine, then open any curated
+              memory to see <strong>the records it cites</strong>. The tally above fills as the
               divergence resolves.
             </p>
           </div>
@@ -948,7 +947,9 @@
             </div>
 
             <div class="tabpanel" role="tabpanel" id="panel-api" aria-labelledby="tab-api" tabindex="0">
-<pre><span class="cm"># Anthropic Managed Agents — a hosted async dream</span>
+<pre><span class="cm"># Anthropic Managed Agents — a hosted async dream.
+# Research preview, gated by dreaming-2026-04-21 alongside
+# managed-agents-2026-04-01.</span>
 dream = client.beta.<span class="fn">dreams</span>.create(
     inputs=[
         {<span class="s">"type"</span>: <span class="s">"memory_store"</span>, <span class="s">"memory_store_id"</span>: store_id},
@@ -957,8 +958,16 @@ dream = client.beta.<span class="fn">dreams</span>.create(
     model=<span class="s">"claude-opus-4-8"</span>,
     instructions=<span class="s">"Focus on coding-style preferences; ignore one-off debugging notes."</span>,
 )
-<span class="cm"># poll until dream.status == "completed", then read outputs[]</span></pre>
-              <p class="code-note">A single hosted job. It clones the store internally, runs a pipeline you don’t see, and hands back an output store id to poll for.</p>
+
+<span class="cm"># minutes to hours, driven by transcript count</span>
+<span class="k">while</span> dream.status <span class="k">in</span> (<span class="s">"pending"</span>, <span class="s">"running"</span>):
+    time.<span class="fn">sleep</span>(<span class="n">10</span>)
+    dream = client.beta.<span class="fn">dreams</span>.<span class="fn">retrieve</span>(dream.id)
+
+<span class="cm"># the result is a whole second store, not a diff</span>
+store = <span class="k">next</span>(o.memory_store_id <span class="k">for</span> o <span class="k">in</span> dream.outputs
+             <span class="k">if</span> o.type == <span class="s">"memory_store"</span>)</pre>
+              <p class="code-note">A single hosted job: it clones the store, runs a pipeline you don’t see, and hands back a second store id. Adopting means attaching that store to future sessions; discarding means deleting or archiving it. Nothing tells you <em>which memories moved</em> — that comparison is yours to make.</p>
             </div>
 
             <div class="tabpanel" role="tabpanel" id="panel-yaml" aria-labelledby="tab-yaml" tabindex="0" hidden>
@@ -971,11 +980,16 @@ dream = client.beta.<span class="fn">dreams</span>.create(
     <span class="k">statuses</span>: [active]
     <span class="k">max_records</span>: <span class="n">200</span>
     <span class="k">allow_empty</span>: true         <span class="cm"># dream from sessions alone if the store is empty</span>
-  <span class="k">sessions</span>:                   <span class="cm"># 1–100 past transcripts to mine</span>
+  <span class="k">sessions</span>:                   <span class="cm"># the transcripts to mine</span>
     <span class="k">kind</span>: changes
     <span class="k">collections</span>: [sessions]
-    <span class="k">window</span>: {recent: <span class="n">100</span>}     <span class="cm"># the "sessions window" slider</span>
+    <span class="k">max_records</span>: <span class="n">100</span>          <span class="cm"># the "sessions window" slider</span>
     <span class="k">max_tokens</span>: <span class="n">24000</span>
+  <span class="k">policy</span>:                     <span class="cm"># steering, as one guarded current record</span>
+    <span class="k">kind</span>: record
+    <span class="k">collection</span>: playbooks
+    <span class="k">key</span>: curation_policy
+    <span class="k">max_tokens</span>: <span class="n">1500</span>
 <span class="k">model</span>: strong
 <span class="k">limits</span>:                       <span class="cm"># cost is bounded, not open-ended</span>
   <span class="k">max_llm_calls</span>: <span class="n">2</span>
@@ -985,59 +999,87 @@ dream = client.beta.<span class="fn">dreams</span>.create(
   - <span class="k">id</span>: curate
     <span class="k">use</span>: llm
     <span class="k">with</span>:
-      <span class="k">instructions</span>: <span class="s">"{{run.input.instructions}}"</span>   <span class="cm"># steer per run</span>
-      <span class="k">output_schema</span>: { <span class="cm">... memories[] with required citations ...</span> }
+      <span class="k">output_schema</span>: { <span class="cm">... records[] with required citations ...</span> }
       <span class="k">prompt</span>: |
         Rebuild one clean memory store for {{entity}} from the evidence below.
         Merge duplicates, replace stale or contradicted entries with the latest
         value, and surface genuinely new insights. Cite only visible UUIDs.
 
+        CURATION POLICY: {{policy.rendered}}
         EXISTING STORE:  {{store.rendered}}
         RECENT SESSIONS: {{sessions.rendered}}
 <span class="k">emit</span>:
   <span class="k">from</span>: <span class="s">"{{curate.records}}"</span>
   <span class="k">collection</span>: memories
+  <span class="k">type</span>: memory
+  <span class="k">keys</span>: [style, tools, domain, workflow]   <span class="cm"># the bounded target</span>
   <span class="k">complete</span>: true            <span class="cm"># a full rebuild, every key accounted for</span>
   <span class="k">review</span>: required          <span class="cm"># stage a draft — never auto-overwrite</span></pre>
-              <p class="code-note"><code>snapshot</code> + <code>complete: true</code> + <code>review: required</code> is exactly “rebuild the whole store from a bounded corpus, and stage it for approval” — the dream contract, declared in one file you own.</p>
+              <p class="code-note"><code>snapshot</code> + <code>complete: true</code> + <code>review: required</code> over a bounded <code>keys</code> target is exactly “rebuild the whole store from a fixed corpus and stage it for approval” — the dream contract, declared in one file you own. Steering is a record, not a request parameter: rewrite <code>curation_policy</code> and the next run reads the new one, with the old version still on file.</p>
             </div>
 
             <div class="tabpanel" role="tabpanel" id="panel-run" aria-labelledby="tab-run" tabindex="0" hidden>
-<pre><span class="cm"># On demand — same async run model as the Dreams API</span>
-run = await client.<span class="fn">derive</span>(
-    processor=<span class="s">"dream"</span>,
+<pre><span class="cm"># 1 · steer it: the policy is a record, so rewriting it is an ingest</span>
+<span class="k">await</span> memseek.records.<span class="fn">ingest</span>(
+    collection=<span class="s">"playbooks"</span>, key=<span class="s">"curation_policy"</span>, type=<span class="s">"playbook"</span>,
     entity=<span class="s">"user:ada"</span>,
-    input={<span class="s">"instructions"</span>: <span class="s">"Focus on coding-style preferences."</span>},
+    text=<span class="s">"Focus on coding-style preferences; ignore one-off debugging notes."</span>,
 )
-<span class="cm"># poll run.status: queued → running → succeeded (outputs are cited drafts)</span>
 
-<span class="cm"># …or don't call it at all. Let a schedule dream nightly:</span>
-<span class="k">trigger</span>:
-  <span class="k">schedule</span>: <span class="s">"0 3 * * *"</span>      <span class="cm"># 03:00 daily, per entity with new sessions</span></pre>
-              <p class="code-note">A dream is just a run. Fire it on demand, on a nightly schedule, or on a write trigger when enough new sessions have accumulated. No separate service, no beta header.</p>
+<span class="cm"># 2 · run it — returns a job id immediately, the worker does the work</span>
+queued = <span class="k">await</span> memseek.<span class="fn">run_processor</span>(<span class="s">"dream"</span>, entity=<span class="s">"user:ada"</span>)
+
+<span class="k">while True</span>:                          <span class="cm"># queued → running → succeeded</span>
+    job = <span class="k">await</span> memseek.<span class="fn">job</span>(queued[<span class="s">"job_id"</span>])
+    <span class="k">if</span> job.get(<span class="s">"successful_run_id"</span>): <span class="k">break</span>
+    <span class="k">if</span> job[<span class="s">"state"</span>] == <span class="s">"dead"</span>: <span class="k">raise</span> RuntimeError(job)
+    <span class="k">await</span> asyncio.<span class="fn">sleep</span>(<span class="n">0.5</span>)
+
+<span class="cm"># …or don't call it at all. A cron trigger dreams nightly, and a write
+# trigger dreams once enough new sessions have landed.</span></pre>
+              <p class="code-note">A dream is just a run. Fire it on demand, on a schedule, or on a write trigger when enough new sessions accumulate — no separate service, no beta endpoint. Nothing is live yet: the run staged a draft.</p>
             </div>
 
             <div class="tabpanel" role="tabpanel" id="panel-adopt" aria-labelledby="tab-adopt" tabindex="0" hidden>
-<pre><span class="cm"># Review the divergence, then adopt or discard — atomically</span>
-diff = await client.<span class="fn">divergence</span>(run.id)
-<span class="cm"># diff.added / diff.changed / diff.removed / diff.unchanged</span>
+<pre><span class="cm"># 3 · read the audited run — the draft carries its own classified diff</span>
+review = <span class="k">await</span> memseek.<span class="fn">run</span>(job[<span class="s">"successful_run_id"</span>])
+candidate = review[<span class="s">"run"</span>][<span class="s">"content"</span>][<span class="s">"candidate_set"</span>]
 
-<span class="k">if</span> looks_good(diff):
-    await client.<span class="fn">promote</span>(run.id)      <span class="cm"># compare-and-set: rejects if store moved</span>
-<span class="k">else</span>:
-    await client.<span class="fn">discard</span>(run.id)      <span class="cm"># drop the draft; input store untouched</span></pre>
-              <p class="code-note">Promotion re-checks the input heads captured before the Task ran. If the store changed underneath the dream, activation is rejected as stale rather than silently clobbering newer memory.</p>
+candidate[<span class="s">"covered_keys"</span>]   <span class="cm"># every key the rebuild accounted for</span>
+candidate[<span class="s">"divergence"</span>]     <span class="cm"># per key: added · changed · removed · unchanged</span>
+
+<span class="cm"># 4 · adopt it — atomic, and only if the store hasn't moved underneath</span>
+<span class="k">if</span> looks_good(candidate[<span class="s">"divergence"</span>]):
+    <span class="k">await</span> memseek.<span class="fn">promote</span>(
+        entity=<span class="s">"user:ada"</span>,
+        source_run_id=job[<span class="s">"successful_run_id"</span>],
+        artifact=<span class="s">"dream_candidate"</span>,   <span class="cm"># the reviewed contract it must satisfy</span>
+    )
+<span class="cm"># Decline by simply not promoting: the draft stays in the audit trail
+# forever, and live memory was never touched.</span></pre>
+              <p class="code-note">Promotion re-checks the input heads captured before the Task ran. If the store changed underneath the dream, activation is rejected as stale rather than silently clobbering newer memory — and declining costs nothing, because a draft that is never promoted simply stays a draft.</p>
             </div>
           </article>
 
           <div class="callout rv">
             <span class="cmark" aria-hidden="true"></span>
             <p>
-              <b>The one difference that matters:</b> Anthropic’s dream hands you a second store
-              and asks you to eyeball the difference. memseek hands you the
-              <strong>classified diff</strong> — every memory labelled added, changed, removed or
-              kept, each one cited — and adopting it is a compare-and-set Promotion, not a blind
-              swap.
+              <b>The one difference that matters:</b> a dream hands you a second store and asks you
+              to eyeball it — the API reports <code>pending → running → completed</code> and an
+              output store id, but never which memories moved. memseek hands you the
+              <strong>classified diff</strong>: every memory labelled added, changed, removed or
+              kept, each one cited, over a key set the emission declared in advance — and adopting
+              it is a compare-and-set promotion that is <em>refused</em> if the store shifted while
+              you were reviewing.
+            </p>
+            <!-- .callout is a 2-column grid (mark + prose); a second paragraph has to
+                 be told to stay in the prose column or it widens the mark column. -->
+            <p style="grid-column: 2; margin-top: .9rem">
+              <b>And the honest other side:</b> the hosted job needs no Postgres, no worker, and no
+              catalog — you call one endpoint and poll. It also lets you stream the underlying
+              session’s events to watch the pipeline read and write in real time. If you don’t want
+              to run anything, that is the trade you are making: a store you must diff yourself, in
+              exchange for infrastructure you never touch.
             </p>
           </div>
         </div>
@@ -1084,9 +1126,10 @@ diff = await client.<span class="fn">divergence</span>(run.id)
 <pre><span class="k">emit</span>:
   <span class="k">from</span>: <span class="s">"{{curate.records}}"</span>
   <span class="k">collection</span>: memories
+  <span class="k">keys</span>: [style, tools, domain, workflow]
   <span class="k">complete</span>: true
   <span class="k">review</span>: required</pre>
-            <p class="code-note">Four lines decide that a dream stages a reviewable draft instead of overwriting live memory.</p>
+            <p class="code-note">Two lines — <code>complete</code> and <code>review</code> — decide that a dream stages a reviewable draft over a bounded set of keys instead of overwriting live memory.</p>
           </div>
         </div>
       </section>
