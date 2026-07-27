@@ -1,0 +1,24 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+---
+
+<BaseLayout title="Not found — Memseek" description="That page doesn't exist." noindex>
+  <section class="nf">
+    <div class="wrap">
+      <span class="eyebrow" style="--hue:var(--pink)">404</span>
+      <h1>No memory of <span class="grad">that page.</span></h1>
+      <p>The URL doesn't resolve to anything we serve. Try the blog or the landing page.</p>
+      <div class="row">
+        <a href="/" class="btn btn-primary">Back to memseek →</a>
+        <a href="/blog/" class="btn btn-ghost">Read the blog</a>
+      </div>
+    </div>
+  </section>
+</BaseLayout>
+
+<style>
+  .nf { padding-block: clamp(4rem, 12vw, 9rem); }
+  h1 { font-size: var(--step-2); margin-top: 1rem; max-width: 20ch; }
+  p { color: var(--muted); margin-top: 1rem; max-width: 44ch; }
+  .row { display: flex; gap: .8rem; flex-wrap: wrap; margin-top: 2rem; }
+</style>

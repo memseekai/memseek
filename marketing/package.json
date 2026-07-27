@@ -1,0 +1,31 @@
+{
+  "name": "memseek-marketing",
+  "type": "module",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Memseek marketing site + blog (Astro, deployed to Cloudflare Pages)",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "npm run build && wrangler dev",
+    "check": "astro check",
+    "deploy": "npm run build && wrangler deploy",
+    "cf-typegen": "wrangler types"
+  },
+  "dependencies": {
+    "@astrojs/cloudflare": "12",
+    "@astrojs/mdx": "^4.3.6",
+    "@astrojs/rss": "^4.0.13",
+    "@astrojs/sitemap": "^3.7.0",
+    "astro": "^5.16.2",
+    "katex": "^0.16.25",
+    "rehype-autolink-headings": "^7.1.0",
+    "rehype-katex": "^7.0.1",
+    "rehype-slug": "^6.0.0",
+    "remark-math": "^6.0.0",
+    "sharp": "^0.34.5"
+  },
+  "devDependencies": {
+    "wrangler": "^4.114.0"
+  }
+}

@@ -1,0 +1,72 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import PostCard from '../../components/PostCard.astro';
+import { getPosts, getTags, tagSlug } from '../../lib/posts';
+
+const posts = await getPosts();
+const tags = await getTags();
+const [featured, ...rest] = posts;
+---
+
+<BaseLayout
+  title="Blog — Memseek"
+  description="Notes on agent memory: why retrieval-by-similarity fails, how to serve current and source-linked context, and what we're building at Memseek."
+>
+  <section class="blog-hero">
+    <div class="wrap">
+      <span class="eyebrow">Writing</span>
+      <h1>Notes on <span class="grad">agent memory.</span></h1>
+      <p class="lede">
+        Why similarity retrieval serves stale answers, how to date and trace context, and what
+        we learn building Memseek.
+      </p>
+      {tags.length > 0 && (
+        <div class="tag-row">
+          {tags.map(({ tag, count }) => (
+            <a href={`/tags/${tagSlug(tag)}/`} class="tag-pill">{tag} <span class="ct">{count}</span></a>
+          ))}
+        </div>
+      )}
+    </div>
+  </section>
+
+  <section class="blog-list">
+    <div class="wrap">
+      {posts.length === 0 ? (
+        <p class="empty">
+          No posts yet. Add one at <code>src/content/blog/your-post.mdx</code> — marketing/README.md
+          lists the frontmatter fields.
+        </p>
+      ) : (
+        <>
+          <PostCard post={featured} featured />
+          {rest.length > 0 && (
+            <div class="grid">
+              {rest.map((post) => <PostCard post={post} />)}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  </section>
+</BaseLayout>
+
+<style>
+  .blog-hero { position: relative; padding-top: clamp(2.4rem, 5vw, 4rem); padding-bottom: clamp(1.6rem, 3vw, 2.4rem); overflow: hidden; }
+  .blog-hero::before {
+    content: ""; position: absolute; inset: -60% -10% auto; height: 460px; z-index: 0; pointer-events: none;
+    background:
+      radial-gradient(38% 60% at 18% 40%, color-mix(in srgb, var(--orange) 26%, transparent), transparent 70%),
+      radial-gradient(38% 56% at 62% 20%, color-mix(in srgb, var(--pink) 22%, transparent), transparent 72%);
+    opacity: .85;
+  }
+  .blog-hero .wrap { position: relative; z-index: 1; }
+  .blog-hero h1 { font-size: var(--step-3); margin-top: 1.1rem; max-width: 18ch; }
+  .lede { color: var(--muted); max-width: 48ch; margin-top: 1.1rem; }
+  .tag-row { display: flex; gap: .5rem; flex-wrap: wrap; margin-top: 1.8rem; }
+  .tag-pill .ct { color: var(--faint); font-size: .9em; }
+
+  .blog-list { padding-bottom: clamp(3rem, 7vw, 6rem); }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 22rem), 1fr)); gap: 1.1rem; margin-top: 1.1rem; }
+  .empty { color: var(--muted); font-family: var(--mono); font-size: var(--step--1); border: 1px dashed var(--border-strong); border-radius: 10px; padding: 1.4rem; }
+</style>

@@ -1,0 +1,71 @@
+---
+import { Image } from 'astro:assets';
+import { formatDate, postUrl, readingTime, type Post } from '../lib/posts';
+
+interface Props {
+  post: Post;
+  /** The newest post gets a wider, two-column treatment. */
+  featured?: boolean;
+}
+
+const { post, featured = false } = Astro.props;
+const { title, description, date, tags, cover, coverAlt, draft } = post.data;
+---
+
+<article class:list={['card', { featured }]}>
+  <a href={postUrl(post)} class="hit" aria-label={title}></a>
+  {cover && (
+    <div class="thumb">
+      <Image src={cover} alt={coverAlt ?? ''} widths={featured ? [560, 900] : [420, 700]} sizes={featured ? '(max-width: 900px) 100vw, 460px' : '(max-width: 700px) 100vw, 360px'} loading="lazy" />
+    </div>
+  )}
+  <div class="body">
+    <div class="meta-line">
+      <time datetime={date.toISOString()}>{formatDate(date)}</time>
+      <span aria-hidden="true">·</span>
+      <span>{readingTime(post.body)}</span>
+      {draft && <span class="draft">draft</span>}
+    </div>
+    <h2>{title}</h2>
+    <p>{description}</p>
+    <div class="foot-row">
+      {tags.slice(0, 3).map((tag) => <span class="tag-pill">{tag}</span>)}
+      <span class="read">Read →</span>
+    </div>
+  </div>
+</article>
+
+<style>
+  .card {
+    position: relative;
+    border: 1px solid var(--border); border-radius: 14px;
+    background: var(--surface); box-shadow: var(--shadow);
+    overflow: hidden;
+    transition: border-color .18s, transform .18s;
+    display: flex; flex-direction: column;
+  }
+  .card:hover { border-color: var(--border-strong); transform: translateY(-2px); }
+  /* One stretched link keeps the whole card clickable without nesting anchors. */
+  .hit { position: absolute; inset: 0; z-index: 2; }
+
+  .card.featured { margin-bottom: 1.1rem; }
+  @media (min-width: 820px) {
+    .card.featured { flex-direction: row; align-items: stretch; }
+    .card.featured .thumb { flex: 0 0 44%; }
+    .card.featured .body { padding: clamp(1.4rem, 3vw, 2.2rem); justify-content: center; }
+    .card.featured h2 { font-size: var(--step-2); }
+  }
+
+  .thumb { background: var(--surface-2); border-bottom: 1px solid var(--border); overflow: hidden; }
+  .thumb :global(img) { display: block; width: 100%; height: 100%; object-fit: cover; aspect-ratio: 16 / 9; }
+  @media (min-width: 820px) { .card.featured .thumb { border-bottom: 0; border-right: 1px solid var(--border); } .card.featured .thumb :global(img) { aspect-ratio: auto; min-height: 100%; } }
+
+  .body { padding: 1.2rem 1.25rem 1.3rem; display: flex; flex-direction: column; gap: .6rem; flex: 1; }
+  .card h2 { font-size: var(--step-1); line-height: 1.25; }
+  .card:hover h2 { color: var(--orange); }
+  .card p { color: var(--muted); font-size: .93rem; line-height: 1.55; }
+  .draft { color: var(--amber); border: 1px solid var(--amber); border-radius: 4px; padding: 0 .3em; font-size: .9em; }
+
+  .foot-row { display: flex; align-items: center; gap: .45rem; flex-wrap: wrap; margin-top: auto; padding-top: .5rem; }
+  .read { margin-left: auto; font-family: var(--mono); font-size: var(--step--1); color: var(--cyan); }
+</style>

@@ -1,0 +1,190 @@
+---
+title: "Authoring reference (draft — never published)"
+description: "Every formatting feature the blog supports, with the source that produces it. draft: true keeps this out of production builds, listings, RSS and the sitemap."
+date: 2026-07-24
+author: Memseek
+tags: ["Meta"]
+draft: true
+---
+
+import { Image } from 'astro:assets';
+import diagram from './images/retrieval-vs-selection.png';
+
+This page exists so you can see what's available without hunting through docs.
+It has `draft: true`, which means it renders in `npm run dev` and is **excluded
+from `npm run build`** — it will never appear on the live site, in the post list,
+in the RSS feed, or in the sitemap. Keep it, or delete it once the syntax is in
+your fingers.
+
+## Frontmatter
+
+Every post needs `title`, `description` and `date`. Everything else is optional.
+
+```yaml
+---
+title: "Post title — appears as the h1 and in <title>"
+description: "One or two sentences. Used in listings, meta description, and RSS."
+date: 2026-07-24           # publication date; also the sort key
+updated: 2026-07-30        # optional; shown in the byline
+author: Memseek           # optional; defaults to "Memseek"
+tags: ["Agent memory"]     # optional; each tag gets a /tags/<slug>/ page
+draft: true                # optional; dev-only, never built for production
+cover: ./images/cover.png  # optional; relative path, used as hero + og:image
+coverAlt: "Description."   # required if cover is set and conveys meaning
+---
+```
+
+An unknown or mistyped field fails the build with a message naming the file and
+the field — the schema lives in `src/content.config.ts`.
+
+## Math
+
+Inline math goes between single dollars: the decay constant $\lambda = \ln 2 / h$
+sits in a sentence without breaking the line height. Display math takes double
+dollars on their own lines.
+
+$$
+\text{score}(f, q, \tau) = A(f, \tau) \cdot s(f, q) \cdot e^{-\lambda \Delta t}
+$$
+
+Aligned multi-line derivations work too:
+
+$$
+\begin{aligned}
+  P(\text{stale}) &= 1 - \prod_{i=1}^{n} \left(1 - p_i\right) \\
+                  &\approx \sum_{i=1}^{n} p_i \quad \text{for small } p_i
+\end{aligned}
+$$
+
+```markdown
+Inline: $\lambda = \ln 2 / h$
+
+$$
+\begin{aligned}
+  a &= b + c \\
+    &= d
+\end{aligned}
+$$
+```
+
+Rendering happens at build time via `remark-math` + `rehype-katex` — the browser
+downloads no math library and runs no math JavaScript. KaTeX's font files are
+fetched only by pages that actually contain math.
+
+<aside class="warn">
+  <span class="label">Escaping</span>
+  A literal dollar sign in prose needs a backslash: `\$40/month`. Inside code
+  blocks and inline code, dollars are never interpreted — no escaping needed.
+</aside>
+
+## Images
+
+Put image files next to the post (a colocated `images/` folder is the
+convention). Plain Markdown syntax with a relative path gets optimized,
+resized and fingerprinted automatically:
+
+```markdown
+![Alt text that describes the content](./images/diagram.png)
+```
+
+For a caption, or to control the responsive sizes, import the file and use the
+`Image` component in an `.mdx` post:
+
+```mdx
+import { Image } from 'astro:assets';
+import diagram from './images/diagram.png';
+
+<figure>
+  <Image src={diagram} alt="What it shows." widths={[700, 1100, 1400]}
+         sizes="(max-width: 900px) 100vw, 820px" />
+  <figcaption>Caption text.</figcaption>
+</figure>
+```
+
+<figure>
+  <Image src={diagram} alt="Two retrieval pipelines compared." widths={[700, 1100, 1400]} sizes="(max-width: 900px) 100vw, 820px" />
+  <figcaption>A colocated PNG, resized to three widths and served as AVIF/WebP where supported.</figcaption>
+</figure>
+
+Two extra classes are available:
+
+- `<figure class="wide">` — lets a wide diagram break out past the text column.
+- `<img class="plate">` — puts a light plate behind a transparent PNG or SVG so
+  it stays legible on the dark canvas.
+
+Images that must *not* be processed (a favicon, a PDF, an OG card) go in
+`public/` instead and are referenced with an absolute path: `/og-default.png`.
+
+## Code
+
+Fenced blocks are highlighted at build time by Shiki, with separate light and
+dark token colors that follow the site theme:
+
+```python
+async def select(question: str, as_of: datetime) -> list[Fact]:
+    candidates = await index.search(question, k=64)
+    admissible = [f for f in candidates if f.valid_at(as_of)]
+    return budget.pack(sorted(admissible, key=score, reverse=True))
+```
+
+Inline `code` works as expected. Long lines wrap rather than forcing a
+horizontal scrollbar.
+
+## Callouts
+
+```html
+<aside class="note">
+  <span class="label">Heading</span>
+  Body text.
+</aside>
+```
+
+<aside class="note">
+  <span class="label">Note</span>
+  Cyan left border. For asides, clarifications, and definitions.
+</aside>
+
+<aside class="warn">
+  <span class="label">Careful</span>
+  Amber left border. For caveats and gotchas.
+</aside>
+
+## Tables
+
+Standard GFM tables. Wide ones scroll inside their own container instead of
+making the page scroll sideways.
+
+| Field | Required | Notes |
+|---|---|---|
+| `title` | yes | h1 and `<title>` |
+| `date` | yes | sort key |
+| `cover` | no | relative path only |
+
+## Everything else from GFM
+
+Ordered and unordered lists, nested:
+
+1. First
+2. Second
+   - nested bullet
+   - another
+3. Third
+
+Footnotes,[^note] ~~strikethrough~~, **bold**, *italic*, `inline code`, and
+horizontal rules:
+
+---
+
+Blockquotes:
+
+> A four-month-old fact that nothing has contradicted is current. A document
+> edited an hour ago can be entirely stale.
+
+## Headings and the table of contents
+
+`h2` and `h3` headings automatically get anchor links (hover to see the `#`) and
+feed the "On this page" sidebar, which appears once a post has three or more of
+them. Don't use `h1` in the body — the title is the page's only `h1`.
+
+[^note]: Footnotes render in a section at the end of the post, with a link back
+to the reference.

@@ -1,0 +1,90 @@
+---
+import SiteHeader from '../components/SiteHeader.astro';
+import SiteFooter from '../components/SiteFooter.astro';
+import '../styles/site.css';
+
+interface Props {
+  title: string;
+  description: string;
+  /** Absolute or site-relative image for og:image / twitter card. */
+  ogImage?: string;
+  ogType?: 'website' | 'article';
+  /** Machine-readable dates for article pages. */
+  publishedTime?: Date;
+  modifiedTime?: Date;
+  noindex?: boolean;
+}
+
+const {
+  title,
+  description,
+  ogImage = '/og-default.png',
+  ogType = 'website',
+  publishedTime,
+  modifiedTime,
+  noindex = false,
+} = Astro.props;
+
+const canonical = new URL(Astro.url.pathname, Astro.site);
+const ogImageUrl = new URL(ogImage, Astro.site);
+---
+
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <link rel="canonical" href={canonical} />
+    {noindex && <meta name="robots" content="noindex, follow" />}
+
+    <meta property="og:type" content={ogType} />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonical} />
+    <meta property="og:image" content={ogImageUrl} />
+    <meta property="og:site_name" content="Memseek" />
+    <meta name="twitter:card" content="summary_large_image" />
+    {publishedTime && <meta property="article:published_time" content={publishedTime.toISOString()} />}
+    {modifiedTime && <meta property="article:modified_time" content={modifiedTime.toISOString()} />}
+
+    <link rel="alternate" type="application/rss+xml" title="Memseek blog" href={new URL('/rss.xml', Astro.site)} />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+
+    {/* Applied before first paint so a light-theme reader never sees a dark flash. */}
+    <script is:inline>
+      try {
+        var t = localStorage.getItem('ms-theme');
+        if (t === 'dark' || t === 'light') document.documentElement.setAttribute('data-theme', t);
+      } catch (e) {}
+    </script>
+    <slot name="head" />
+  </head>
+
+  <body>
+    <a href="#content" class="sr-only">Skip to content</a>
+    <SiteHeader />
+    <main id="content">
+      <slot />
+    </main>
+    <SiteFooter />
+
+    <script is:inline>
+      (function () {
+        var root = document.documentElement;
+        var btn = document.getElementById('themeBtn');
+        if (!btn) return;
+        btn.addEventListener('click', function () {
+          var next = root.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+          root.setAttribute('data-theme', next);
+          try { localStorage.setItem('ms-theme', next); } catch (e) {}
+        });
+      })();
+    </script>
+  </body>
+</html>

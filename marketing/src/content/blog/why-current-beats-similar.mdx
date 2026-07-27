@@ -1,0 +1,109 @@
+---
+title: "Your agent doesn't need more context. It needs the current context."
+description: "Similarity retrieval has no opinion about what's still true. That's not a ranking problem you can tune away — it's a missing edge in your data."
+date: 2026-07-24
+author: Memseek
+tags: ["Agent memory", "Retrieval"]
+cover: ./images/supersession-cover.png
+coverAlt: "A timeline of three decisions, two marked superseded, with only the third served to the model."
+---
+
+import { Image } from 'astro:assets';
+import pipelines from './images/retrieval-vs-selection.png';
+
+A team decides in March to ship with Postgres full-text search. In April they
+move to a vector index. At the end of June they settle on a hybrid: dated facts
+plus a reranker. All three decisions are written down. All three are in the
+wiki, the Slack export, and two design docs.
+
+Ask an agent "how do we do retrieval?" and it will answer confidently, using
+whichever of the three happens to embed closest to your question.
+
+## Similarity has no opinion about truth
+
+The failure here is easy to misdiagnose. It looks like a ranking problem, so it
+gets treated like one — better embeddings, a reranker, a bigger `k`, a longer
+context window. None of that helps, because none of it encodes the thing you
+actually need to know: **the March decision was retracted.**
+
+Cosine distance measures how alike two pieces of text are. Three descriptions
+of the same architectural question are *extremely* alike. That's precisely why
+they all score well.
+
+<figure>
+  <Image src={pipelines} alt="Two pipelines: similarity retrieval returns 16 undated chunks; selection resolves as-of a timestamp and returns 3 dated, traced facts." widths={[700, 1100, 1400]} sizes="(max-width: 900px) 100vw, 820px" />
+  <figcaption>Same question, two pipelines. The difference isn't the ranker.</figcaption>
+</figure>
+
+Recency-weighting is the usual next attempt, and it's closer — but it answers
+the wrong question. Recency tells you which document was *edited* most
+recently, which is often a typo fix on a dead proposal. The June doc might be
+the oldest file in the set if the March one keeps getting touched.
+
+<aside class="note">
+  <span class="label">The distinction</span>
+  Recency is a property of the *file*. Currency is a property of the *claim*.
+  A four-month-old fact that nothing has contradicted is current. A document
+  edited an hour ago can be entirely stale.
+</aside>
+
+## What a memory layer owes the model
+
+If the retrieval step returns claims rather than chunks, three things become
+possible that chunk-similarity can't express:
+
+| | Similarity retrieval | Selection |
+|---|---|---|
+| Unit | text chunk | dated claim |
+| Ordering | distance score | validity interval |
+| Retraction | invisible | an explicit edge |
+| Provenance | the chunk's file | the source that asserted it |
+| Answer to "as of March?" | none | replay the graph at that timestamp |
+
+That last row is the one that surprises people. Once supersession is a real
+edge in the data rather than an inference the model is expected to make, "what
+did we believe in March?" and "what do we believe now?" are the same query with
+a different timestamp.[^asof]
+
+Concretely, the thing you hand the model stops looking like a pile of prose and
+starts looking like a short, checkable list:
+
+```json
+{
+  "as_of": "2026-07-24T00:00:00Z",
+  "facts": [
+    {
+      "claim": "Retrieval is hybrid: dated facts + reranker",
+      "asserted": "2026-06-30",
+      "source": "docs/adr/0014-hybrid-retrieval.md",
+      "supersedes": ["adr/0003", "adr/0009"]
+    }
+  ],
+  "withheld": { "superseded": 2, "near_duplicate": 14 }
+}
+```
+
+Three properties matter more than the shape:
+
+1. **Every claim is dated.** The model can reason about age instead of
+   guessing.
+2. **Every claim is traced.** A wrong answer is a bug you can walk back to a
+   file, not a vibe you have to re-prompt away.
+3. **Withheld is counted, not silent.** You can tell the difference between
+   "nothing matched" and "we dropped fourteen restatements of the same thing."
+
+## Where this leaves the context window
+
+The pleasant side effect is that the payload gets small. Not because anything
+was compressed, but because near-duplicates and dead claims were never
+candidates. A context window spent on three current facts does more work than
+the same window spent on sixteen chunks, two of which contradict each other and
+none of which say when they were written.
+
+We'll write up the selection and scoring side of this next — how candidates get
+ranked once currency is a hard filter rather than a soft signal.
+
+[^asof]: This is the same idea as a bitemporal database: one axis for when
+something happened, another for when you recorded it. Agent memory needs both
+for the same reason accounting does — you have to be able to reconstruct what
+was known at a point in time, not just what's true now.

@@ -1,0 +1,47 @@
+---
+import type { GetStaticPaths } from 'astro';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import PostCard from '../../components/PostCard.astro';
+import { getPosts, getTags, tagSlug } from '../../lib/posts';
+
+export const getStaticPaths = (async () => {
+  const posts = await getPosts();
+  const tags = await getTags();
+  return tags.map(({ tag }) => ({
+    params: { tag: tagSlug(tag) },
+    props: {
+      tag,
+      posts: posts.filter((p) => p.data.tags.some((t) => tagSlug(t) === tagSlug(tag))),
+    },
+  }));
+}) satisfies GetStaticPaths;
+
+const { tag, posts } = Astro.props;
+---
+
+<BaseLayout
+  title={`${tag} — Memseek blog`}
+  description={`Memseek posts tagged ${tag}.`}
+>
+  <section class="tag-page">
+    <div class="wrap">
+      <a href="/blog/" class="back">← All posts</a>
+      <span class="eyebrow" style="--hue:var(--violet)">tag</span>
+      <h1>{tag}</h1>
+      <p class="count">{posts.length} {posts.length === 1 ? 'post' : 'posts'}</p>
+      <div class="grid">
+        {posts.map((post) => <PostCard post={post} />)}
+      </div>
+    </div>
+  </section>
+</BaseLayout>
+
+<style>
+  .tag-page { padding-block: clamp(2.2rem, 4vw, 3.5rem) clamp(3rem, 7vw, 6rem); }
+  .back { font-family: var(--mono); font-size: var(--step--1); color: var(--muted); display: inline-block; margin-bottom: 1.6rem; }
+  .back:hover { color: var(--orange); text-decoration: none; }
+  .eyebrow { display: block; }
+  h1 { font-size: var(--step-2); margin-top: .8rem; }
+  .count { font-family: var(--mono); font-size: var(--step--1); color: var(--faint); margin-top: .6rem; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 22rem), 1fr)); gap: 1.1rem; margin-top: 2rem; }
+</style>

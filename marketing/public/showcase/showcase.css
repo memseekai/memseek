@@ -1,0 +1,428 @@
+/* ============================================================
+   Showcase system layer — "The Instrument Panel"
+
+   The shared half of every showcase page: tokens, base, chrome,
+   and the primitives DESIGN.md names (eyebrow, region, panel,
+   badge, button). A showcase links this file and then adds only
+   the machinery unique to its own story.
+
+   Tokens are the same values as src/styles/site.css and
+   public/index.html. Change one, change all three.
+   ============================================================ */
+
+:root,
+:root[data-theme='dark'] {
+  --bg: #0c0e11;
+  --surface: #12161b;
+  --surface-2: #1a1f27;
+  --border: #232a33;
+  --border-strong: #33404c;
+  --text: #e8eaed;
+  --muted: #9aa1ab;
+  --faint: #5d6570;
+  --orange: #ff7a2f;
+  --pink: #ff3d67;
+  --cyan: #2fd4c4;
+  --violet: #9b87ff;
+  --green: #58d68d;
+  --amber: #ffb14d;
+  --accent: var(--orange);
+  --grad: linear-gradient(120deg, var(--orange), var(--pink));
+  --shadow: 0 1px 0 rgba(255, 255, 255, 0.02) inset, 0 24px 60px -30px rgba(0, 0, 0, 0.8);
+  --mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  --sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --maxw: 1180px;
+  --step--1: clamp(0.78rem, 0.76rem + 0.1vw, 0.84rem);
+  --step-0: clamp(0.95rem, 0.92rem + 0.18vw, 1.05rem);
+  --step-1: clamp(1.1rem, 1rem + 0.5vw, 1.35rem);
+  --step-2: clamp(1.5rem, 1.2rem + 1.4vw, 2.3rem);
+  --step-3: clamp(2.1rem, 1.5rem + 3vw, 4rem);
+  /* Sub-body scale. Four steps, not twelve — anything smaller than
+     --step--1 must land on one of these. */
+  --micro: 0.58rem;  /* chips, legends, cites, units, stamps */
+  --label: 0.66rem;  /* mono controls: tabs, buttons, field labels, readouts */
+  --meta: 0.78rem;   /* small prose: notes, captions, code */
+  --copy: 0.88rem;   /* prose inside a panel */
+  /* Every region sets its own --hue; orange is the page default. */
+  --hue: var(--orange);
+}
+
+:root[data-theme='light'] {
+  --bg: #f7f7f5;
+  --surface: #ffffff;
+  --surface-2: #f1f2ef;
+  --border: #e3e4df;
+  --border-strong: #cfd1ca;
+  --text: #16191c;
+  --muted: #55606a;
+  --faint: #8a939c;
+  --orange: #e0641c;
+  --pink: #e02a54;
+  --cyan: #0e9e90;
+  --violet: #6d4ae0;
+  --green: #1f9d57;
+  --amber: #c07d16;
+  --shadow: 0 1px 0 rgba(255, 255, 255, 0.6) inset, 0 20px 50px -30px rgba(20, 30, 45, 0.28);
+}
+
+/* Hue-as-text, light theme only.
+
+   The signal hues are tuned to sit on the dark chassis, where every one of
+   them clears 6:1 on a panel. Dropped straight onto white they land at
+   3.3-3.5:1 — under the 4.5:1 floor for the micro labels that carry the
+   actual meaning here. Compositing the hue toward the ink keeps the hue
+   identity and lifts every one of them past 5.2:1.
+
+   Dark theme deliberately does not inherit this: there the bright hue is
+   the point. Use .hue-ink on any small text that takes its color from
+   --hue or --ch. */
+.hue-ink { color: var(--ch, var(--hue)); }
+:root[data-theme='light'] .hue-ink,
+:root[data-theme='light'] .eyebrow {
+  color: color-mix(in srgb, var(--ch, var(--hue)) 72%, var(--text));
+}
+:root[data-theme='light'] .badge {
+  color: color-mix(in srgb, var(--bh, var(--hue)) 72%, var(--text));
+}
+
+/* ============ base ============ */
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: var(--step-0);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  overflow-x: hidden;
+}
+
+.wrap {
+  width: 100%;
+  max-width: var(--maxw);
+  margin-inline: auto;
+  padding-inline: clamp(1.1rem, 4vw, 2.5rem);
+}
+
+a { color: var(--cyan); text-decoration: none; }
+a:hover { text-decoration: underline; text-underline-offset: 3px; }
+:focus-visible { outline: 2px solid var(--orange); outline-offset: 3px; border-radius: 2px; }
+button, input, textarea, select { font: inherit; color: inherit; }
+button { cursor: pointer; background: none; border: 0; }
+
+h1, h2, h3 {
+  font-family: var(--mono);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  text-wrap: balance;
+}
+
+/* Inline code in prose, tinted by the region hue. */
+:not(pre) > code {
+  font-family: var(--mono);
+  font-size: 0.86em;
+  padding: 0.1em 0.38em;
+  border-radius: 5px;
+  white-space: nowrap;
+  color: var(--text);
+  background: color-mix(in srgb, var(--hue) 11%, var(--surface-2));
+  border: 1px solid color-mix(in srgb, var(--hue) 24%, var(--border));
+}
+
+.skip {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  z-index: 100;
+  background: var(--surface-2);
+  color: var(--text);
+  padding: 0.6rem 1.1rem;
+  border: 1px solid var(--border-strong);
+  font-family: var(--mono);
+  font-size: var(--step--1);
+}
+.skip:focus { left: 0.5rem; top: 0.5rem; }
+
+/* ============ eyebrow — the hue-carrying section mark ============ */
+.eyebrow {
+  font-family: var(--mono);
+  font-size: var(--step--1);
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--hue);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.7em;
+}
+.eyebrow::before {
+  content: '';
+  width: 2.4em;
+  height: 2px;
+  background: var(--hue);
+  opacity: 0.7;
+}
+
+/* The one gradient. Reserved for the primary action and rare headline emphasis. */
+.grad {
+  background: var(--grad);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+}
+
+/* ============ nav ============ */
+header.nav {
+  position: sticky;
+  top: 0;
+  z-index: 60;
+  background: color-mix(in srgb, var(--bg) 82%, transparent);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border);
+}
+.nav-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 60px;
+  gap: 1rem;
+}
+.brand {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.1rem;
+  font-family: var(--mono);
+  font-weight: 700;
+  font-size: 1rem;
+  letter-spacing: -0.02em;
+  color: var(--text);
+}
+.brand:hover { text-decoration: none; }
+.brand .caret { color: var(--orange); animation: blink 1.2s steps(1) infinite; }
+@keyframes blink { 50% { opacity: 0; } }
+
+.nav-right { display: flex; align-items: center; gap: 1.1rem; }
+.nav-right a.navlink {
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: var(--step--1);
+}
+.nav-right a.navlink:hover { color: var(--text); text-decoration: none; }
+.nav-right a.navlink[aria-current='page'] { color: var(--text); }
+.nav-cta {
+  font-family: var(--mono);
+  font-weight: 700;
+  font-size: var(--step--1);
+  color: #16090b;
+  background: var(--grad);
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+}
+.nav-cta:hover { text-decoration: none; filter: brightness(1.07); }
+
+.theme-toggle {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  color: var(--muted);
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+.theme-toggle:hover { color: var(--text); border-color: var(--hue); }
+.theme-toggle svg { width: 15px; height: 15px; }
+:root[data-theme='dark'] .theme-toggle .sun { display: none; }
+:root[data-theme='light'] .theme-toggle .moon { display: none; }
+
+/* ============ regions ============ */
+.region {
+  padding-block: clamp(3.2rem, 7vw, 5.5rem);
+  border-bottom: 1px solid var(--border);
+}
+.region-head { max-width: 62ch; }
+.region-head h2 { font-size: var(--step-2); margin-top: 1.1rem; max-width: 24ch; }
+.region-head p { margin-top: 1.1rem; color: var(--muted); max-width: 68ch; }
+.region-head p strong { color: var(--text); font-weight: 600; }
+.lede { font-size: var(--step-1); line-height: 1.5; color: var(--text); }
+
+/* ============ hero ============ */
+.hero {
+  position: relative;
+  overflow: hidden;
+  padding-top: clamp(2.6rem, 5vw, 4.6rem);
+  padding-bottom: clamp(2.4rem, 4vw, 3.4rem);
+  border-bottom: 1px solid var(--border);
+}
+/* Atmospheric lighting, not elevation. */
+.hero::before {
+  content: '';
+  position: absolute;
+  inset: -40% -10% auto;
+  height: 620px;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(38% 60% at 14% 32%, color-mix(in srgb, var(--orange) 26%, transparent), transparent 70%),
+    radial-gradient(34% 55% at 74% 18%, color-mix(in srgb, var(--pink) 16%, transparent), transparent 72%);
+  opacity: 0.5;
+}
+.hero .wrap { position: relative; z-index: 1; }
+.hero-grid {
+  display: grid;
+  grid-template-columns: 1fr 0.92fr;
+  gap: clamp(2rem, 4vw, 3.4rem);
+  align-items: center;
+}
+.hero h1 { font-size: var(--step-3); margin-top: 1.2rem; max-width: 19ch; }
+.hero h1 .dim { color: var(--faint); }
+.hero p.sell {
+  margin-top: 1.4rem;
+  max-width: 54ch;
+  color: var(--muted);
+  font-size: var(--step-1);
+  line-height: 1.55;
+}
+.hero p.sell strong { color: var(--text); font-weight: 600; }
+.hero-cta { display: flex; flex-wrap: wrap; gap: 0.85rem; align-items: center; margin-top: 2rem; }
+
+/* ============ buttons ============ */
+.btn {
+  font-family: var(--mono);
+  font-weight: 700;
+  font-size: var(--step--1);
+  padding: 0.85rem 1.4rem;
+  border-radius: 9px;
+  border: 1px solid transparent;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  transition: transform 0.15s ease, border-color 0.15s ease, color 0.15s ease, filter 0.15s ease;
+}
+.btn-primary { background: var(--grad); color: #16090b; }
+.btn-primary:hover { text-decoration: none; filter: brightness(1.07); transform: translateY(-1px); }
+.btn-ghost { background: transparent; color: var(--text); border-color: var(--border-strong); }
+.btn-ghost:hover { text-decoration: none; border-color: var(--violet); color: var(--violet); }
+.btn:disabled { cursor: not-allowed; opacity: 0.55; filter: none; transform: none; }
+.cta-note { font-family: var(--mono); font-size: 0.72rem; color: var(--muted); }
+
+/* ============ panels ============ */
+.panel {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+.panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+  padding: 0.8rem 1.1rem;
+  border-bottom: 1px solid var(--border);
+}
+.panel-head .t {
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.panel-body { display: flex; flex-direction: column; flex: 1; padding: 1.2rem; }
+.panel-foot { margin-top: auto; padding-top: 1rem; font-size: 0.78rem; color: var(--muted); line-height: 1.55; }
+
+/* Micro-label chip. --bh overrides the inherited region hue when a badge
+   carries its own meaning (added / changed / removed). */
+.badge {
+  font-family: var(--mono);
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 0.25rem 0.5rem;
+  border-radius: 6px;
+  color: var(--bh, var(--hue));
+  background: color-mix(in srgb, var(--bh, var(--hue)) 13%, transparent);
+  border: 1px solid color-mix(in srgb, var(--bh, var(--hue)) 38%, var(--border));
+  white-space: nowrap;
+}
+
+/* The recurring micro-shape: a 7px square status mark tinted by hue. */
+.mark {
+  width: 7px;
+  height: 7px;
+  border-radius: 2px;
+  background: var(--bh, var(--hue));
+  flex: none;
+}
+
+/* ============ close + footer ============ */
+.close { padding-block: clamp(3.4rem, 8vw, 6rem); }
+.close-grid {
+  display: grid;
+  grid-template-columns: 1fr 1.02fr;
+  gap: clamp(2rem, 4vw, 3.2rem);
+  align-items: center;
+}
+.close h2 { font-size: var(--step-2); margin-top: 1.1rem; max-width: 18ch; }
+.close p { margin-top: 1.1rem; color: var(--muted); max-width: 52ch; }
+
+footer { border-top: 1px solid var(--border); padding-block: 2rem 2.6rem; }
+.foot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  justify-content: space-between;
+  align-items: center;
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  color: var(--faint);
+}
+.foot-links { display: flex; flex-wrap: wrap; gap: 1.2rem; }
+.foot-links a { color: var(--muted); }
+.foot-links a:hover { color: var(--text); }
+
+.disclosure {
+  margin-top: 1.6rem;
+  font-size: 0.74rem;
+  color: var(--muted);
+  max-width: 74ch;
+  line-height: 1.6;
+  padding-left: 0.9rem;
+  border-left: 1px solid var(--border);
+}
+
+/* ============ reveal ============ */
+/* Content is visible by default; only a JS-capable page hides it to reveal. */
+.rv { transition: opacity 0.6s cubic-bezier(0.16, 1, 0.3, 1), transform 0.6s cubic-bezier(0.16, 1, 0.3, 1); }
+.js .rv { opacity: 0; transform: translateY(14px); }
+.js .rv.in { opacity: 1; transform: none; }
+
+@media (max-width: 900px) {
+  .hero-grid, .close-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 720px) {
+  .nav-right a.navlink { display: none; }
+}
+@media (max-width: 520px) {
+  .panel-body { padding: 1rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+  .js .rv { opacity: 1 !important; transform: none !important; }
+  .brand .caret { animation: none !important; }
+}

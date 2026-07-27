@@ -1,0 +1,101 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+
+/**
+ * Hub for the interactive showcases. The showcases themselves are hand-written,
+ * self-contained HTML in public/showcase/<slug>/index.html — Astro copies them
+ * verbatim and never parses them, so they keep their own styling and scripts.
+ * Adding one is two steps: drop the file in public/, add a row here.
+ */
+const showcases = [
+  {
+    slug: 'gbrain',
+    title: 'An entire brain, declared',
+    blurb:
+      'A knowledge product assembles itself from an empty workspace — declared as one memseek catalog, with every fact traceable to the record it came from.',
+    tags: ['Catalog', 'Provenance', 'Graph memory'],
+    accent: 'var(--orange)',
+  },
+  {
+    slug: 'dreams',
+    title: 'dreams × memseek',
+    blurb:
+      "Anthropic's Dreams — memory curation that reorganizes an agent's store — as one bounded, cited derivation over immutable records, adopted as a reviewable diff.",
+    tags: ['Derivations', 'Divergence', 'Review'],
+    accent: 'var(--violet)',
+  },
+];
+---
+
+<BaseLayout
+  title="Showcases — Memseek"
+  description="Interactive walkthroughs of memseek: a self-wiring knowledge graph, and memory curation as a reviewable, cited diff."
+>
+  <section class="sc-hero">
+    <div class="wrap">
+      <span class="eyebrow">Showcases</span>
+      <h1>See it <span class="grad">actually run.</span></h1>
+      <p class="lede">
+        Interactive walkthroughs, not screenshots. Each one is a single page you can poke at —
+        no signup, no sandbox to provision.
+      </p>
+    </div>
+  </section>
+
+  <section class="sc-list">
+    <div class="wrap grid">
+      {showcases.map((s) => (
+        <article class="card" style={`--hue: ${s.accent}`}>
+          <a href={`/showcase/${s.slug}/`} class="hit" aria-label={s.title}></a>
+          <div class="body">
+            <span class="slug">/showcase/{s.slug}</span>
+            <h2>{s.title}</h2>
+            <p>{s.blurb}</p>
+            <div class="foot-row">
+              {s.tags.map((tag) => <span class="tag-pill">{tag}</span>)}
+              <span class="read">Open →</span>
+            </div>
+          </div>
+        </article>
+      ))}
+    </div>
+  </section>
+</BaseLayout>
+
+<style>
+  .sc-hero { position: relative; padding-top: clamp(2.4rem, 5vw, 4rem); padding-bottom: clamp(1.6rem, 3vw, 2.4rem); overflow: hidden; }
+  .sc-hero::before {
+    content: ""; position: absolute; inset: -60% -10% auto; height: 460px; z-index: 0; pointer-events: none;
+    background:
+      radial-gradient(38% 60% at 18% 40%, color-mix(in srgb, var(--orange) 26%, transparent), transparent 70%),
+      radial-gradient(38% 56% at 62% 20%, color-mix(in srgb, var(--violet) 22%, transparent), transparent 72%);
+    opacity: .85;
+  }
+  .sc-hero .wrap { position: relative; z-index: 1; }
+  .sc-hero h1 { font-size: var(--step-3); margin-top: 1.1rem; max-width: 16ch; }
+  .lede { color: var(--muted); max-width: 48ch; margin-top: 1.1rem; }
+
+  .sc-list { padding-bottom: clamp(3rem, 7vw, 6rem); }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 24rem), 1fr)); gap: 1.1rem; }
+
+  .card {
+    position: relative;
+    border: 1px solid var(--border); border-radius: 14px;
+    background: var(--surface); box-shadow: var(--shadow);
+    overflow: hidden; display: flex; flex-direction: column;
+    transition: border-color .18s, transform .18s;
+  }
+  .card::before { content: ""; position: absolute; inset: 0 0 auto; height: 2px; background: var(--hue); }
+  .card:hover { border-color: var(--border-strong); transform: translateY(-2px); }
+  /* One stretched link keeps the whole card clickable without nesting anchors. */
+  .hit { position: absolute; inset: 0; z-index: 2; }
+
+  .body { padding: 1.4rem 1.3rem 1.3rem; display: flex; flex-direction: column; gap: .6rem; flex: 1; }
+  .slug { font-family: var(--mono); font-size: var(--step--1); color: var(--faint); }
+  .card h2 { font-size: var(--step-1); line-height: 1.25; }
+  .card:hover h2 { color: var(--hue); }
+  .card p { color: var(--muted); font-size: .93rem; line-height: 1.55; }
+
+  .foot-row { display: flex; align-items: center; gap: .45rem; flex-wrap: wrap; margin-top: auto; padding-top: .6rem; }
+  .read { margin-left: auto; font-family: var(--mono); font-size: var(--step--1); color: var(--cyan); }
+</style>

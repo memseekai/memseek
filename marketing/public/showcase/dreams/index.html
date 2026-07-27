@@ -1,0 +1,1332 @@
+<!doctype html>
+<!--
+  DIRECTION CONTRACT — dreams showcase (Persuade)
+
+  THESIS: Anthropic's Dreams is a hosted job that hands you a second memory store and asks
+  you to eyeball the difference. On memseek the same idea is one bounded, cited derivation
+  over immutable records, and what you adopt is a *classified diff*. The honest proof is to
+  show the diff, not describe it.
+
+  OWN-WORLD: memseek's live system, shared verbatim with the gbrain showcase via
+  ../showcase.css — near-black #0c0e11 chassis with a true light counterpart, JetBrains Mono
+  headings and labels, Inter prose, one orange->pink gradient spent on the primary action,
+  per-region --hue, hairline rules, tonal layering, no halos.
+
+  SIGNATURE INSTRUMENT: the diff ledger. gbrain's readout counts a brain assembling itself;
+  this one counts a store being classified. Same dock, same grammar, different payload —
+  that pairing is what makes the two pages read as one system.
+
+  CLASSIFICATION HUES: added=green (confirmed), changed=cyan (rewritten), removed=amber
+  (dropped, cautionary), kept=muted (deliberately the quiet one). Four meanings, four
+  palette hues, no invented red.
+
+  STORY: a skeptical engineer sees what a dream maps to, runs one and reads its classified
+  output, watches it stage rather than overwrite, reads the YAML that declares it, and
+  leaves to start building.
+-->
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="An interactive tour of Anthropic's Dreams — memory curation that reorganizes an agent's memory — implemented on memseek's immutable records."
+    />
+    <title>dreams × memseek — interactive showcase</title>
+    <link rel="canonical" href="https://memseek.pages.dev/showcase/dreams/" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Memseek" />
+    <meta property="og:title" content="dreams × memseek — interactive showcase" />
+    <meta
+      property="og:description"
+      content="An interactive tour of Anthropic's Dreams — memory curation that reorganizes an agent's memory — implemented on memseek's immutable records."
+    />
+    <meta property="og:url" content="https://memseek.pages.dev/showcase/dreams/" />
+    <meta property="og:image" content="https://memseek.pages.dev/og-default.png" />
+    <meta name="twitter:card" content="summary_large_image" />
+
+    <!-- Applied before first paint so a light-theme reader never sees a dark flash. -->
+    <script>
+      try {
+        var t = localStorage.getItem('ms-theme');
+        if (t === 'dark' || t === 'light') document.documentElement.setAttribute('data-theme', t);
+        else if (window.matchMedia('(prefers-color-scheme: light)').matches)
+          document.documentElement.setAttribute('data-theme', 'light');
+      } catch (e) {}
+    </script>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="../showcase.css" />
+    <style>
+      /* ============================================================
+         dreams — page machinery only. Everything shared with the
+         gbrain showcase lives in ../showcase.css.
+         ============================================================ */
+
+      /* Classification hues. Four meanings, four palette colors.
+         --kept has no hue: "unchanged" should be the quiet row. */
+      :root {
+        --c-added: var(--green);
+        --c-changed: var(--cyan);
+        --c-removed: var(--amber);
+        --c-kept: var(--faint);
+      }
+
+      /* ============ the diff ledger: signature instrument ============ */
+      .ledger-dock {
+        position: sticky;
+        top: 60px;
+        z-index: 50;
+        background: color-mix(in srgb, var(--bg) 88%, transparent);
+        backdrop-filter: blur(12px);
+        border-bottom: 1px solid var(--border);
+      }
+      .ledger-scroll { overflow-x: auto; scrollbar-width: none; }
+      .ledger-scroll::-webkit-scrollbar { display: none; }
+      .ledger {
+        display: grid;
+        grid-template-columns: auto repeat(5, minmax(0, 1fr));
+        align-items: stretch;
+        font-family: var(--mono);
+      }
+      .ledger-title {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        gap: 0.15rem;
+        padding: 0.6rem 1.1rem 0.6rem 0;
+        border-right: 1px solid var(--border);
+      }
+      .ledger-title b {
+        font-size: var(--label);
+        font-weight: 700;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+      .ledger-title span { font-size: var(--micro); letter-spacing: 0.04em; color: var(--faint); }
+      .lcell {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        justify-content: center;
+        gap: 0.1rem;
+        padding: 0.55rem 0.55rem 0.55rem 0.8rem;
+        border-right: 1px solid var(--border);
+        transition: background 0.45s ease;
+      }
+      .lcell:last-child { border-right: 0; }
+      .lcell .k {
+        font-size: var(--micro);
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: var(--faint);
+        white-space: nowrap;
+      }
+      .lcell .v {
+        font-size: 1.02rem;
+        font-weight: 700;
+        color: var(--muted);
+        font-variant-numeric: tabular-nums;
+        transition: color 0.4s ease;
+      }
+      .lcell.lit { background: color-mix(in srgb, var(--ch) 9%, transparent); }
+      .lcell.lit .k { color: color-mix(in srgb, var(--ch) 72%, var(--muted)); }
+      .lcell.lit .v { color: var(--ch); }
+      /* The status cell reads as text, not a count. */
+      .lcell.state .v { font-size: var(--label); letter-spacing: 0.08em; text-transform: uppercase; }
+
+      /* ============ hero ============ */
+      /* Hero object: the payload itself, staged and unadopted. */
+      .staged { position: relative; }
+      .staged .panel-head .t { color: var(--muted); }
+      .stage-flag {
+        font-family: var(--mono);
+        font-size: var(--micro);
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: var(--amber);
+        display: inline-flex;
+        align-items: center;
+        gap: 0.45em;
+      }
+      .stage-flag::before {
+        content: '';
+        width: 6px;
+        height: 6px;
+        border-radius: 2px;
+        background: currentColor;
+      }
+      .stage-list { display: grid; gap: 1px; background: var(--border); }
+      .stage-row {
+        display: grid;
+        grid-template-columns: auto 1fr;
+        align-items: baseline;
+        gap: 0.7rem;
+        padding: 0.72rem 1.1rem;
+        background: var(--surface);
+      }
+      .stage-row .lbl {
+        font-family: var(--mono);
+        font-size: var(--micro);
+        font-weight: 700;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: var(--ch);
+        display: inline-flex;
+        align-items: center;
+        gap: 0.45em;
+        min-width: 7.2em;
+      }
+      .stage-row .lbl::before {
+        content: '';
+        width: 7px;
+        height: 7px;
+        border-radius: 2px;
+        background: currentColor;
+        flex: none;
+      }
+      .stage-row .txt { font-size: var(--copy); color: var(--text); line-height: 1.45; }
+      .stage-row.is-removed .txt { color: var(--muted); text-decoration: line-through; }
+      .stage-row.is-kept .txt { color: var(--muted); }
+      .stage-foot {
+        display: flex;
+        justify-content: space-between;
+        gap: 1rem;
+        padding: 0.7rem 1.1rem;
+        border-top: 1px solid var(--border);
+        font-family: var(--mono);
+        font-size: var(--label);
+        color: var(--faint);
+      }
+
+      /* ============ mapping: a ledger, not cards ============ */
+      .maplist { margin-top: 2.4rem; border-top: 1px solid var(--border); }
+      .maprow {
+        display: grid;
+        grid-template-columns: 1fr auto 1fr;
+        align-items: center;
+        gap: clamp(0.8rem, 2vw, 2rem);
+        padding: 0.95rem 0.2rem;
+        border-bottom: 1px solid var(--border);
+        transition: background 0.18s ease;
+      }
+      .maprow:hover { background: color-mix(in srgb, var(--hue) 5%, transparent); }
+      .maprow b {
+        display: block;
+        font-family: var(--mono);
+        font-size: var(--copy);
+        font-weight: 500;
+        letter-spacing: -0.01em;
+      }
+      .maprow small { display: block; margin-top: 0.2rem; font-size: var(--meta); color: var(--muted); }
+      .maprow .from b { color: var(--muted); }
+      .maprow .to b { color: var(--hue); }
+      .maprow .arrow {
+        font-family: var(--mono);
+        font-size: var(--label);
+        color: var(--faint);
+      }
+      .maphead {
+        display: grid;
+        grid-template-columns: 1fr auto 1fr;
+        gap: clamp(0.8rem, 2vw, 2rem);
+        padding: 0 0.2rem 0.5rem;
+        font-family: var(--mono);
+        font-size: var(--micro);
+        font-weight: 700;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: var(--faint);
+      }
+      .maphead .arrow { visibility: hidden; }
+
+      /* ============ the diff demo ============ */
+      .demo { display: grid; grid-template-columns: 0.8fr 1.2fr; gap: 18px; margin-top: 2.4rem; align-items: start; }
+
+      .field-label {
+        display: block;
+        font-family: var(--mono);
+        font-size: var(--label);
+        font-weight: 700;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--muted);
+        margin-bottom: 0.55rem;
+      }
+      .field-label .opt { color: var(--faint); font-weight: 400; letter-spacing: 0.06em; }
+      .instructions {
+        width: 100%;
+        min-height: 76px;
+        padding: 0.7rem 0.8rem;
+        border: 1px solid var(--border);
+        border-radius: 9px;
+        color: var(--text);
+        background: var(--surface-2);
+        resize: vertical;
+        font-size: var(--copy);
+        line-height: 1.5;
+        outline: 0;
+        transition: border-color 0.15s ease;
+      }
+      .instructions:focus { border-color: var(--hue); }
+      .instructions::placeholder { color: var(--faint); }
+
+      .presets { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0.7rem 0 1.5rem; }
+      .preset {
+        font-family: var(--mono);
+        font-size: var(--label);
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        padding: 0.35rem 0.6rem;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        color: var(--muted);
+        transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+      }
+      .preset:hover { color: var(--text); border-color: var(--border-strong); }
+      .preset[aria-pressed='true'] {
+        color: var(--hue);
+        border-color: color-mix(in srgb, var(--hue) 45%, var(--border));
+        background: color-mix(in srgb, var(--hue) 14%, transparent);
+      }
+
+      .slider-top {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        gap: 1rem;
+        margin-bottom: 0.5rem;
+      }
+      .slider-top b {
+        font-family: var(--mono);
+        font-size: var(--label);
+        font-weight: 700;
+        color: var(--hue);
+        font-variant-numeric: tabular-nums;
+      }
+      input[type='range'] { width: 100%; accent-color: var(--hue); }
+      .range-scale {
+        display: flex;
+        justify-content: space-between;
+        margin-top: 0.3rem;
+        font-family: var(--mono);
+        font-size: var(--micro);
+        color: var(--faint);
+      }
+
+      .run-row { margin-top: 1.6rem; }
+      .run-dream { width: 100%; justify-content: center; }
+      .input-note {
+        margin-top: 1.2rem;
+        padding-top: 1rem;
+        border-top: 1px solid var(--border);
+        font-size: var(--meta);
+        color: var(--muted);
+        line-height: 1.6;
+      }
+
+      /* output side */
+      .out-head { display: flex; align-items: center; justify-content: space-between; gap: 0.8rem; }
+      .runstate {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.45em;
+        font-family: var(--mono);
+        font-size: var(--label);
+        font-weight: 700;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: var(--faint);
+      }
+      .runstate::before {
+        content: '';
+        width: 7px;
+        height: 7px;
+        border-radius: 2px;
+        background: currentColor;
+        flex: none;
+      }
+      .runstate.running { color: var(--cyan); }
+      .runstate.running::before { animation: tick 1s steps(1) infinite; }
+      @keyframes tick { 50% { opacity: 0.25; } }
+      .runstate.done { color: var(--green); }
+
+      .legend {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.9rem;
+        padding: 0.6rem 1.2rem;
+        border-bottom: 1px solid var(--border);
+        font-family: var(--mono);
+        font-size: var(--micro);
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+      .legend span { display: inline-flex; align-items: center; gap: 0.45em; }
+      .legend i { width: 7px; height: 7px; border-radius: 2px; background: var(--ch); }
+
+      .memlist { display: grid; gap: 1px; background: var(--border); min-height: 262px; align-content: start; }
+      .mem {
+        width: 100%;
+        text-align: left;
+        display: block;
+        padding: 0.8rem 1.2rem;
+        background: var(--surface);
+        border: 0;
+        border-left: 2px solid var(--ch);
+        transition: background 0.18s ease, opacity 0.4s cubic-bezier(0.16, 1, 0.3, 1),
+          transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+      }
+      .js .mem { opacity: 0; transform: translateY(6px); }
+      .js .mem.shown { opacity: 1; transform: none; }
+      .mem:hover { background: color-mix(in srgb, var(--ch) 7%, var(--surface)); }
+      .mem-top { display: flex; align-items: center; gap: 0.6rem; }
+      .mem-cls {
+        font-family: var(--mono);
+        font-size: var(--micro);
+        font-weight: 700;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--ch);
+      }
+      .mem-more {
+        margin-left: auto;
+        font-family: var(--mono);
+        font-size: var(--micro);
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--faint);
+      }
+      .mem[aria-expanded='true'] .mem-more { color: var(--ch); }
+      /* These are spans inside a <button>, so they need an explicit block. */
+      .mem-text { display: block; margin-top: 0.3rem; font-size: var(--copy); line-height: 1.45; color: var(--text); }
+      .mem.removed .mem-text { color: var(--muted); text-decoration: line-through; }
+      .mem.kept .mem-text { color: var(--muted); }
+      .mem-was { display: block; margin-top: 0.35rem; font-size: var(--meta); color: var(--muted); line-height: 1.5; }
+      .mem-cites { display: none; flex-wrap: wrap; gap: 0.35rem; margin-top: 0.6rem; }
+      .mem[aria-expanded='true'] .mem-cites { display: flex; }
+      .cite {
+        font-family: var(--mono);
+        font-size: var(--micro);
+        letter-spacing: 0.04em;
+        padding: 0.2rem 0.42rem;
+        border-radius: 6px;
+        color: var(--cyan);
+        background: color-mix(in srgb, var(--cyan) 12%, transparent);
+        border: 1px solid color-mix(in srgb, var(--cyan) 34%, var(--border));
+      }
+      .cite.session {
+        color: var(--green);
+        background: color-mix(in srgb, var(--green) 12%, transparent);
+        border-color: color-mix(in srgb, var(--green) 34%, var(--border));
+      }
+      .memempty {
+        display: grid;
+        place-items: center;
+        min-height: 262px;
+        padding: 2rem;
+        background: var(--surface);
+        text-align: center;
+        font-size: var(--copy);
+        color: var(--muted);
+        line-height: 1.6;
+      }
+      .memempty kbd {
+        font-family: var(--mono);
+        font-size: var(--label);
+        font-weight: 700;
+        color: var(--hue);
+      }
+
+      /* ============ lifecycle ============ */
+      .cycle { margin-top: 2.4rem; }
+      .cycle-bar {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        margin-bottom: 1.4rem;
+      }
+      .cycle-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+      .cbtn {
+        font-family: var(--mono);
+        font-size: var(--label);
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        padding: 0.55rem 0.9rem;
+        border: 1px solid var(--border-strong);
+        border-radius: 8px;
+        color: var(--text);
+        transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+      }
+      .cbtn:hover:not(:disabled) {
+        color: var(--hue);
+        border-color: color-mix(in srgb, var(--hue) 55%, var(--border));
+        background: color-mix(in srgb, var(--hue) 10%, transparent);
+      }
+      .cbtn:disabled { cursor: not-allowed; color: var(--faint); border-color: var(--border); }
+
+      .track { display: grid; grid-template-columns: repeat(5, 1fr); gap: 1px; background: var(--border); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; }
+      .step {
+        position: relative;
+        padding: 1rem 1rem 1.1rem;
+        min-height: 132px;
+        background: var(--surface);
+        transition: background 0.3s ease;
+      }
+      .step::before {
+        content: '';
+        position: absolute;
+        inset: 0 0 auto;
+        height: 2px;
+        background: var(--border-strong);
+        transition: background 0.3s ease;
+      }
+      .step.active { background: color-mix(in srgb, var(--hue) 8%, var(--surface)); }
+      .step.active::before { background: var(--hue); }
+      .step.done::before { background: color-mix(in srgb, var(--hue) 55%, var(--border-strong)); }
+      .step .st {
+        font-family: var(--mono);
+        font-size: var(--micro);
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--faint);
+      }
+      .step.active .st { color: var(--hue); }
+      .step b { display: block; margin: 0.7rem 0 0.4rem; font-family: var(--mono); font-size: var(--copy); letter-spacing: -0.01em; }
+      .step p { font-size: var(--meta); line-height: 1.5; color: var(--muted); }
+
+      .cycle-result {
+        margin-top: 1.2rem;
+        min-height: 1.6rem;
+        font-family: var(--mono);
+        font-size: var(--meta);
+        color: var(--muted);
+        display: flex;
+        align-items: center;
+        gap: 0.5em;
+      }
+      .cycle-result::before {
+        content: '';
+        width: 7px;
+        height: 7px;
+        border-radius: 2px;
+        background: currentColor;
+        flex: none;
+      }
+      .cycle-result.adopted { color: var(--green); }
+      .cycle-result.discarded { color: var(--amber); }
+
+      /* ============ code tabs ============ */
+      .code-card { margin-top: 2.4rem; }
+      .tabs { display: flex; flex-wrap: wrap; gap: 0.15rem; padding: 0.5rem 0.5rem 0; border-bottom: 1px solid var(--border); background: var(--surface-2); }
+      .tab {
+        font-family: var(--mono);
+        font-size: var(--label);
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        padding: 0.6rem 0.85rem;
+        border-radius: 8px 8px 0 0;
+        color: var(--muted);
+        transition: color 0.15s ease, background 0.15s ease;
+      }
+      .tab:hover { color: var(--text); }
+      .tab[aria-selected='true'] { color: var(--hue); background: var(--surface); }
+      pre {
+        margin: 0;
+        padding: 1.3rem 1.4rem;
+        overflow-x: auto;
+        font-family: var(--mono);
+        font-size: var(--meta);
+        line-height: 1.75;
+        color: var(--text);
+        background: var(--surface);
+      }
+      pre .cm { color: var(--faint); }
+      pre .k { color: var(--violet); }
+      pre .s { color: var(--green); }
+      pre .n { color: var(--cyan); }
+      pre .fn { color: var(--orange); }
+      .tabpanel[hidden] { display: none; }
+      .code-note {
+        padding: 0.9rem 1.4rem 1rem;
+        border-top: 1px solid var(--border);
+        font-size: var(--meta);
+        line-height: 1.6;
+        color: var(--muted);
+        background: var(--surface);
+      }
+
+      .callout {
+        display: grid;
+        grid-template-columns: auto 1fr;
+        gap: 1rem;
+        align-items: start;
+        margin-top: 1.6rem;
+        padding: 1.1rem 1.2rem;
+        border: 1px solid color-mix(in srgb, var(--hue) 32%, var(--border));
+        border-radius: 14px;
+        background: color-mix(in srgb, var(--hue) 6%, transparent);
+      }
+      .callout .cmark {
+        width: 7px;
+        height: 7px;
+        margin-top: 0.55rem;
+        border-radius: 2px;
+        background: var(--hue);
+      }
+      .callout p { font-size: var(--step-0); line-height: 1.65; color: var(--text); }
+      .callout b { color: var(--hue); font-weight: 600; }
+
+      /* ============ extend: ruled rows, not a card grid ============ */
+      .extend { margin-top: 2.4rem; border-top: 1px solid var(--border); }
+      .exrow {
+        display: grid;
+        grid-template-columns: 15rem 1fr;
+        gap: clamp(0.6rem, 3vw, 2.4rem);
+        padding: 1.1rem 0.2rem;
+        border-bottom: 1px solid var(--border);
+        transition: background 0.18s ease;
+      }
+      .exrow:hover { background: color-mix(in srgb, var(--hue) 5%, transparent); }
+      .exrow dt {
+        font-family: var(--mono);
+        font-size: var(--copy);
+        font-weight: 500;
+        color: var(--hue);
+        letter-spacing: -0.01em;
+      }
+      .exrow dd { font-size: var(--copy); line-height: 1.6; color: var(--muted); max-width: 68ch; }
+      .exrow dd strong { color: var(--text); font-weight: 600; }
+
+      .close-grid { display: grid; grid-template-columns: 1fr 1.02fr; gap: clamp(2rem, 4vw, 3.2rem); align-items: center; }
+
+      /* Light theme: composite every hue-coloured label toward the ink so it
+         clears 4.5:1. Grouped by the colour each element actually reads from,
+         not blanket-applied — a mismatch here would silently recolour a
+         classification. See the .hue-ink note in ../showcase.css. */
+      :root[data-theme='light'] .stage-row .lbl,
+      :root[data-theme='light'] .mem-cls,
+      :root[data-theme='light'] .mem[aria-expanded='true'] .mem-more,
+      :root[data-theme='light'] .lcell.lit .v {
+        color: color-mix(in srgb, var(--ch) 72%, var(--text));
+      }
+      :root[data-theme='light'] .lcell.lit .k {
+        color: color-mix(in srgb, var(--ch) 55%, var(--text));
+      }
+      :root[data-theme='light'] .step.active .st,
+      :root[data-theme='light'] .slider-top b,
+      :root[data-theme='light'] .preset[aria-pressed='true'],
+      :root[data-theme='light'] .tab[aria-selected='true'],
+      :root[data-theme='light'] .memempty kbd,
+      :root[data-theme='light'] .maprow .to b,
+      :root[data-theme='light'] .exrow dt,
+      :root[data-theme='light'] .callout b {
+        color: color-mix(in srgb, var(--hue) 72%, var(--text));
+      }
+      :root[data-theme='light'] .runstate.running,
+      :root[data-theme='light'] .cite {
+        color: color-mix(in srgb, var(--cyan) 72%, var(--text));
+      }
+      :root[data-theme='light'] .runstate.done,
+      :root[data-theme='light'] .cycle-result.adopted,
+      :root[data-theme='light'] .cite.session {
+        color: color-mix(in srgb, var(--green) 72%, var(--text));
+      }
+      :root[data-theme='light'] .stage-flag,
+      :root[data-theme='light'] .cycle-result.discarded {
+        color: color-mix(in srgb, var(--amber) 72%, var(--text));
+      }
+
+      /* ============ responsive ============ */
+      @media (max-width: 900px) {
+        .demo { grid-template-columns: 1fr; }
+        .ledger { grid-template-columns: auto repeat(5, minmax(88px, 1fr)); min-width: 660px; }
+        .ledger-dock .wrap { padding-inline: 0; }
+        .ledger-title { padding-left: clamp(1.1rem, 4vw, 2.5rem); }
+        .lcell:last-child { padding-right: clamp(1.1rem, 4vw, 2.5rem); }
+        .track { grid-template-columns: repeat(2, 1fr); }
+        .exrow { grid-template-columns: 1fr; gap: 0.3rem; }
+      }
+      @media (max-width: 620px) {
+        .maprow, .maphead { grid-template-columns: 1fr; gap: 0.25rem; }
+        .maprow .arrow, .maphead .arrow { display: none; }
+        .maprow .to b::before { content: '→ '; color: var(--faint); }
+        .track { grid-template-columns: 1fr; }
+        .stage-row { grid-template-columns: 1fr; gap: 0.25rem; }
+      }
+    </style>
+  </head>
+
+  <body>
+    <script>document.documentElement.className += ' js';</script>
+    <a class="skip" href="#main">Skip to content</a>
+
+    <header class="nav">
+      <div class="wrap nav-inner">
+        <a class="brand" href="/">memseek<span class="caret">▌</span></a>
+        <nav class="nav-right">
+          <a class="navlink" href="#mapping">The mapping</a>
+          <a class="navlink" href="#diff">Run a dream</a>
+          <a class="navlink" href="#lifecycle">Lifecycle</a>
+          <a class="navlink" href="#code">The YAML</a>
+          <button class="theme-toggle" id="theme" type="button" aria-label="Toggle colour theme">
+            <svg class="moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+            <svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+          </button>
+          <a class="nav-cta" href="#start">Start building</a>
+        </nav>
+      </div>
+    </header>
+
+    <!-- ============ the diff ledger ============ -->
+    <div class="ledger-dock">
+      <div class="ledger-scroll">
+        <div class="wrap">
+          <div class="ledger" id="ledger" role="group" aria-label="Live diff classification tally">
+            <div class="ledger-title">
+              <b>divergence</b>
+              <span>user:ada · memories</span>
+            </div>
+            <div class="lcell" data-k="added"   style="--ch: var(--c-added)"><span class="k">added</span><span class="v">0</span></div>
+            <div class="lcell" data-k="changed" style="--ch: var(--c-changed)"><span class="k">changed</span><span class="v">0</span></div>
+            <div class="lcell" data-k="removed" style="--ch: var(--c-removed)"><span class="k">removed</span><span class="v">0</span></div>
+            <div class="lcell" data-k="kept"    style="--ch: var(--muted)"><span class="k">kept</span><span class="v">0</span></div>
+            <div class="lcell state" data-k="state" style="--ch: var(--amber)"><span class="k">status</span><span class="v" id="ledger-state">idle</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <main id="main">
+      <!-- ============ hero ============ -->
+      <section class="hero" id="top" style="--hue: var(--orange)">
+        <div class="wrap hero-grid">
+          <div>
+            <p class="eyebrow">worked example · dreams</p>
+            <h1>A memory that <span class="grad">reorganizes itself.</span> <span class="dim">And shows you the diff.</span></h1>
+            <p class="sell">
+              Anthropic’s <strong>Dreams</strong> let Claude re-read an agent’s memory and past
+              sessions, then rebuild a cleaner store — duplicates merged, stale entries replaced,
+              new insights surfaced — without touching the input. On memseek that isn’t a gated
+              endpoint. It’s <strong>one bounded, cited derivation</strong> over immutable records,
+              and you adopt the result as a reviewable diff.
+            </p>
+            <div class="hero-cta">
+              <a class="btn btn-primary" href="#diff">Run a dream <span aria-hidden="true">→</span></a>
+              <a class="btn btn-ghost" href="#code">See the YAML</a>
+              <span class="cta-note">5 memories · 3 sessions</span>
+            </div>
+          </div>
+
+          <div class="panel staged rv">
+            <div class="panel-head">
+              <span class="t">output store · draft</span>
+              <span class="stage-flag">awaiting review</span>
+            </div>
+            <div class="stage-list">
+              <div class="stage-row is-changed" style="--ch: var(--c-changed)">
+                <span class="lbl">changed</span>
+                <span class="txt">Prefers 4-space indentation.</span>
+              </div>
+              <div class="stage-row is-added" style="--ch: var(--c-added)">
+                <span class="lbl">added</span>
+                <span class="txt">Always adds type hints to new functions.</span>
+              </div>
+              <div class="stage-row is-removed" style="--ch: var(--c-removed)">
+                <span class="lbl">removed</span>
+                <span class="txt">Debugged a flaky CI job by bumping the timeout.</span>
+              </div>
+              <div class="stage-row is-kept" style="--ch: var(--muted)">
+                <span class="lbl">kept</span>
+                <span class="txt">Works in the payments service.</span>
+              </div>
+            </div>
+            <div class="stage-foot">
+              <span>input · immutable snapshot</span>
+              <span>promotion · compare-and-set</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ mapping ============ -->
+      <section class="region" id="mapping" style="--hue: var(--cyan)">
+        <div class="wrap">
+          <div class="region-head rv">
+            <p class="eyebrow">01 · the mapping</p>
+            <h2>The same idea, in surfaces you already have.</h2>
+            <p>
+              A dream is an async job over an existing memory store plus 1–100 sessions, producing
+              a new store. Every part of that is already a memseek primitive — <strong>nothing here
+              is built for dreams specifically</strong>.
+            </p>
+          </div>
+
+          <div class="maplist rv">
+            <div class="maphead" aria-hidden="true">
+              <span>anthropic dreams</span><span class="arrow">→</span><span>memseek</span>
+            </div>
+            <div class="maprow">
+              <div class="from"><b>memory_store input</b><small>the store Claude verifies and reorganizes</small></div>
+              <span class="arrow" aria-hidden="true">→</span>
+              <div class="to"><b>snapshot Source</b><small>complete bounded corpus at one checkpoint</small></div>
+            </div>
+            <div class="maprow">
+              <div class="from"><b>sessions input</b><small>1–100 past transcripts to mine</small></div>
+              <span class="arrow" aria-hidden="true">→</span>
+              <div class="to"><b>changes Source</b><small>the transcripts collection, windowed</small></div>
+            </div>
+            <div class="maprow">
+              <div class="from"><b>the dreaming pipeline</b><small>reads, merges, resynthesizes</small></div>
+              <span class="arrow" aria-hidden="true">→</span>
+              <div class="to"><b>a bounded derivation</b><small>an <code>llm</code> Task under strict limits</small></div>
+            </div>
+            <div class="maprow">
+              <div class="from"><b>“input never modified”</b><small>output store is separate</small></div>
+              <span class="arrow" aria-hidden="true">→</span>
+              <div class="to"><b>immutable records</b><small>emission stages a new candidate</small></div>
+            </div>
+            <div class="maprow">
+              <div class="from"><b>merge / replace / surface</b><small>dedupe, freshen, add insight</small></div>
+              <span class="arrow" aria-hidden="true">→</span>
+              <div class="to"><b>Divergence</b><small>added · changed · removed · unchanged</small></div>
+            </div>
+            <div class="maprow">
+              <div class="from"><b>review, then adopt or discard</b><small>attach or delete the output</small></div>
+              <span class="arrow" aria-hidden="true">→</span>
+              <div class="to"><b>review: required → Promotion</b><small>compare-and-set activation</small></div>
+            </div>
+            <div class="maprow">
+              <div class="from"><b>pending → running → completed</b><small>async job status</small></div>
+              <span class="arrow" aria-hidden="true">→</span>
+              <div class="to"><b>run lifecycle</b><small>audited, streamable, cited outputs</small></div>
+            </div>
+            <div class="maprow">
+              <div class="from"><b>instructions (steering)</b><small>focus areas, keep/drop rules</small></div>
+              <span class="arrow" aria-hidden="true">→</span>
+              <div class="to"><b>Task input / prompt</b><small>per-run guidance, still bounded</small></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ the diff demo ============ -->
+      <section class="region" id="diff" style="--hue: var(--violet)">
+        <div class="wrap">
+          <div class="region-head rv">
+            <p class="eyebrow">02 · run it</p>
+            <h2>Run a dream. See exactly what it changed.</h2>
+            <p>
+              An interactive model of the derivation output. Steer it with <code>instructions</code>,
+              choose how many sessions to mine, then open any curated memory to see
+              <strong>the records and sessions it cites</strong>. The tally above fills as the
+              divergence resolves.
+            </p>
+          </div>
+
+          <div class="demo">
+            <article class="panel rv">
+              <div class="panel-head"><span class="t">dream request</span></div>
+              <div class="panel-body">
+                <label class="field-label" for="instructions">
+                  instructions <span class="opt">· optional steering</span>
+                </label>
+                <textarea id="instructions" class="instructions">Focus on coding-style preferences; ignore one-off debugging notes.</textarea>
+
+                <div class="presets" role="group" aria-label="Instruction presets">
+                  <button class="preset" type="button" data-mode="focus" aria-pressed="true">style only</button>
+                  <button class="preset" type="button" data-mode="keep" aria-pressed="false">keep everything</button>
+                </div>
+
+                <div class="slider-top">
+                  <label class="field-label" for="window-range" style="margin:0">sessions window</label>
+                  <b id="window-value">recent 3</b>
+                </div>
+                <input id="window-range" type="range" min="1" max="3" step="1" value="3" />
+                <div class="range-scale" aria-hidden="true"><span>1</span><span>2</span><span>3</span></div>
+
+                <div class="run-row">
+                  <button class="btn btn-primary run-dream" id="run-dream" type="button">Run dream</button>
+                </div>
+
+                <p class="input-note">
+                  The input store is read as a <code>snapshot</code> — the dream can’t alter it.
+                  Output is staged for review; nothing goes live until you adopt it below.
+                </p>
+              </div>
+            </article>
+
+            <article class="panel rv">
+              <div class="panel-head">
+                <div class="out-head" style="flex:1">
+                  <span class="t">output memory store · staged draft</span>
+                  <span class="runstate" id="runstate">idle</span>
+                </div>
+              </div>
+              <div class="legend" aria-hidden="true">
+                <span style="--ch: var(--c-added)"><i></i>added</span>
+                <span style="--ch: var(--c-changed)"><i></i>changed</span>
+                <span style="--ch: var(--c-removed)"><i></i>removed</span>
+                <span style="--ch: var(--muted)"><i></i>kept</span>
+              </div>
+              <div id="memwrap" aria-live="polite">
+                <div class="memempty">
+                  Press <kbd>Run dream</kbd> to synthesize the curated store.<br />
+                  Every memory opens to show what it cites.
+                </div>
+              </div>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ lifecycle ============ -->
+      <section class="region" id="lifecycle" style="--hue: var(--amber)">
+        <div class="wrap">
+          <div class="region-head rv">
+            <p class="eyebrow">03 · the lifecycle</p>
+            <h2>Async, auditable, and reversible.</h2>
+            <p>
+              The dream is a run you can poll or stream. When it completes, the output is a draft
+              you explicitly adopt — or discard, <strong>leaving the original untouched and still
+              addressable</strong>.
+            </p>
+          </div>
+
+          <div class="cycle rv">
+            <div class="cycle-bar">
+              <span class="cta-note">pending → running → completed → adopt</span>
+              <div class="cycle-actions">
+                <button class="cbtn" id="run-cycle" type="button">Replay run</button>
+                <button class="cbtn" id="adopt-btn" type="button" disabled>Adopt</button>
+                <button class="cbtn" id="discard-btn" type="button" disabled>Discard</button>
+              </div>
+            </div>
+
+            <div class="track" id="track">
+              <div class="step"><span class="st">01 · pending</span><b>Queued</b><p>The run is created against a snapshot checkpoint of the input store.</p></div>
+              <div class="step"><span class="st">02 · running</span><b>Read</b><p>The store snapshot and the windowed sessions load as cited, fenced sources.</p></div>
+              <div class="step"><span class="st">03 · running</span><b>Synthesize</b><p>One bounded LLM Task merges, freshens, and surfaces — under strict budgets.</p></div>
+              <div class="step"><span class="st">04 · running</span><b>Diverge</b><p>Output is compared to the active heads: added / changed / removed / unchanged.</p></div>
+              <div class="step"><span class="st">05 · completed</span><b>Staged</b><p>A draft candidate awaits Promotion. The input store is unchanged.</p></div>
+            </div>
+
+            <p class="cycle-result" id="cycle-result" role="status">Ready to replay.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ code ============ -->
+      <section class="region" id="code" style="--hue: var(--orange)">
+        <div class="wrap">
+          <div class="region-head rv">
+            <p class="eyebrow">04 · how you write it</p>
+            <h2>The hosted job, and the file you own.</h2>
+            <p>
+              One is a beta endpoint you call and poll. The other is a definition you
+              <strong>version, review, and run anywhere</strong>.
+            </p>
+          </div>
+
+          <article class="panel code-card rv">
+            <div class="tabs" role="tablist" aria-label="Implementation">
+              <button class="tab" type="button" role="tab" id="tab-api" aria-controls="panel-api" aria-selected="true">anthropic dreams API</button>
+              <button class="tab" type="button" role="tab" id="tab-yaml" aria-controls="panel-yaml" aria-selected="false" tabindex="-1">memseek — the derivation</button>
+              <button class="tab" type="button" role="tab" id="tab-run" aria-controls="panel-run" aria-selected="false" tabindex="-1">trigger it</button>
+              <button class="tab" type="button" role="tab" id="tab-adopt" aria-controls="panel-adopt" aria-selected="false" tabindex="-1">adopt the result</button>
+            </div>
+
+            <div class="tabpanel" role="tabpanel" id="panel-api" aria-labelledby="tab-api" tabindex="0">
+<pre><span class="cm"># Anthropic Managed Agents — a hosted async dream</span>
+dream = client.beta.<span class="fn">dreams</span>.create(
+    inputs=[
+        {<span class="s">"type"</span>: <span class="s">"memory_store"</span>, <span class="s">"memory_store_id"</span>: store_id},
+        {<span class="s">"type"</span>: <span class="s">"sessions"</span>, <span class="s">"session_ids"</span>: [session_a, session_b]},
+    ],
+    model=<span class="s">"claude-opus-4-8"</span>,
+    instructions=<span class="s">"Focus on coding-style preferences; ignore one-off debugging notes."</span>,
+)
+<span class="cm"># poll until dream.status == "completed", then read outputs[]</span></pre>
+              <p class="code-note">A single hosted job. It clones the store internally, runs a pipeline you don’t see, and hands back an output store id to poll for.</p>
+            </div>
+
+            <div class="tabpanel" role="tabpanel" id="panel-yaml" aria-labelledby="tab-yaml" tabindex="0" hidden>
+<pre><span class="cm"># derivations/dream.yaml — the whole dream, as one bounded derivation</span>
+<span class="k">name</span>: dream
+<span class="k">sources</span>:
+  <span class="k">store</span>:                      <span class="cm"># the memory store — immutable input</span>
+    <span class="k">kind</span>: snapshot            <span class="cm"># complete bounded corpus at one checkpoint</span>
+    <span class="k">collections</span>: [memories]
+    <span class="k">statuses</span>: [active]
+    <span class="k">max_records</span>: <span class="n">200</span>
+    <span class="k">allow_empty</span>: true         <span class="cm"># dream from sessions alone if the store is empty</span>
+  <span class="k">sessions</span>:                   <span class="cm"># 1–100 past transcripts to mine</span>
+    <span class="k">kind</span>: changes
+    <span class="k">collections</span>: [sessions]
+    <span class="k">window</span>: {recent: <span class="n">100</span>}     <span class="cm"># the "sessions window" slider</span>
+    <span class="k">max_tokens</span>: <span class="n">24000</span>
+<span class="k">model</span>: strong
+<span class="k">limits</span>:                       <span class="cm"># cost is bounded, not open-ended</span>
+  <span class="k">max_llm_calls</span>: <span class="n">2</span>
+  <span class="k">max_total_tokens</span>: <span class="n">40000</span>
+  <span class="k">max_wall_s</span>: <span class="n">120</span>
+<span class="k">tasks</span>:
+  - <span class="k">id</span>: curate
+    <span class="k">use</span>: llm
+    <span class="k">with</span>:
+      <span class="k">instructions</span>: <span class="s">"{{run.input.instructions}}"</span>   <span class="cm"># steer per run</span>
+      <span class="k">output_schema</span>: { <span class="cm">... memories[] with required citations ...</span> }
+      <span class="k">prompt</span>: |
+        Rebuild one clean memory store for {{entity}} from the evidence below.
+        Merge duplicates, replace stale or contradicted entries with the latest
+        value, and surface genuinely new insights. Cite only visible UUIDs.
+
+        EXISTING STORE:  {{store.rendered}}
+        RECENT SESSIONS: {{sessions.rendered}}
+<span class="k">emit</span>:
+  <span class="k">from</span>: <span class="s">"{{curate.records}}"</span>
+  <span class="k">collection</span>: memories
+  <span class="k">complete</span>: true            <span class="cm"># a full rebuild, every key accounted for</span>
+  <span class="k">review</span>: required          <span class="cm"># stage a draft — never auto-overwrite</span></pre>
+              <p class="code-note"><code>snapshot</code> + <code>complete: true</code> + <code>review: required</code> is exactly “rebuild the whole store from a bounded corpus, and stage it for approval” — the dream contract, declared in one file you own.</p>
+            </div>
+
+            <div class="tabpanel" role="tabpanel" id="panel-run" aria-labelledby="tab-run" tabindex="0" hidden>
+<pre><span class="cm"># On demand — same async run model as the Dreams API</span>
+run = await client.<span class="fn">derive</span>(
+    processor=<span class="s">"dream"</span>,
+    entity=<span class="s">"user:ada"</span>,
+    input={<span class="s">"instructions"</span>: <span class="s">"Focus on coding-style preferences."</span>},
+)
+<span class="cm"># poll run.status: queued → running → succeeded (outputs are cited drafts)</span>
+
+<span class="cm"># …or don't call it at all. Let a schedule dream nightly:</span>
+<span class="k">trigger</span>:
+  <span class="k">schedule</span>: <span class="s">"0 3 * * *"</span>      <span class="cm"># 03:00 daily, per entity with new sessions</span></pre>
+              <p class="code-note">A dream is just a run. Fire it on demand, on a nightly schedule, or on a write trigger when enough new sessions have accumulated. No separate service, no beta header.</p>
+            </div>
+
+            <div class="tabpanel" role="tabpanel" id="panel-adopt" aria-labelledby="tab-adopt" tabindex="0" hidden>
+<pre><span class="cm"># Review the divergence, then adopt or discard — atomically</span>
+diff = await client.<span class="fn">divergence</span>(run.id)
+<span class="cm"># diff.added / diff.changed / diff.removed / diff.unchanged</span>
+
+<span class="k">if</span> looks_good(diff):
+    await client.<span class="fn">promote</span>(run.id)      <span class="cm"># compare-and-set: rejects if store moved</span>
+<span class="k">else</span>:
+    await client.<span class="fn">discard</span>(run.id)      <span class="cm"># drop the draft; input store untouched</span></pre>
+              <p class="code-note">Promotion re-checks the input heads captured before the Task ran. If the store changed underneath the dream, activation is rejected as stale rather than silently clobbering newer memory.</p>
+            </div>
+          </article>
+
+          <div class="callout rv">
+            <span class="cmark" aria-hidden="true"></span>
+            <p>
+              <b>The one difference that matters:</b> Anthropic’s dream hands you a second store
+              and asks you to eyeball the difference. memseek hands you the
+              <strong>classified diff</strong> — every memory labelled added, changed, removed or
+              kept, each one cited — and adopting it is a compare-and-set Promotion, not a blind
+              swap.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ extend ============ -->
+      <section class="region" id="extend" style="--hue: var(--green)">
+        <div class="wrap">
+          <div class="region-head rv">
+            <p class="eyebrow">05 · then take it further</p>
+            <h2>Everything else composes onto it.</h2>
+            <p>Because a dream is just a bounded, cited derivation, it inherits the rest of the system for free.</p>
+          </div>
+
+          <dl class="extend rv">
+            <div class="exrow"><dt>Dream continuously</dt><dd>Swap the on-demand run for a <code>write</code> trigger that fires once a threshold of new sessions lands. Memory stays curated <strong>without a cron or a human in the loop</strong>.</dd></div>
+            <div class="exrow"><dt>Detect contradictions</dt><dd>Add a <code>contradiction</code> pass so “replace stale entries” becomes explicit: the diff shows <strong>which session overturned which prior memory</strong>, with both cited.</dd></div>
+            <div class="exrow"><dt>Scope per entity</dt><dd>Every dream is entity-scoped for free. One definition curates a separate, isolated store for each user, agent, or account — no cross-contamination.</dd></div>
+            <div class="exrow"><dt>Anchor on a graph</dt><dd>Feed a graph-boosted retrieval as a Source so the dream weights memories near an anchor entity — curate “everything about the payments project” more tightly.</dd></div>
+            <div class="exrow"><dt>Branch experiments</dt><dd>Stage several drafts from different <code>instructions</code> at once. Compare their divergences, promote the best, discard the rest — <strong>all against the same immutable input</strong>.</dd></div>
+            <div class="exrow"><dt>Time-travel &amp; retention</dt><dd>Because the input is never mutated, every past store is still addressable. Pair with a retention job to purge tombstones on your own schedule.</dd></div>
+          </dl>
+        </div>
+      </section>
+
+      <!-- ============ close ============ -->
+      <section class="close" id="start" style="--hue: var(--orange)">
+        <div class="wrap close-grid">
+          <div class="rv">
+            <p class="eyebrow">start building</p>
+            <h2>Declare your own dream in one file.</h2>
+            <p>
+              It’s a derivation like any other: sources, limits, one task, an emission that stages
+              for review. Nothing about it is special-cased.
+            </p>
+            <div class="hero-cta">
+              <a class="btn btn-primary" href="/#waitlist">Start building <span aria-hidden="true">→</span></a>
+              <a class="btn btn-ghost" href="/showcase/gbrain/">See the gbrain showcase</a>
+            </div>
+          </div>
+
+          <div class="panel rv">
+            <div class="panel-head"><span class="t">derivations/dream.yaml</span></div>
+<pre><span class="k">emit</span>:
+  <span class="k">from</span>: <span class="s">"{{curate.records}}"</span>
+  <span class="k">collection</span>: memories
+  <span class="k">complete</span>: true
+  <span class="k">review</span>: required</pre>
+            <p class="code-note">Four lines decide that a dream stages a reviewable draft instead of overwriting live memory.</p>
+          </div>
+        </div>
+      </section>
+
+      <div class="wrap">
+        <p class="disclosure">
+          Illustrative, not a captured run. The memories, citations and counts on this page model
+          the shape of a real <code>dream</code> derivation over the coding-preferences corpus;
+          they are not output recorded from a live provider.
+        </p>
+      </div>
+    </main>
+
+    <footer>
+      <div class="wrap foot">
+        <span>memseek · dreams worked example</span>
+        <span class="foot-links">
+          <a href="/showcase/">All showcases</a>
+          <a href="/showcase/gbrain/">gbrain</a>
+          <a href="/blog/">Blog</a>
+        </span>
+      </div>
+    </footer>
+
+    <script src="../showcase.js"></script>
+    <script>
+      (function () {
+        var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+        /* ---------- data ----------
+           Each memory carries the classification it takes under each instruction
+           mode, plus what it cites. sessionsNeeded is the minimum window size for
+           the row to apply. */
+        var MEMORIES = {
+          focus: [
+            { text: 'Prefers 4-space indentation.', cls: 'changed', was: 'was “prefers tabs” — replaced by newer session evidence; a duplicate entry was merged in.', cites: [['mem_01a4','r'],['mem_01b0','r'],['sesn_a3f','s']], need: 1 },
+            { text: 'Always adds type hints to new functions.', cls: 'added', cites: [['sesn_b7c','s']], need: 2 },
+            { text: 'Uses pytest for testing.', cls: 'kept', cites: [['mem_03c1','r']], need: 1 },
+            { text: 'Works in the payments service.', cls: 'kept', cites: [['mem_05e2','r']], need: 1 },
+            { text: 'Debugged a flaky CI job by bumping the timeout (2026-03-02).', cls: 'removed', was: 'dropped per instructions: a one-off debugging note, not a durable preference.', cites: [['mem_04d8','r']], need: 1 },
+          ],
+          keep: [
+            { text: 'Prefers 4-space indentation.', cls: 'changed', was: 'was “prefers tabs” — replaced by newer session evidence; a duplicate entry was merged in.', cites: [['mem_01a4','r'],['mem_01b0','r'],['sesn_a3f','s']], need: 1 },
+            { text: 'Always adds type hints to new functions.', cls: 'added', cites: [['sesn_b7c','s']], need: 2 },
+            { text: 'Rolled back a broken staging deploy (recent).', cls: 'added', cites: [['sesn_c2d','s']], need: 3 },
+            { text: 'Uses pytest for testing.', cls: 'kept', cites: [['mem_03c1','r']], need: 1 },
+            { text: 'Debugged a flaky CI job by bumping the timeout (2026-03-02).', cls: 'kept', cites: [['mem_04d8','r']], need: 1 },
+            { text: 'Works in the payments service.', cls: 'kept', cites: [['mem_05e2','r']], need: 1 },
+          ],
+        };
+        var PRESET_TEXT = {
+          focus: 'Focus on coding-style preferences; ignore one-off debugging notes.',
+          keep: 'Keep every durable observation; merge duplicates and freshen stale values.',
+        };
+        var CH = { added: 'var(--c-added)', changed: 'var(--c-changed)', removed: 'var(--c-removed)', kept: 'var(--muted)' };
+
+        var mode = 'focus';
+        var win = 3;
+
+        var $ = function (id) { return document.getElementById(id); };
+        var instructions = $('instructions');
+        var memwrap = $('memwrap');
+        var runstate = $('runstate');
+        var runBtn = $('run-dream');
+        var range = $('window-range');
+        var winValue = $('window-value');
+        var ledgerState = $('ledger-state');
+        var lcells = {};
+        [].forEach.call(document.querySelectorAll('.lcell[data-k]'), function (c) {
+          if (c.dataset.k !== 'state') lcells[c.dataset.k] = { el: c, v: c.querySelector('.v') };
+        });
+
+        function rows() {
+          return MEMORIES[mode].filter(function (m) { return m.need <= win; });
+        }
+
+        function setLedger(list, state) {
+          Object.keys(lcells).forEach(function (k) {
+            var n = list
+              ? list.filter(function (m) { return m.cls === k; }).length
+              : 0;
+            lcells[k].v.textContent = String(n);
+            lcells[k].el.classList.toggle('lit', !!list && n > 0);
+          });
+          ledgerState.textContent = state;
+        }
+
+        /* ---------- presets + window ---------- */
+        [].forEach.call(document.querySelectorAll('.preset'), function (btn) {
+          btn.addEventListener('click', function () {
+            mode = btn.dataset.mode;
+            [].forEach.call(document.querySelectorAll('.preset'), function (b) {
+              b.setAttribute('aria-pressed', String(b === btn));
+            });
+            instructions.value = PRESET_TEXT[mode];
+          });
+        });
+
+        range.addEventListener('input', function () {
+          win = Number(range.value);
+          winValue.textContent = 'recent ' + win;
+        });
+
+        /* ---------- render ---------- */
+        function render(list) {
+          memwrap.innerHTML = '';
+          var box = document.createElement('div');
+          box.className = 'memlist';
+
+          list.forEach(function (m, i) {
+            var el = document.createElement('button');
+            el.type = 'button';
+            el.className = 'mem ' + m.cls;
+            el.style.setProperty('--ch', CH[m.cls]);
+            el.setAttribute('aria-expanded', 'false');
+
+            var cites = m.cites
+              .map(function (c) {
+                return (
+                  '<span class="cite' + (c[1] === 's' ? ' session' : '') + '">' +
+                  (c[1] === 's' ? 'session' : 'record') + ':' + c[0] +
+                  '</span>'
+                );
+              })
+              .join('');
+
+            el.innerHTML =
+              '<span class="mem-top"><span class="mem-cls">' + m.cls + '</span>' +
+              '<span class="mem-more">cites ' + m.cites.length + '</span></span>' +
+              '<span class="mem-text">' + m.text + '</span>' +
+              (m.was ? '<span class="mem-was">' + m.was + '</span>' : '') +
+              '<span class="mem-cites">' + cites + '</span>';
+
+            el.addEventListener('click', function () {
+              var open = el.getAttribute('aria-expanded') === 'true';
+              [].forEach.call(box.querySelectorAll('.mem'), function (n) {
+                n.setAttribute('aria-expanded', 'false');
+              });
+              el.setAttribute('aria-expanded', open ? 'false' : 'true');
+            });
+
+            box.appendChild(el);
+            if (reduce) el.classList.add('shown');
+            else window.setTimeout(function () { el.classList.add('shown'); }, 70 * i + 30);
+          });
+
+          memwrap.appendChild(box);
+        }
+
+        runBtn.addEventListener('click', function () {
+          var list = rows();
+          runBtn.disabled = true;
+          runstate.className = 'runstate running';
+          runstate.textContent = 'running';
+          setLedger(null, 'running');
+          memwrap.innerHTML = '<div class="memempty">Reading snapshot + ' + win + ' session' + (win === 1 ? '' : 's') + '…</div>';
+
+          var settle = reduce ? 60 : 700;
+          window.setTimeout(function () {
+            render(list);
+            setLedger(list, 'staged');
+            var done = reduce ? 60 : 70 * list.length + 200;
+            window.setTimeout(function () {
+              runstate.className = 'runstate done';
+              runstate.textContent = 'completed · ' + list.length;
+              runBtn.disabled = false;
+            }, done);
+          }, settle);
+        });
+
+        /* ---------- lifecycle ---------- */
+        var steps = [].slice.call(document.querySelectorAll('.step'));
+        var cycleBtn = $('run-cycle');
+        var adoptBtn = $('adopt-btn');
+        var discardBtn = $('discard-btn');
+        var result = $('cycle-result');
+        var timers = [];
+
+        function lock(v) { adoptBtn.disabled = v; discardBtn.disabled = v; }
+
+        cycleBtn.addEventListener('click', function () {
+          timers.forEach(clearTimeout);
+          timers = [];
+          cycleBtn.disabled = true;
+          lock(true);
+          steps.forEach(function (s) { s.classList.remove('active', 'done'); });
+          result.className = 'cycle-result';
+          result.textContent = 'pending → running…';
+
+          var gap = reduce ? 60 : 560;
+          steps.forEach(function (step, i) {
+            timers.push(window.setTimeout(function () {
+              if (i > 0) { steps[i - 1].classList.remove('active'); steps[i - 1].classList.add('done'); }
+              step.classList.add('active');
+              if (i === steps.length - 1) {
+                timers.push(window.setTimeout(function () {
+                  step.classList.remove('active');
+                  step.classList.add('done');
+                  result.textContent = 'completed · draft staged · input store unchanged';
+                  cycleBtn.disabled = false;
+                  lock(false);
+                }, gap));
+              }
+            }, i * gap));
+          });
+        });
+
+        adoptBtn.addEventListener('click', function () {
+          result.className = 'cycle-result adopted';
+          result.textContent = 'promoted · compare-and-set succeeded · curated store is now current';
+          lock(true);
+        });
+        discardBtn.addEventListener('click', function () {
+          result.className = 'cycle-result discarded';
+          result.textContent = 'discarded · draft dropped · original store intact and still addressable';
+          lock(true);
+        });
+
+        /* ---------- tabs (roving tabindex, arrow keys) ---------- */
+        var tabs = [].slice.call(document.querySelectorAll('.tab'));
+        function select(tab) {
+          tabs.forEach(function (t) {
+            var on = t === tab;
+            t.setAttribute('aria-selected', String(on));
+            t.tabIndex = on ? 0 : -1;
+            document.getElementById(t.getAttribute('aria-controls')).hidden = !on;
+          });
+        }
+        tabs.forEach(function (tab, i) {
+          tab.addEventListener('click', function () { select(tab); });
+          tab.addEventListener('keydown', function (e) {
+            var d = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0;
+            if (!d) return;
+            e.preventDefault();
+            var next = tabs[(i + d + tabs.length) % tabs.length];
+            select(next);
+            next.focus();
+          });
+        });
+      })();
+    </script>
+  </body>
+</html>

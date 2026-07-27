@@ -1,0 +1,178 @@
+---
+import type { MarkdownHeading } from 'astro';
+import BaseLayout from './BaseLayout.astro';
+import { Image } from 'astro:assets';
+import { formatDate, readingTime, tagSlug, type Post } from '../lib/posts';
+import '../styles/prose.css';
+// KaTeX ships @font-face rules only — the browser fetches a font file solely
+// when a post actually renders math, so this is cheap on prose-only posts.
+import 'katex/dist/katex.min.css';
+
+interface Props {
+  post: Post;
+  headings: MarkdownHeading[];
+  prev?: Post;
+  next?: Post;
+}
+
+const { post, headings, prev, next } = Astro.props;
+const { title, description, date, updated, author, tags, cover, coverAlt, draft } = post.data;
+
+// Only h2/h3 make a useful outline; skip the TOC entirely on short posts.
+const toc = headings.filter((h) => h.depth === 2 || h.depth === 3);
+const showToc = toc.length >= 3;
+---
+
+<BaseLayout
+  title={`${title} — Memseek`}
+  description={description}
+  ogType="article"
+  ogImage={cover?.src}
+  publishedTime={date}
+  modifiedTime={updated}
+  noindex={draft}
+>
+  <article class="post">
+    <div class="wrap">
+      {draft && <p class="draft-flag">Draft — not linked publicly and excluded from the production build.</p>}
+
+      <header class="post-head">
+        <a href="/blog/" class="back">← All posts</a>
+        <h1>{title}</h1>
+        <p class="post-lede">{description}</p>
+        <div class="meta-line byline">
+          <span>{author}</span>
+          <span aria-hidden="true">·</span>
+          <time datetime={date.toISOString()}>{formatDate(date)}</time>
+          <span aria-hidden="true">·</span>
+          <span>{readingTime(post.body)}</span>
+          {updated && (
+            <>
+              <span aria-hidden="true">·</span>
+              <span>updated {formatDate(updated)}</span>
+            </>
+          )}
+        </div>
+        {tags.length > 0 && (
+          <div class="tag-row">
+            {tags.map((tag) => (
+              <a href={`/tags/${tagSlug(tag)}/`} class="tag-pill">{tag}</a>
+            ))}
+          </div>
+        )}
+      </header>
+
+      {cover && (
+        <figure class="cover">
+          <Image src={cover} alt={coverAlt ?? ''} widths={[640, 960, 1280]} sizes="(max-width: 820px) 100vw, 820px" loading="eager" />
+        </figure>
+      )}
+
+      <div class="post-body">
+        {showToc && (
+          <nav class="toc" aria-labelledby="toc-h">
+            <p class="toc-h" id="toc-h">On this page</p>
+            <ul>
+              {toc.map((h) => (
+                <li class={`d${h.depth}`}><a href={`#${h.slug}`}>{h.text}</a></li>
+              ))}
+            </ul>
+          </nav>
+        )}
+        <div class="prose">
+          <slot />
+        </div>
+      </div>
+
+      {(prev || next) && (
+        <nav class="post-nav" aria-label="More posts">
+          {next ? (
+            <a href={`/blog/${next.id}/`} class="pn">
+              <span class="pn-l">← Newer</span>
+              <span class="pn-t">{next.data.title}</span>
+            </a>
+          ) : <span></span>}
+          {prev && (
+            <a href={`/blog/${prev.id}/`} class="pn right">
+              <span class="pn-l">Older →</span>
+              <span class="pn-t">{prev.data.title}</span>
+            </a>
+          )}
+        </nav>
+      )}
+
+      <aside class="post-cta">
+        <span class="eyebrow" style="--hue:var(--amber)">early access</span>
+        <p>Memseek serves your agent current, dated, source-linked context — without moving your data.</p>
+        <a href="/#waitlist" class="btn btn-primary">Join the waitlist →</a>
+      </aside>
+    </div>
+  </article>
+</BaseLayout>
+
+<style>
+  .post { padding-block: clamp(2rem, 4vw, 3.5rem) clamp(3rem, 6vw, 5rem); }
+  .post .wrap { max-width: 980px; }
+
+  .draft-flag {
+    font-family: var(--mono); font-size: var(--step--1);
+    border: 1px dashed var(--amber); color: var(--amber);
+    border-radius: 8px; padding: .6rem .8rem; margin-bottom: 1.6rem;
+  }
+
+  .post-head { max-width: 46rem; }
+  .back { font-family: var(--mono); font-size: var(--step--1); color: var(--muted); }
+  .back:hover { color: var(--orange); text-decoration: none; }
+  .post-head h1 { font-size: var(--step-2); margin-top: 1.1rem; }
+  .post-lede { color: var(--muted); font-size: var(--step-1); margin-top: 1rem; max-width: 44ch; line-height: 1.5; }
+  .byline { margin-top: 1.4rem; }
+  .tag-row { display: flex; gap: .45rem; flex-wrap: wrap; margin-top: 1rem; }
+
+  .cover { margin-top: 2.5rem; }
+  .cover :global(img) {
+    display: block; width: 100%; border-radius: 14px;
+    border: 1px solid var(--border); box-shadow: var(--shadow);
+  }
+
+  /* Sidebar TOC on wide screens; stacked card on narrow ones. */
+  .post-body { margin-top: clamp(2.2rem, 4vw, 3.2rem); }
+  @media (min-width: 1080px) {
+    .post-body { display: grid; grid-template-columns: minmax(0, 1fr) 13.5rem; gap: 3rem; align-items: start; }
+    .toc { order: 2; position: sticky; top: 5.5rem; border-left: 1px solid var(--border); padding-left: 1.1rem; }
+    .prose { order: 1; max-width: 44rem; }
+  }
+  .prose { max-width: 44rem; }
+  .toc { font-family: var(--mono); font-size: .78rem; }
+  @media (max-width: 1079px) {
+    .toc { border: 1px solid var(--border); border-radius: 10px; background: var(--surface); padding: 1rem 1.1rem; margin-bottom: 2.5rem; }
+  }
+  .toc-h { font-size: .64rem; letter-spacing: .16em; text-transform: uppercase; color: var(--faint); margin-bottom: .7rem; }
+  .toc ul { list-style: none; display: flex; flex-direction: column; gap: .45rem; }
+  .toc li.d3 { padding-left: .9rem; }
+  .toc a { color: var(--muted); line-height: 1.35; display: block; }
+  .toc a:hover { color: var(--orange); text-decoration: none; }
+
+  .post-nav {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;
+    margin-top: 4rem; padding-top: 2rem; border-top: 1px solid var(--border);
+  }
+  @media (max-width: 640px) { .post-nav { grid-template-columns: 1fr; } }
+  .pn {
+    display: flex; flex-direction: column; gap: .3rem;
+    border: 1px solid var(--border); border-radius: 10px; padding: .9rem 1rem;
+    background: var(--surface); color: var(--text);
+  }
+  .pn:hover { text-decoration: none; border-color: var(--border-strong); }
+  .pn.right { text-align: right; }
+  .pn-l { font-family: var(--mono); font-size: .66rem; letter-spacing: .12em; text-transform: uppercase; color: var(--faint); }
+  .pn-t { font-size: .92rem; line-height: 1.35; }
+  .pn:hover .pn-t { color: var(--orange); }
+
+  .post-cta {
+    margin-top: 3rem; border: 1px solid var(--border-strong); border-radius: 14px;
+    background: var(--surface); box-shadow: var(--shadow);
+    padding: clamp(1.6rem, 4vw, 2.4rem);
+    display: flex; flex-direction: column; align-items: flex-start; gap: 1rem;
+  }
+  .post-cta p { color: var(--muted); max-width: 46ch; }
+</style>

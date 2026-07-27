@@ -1,0 +1,25 @@
+---
+/**
+ * Blog-side nav. Mirrors the landing page header, but its section links are
+ * absolute (/#why) so they work from a /blog/... URL.
+ */
+const { pathname } = Astro.url;
+const onBlog = pathname.startsWith('/blog') || pathname.startsWith('/tags');
+const onShowcase = pathname.startsWith('/showcase');
+---
+
+<header class="nav">
+  <div class="wrap nav-inner">
+    <a href="/" class="brand"><span class="dot"></span>memseek</a>
+    <nav class="nav-links">
+      <a href="/#why" class="hide-sm">Why not RAG</a>
+      <a href="/#kit" class="hide-sm">The kit</a>
+      <a href="/#benchmarks" class="hide-sm">Benchmarks</a>
+      <a href="/#faq" class="hide-sm">FAQ</a>
+      <a href="/showcase/" aria-current={onShowcase ? 'page' : undefined}>Showcases</a>
+      <a href="/blog/" aria-current={onBlog ? 'page' : undefined}>Blog</a>
+      <button class="theme-toggle" id="themeBtn" aria-label="Toggle color theme">THEME</button>
+      <a href="/#waitlist" class="nav-cta">Join the waitlist</a>
+    </nav>
+  </div>
+</header>
