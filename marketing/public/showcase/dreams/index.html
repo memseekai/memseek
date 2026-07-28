@@ -381,7 +381,7 @@
         padding: 0.8rem 1.2rem;
         background: var(--surface);
         border: 0;
-        border-left: 2px solid var(--ch);
+        border-left: 1px solid color-mix(in srgb, var(--ch) 55%, var(--border));
         transition: background 0.18s ease, opacity 0.4s cubic-bezier(0.16, 1, 0.3, 1),
           transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
       }
@@ -768,7 +768,7 @@
             <h2>The same idea, in surfaces you already have.</h2>
             <p>
               A dream is an async job over an existing memory store plus 1–100 sessions, producing
-              a new store. Every part of that is already a memseek primitive — <strong>nothing here
+              a new store. Every part of that is already a memseek primitive: <strong>nothing here
               is built for dreams specifically</strong>.
             </p>
           </div>

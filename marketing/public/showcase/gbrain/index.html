@@ -141,7 +141,7 @@
       .graph-svg { display: block; width: 100%; height: auto; }
       .gnode rect { fill: var(--surface-2); stroke: var(--border-strong); stroke-width: 1; transition: stroke .2s ease, fill .2s ease; }
       .gnode text.k { font-family: var(--mono); font-size: 11px; fill: var(--text); }
-      .gnode text.r { font-family: var(--mono); font-size: 8.5px; letter-spacing: .08em; fill: var(--faint); text-transform: uppercase; }
+      .gnode text.r { font-family: var(--mono); font-size: 9.5px; letter-spacing: .08em; fill: var(--faint); text-transform: uppercase; }
       .gnode { cursor: pointer; }
       .gnode:hover rect, .gnode.sel rect { stroke: var(--hue); fill: color-mix(in srgb, var(--hue) 10%, var(--surface-2)); }
       .gnode:hover text.k, .gnode.sel text.k { fill: var(--hue); }
@@ -163,7 +163,7 @@
       .js .in .gelabel { animation: fadein .5s ease forwards .55s; }
       @keyframes fadein { to { opacity: 1; } }
       .gsep { stroke: var(--border-strong); stroke-width: 1; stroke-dasharray: 3 4; }
-      .gsep-label { font-family: var(--mono); font-size: 8.5px; fill: var(--faint); letter-spacing: .08em; }
+      .gsep-label { font-family: var(--mono); font-size: 9.5px; fill: var(--faint); letter-spacing: .08em; }
 
       .inspect .row { display: flex; align-items: baseline; gap: .6rem; padding: .5rem 0; border-bottom: 1px solid var(--border); font-family: var(--mono); font-size: var(--meta); }
       .inspect .row:last-child { border-bottom: 0; }
@@ -477,8 +477,8 @@
             <h2>The structure extracts itself.</h2>
             <p class="lede">
               The moment those pages land, memseek resolves the links, classifies them into typed
-              predicates, and folds every <code>## Facts</code> bullet into one current index —
-              <strong>both at zero model calls</strong>. No inference, no bill, no drift: the same
+              predicates, and folds every <code>## Facts</code> bullet into one current index, and
+              <strong>both cost zero model calls</strong>. No inference, no bill, no drift: the same
               input always produces the same graph.
             </p>
           </div>
@@ -745,7 +745,7 @@
             <h2>Follow any claim to the floor.</h2>
             <p class="lede">
               This is the part that survives an audit. Every record names its parents, so a
-              conclusion can be walked down — without a cut — until it bottoms out at something a
+              conclusion can be walked down, without a cut, until it bottoms out at something a
               human actually wrote.
             </p>
           </div>

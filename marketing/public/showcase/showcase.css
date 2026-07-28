@@ -19,7 +19,7 @@
   --border-strong: #33404c;
   --text: #e8eaed;
   --muted: #9aa1ab;
-  --faint: #5d6570;
+  --faint: #7d8794;
   --orange: #ff7a2f;
   --pink: #ff3d67;
   --cyan: #2fd4c4;
@@ -55,7 +55,7 @@
   --border-strong: #cfd1ca;
   --text: #16191c;
   --muted: #55606a;
-  --faint: #8a939c;
+  --faint: #666f78;
   --orange: #e0641c;
   --pink: #e02a54;
   --cyan: #0e9e90;
@@ -78,7 +78,20 @@
    --hue or --ch. */
 .hue-ink { color: var(--ch, var(--hue)); }
 :root[data-theme='light'] .hue-ink,
-:root[data-theme='light'] .eyebrow {
+:root[data-theme='light'] .eyebrow,
+/* Small text that takes its color from --hue in showcase-page.css. Same
+   treatment, same reason: on paper the raw hue lands at 3.0-3.5:1. */
+:root[data-theme='light'] .slot .lab,
+:root[data-theme='light'] .kcard-h .tag,
+:root[data-theme='light'] .ev .meta .src,
+:root[data-theme='light'] .dstep .lvl,
+:root[data-theme='light'] .trow .bind,
+:root[data-theme='light'] .flow .n,
+:root[data-theme='light'] .maprow .to b,
+:root[data-theme='light'] .code-tabs .tab[aria-selected='true'],
+:root[data-theme='light'] .split .col li::before,
+:root[data-theme='light'] .case .kick,
+:root[data-theme='light'] .mini .kick {
   color: color-mix(in srgb, var(--ch, var(--hue)) 72%, var(--text));
 }
 :root[data-theme='light'] .badge {
@@ -169,14 +182,10 @@ h1, h2, h3 {
 }
 
 /* The one gradient. Reserved for the primary action and rare headline emphasis. */
-.grad {
-  background: var(--grad);
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-  color: transparent;
-}
-
+/* Headline emphasis is the solid filament, not a third gradient in the viewport;
+   the gradient stays with the two actions (nav CTA and primary button). */
+.grad { color: var(--orange); }
+:root[data-theme='light'] .grad { color: color-mix(in srgb, var(--orange) 85%, var(--text)); }
 /* ============ nav ============ */
 header.nav {
   position: sticky;
@@ -237,6 +246,11 @@ header.nav {
   transition: color 0.15s ease, border-color 0.15s ease;
 }
 .theme-toggle:hover { color: var(--text); border-color: var(--hue); }
+/* Compact for a mouse; a real target on touch. */
+@media (pointer: coarse) {
+  .theme-toggle { width: 44px; height: 44px; }
+  .nav-cta, .nav-right a.navlink { min-height: 44px; display: inline-flex; align-items: center; }
+}
 .theme-toggle svg { width: 15px; height: 15px; }
 :root[data-theme='dark'] .theme-toggle .sun { display: none; }
 :root[data-theme='light'] .theme-toggle .moon { display: none; }

@@ -26,7 +26,7 @@
     --border-strong: #33404c;
     --text: #e8eaed;
     --muted: #9aa1ab;
-    --faint: #5d6570;
+    --faint: #7d8794;
     --orange: #ff7a2f;
     --pink: #ff3d67;
     --cyan: #2fd4c4;
@@ -56,7 +56,7 @@
     --border-strong: #cfd1ca;
     --text: #16191c;
     --muted: #55606a;
-    --faint: #8a939c;
+    --faint: #666f78;
     --orange: #e0641c;
     --pink: #e02a54;
     --cyan: #0e9e90;
@@ -71,6 +71,29 @@
   :root[data-theme="light"] .btn-primary { color: #fff; }
   :root[data-theme="light"] .cm,
   :root[data-theme="light"] .yc { color: #6f7a85; }
+
+  /* Hue-as-text, light theme only — the mechanism showcase.css documents.
+     The signal hues are tuned for the dark chassis, where each clears ~6:1 on a
+     panel. Dropped onto paper they land at 3.0-3.5:1, under the floor for the
+     micro labels that carry the meaning. Compositing toward the ink keeps the
+     hue identity and lifts every one past 5:1. Dark theme does not inherit it:
+     there the bright hue is the point. */
+  :root[data-theme="light"] .eyebrow,
+  :root[data-theme="light"] .case .kick,
+  :root[data-theme="light"] .mini .kick,
+  :root[data-theme="light"] .prim b,
+  :root[data-theme="light"] .slot .lab,
+  :root[data-theme="light"] .ms .k,
+  :root[data-theme="light"] .ev-h .src,
+  :root[data-theme="light"] .zone-h b,
+  :root[data-theme="light"] .step-n,
+  :root[data-theme="light"] .case .run::before,
+  :root[data-theme="light"] .vs-card h3 .k,
+  :root[data-theme="light"] .out .oh .tag,
+  :root[data-theme="light"] .bm .n,
+  :root[data-theme="light"] .callout .ck2 {
+    color: color-mix(in srgb, var(--hue, var(--orange)) 72%, var(--text));
+  }
 
   * { margin: 0; padding: 0; box-sizing: border-box; }
   html { scroll-behavior: smooth; }
@@ -92,11 +115,17 @@
   :focus-visible { outline: 2px solid var(--orange); outline-offset: 3px; border-radius: 2px; }
 
   h1, h2, h3 { font-family: var(--mono); font-weight: 700; letter-spacing: -0.02em; line-height: 1.1; text-wrap: balance; }
+  /* Reserved for the closing headline — one gradient on the page beyond the
+     two actions, which is what "rare headline emphasis" is supposed to mean. */
   .grad {
     background: var(--grad);
     -webkit-background-clip: text; background-clip: text;
     -webkit-text-fill-color: transparent; color: transparent;
   }
+  /* Headline emphasis inside the hero: solid filament, not a third gradient. */
+  .hot { color: var(--orange); }
+  :root[data-theme="light"] .hot { color: color-mix(in srgb, var(--orange) 85%, var(--text)); }
+
   .eyebrow {
     font-family: var(--mono); font-size: var(--step--1);
     letter-spacing: 0.22em; text-transform: uppercase;
@@ -105,8 +134,10 @@
   }
   .eyebrow::before { content: ""; width: 2.4em; height: 2px; background: var(--hue, var(--orange)); opacity: .7; }
 
-  .reveal { opacity: 0; transform: translateY(18px); transition: opacity .6s, transform .6s; }
-  .reveal.in { opacity: 1; transform: none; }
+  /* Gated on .js so the page is fully readable when scripts never run. */
+  .reveal { transition: opacity .6s, transform .6s; }
+  .js .reveal { opacity: 0; transform: translateY(18px); }
+  .js .reveal.in { opacity: 1; transform: none; }
   @media (prefers-reduced-motion: reduce) { .reveal { opacity: 1; transform: none; transition: none; } }
 
   /* ---------- NAV ---------- */
@@ -140,6 +171,14 @@
   @media (max-width: 620px) {
     .nav-links { gap: .85rem; }
     .nav-links a:not(.nav-cta) { display: none; }
+  }
+
+  /* Coarse-pointer hit areas. The mono controls are deliberately compact for a
+     mouse; on touch they need a 44px target without changing their look. */
+  @media (pointer: coarse) {
+    .theme-toggle, .nav-cta { min-height: 44px; display: inline-flex; align-items: center; }
+    .ytab, .code-tabs .t { min-height: 44px; display: inline-flex; align-items: center; }
+    .nav-links a { padding-block: .6rem; }
   }
 
   /* ---------- HERO ---------- */
@@ -177,7 +216,7 @@
   .proof { list-style: none; display: grid; gap: .85rem; }
   @media (max-width: 900px) { .proof { grid-template-columns: repeat(3, 1fr); margin-top: 2rem; } }
   @media (max-width: 520px) { .proof { grid-template-columns: 1fr; } }
-  .proof li { border-left: 2px solid var(--hue, var(--orange)); padding-left: .8rem; }
+  .proof li { border-left: 1px solid color-mix(in srgb, var(--hue, var(--orange)) 60%, var(--border)); padding-left: .8rem; }
   .proof li:nth-child(1) { --hue: var(--orange); }
   .proof li:nth-child(2) { --hue: var(--cyan); }
   .proof li:nth-child(3) { --hue: var(--green); }
@@ -223,10 +262,10 @@
   .yfile { font-family: var(--mono); font-size: .6rem; color: var(--faint); margin-bottom: .45rem; }
 
   /* run zone */
-  .ev { border: 1px solid color-mix(in srgb, var(--orange) 40%, var(--border)); border-left-width: 3px; border-radius: 8px; background: color-mix(in srgb, var(--orange) 7%, var(--surface-2)); padding: .5rem .6rem; }
+  .ev { border: 1px solid color-mix(in srgb, var(--orange) 40%, var(--border)); border-radius: 8px; background: color-mix(in srgb, var(--orange) 7%, var(--surface-2)); padding: .5rem .6rem; }
   .ev.arrive { animation: evin .5s cubic-bezier(.2,.75,.25,1) both; }
   @keyframes evin { 0% { opacity: 0; transform: translateX(-18px) scale(.97); } 100% { opacity: 1; transform: none; } }
-  .ev-h { display: flex; justify-content: space-between; gap: .5rem; font-family: var(--mono); font-size: .53rem; letter-spacing: .09em; text-transform: uppercase; }
+  .ev-h { display: flex; justify-content: space-between; gap: .5rem; font-family: var(--mono); font-size: .56rem; letter-spacing: .09em; text-transform: uppercase; }
   .ev-h .src { color: var(--orange); }
   .ev-h .st { color: var(--faint); }
   .ev-tx { display: block; margin-top: .3rem; font-size: .74rem; line-height: 1.4; color: var(--text); }
@@ -244,14 +283,14 @@
 
   /* memory card */
   .mcard { border: 1px solid color-mix(in srgb, var(--green) 42%, var(--border)); border-radius: 11px; background: color-mix(in srgb, var(--green) 4%, var(--surface)); overflow: hidden; transition: box-shadow .25s, border-color .25s; }
-  .mcard.pulse { border-color: var(--green); box-shadow: 0 0 0 4px color-mix(in srgb, var(--green) 10%, transparent); }
+  .mcard.pulse { border-color: var(--green); background: color-mix(in srgb, var(--green) 9%, var(--surface)); }
   .mcard-h { display: flex; align-items: center; justify-content: space-between; gap: .6rem; padding: .6rem .7rem; border-bottom: 1px solid var(--border); font-family: var(--mono); }
   .mcard-h .ent { font-size: .68rem; color: var(--text); }
-  .mcard-h .badge { font-size: .53rem; letter-spacing: .1em; text-transform: uppercase; color: var(--green); border: 1px solid color-mix(in srgb, var(--green) 50%, var(--border)); border-radius: 20px; padding: .18rem .42rem; }
+  .mcard-h .badge { font-size: .56rem; letter-spacing: .1em; text-transform: uppercase; color: var(--green); border: 1px solid color-mix(in srgb, var(--green) 50%, var(--border)); border-radius: 20px; padding: .18rem .42rem; }
   .ms { display: grid; grid-template-columns: 5.6rem minmax(0, 1fr) auto; gap: .5rem; align-items: baseline; padding: .5rem .7rem; border-bottom: 1px solid var(--border); }
   .ms .k { font-family: var(--mono); font-size: .56rem; letter-spacing: .08em; text-transform: uppercase; color: var(--green); }
   .ms .v { font-size: .72rem; line-height: 1.4; color: var(--text); min-width: 0; }
-  .ms .c { font-family: var(--mono); font-size: .55rem; color: var(--faint); white-space: nowrap; }
+  .ms .c { font-family: var(--mono); font-size: .56rem; color: var(--faint); white-space: nowrap; }
   .ms.empty .v, .ms.empty .c { color: var(--faint); }
   .ms.hot { animation: mshot 1.1s ease-out; }
   @keyframes mshot { 0%, 30% { background: color-mix(in srgb, var(--green) 20%, transparent); } 100% { background: transparent; } }
@@ -261,8 +300,8 @@
     .ms { grid-template-columns: 1fr auto; gap: .2rem .5rem; }
     .ms .k { grid-column: 1; } .ms .c { grid-column: 2; grid-row: 1; } .ms .v { grid-column: 1 / -1; grid-row: 2; }
   }
-  .mnote { padding: .5rem .7rem; font-family: var(--mono); font-size: .59rem; line-height: 1.45; color: var(--muted); border-left: 2px solid var(--green); margin: .55rem .7rem .6rem; background: color-mix(in srgb, var(--green) 6%, transparent); }
-  .mnote.held { border-left-color: var(--amber); }
+  .mnote { padding: .5rem .7rem; font-family: var(--mono); font-size: .59rem; line-height: 1.45; color: var(--muted); border-left: 1px solid color-mix(in srgb, var(--green) 60%, var(--border)); margin: .55rem .7rem .6rem; background: color-mix(in srgb, var(--green) 6%, transparent); }
+  .mnote.held { border-left-color: color-mix(in srgb, var(--amber) 60%, var(--border)); }
   .mfoot { display: flex; flex-wrap: wrap; gap: .3rem .9rem; align-items: baseline; margin-top: .7rem; font-family: var(--mono); font-size: .6rem; color: var(--faint); }
   .mfoot .big { font-size: .95rem; color: var(--green); font-variant-numeric: tabular-nums; }
   .mfoot s { text-decoration-color: var(--pink); }
@@ -357,7 +396,7 @@
     transition: transform .18s, box-shadow .18s, border-color .18s;
   }
   .alt .case { background: linear-gradient(168deg, color-mix(in srgb, var(--hue) 10%, var(--bg)), var(--bg)); }
-  .case:hover { text-decoration: none; transform: translateY(-3px); border-color: var(--hue); box-shadow: 0 18px 48px -26px color-mix(in srgb, var(--hue) 85%, transparent); }
+  .case:hover { text-decoration: none; transform: translateY(-3px); border-color: var(--hue); box-shadow: var(--shadow); }
   .case:nth-child(1) { --hue: var(--amber); }
   .case:nth-child(2) { --hue: var(--cyan); }
   .case:nth-child(3) { --hue: var(--pink); }
@@ -367,10 +406,10 @@
   .case p b { color: var(--text); font-weight: 600; }
   .case .tags { display: flex; flex-wrap: wrap; gap: .28rem; }
   .case .tags i {
-    font-style: normal; font-family: var(--mono); font-size: .55rem; letter-spacing: .03em;
+    font-style: normal; font-family: var(--mono); font-size: .56rem; letter-spacing: .03em;
     color: var(--muted); border: 1px solid var(--border); border-radius: 5px; padding: .12rem .35rem;
   }
-  .case .run { font-family: var(--mono); font-size: .6rem; color: var(--faint); border-top: 1px solid var(--border); padding-top: .55rem; overflow-x: auto; white-space: nowrap; }
+  .case .run { font-family: var(--mono); font-size: .6rem; color: var(--muted); border-top: 1px solid var(--border); padding-top: .55rem; overflow-x: auto; white-space: nowrap; }
   .case .run::before { content: "$ "; color: var(--hue); }
   /* the dreams card ends in a caption, not a command — no shell prompt */
   .case .run.note { white-space: normal; }
@@ -389,7 +428,7 @@
   @media (max-width: 520px) { .more { grid-template-columns: 1fr; } }
   .mini {
     position: relative; display: flex; flex-direction: column; gap: .3rem;
-    border: 1px solid var(--border); border-left: 2px solid var(--hue);
+    border: 1px solid var(--border); border-left: 1px solid color-mix(in srgb, var(--hue) 55%, var(--border));
     border-radius: 9px; padding: .85rem .9rem .9rem; background: var(--surface);
     color: inherit; text-decoration: none;
     transition: transform .18s, border-color .18s, background .18s;
@@ -401,15 +440,16 @@
   .mini:nth-child(2) { --hue: var(--violet); }
   .mini:nth-child(3) { --hue: var(--orange); }
   .mini:nth-child(4) { --hue: var(--cyan); }
-  .mini .kick { font-family: var(--mono); font-size: .54rem; letter-spacing: .11em; text-transform: uppercase; color: var(--hue); }
+  .mini .kick { font-family: var(--mono); font-size: .56rem; letter-spacing: .11em; text-transform: uppercase; color: var(--hue); }
   .mini b { font-family: var(--sans); font-weight: 700; font-size: var(--step-0); letter-spacing: -.01em; color: var(--text); line-height: 1.25; }
   .mini span { font-size: var(--step--2); color: var(--muted); line-height: 1.5; }
 
 
-  .callout { margin-top: 1.1rem; border: 1px solid var(--border); border-left: 2px solid var(--orange); border-radius: 10px; background: var(--surface); padding: 1.05rem 1.2rem; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: .4rem 1.1rem; align-items: baseline; }
+  .callout { margin-top: 1.1rem; border: 1px solid var(--border); border-left: 1px solid color-mix(in srgb, var(--orange) 60%, var(--border)); border-radius: 10px; background: var(--surface); padding: 1.05rem 1.2rem; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: .4rem 1.1rem; align-items: baseline; }
   .alt .callout { background: var(--bg); }
   @media (max-width: 700px) { .callout { grid-template-columns: 1fr; } }
-  .callout .ck2 { font-family: var(--mono); font-size: .58rem; letter-spacing: .12em; text-transform: uppercase; color: var(--orange); white-space: nowrap; }
+  .callout .ck2 { font-family: var(--mono); font-size: .58rem; letter-spacing: .12em; text-transform: uppercase; color: var(--orange); white-space: nowrap; display: inline-flex; align-items: center; gap: .5em; }
+  .callout .ck2::before { content: ""; width: 7px; height: 7px; border-radius: 2px; background: var(--orange); flex: none; }
   .callout p { color: var(--muted); font-size: var(--step--1); line-height: 1.6; }
   .callout p b { color: var(--text); font-weight: 600; }
 
@@ -448,7 +488,10 @@
   @media (max-width: 560px) { .trow { grid-template-columns: 1fr; gap: .2rem; } }
   .trow .lab { font-family: var(--mono); font-size: .72rem; color: var(--muted); }
   .tbar { height: 20px; border-radius: 5px; background: var(--surface-2); overflow: hidden; position: relative; }
-  .tbar > i { position: absolute; left: 0; top: 0; bottom: 0; width: 0; border-radius: 5px; transition: width 1.1s cubic-bezier(.2,.7,.3,1); }
+  /* Reveals by clipping, not by animating width: no layout work per frame, and
+     `round` keeps the bar's corners while the right edge travels. */
+  .tbar > i { position: absolute; left: 0; top: 0; bottom: 0; width: 100%; border-radius: 5px; clip-path: inset(0 calc(100% - var(--w) * 1%) 0 0 round 5px); transition: clip-path 1.1s cubic-bezier(.2,.7,.3,1); }
+  .js .tbar > i { clip-path: inset(0 100% 0 0 round 5px); }
   .tbar.full > i { background: linear-gradient(90deg, color-mix(in srgb, var(--pink) 60%, var(--surface-2)), var(--pink)); }
   .tbar.mem > i { background: linear-gradient(90deg, var(--green), var(--cyan)); }
   /* The label sits over the track, so it must stay readable even when the bar
@@ -508,6 +551,7 @@
 </style>
 </head>
 <body>
+<script>document.documentElement.className += ' js';</script>
 
 <!-- ============ NAV ============ -->
 <header class="nav">
@@ -533,10 +577,10 @@
       <div class="hero-top">
         <div>
           <span class="eyebrow">Memory infrastructure for agents</span>
-          <h1>Agent memory you <span class="grad">declare</span>, not build.</h1>
+          <h1>Agent memory you <span class="hot">declare</span>, not build.</h1>
           <p class="lede">
             Your app writes records. Memseek scores them, derives what they mean, and serves the
-            few facts that are <b>true now</b> — each dated and cited to the event it came from.
+            few facts that are <b>true now</b>, each dated and cited to the event it came from.
             Nothing is ever overwritten.
           </p>
           <div class="hero-cta">
@@ -711,7 +755,7 @@
           <div class="step-side">
             <span class="step-n">02 · WRITE</span>
             <h3>Publish it, then just append events.</h3>
-            <p>Ingest returns immediately. The worker embeds, scores importance, and — once the accumulator trips — derives the profile. <b>Your application never orchestrates a pipeline.</b></p>
+            <p>Ingest returns immediately. The worker embeds, scores importance, and derives the profile once the accumulator trips. <b>Your application never orchestrates a pipeline.</b></p>
           </div>
           <div class="code">
             <div class="code-tabs"><button class="t" aria-selected="true" tabindex="-1">python</button><span class="fname">app.py</span></div>
@@ -812,7 +856,7 @@ $ memseek mcp
       <div class="sec-head reveal">
         <span class="eyebrow" style="--hue:var(--cyan)">what you can build</span>
         <h2>Eight primitives. Very different memory products.</h2>
-        <p>Each one opens into a walkthrough, and most ship as a runnable example in the repo — same primitives, different YAML. Nothing bespoke, no graph database, no services to write.</p>
+        <p>Each one opens into a walkthrough, and most ship as a runnable example in the repo: same primitives, different YAML. Nothing bespoke, no graph database, no services to write.</p>
       </div>
 
       <div class="prims reveal">
@@ -880,7 +924,7 @@ $ memseek mcp
 
       <div class="callout reveal">
         <span class="ck2">first-party</span>
-        <p><b>Living memory for coding agents</b> is our own first product on these primitives: developer preferences, repo conventions, architecture decisions, accepted and rejected approaches, recurring mistakes, review feedback — so the agent stops re-suggesting what the team already rejected. Same eight primitives, same YAML, no privileged internals.</p>
+        <p><b>Living memory for coding agents</b> is our own first product on these primitives: developer preferences, repo conventions, architecture decisions, accepted and rejected approaches, recurring mistakes, review feedback. The agent stops re-suggesting what the team already rejected. Same eight primitives, same YAML, no privileged internals.</p>
       </div>
     </div>
   </section>
@@ -925,10 +969,10 @@ $ memseek mcp
         <p>These test exactly what agents get wrong today: finding the right thing in a long history, handling updates and contradictions, and connecting evidence across sources.</p>
       </div>
       <div class="bench reveal" id="benchGrid">
-        <div class="bm"><div class="n"><span data-count="82" data-dec="0">0</span>%</div><div class="metric">recall &amp; reasoning accuracy</div><div class="bench-name">LongMemEval-S · long-conversation memory</div></div>
-        <div class="bm"><div class="n"><span data-count="91" data-dec="0">0</span>%</div><div class="metric">picks the latest valid fact</div><div class="bench-name">LongMemEval-S · after facts change over time</div></div>
-        <div class="bm"><div class="n">+<span data-count="7.5" data-dec="1">0</span><span style="font-size:.5em"> pts</span></div><div class="metric">exact match vs. dense retrieval</div><div class="bench-name">MuSiQue · multi-hop QA</div></div>
-        <div class="bm"><div class="n">+<span data-count="10.8" data-dec="1">0</span><span style="font-size:.5em"> pts</span></div><div class="metric">exact match vs. dense retrieval</div><div class="bench-name">2WikiMultiHopQA · multi-hop QA</div></div>
+        <div class="bm"><div class="n"><span data-count="82" data-dec="0">82</span>%</div><div class="metric">recall &amp; reasoning accuracy</div><div class="bench-name">LongMemEval-S · long-conversation memory</div></div>
+        <div class="bm"><div class="n"><span data-count="91" data-dec="0">91</span>%</div><div class="metric">picks the latest valid fact</div><div class="bench-name">LongMemEval-S · after facts change over time</div></div>
+        <div class="bm"><div class="n">+<span data-count="7.5" data-dec="1">7.5</span><span style="font-size:.5em"> pts</span></div><div class="metric">exact match vs. dense retrieval</div><div class="bench-name">MuSiQue · multi-hop QA</div></div>
+        <div class="bm"><div class="n">+<span data-count="10.8" data-dec="1">10.8</span><span style="font-size:.5em"> pts</span></div><div class="metric">exact match vs. dense retrieval</div><div class="bench-name">2WikiMultiHopQA · multi-hop QA</div></div>
       </div>
 
       <div class="tokens reveal" id="tokChart">
@@ -938,13 +982,13 @@ $ memseek mcp
         </div>
         <div class="trow">
           <span class="lab">Full history</span>
-          <div class="tbar full"><i data-w="100"></i><span class="v">~101,000</span></div>
+          <div class="tbar full"><i data-w="100" style="--w:100"></i><span class="v">~101,000</span></div>
         </div>
         <div class="trow">
           <span class="lab">Memseek</span>
-          <div class="tbar mem"><i data-w="3.2"></i><span class="v">~3,200</span></div>
+          <div class="tbar mem"><i data-w="3.2" style="--w:3.2"></i><span class="v">~3,200</span></div>
         </div>
-        <p class="bench-foot">Measured on inexpensive, self-hostable models — no frontier model in the loop. On your own data, every derivation is an audited run, so you can measure correction rate and task success from the first integration.</p>
+        <p class="bench-foot">Measured on inexpensive, self-hostable models, with no frontier model in the loop. On your own data, every derivation is an audited run, so you can measure correction rate and task success from the first integration.</p>
       </div>
     </div>
   </section>
@@ -955,7 +999,7 @@ $ memseek mcp
       <div class="sec-head reveal">
         <span class="eyebrow" style="--hue:var(--violet)">buy vs. build</span>
         <h2>The same reason you don't hand-roll your own Postgres.</h2>
-        <p>A real memory layer is substantial engineering most teams don't solve well. The question isn't whether you could build it — it's whether that's the best use of your team.</p>
+        <p>A real memory layer is substantial engineering most teams don't solve well. The question isn't whether you could build it. It's whether that's the best use of your team.</p>
       </div>
       <div class="bvb reveal">
         <div class="bvb-card"><div class="ic">◐</div><h3>Value on day one</h3><p>Declare a catalog and you have a working memory product — <b>faster than an internal build</b>, with triggers, limits, retries, and audits already solved.</p></div>
@@ -979,7 +1023,7 @@ $ memseek mcp
         </details>
         <details>
           <summary>Where does my data live?<span class="pm">+</span></summary>
-          <div class="ans">On <b>your own PostgreSQL</b> (16 + pgvector). You run the API and the worker; nothing leaves your infrastructure except the model calls you configure — and those can point at a self-hosted model. Records are append-only: a rewrite supersedes, it never overwrites, so point-in-time reconstruction and recursive-closure erase both stay possible.</div>
+          <div class="ans">On <b>your own PostgreSQL</b> (16 + pgvector). You run the API and the worker; nothing leaves your infrastructure except the model calls you configure, and those can point at a self-hosted model. Records are append-only: a rewrite supersedes, it never overwrites, so point-in-time reconstruction and recursive-closure erase both stay possible.</div>
         </details>
         <details open>
           <summary>What do I actually get back?<span class="pm">+</span></summary>
@@ -991,7 +1035,7 @@ $ memseek mcp
         </details>
         <details>
           <summary>Will it change things without asking?<span class="pm">+</span></summary>
-          <div class="ans">Only what you declared. Write-triggered derivations maintain the slots they own; anything gated — a revised skill, a rebuilt profile — lands as a <b>reviewed draft</b> that stays in the audit trail until you promote it. Feedback becomes ordinary records, never an automatic change.</div>
+          <div class="ans">Only what you declared. Write-triggered derivations maintain the slots they own; anything gated (a revised skill, a rebuilt profile) lands as a <b>reviewed draft</b> that stays in the audit trail until you promote it. Feedback becomes ordinary records, never an automatic change.</div>
         </details>
         <details>
           <summary>Does it need an expensive frontier model?<span class="pm">+</span></summary>
@@ -1321,7 +1365,7 @@ if (typeof Tally !== "undefined") {
     var bars = document.querySelectorAll('#tokChart .tbar > i');
     bars.forEach(function (b) {
       var wpc = parseFloat(b.getAttribute('data-w'));
-      requestAnimationFrame(function () { b.style.width = wpc + '%'; });
+      requestAnimationFrame(function () { b.style.clipPath = 'inset(0 ' + (100 - wpc) + '% 0 0 round 5px)'; });
     });
   });
 })();
