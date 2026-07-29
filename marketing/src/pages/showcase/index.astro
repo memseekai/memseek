@@ -7,61 +7,60 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
  * verbatim and never parses them, so they keep their own styling and scripts.
  * Adding one is two steps: drop the file in public/, add a row here.
  */
+/**
+ * One card per memory kind. `kind` is the label a reader already knows the
+ * concept by — it does the work three jargon tag-pills used to do badly, and it
+ * is why the list reads as coverage rather than as seven unrelated demos. One
+ * sentence each: the card decides whether to open the page, nothing more.
+ */
 const showcases = [
   {
-    slug: 'living-profile',
-    title: 'The living profile',
-    blurb:
-      'A CRM profile derives and maintains itself from raw events — every slot cited, every belief traceable to the audited run that wrote it.',
-    tags: ['Derivations', 'Accumulator', 'Provenance'],
-    accent: 'var(--amber)',
-  },
-  {
-    slug: 'skill',
-    title: 'The maintained skill',
-    blurb:
-      "Real outcomes become a cited draft revision of an agent's playbook — and a human decides whether it ships. Nothing the model writes goes live on its own.",
-    tags: ['Artifact uses', 'Learning signals', 'Human gate'],
-    accent: 'var(--green)',
-  },
-  {
-    slug: 'self-audit',
-    title: 'The self-auditing mind',
-    blurb:
-      "Observations become convictions, then a detector aimed at the agent's own beliefs catches it contradicting itself — and makes it reflect on the dissonance.",
-    tags: ['Four tiers', 'Census trigger', 'Depth 0→3'],
-    accent: 'var(--pink)',
-  },
-  {
     slug: 'generative-agents',
+    kind: 'episodic',
     title: 'Generative agents',
-    blurb:
-      "Park et al.'s memory architecture — memory stream, importance, retrieval score, reflection, agent summary — declared as one catalog instead of built.",
-    tags: ['Rank AST', 'Reflection', 'Prompt artifact'],
+    blurb: "Park et al.'s memory stream, importance and reflection — as one catalog.",
     accent: 'var(--violet)',
   },
   {
-    slug: 'mcp',
-    title: 'The tool surface',
-    blurb:
-      'A package declares five tools and the shipped bridge compiles them over stdio. The agent\'s capabilities are reviewable YAML, not handler code.',
-    tags: ['Opt-in', 'GET /tools', 'stdio bridge'],
-    accent: 'var(--cyan)',
-  },
-  {
     slug: 'gbrain',
+    kind: 'semantic · graph',
     title: 'An entire brain, declared',
-    blurb:
-      'A knowledge product assembles itself from an empty workspace — declared as one memseek catalog, with every fact traceable to the record it came from.',
-    tags: ['Catalog', 'Provenance', 'Graph memory'],
+    blurb: 'A knowledge base that assembles itself, every fact traceable to its page.',
     accent: 'var(--orange)',
   },
   {
+    slug: 'self-audit',
+    kind: 'reflection',
+    title: 'The self-auditing mind',
+    blurb: 'Beliefs built on beliefs, and a detector that catches its own contradictions.',
+    accent: 'var(--pink)',
+  },
+  {
     slug: 'dreams',
+    kind: 'consolidation',
     title: 'dreams × memseek',
-    blurb:
-      "Anthropic's Dreams — memory curation that reorganizes an agent's store — as one bounded, cited derivation over immutable records, adopted as a reviewable diff.",
-    tags: ['Derivations', 'Divergence', 'Review'],
+    blurb: "Anthropic's Dreams as one bounded, cited derivation you adopt as a diff.",
+    accent: 'var(--amber)',
+  },
+  {
+    slug: 'living-profile',
+    kind: 'entity profiles',
+    title: 'The living profile',
+    blurb: 'A CRM profile that maintains itself from raw events, every slot cited.',
+    accent: 'var(--cyan)',
+  },
+  {
+    slug: 'skill',
+    kind: 'procedural',
+    title: 'The maintained skill',
+    blurb: 'A playbook that revises itself from real outcomes, behind a human gate.',
+    accent: 'var(--green)',
+  },
+  {
+    slug: 'mcp',
+    kind: 'tool surface',
+    title: 'Plug it into an existing agent',
+    blurb: 'Five declared tools, compiled over stdio. Capabilities as YAML, not code.',
     accent: 'var(--violet)',
   },
 ];
@@ -76,8 +75,8 @@ const showcases = [
       <span class="eyebrow">Showcases</span>
       <h1>See it <span class="grad">actually run.</span></h1>
       <p class="lede">
-        Interactive walkthroughs, not screenshots. Each one is a single page you can poke at —
-        no signup, no sandbox to provision.
+        One walkthrough per memory kind people already name — episodic, semantic, reflection,
+        consolidation. Each is a single page you can poke at: no signup, nothing to provision.
       </p>
     </div>
   </section>
@@ -88,13 +87,10 @@ const showcases = [
         <article class="card" style={`--hue: ${s.accent}`}>
           <a href={`/showcase/${s.slug}/`} class="hit" aria-label={s.title}></a>
           <div class="body">
-            <span class="slug">/showcase/{s.slug}</span>
+            <span class="kind">{s.kind}</span>
             <h2>{s.title}</h2>
             <p>{s.blurb}</p>
-            <div class="foot-row">
-              {s.tags.map((tag) => <span class="tag-pill">{tag}</span>)}
-              <span class="read">Open →</span>
-            </div>
+            <span class="read">Open →</span>
           </div>
         </article>
       ))}
@@ -116,7 +112,9 @@ const showcases = [
   .lede { color: var(--muted); max-width: 48ch; margin-top: 1.1rem; }
 
   .sc-list { padding-bottom: clamp(3rem, 7vw, 6rem); }
-  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 24rem), 1fr)); gap: 1.1rem; }
+  /* Narrower track than the old blurb needed: one sentence per card reads better
+     three-across than two, and seven cards land in three rows instead of four. */
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 19rem), 1fr)); gap: 1rem; }
 
   .card {
     position: relative;
@@ -130,12 +128,17 @@ const showcases = [
   /* One stretched link keeps the whole card clickable without nesting anchors. */
   .hit { position: absolute; inset: 0; z-index: 2; }
 
-  .body { padding: 1.4rem 1.3rem 1.3rem; display: flex; flex-direction: column; gap: .6rem; flex: 1; }
-  .slug { font-family: var(--mono); font-size: var(--step--1); color: var(--faint); }
+  .body { padding: 1.3rem 1.3rem 1.15rem; display: flex; flex-direction: column; gap: .5rem; flex: 1; }
+  /* The memory kind, not the URL: it is the one label that tells a reader
+     whether this card is the thing they came looking for. */
+  .kind {
+    font-family: var(--mono); font-size: .62rem; letter-spacing: .12em;
+    text-transform: uppercase; color: var(--hue);
+  }
+  :root[data-theme="light"] .kind { color: color-mix(in srgb, var(--hue) 72%, var(--text)); }
   .card h2 { font-size: var(--step-1); line-height: 1.25; }
   .card:hover h2 { color: var(--hue); }
   .card p { color: var(--muted); font-size: .93rem; line-height: 1.55; }
 
-  .foot-row { display: flex; align-items: center; gap: .45rem; flex-wrap: wrap; margin-top: auto; padding-top: .6rem; }
-  .read { margin-left: auto; font-family: var(--mono); font-size: var(--step--1); color: var(--cyan); }
+  .read { margin-top: auto; padding-top: .7rem; font-family: var(--mono); font-size: var(--step--1); color: var(--cyan); }
 </style>

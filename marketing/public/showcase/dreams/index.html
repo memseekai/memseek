@@ -1072,15 +1072,6 @@ candidate[<span class="s">"divergence"</span>]     <span class="cm"># per key: a
               it is a compare-and-set promotion that is <em>refused</em> if the store shifted while
               you were reviewing.
             </p>
-            <!-- .callout is a 2-column grid (mark + prose); a second paragraph has to
-                 be told to stay in the prose column or it widens the mark column. -->
-            <p style="grid-column: 2; margin-top: .9rem">
-              <b>And the honest other side:</b> the hosted job needs no Postgres, no worker, and no
-              catalog — you call one endpoint and poll. It also lets you stream the underlying
-              session’s events to watch the pipeline read and write in real time. If you don’t want
-              to run anything, that is the trade you are making: a store you must diff yourself, in
-              exchange for infrastructure you never touch.
-            </p>
           </div>
         </div>
       </section>
