@@ -224,6 +224,12 @@ header.nav {
 }
 .nav-right a.navlink:hover { color: var(--text); text-decoration: none; }
 .nav-right a.navlink[aria-current='page'] { color: var(--text); }
+/* The repo link survives the narrow-screen collapse that hides .navlink, since
+   a showcase page is exactly where a reader decides to go read the code. */
+.nav-right a.nav-gh { display: inline-flex; align-items: center; gap: .45rem; color: var(--muted); }
+.nav-right a.nav-gh:hover { color: var(--text); text-decoration: none; }
+.nav-gh svg { width: 16px; height: 16px; fill: currentColor; flex: none; }
+@media (max-width: 700px) { .nav-gh .lbl { display: none; } }
 .nav-cta {
   font-family: var(--mono);
   font-weight: 700;
@@ -404,6 +410,8 @@ footer { border-top: 1px solid var(--border); padding-block: 2rem 2.6rem; }
 .foot-links { display: flex; flex-wrap: wrap; gap: 1.2rem; }
 .foot-links a { color: var(--muted); }
 .foot-links a:hover { color: var(--text); }
+.foot-links a.gh { display: inline-flex; align-items: center; gap: .4rem; color: var(--text); }
+.foot-links a.gh svg { width: 15px; height: 15px; fill: currentColor; }
 
 .disclosure {
   margin-top: 1.6rem;

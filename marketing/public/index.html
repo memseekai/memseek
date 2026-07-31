@@ -3,10 +3,10 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Memseek — agent memory you declare, not build</title>
-<meta name="description" content="Your agent forgets what it was told last month and re-suggests what your team already rejected. Memseek keeps the few facts that are true now — each dated, cited, and never overwritten. Declared in YAML, on ordinary Postgres, deployed wherever you want it.">
-<meta property="og:title" content="Memseek — agent memory you declare, not build">
-<meta property="og:description" content="Your agent forgets, contradicts itself, and re-suggests what you already rejected. Memseek serves the few facts that are true now — dated and cited. Declared in YAML, on ordinary Postgres, deployed wherever you want it.">
+<title>Memseek — memory for AI applications</title>
+<meta name="description" content="Memseek is memory for AI applications. Your app writes down what happens — messages, events, observations — and Memseek turns that raw stream into a current profile that maintains itself, semantic search over everything ever recorded, and prompt-ready briefings assembled on demand. Every derived fact cites the evidence it came from, nothing is ever silently overwritten, and the whole design is a few files of YAML you review like a schema migration.">
+<meta property="og:title" content="Memseek — memory for AI applications">
+<meta property="og:description" content="Your app writes down what happens. Memseek turns that raw stream into a current profile that maintains itself, semantic search over everything ever recorded, and prompt-ready briefings on demand — every derived fact cited, nothing ever silently overwritten, the whole design a few files of YAML.">
 <meta property="og:type" content="website">
 <meta property="og:image" content="/og-default.png">
 <meta name="twitter:card" content="summary_large_image">
@@ -86,6 +86,9 @@
   :root[data-theme="light"] .ev-h .src,
   :root[data-theme="light"] .zone-h b,
   :root[data-theme="light"] .step-n,
+  :root[data-theme="light"] .ctab[aria-selected="true"] .cn,
+  :root[data-theme="light"] .clab,
+  :root[data-theme="light"] .cverdict b,
   :root[data-theme="light"] .vs-card h3 .k,
   :root[data-theme="light"] .out .oh .tag,
   :root[data-theme="light"] .bm .n,
@@ -157,6 +160,12 @@
     padding: .55rem 1rem; border-radius: 8px;
   }
   .nav-cta:hover { text-decoration: none; filter: brightness(1.07); }
+  /* The repo, reachable from every surface: nav, hero, quickstart, footer.
+     Icon plus wordmark here; below 620px the label drops and the octicon
+     stands alone, so the source is never the one link a phone can't find. */
+  .nav-gh { display: inline-flex; align-items: center; gap: .45rem; }
+  .nav-gh svg { width: 16px; height: 16px; fill: currentColor; flex: 0 0 auto; }
+  @media (max-width: 700px) { .nav-gh .lbl { display: none; } }
   .theme-toggle {
     background: transparent; border: 1px solid var(--border-strong); color: var(--muted);
     font-family: var(--mono); font-size: .72rem; padding: .35rem .55rem; border-radius: 6px;
@@ -168,7 +177,7 @@
      carries every link, so nothing becomes unreachable. */
   @media (max-width: 620px) {
     .nav-links { gap: .85rem; }
-    .nav-links a:not(.nav-cta) { display: none; }
+    .nav-links a:not(.nav-cta):not(.nav-gh) { display: none; }
   }
 
   /* Coarse-pointer hit areas. The mono controls are deliberately compact for a
@@ -195,7 +204,7 @@
   .hero-top { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); gap: clamp(1.6rem, 4vw, 3.4rem); align-items: end; }
   @media (max-width: 900px) { .hero-top { grid-template-columns: 1fr; align-items: start; } }
   .hero h1 { font-size: var(--step-3); margin-top: 1.1rem; max-width: 24ch; }
-  .lede { color: var(--muted); font-size: var(--step-1); max-width: 54ch; margin-top: 1.2rem; line-height: 1.5; }
+  .lede { color: var(--muted); font-size: var(--step-1); max-width: 58ch; margin-top: 1.2rem; line-height: 1.5; }
   .lede b { color: var(--text); font-weight: 600; }
   .hero-cta { display: flex; flex-wrap: wrap; gap: .85rem; margin-top: 1.8rem; align-items: center; }
   .btn {
@@ -208,7 +217,19 @@
   .btn-primary:hover { text-decoration: none; filter: brightness(1.07); transform: translateY(-1px); }
   .btn-ghost { background: transparent; color: var(--text); border-color: var(--border-strong); }
   .btn-ghost:hover { text-decoration: none; border-color: var(--violet); color: var(--violet); }
+  /* Third action, deliberately the quietest of the three: the source is a
+     standing invitation, not a competing call. */
+  .btn-gh { background: transparent; color: var(--muted); border-color: var(--border); }
+  .btn-gh:hover { text-decoration: none; color: var(--text); border-color: var(--border-strong); }
+  .btn-gh svg { width: 16px; height: 16px; fill: currentColor; }
   .cta-note { font-family: var(--mono); font-size: .72rem; color: var(--faint); }
+
+  /* One command above the fold. The rest of the stack is four, and the
+     quickstart says so — here the only claim is that something runs today. */
+  .hero-run { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem .85rem; margin-top: 1.1rem; font-family: var(--mono); font-size: .72rem; color: var(--faint); }
+  .hero-run code { font-size: .8rem; color: var(--text); background: var(--surface-2); border: 1px solid var(--border); border-radius: 7px; padding: .4rem .6rem; white-space: nowrap; }
+  .hero-run span { max-width: 44ch; line-height: 1.5; }
+  .hero-run b { color: var(--muted); font-weight: 600; }
 
   /* proof column */
   .proof { list-style: none; display: grid; gap: .85rem; }
@@ -250,8 +271,9 @@
   .zone-h::after { content: ""; flex: 1; height: 1px; background: var(--border); }
 
   /* yaml
-     The three definitions share one grid cell, so the container is always as
-     tall as the longest one. They rotate on a 7s timer without being asked,
+     Two definitions above the fold — where records live, and how they become
+     stated facts. Both share one grid cell, so the container is always as
+     tall as the longer one. They rotate on a 7s timer without being asked,
      and `display: none` would have resized the panel under the reader every
      time it did. Hidden panels leave the a11y tree exactly as display:none. */
   .yzs { display: grid; }
@@ -366,6 +388,7 @@
   .sec-head em { color: var(--text); font-style: normal; text-decoration: underline; text-decoration-color: var(--orange); text-underline-offset: 3px; }
   /* the line that closes a region: one thought, one way onward */
   .sec-foot { margin-top: 1.25rem; font-size: var(--step--1); color: var(--muted); line-height: 1.55; }
+  .sec-foot b { color: var(--text); font-weight: 600; }
 
   /* ---------- QUICKSTART ---------- */
   .steps { display: flex; flex-direction: column; gap: 1.1rem; }
@@ -405,8 +428,15 @@
   .quick-foot code { color: var(--text); background: var(--surface-2); border: 1px solid var(--border); border-radius: 5px; padding: .05rem .3rem; font-size: .95em; }
   .alt .quick-foot code { background: var(--bg); }
 
-  /* ---------- PRIMITIVES STRIP ---------- */
-  .prims { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: var(--border); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; margin-bottom: 1.6rem; }
+  /* ---------- PRIMITIVES STRIP ----------
+     Sits below the walkthroughs, not above them, so the nouns arrive as a
+     glossary for things the reader has already seen working. The lead
+     paragraph is the one place the whole pipeline is stated in prose — every
+     noun in the grid appears in it, in the order the data moves. */
+  .prim-band { margin-top: clamp(1.7rem, 3vw, 2.6rem); }
+  .prim-lead { color: var(--muted); max-width: 84ch; line-height: 1.65; margin-bottom: 1.2rem; }
+  .prim-lead b { color: var(--text); font-weight: 600; }
+  .prims { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: var(--border); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
   @media (max-width: 860px) { .prims { grid-template-columns: repeat(2, 1fr); } }
   @media (max-width: 460px) { .prims { grid-template-columns: 1fr; } }
   .prim { background: var(--surface); padding: .8rem .9rem .85rem; }
@@ -468,7 +498,73 @@
 
   .callout p b { color: var(--text); font-weight: 600; }
 
-  /* ---------- NOT RAG ---------- */
+  /* ---------- NAMED COMPARISONS ----------
+     Three vertical tabs, because these are read one at a time: a buyer arrives
+     already running exactly one of the three and wants that one answered. The
+     rail carries what each thing IS, so the panel never repeats it and holds
+     only three sentences — the concession, the limit, and the verdict.
+     The verdict leads the panel and is the largest text in the section: naming
+     who should not buy this is the whole reason the rest is believable. */
+  .ctabs { display: grid; grid-template-columns: minmax(0, .92fr) minmax(0, 1.08fr); gap: 1.1rem; align-items: start; }
+  @media (max-width: 880px) { .ctabs { grid-template-columns: 1fr; } }
+  .crail { display: flex; flex-direction: column; gap: .55rem; }
+  .ctab {
+    text-align: left; cursor: pointer; color: inherit; font: inherit;
+    background: var(--surface); border: 1px solid var(--border);
+    border-left: 2px solid var(--border); border-radius: 10px;
+    padding: .85rem .95rem .9rem; display: grid; gap: .2rem;
+    transition: border-color .18s, background .18s;
+  }
+  .alt .ctab { background: var(--bg); }
+  .ctab:hover { border-color: var(--border-strong); }
+  .ctab[aria-selected="true"] {
+    border-color: color-mix(in srgb, var(--hue) 45%, var(--border));
+    border-left-color: var(--hue);
+    background: color-mix(in srgb, var(--hue) 8%, var(--surface));
+  }
+  .alt .ctab[aria-selected="true"] { background: color-mix(in srgb, var(--hue) 8%, var(--bg)); }
+  .ctab .cn { font-family: var(--mono); font-size: .58rem; letter-spacing: .16em; color: var(--faint); }
+  .ctab[aria-selected="true"] .cn { color: var(--hue); }
+  .ctab b { font-family: var(--sans); font-weight: 700; font-size: var(--step-0); letter-spacing: -.01em; color: var(--text); line-height: 1.25; }
+  .ctab .cd { font-size: var(--step--2); color: var(--muted); line-height: 1.45; }
+
+  /* One grid cell for all three panels, so switching tabs never resizes the
+     section under the reader. Hidden panels leave the a11y tree as display:none
+     would, and without JS there is nothing to click — so show all three. */
+  .cstack { display: grid; }
+  .cpanel {
+    grid-area: 1 / 1; visibility: hidden;
+    border: 1px solid var(--border-strong); border-radius: 13px;
+    background: var(--surface); box-shadow: var(--shadow);
+    padding: 1.35rem 1.4rem 1.4rem;
+  }
+  .alt .cpanel { background: var(--bg); }
+  .cpanel.on { visibility: visible; }
+  html:not(.js) .ctabs { grid-template-columns: 1fr; }
+  html:not(.js) .crail { display: none; }
+  html:not(.js) .cstack { gap: 1rem; }
+  html:not(.js) .cpanel { grid-area: auto; visibility: visible; }
+
+  .cverdict {
+    font-family: var(--mono); font-size: var(--step-0); line-height: 1.5;
+    letter-spacing: -.01em; color: var(--text);
+    padding-bottom: 1.05rem; margin-bottom: 1.05rem;
+    border-bottom: 1px dashed var(--border);
+  }
+  .cverdict b { color: var(--hue); }
+  .crow { display: grid; grid-template-columns: 7rem minmax(0, 1fr); gap: .9rem; }
+  .crow + .crow { margin-top: 1rem; }
+  @media (max-width: 560px) { .crow { grid-template-columns: 1fr; gap: .28rem; } }
+  .clab { font-family: var(--mono); font-size: .58rem; letter-spacing: .13em; text-transform: uppercase; color: var(--hue, var(--orange)); padding-top: .3rem; }
+  .clab.pro { --hue: var(--green); }
+  .crow p { color: var(--muted); font-size: var(--step--1); line-height: 1.6; }
+  .crow p b { color: var(--text); font-weight: 600; }
+  .crow p code { font-family: var(--mono); font-size: .95em; color: var(--text); }
+
+  /* ---------- NOT RAG ----------
+     Two cards, not paired rows: these are different concepts, so joining them
+     line-by-line with an arrow would claim retrieval *becomes* memory. Each
+     side keeps its own hue and reads as one list, top to bottom. */
   .vs { display: grid; grid-template-columns: 1fr 1fr; gap: 1.1rem; }
   @media (max-width: 760px) { .vs { grid-template-columns: 1fr; } }
   .vs-card { border: 1px solid var(--border); border-radius: 13px; padding: 1.4rem; background: var(--surface); }
@@ -515,20 +611,6 @@
   .tbar.mem .v { color: var(--green); }
   .bench-foot { margin-top: 1rem; color: var(--faint); font-size: var(--step--1); font-family: var(--mono); line-height: 1.5; }
 
-  /* ---------- BUY VS BUILD ---------- */
-  .bvb { display: grid; grid-template-columns: repeat(auto-fit, minmax(15.5rem, 1fr)); gap: 1.1rem; }
-  @media (max-width: 620px) { .bvb { grid-template-columns: 1fr; } }
-  .bvb-card { border: 1px solid var(--border); border-radius: 12px; padding: 1.4rem 1.3rem; background: var(--surface); }
-  .alt .bvb-card { background: var(--bg); }
-  .bvb-card .ic { font-family: var(--mono); color: var(--hue); font-size: 1.4rem; }
-  .bvb-card:nth-child(1) { --hue: var(--orange); }
-  .bvb-card:nth-child(2) { --hue: var(--violet); }
-  .bvb-card:nth-child(3) { --hue: var(--cyan); }
-  .bvb-card:nth-child(4) { --hue: var(--green); }
-  .bvb-card h3 { font-size: var(--step-0); font-family: var(--sans); font-weight: 700; letter-spacing: 0; margin: .6rem 0 .4rem; }
-  .bvb-card p { color: var(--muted); font-size: var(--step--1); line-height: 1.55; }
-  .bvb-card p b { color: var(--text); font-weight: 600; }
-
   /* ---------- FAQ ---------- */
   .faq { max-width: 820px; display: flex; flex-direction: column; gap: .65rem; }
   .faq details { border: 1px solid var(--border); border-radius: 11px; background: var(--surface); overflow: hidden; transition: border-color .2s; }
@@ -564,10 +646,17 @@
   .foot { display: flex; flex-wrap: wrap; gap: 1rem 2rem; align-items: center; justify-content: space-between; font-family: var(--mono); font-size: var(--step--1); color: var(--faint); }
   .foot a { color: var(--muted); }
   .foot .fl { display: flex; gap: 1.4rem; flex-wrap: wrap; }
+  .foot .gh { display: inline-flex; align-items: center; gap: .4rem; color: var(--text); }
+  .foot .gh svg { width: 15px; height: 15px; fill: currentColor; }
 </style>
 </head>
 <body>
 <script>document.documentElement.className += ' js';</script>
+
+<!-- The GitHub mark, defined once and referenced wherever the repo is linked. -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <symbol id="gh-mark" viewBox="0 0 16 16"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.1-.25-.36-1.07.08-2.2 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.13.18 1.95.08 2.2.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A7.995 7.995 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></symbol>
+</svg>
 
 <!-- ============ NAV ============ -->
 <header class="nav">
@@ -576,10 +665,11 @@
     <nav class="nav-links">
       <a href="#quickstart" class="hide-sm">Quickstart</a>
       <a href="#uses" class="hide-sm">Use cases</a>
-      <a href="#why" class="hide-sm">Why not RAG</a>
+      <a href="#compare" class="hide-sm">Comparisons</a>
       <a href="#benchmarks" class="hide-sm">Benchmarks</a>
       <a href="/showcase/">Showcases</a>
       <a href="/blog/">Blog</a>
+      <a href="https://github.com/memseekai/memseek" class="nav-gh" aria-label="Memseek on GitHub"><svg aria-hidden="true"><use href="#gh-mark"/></svg><span class="lbl">GitHub</span></a>
       <button class="theme-toggle" id="themeBtn" aria-label="Toggle color theme">THEME</button>
       <a href="#waitlist" class="nav-cta">Join the waitlist</a>
     </nav>
@@ -592,17 +682,22 @@
     <div class="wrap">
       <div class="hero-top">
         <div>
-          <span class="eyebrow">Memory infrastructure for agents</span>
+          <span class="eyebrow">Memory for AI applications</span>
           <h1>Agent memory you <span class="hot">declare</span>, not build.</h1>
           <p class="lede">
-            Your app writes records. Memseek scores them, derives what they mean, and serves the
-            few facts that are <b>true now</b>, each dated and cited to the event it came from.
-            Nothing is ever overwritten.
+            <b>Record everything. Turn records into knowledge.</b> Search across everything you've
+            recorded — and everything Memseek has learned from it. Every fact is dated, cited, and
+            traceable to its source.
           </p>
           <div class="hero-cta">
             <a href="#waitlist" class="btn btn-primary">Join the waitlist →</a>
             <a href="#quickstart" class="btn btn-ghost">See it run locally</a>
-            <span class="cta-note">Four commands to a working stack · no API key needed to watch it work</span>
+            <a href="https://github.com/memseekai/memseek" class="btn btn-gh"><svg aria-hidden="true"><use href="#gh-mark"/></svg>memseekai/memseek</a>
+          </div>
+          <div class="hero-run">
+            <code><span class="cd">$</span> make quickstart</code>
+            <span>Postgres + pgvector, the schema, a workspace key. With
+              <b>LLM_FAKE=1</b> the whole loop runs before you spend a token.</span>
           </div>
         </div>
         <ul class="proof">
@@ -618,14 +713,13 @@
           <div class="ytabs" id="ytabs" role="tablist" aria-label="Catalog definitions">
             <button class="ytab" role="tab" aria-selected="true" data-y="0">collections/crm.yaml</button>
             <button class="ytab" role="tab" aria-selected="false" data-y="1">derivations/crm_profile.yaml</button>
-            <button class="ytab" role="tab" aria-selected="false" data-y="2">artifacts/profile_brief.yaml</button>
           </div>
           <span class="live">live · self-maintaining</span>
         </div>
 
         <div class="pane-grid">
           <div class="zone">
-            <div class="zone-h"><b>you declare</b> · yaml, checked into your repo<button class="yall" id="yallBtn" type="button" aria-expanded="false" aria-controls="yzs">all fields</button></div>
+            <div class="zone-h"><b>you declare</b> · yaml you review like a schema migration<button class="yall" id="yallBtn" type="button" aria-expanded="false" aria-controls="yzs">all fields</button></div>
 
             <div class="yzs" id="yzs">
             <div class="yz on" id="y0" role="tabpanel">
@@ -686,36 +780,6 @@
 #   citations a required field — so no citation means no write</span></span>
 <span class="yk">emit</span>: {<span class="yx"><span class="yk">from</span>: <span class="ys">"{{result.records}}"</span>, </span><span class="yk">collection</span>: <span class="ys">user_profiles</span>,
        <span class="yx"><span class="yk">type</span>: <span class="ys">profile</span>, </span><span class="yk">keys</span>: [<span class="ys">role</span>, <span class="ys">commitments</span>, <span class="ys">preferences</span>, <span class="ys">goals</span>]}</pre>
-            </div>
-
-            <div class="yz" id="y2" role="tabpanel">
-              <p class="ycap"><b>What your prompt gets.</b> A declared call signature, then a fixed
-                template with a token budget per block. Drop the result straight into your prompt;
-                the same inputs always render the same bytes.</p>
-<pre class="y"><span class="yk">artifacts</span>:
-  - <span class="yk">name</span>: <span class="ys">crm_profile_brief</span><span class="yx">
-    <span class="yk">version</span>: <span class="yn">1</span>
-    <span class="yk">active</span>: <span class="yn">true</span>               <span class="yc"># publishable without being exposed</span></span>
-    <span class="yk">kind</span>: <span class="ys">prompt</span><span class="yx">
-    <span class="yk">lifecycle</span>: <span class="ys">live</span>            <span class="yc"># rendered on demand, always current</span></span>
-    <span class="yk">parameters</span>:              <span class="yc"># the call signature, checked per render</span>
-      <span class="yk">entity</span>: {<span class="yk">type</span>: <span class="ys">string</span>, <span class="yk">required</span>: <span class="yn">true</span>}
-      <span class="yk">query</span>:  {<span class="yk">type</span>: <span class="ys">string</span>, <span class="yk">required</span>: <span class="yn">true</span>}
-    <span class="yk">blocks</span>:                  <span class="yc"># in order, each with its own ceiling</span>
-      <span class="yk">profile</span>:  {<span class="yk">document</span>: {<span class="yk">entity</span>: <span class="ys">"{{entity}}"</span><span class="yx">,
-                              <span class="yk">collections</span>: [<span class="ys">user_profiles</span>], <span class="yk">status</span>: <span class="ys">active</span></span>},
-                 <span class="yk">max_tokens</span>: <span class="yn">2000</span>}    <span class="yc"># trimmed to fit, never overrun</span>
-      <span class="yk">evidence</span>: {<span class="yk">view</span>: <span class="ys">crm_history@1</span>,<span class="yx">
-                 <span class="yk">args</span>: {<span class="yk">entity</span>: <span class="ys">"{{entity}}"</span>, <span class="yk">query</span>: <span class="ys">"{{query}}"</span>},</span>
-                 <span class="yk">max_tokens</span>: <span class="yn">3000</span>}   <span class="yc"># a pinned view, budgeted</span>
-    <span class="yk">template</span>: |
-      CRM PROFILE
-      {{profile}}<span class="yx">
-
-      SUPPORTING CRM EVENTS
-      {{evidence}}</span><span class="yel">
-      <span class="yc">…</span></span>
-<span class="yc"># plus a manifest per render: input_record_ids, tokens, rendered_sha256</span></pre>
             </div>
             </div>
           </div>
@@ -778,7 +842,7 @@
   <!-- ============ SOURCE STRIP ============ -->
   <div class="integ">
     <div class="wrap integ-inner">
-      <span class="lead">Feed it what you already have</span>
+      <span class="lead">Your app writes down what happens</span>
       <span class="chip">CRM &amp; business apps</span>
       <span class="chip">Calls &amp; transcripts</span>
       <span class="chip">Email &amp; chat</span>
@@ -821,7 +885,7 @@
           <div class="step-side">
             <span class="step-n">02 · DECLARE</span>
             <h3>A memory product is a directory.</h3>
-            <p>Collections, processors, derivations, views, artifacts and a package manifest — <b>versioned YAML you review in a pull request</b>, not code you maintain. This is the whole CRM example, and it ships in the repo.</p>
+            <p>Collections, processors, derivations, views, artifacts and a package manifest — a few files of <b>versioned YAML you review like a schema migration</b>, not code you maintain. This is the whole CRM example, and it ships in the repo.</p>
           </div>
           <div class="code">
             <div class="code-tabs"><button class="t" aria-selected="true" tabindex="-1">catalog</button><span class="fname">examples/crm_profile_catalog/</span></div>
@@ -869,7 +933,7 @@
           <div class="step-side">
             <span class="step-n">04 · READ</span>
             <h3>Four shapes, one layer.</h3>
-            <p>Whatever your agent needs: the current cited beliefs, a bounded cited answer, a ready-made prompt block, or a small MCP tool surface. <b>Same catalog, no second pipeline.</b></p>
+            <p>Whatever your agent needs: the <b>current profile</b>, a bounded cited <b>answer</b> over everything ever recorded, a <b>prompt-ready briefing</b>, or a small MCP tool surface. <b>Same catalog, no second pipeline.</b></p>
           </div>
           <div class="code" id="readCode">
             <div class="code-tabs" role="tablist" aria-label="Read shapes">
@@ -927,6 +991,7 @@ $ memseek mcp
       </div>
 
       <div class="quick-foot reveal">
+        <span>Clone it: <a href="https://github.com/memseekai/memseek"><code>github.com/memseekai/memseek</code></a></span>
         <span>Two processes + PostgreSQL/pgvector — deploy them wherever you already deploy things</span>
         <span>Try it with no provider key: <code>LLM_FAKE=1</code></span>
         <span>Python SDK, HTTP API, or MCP</span>
@@ -941,19 +1006,8 @@ $ memseek mcp
     <div class="wrap">
       <div class="sec-head reveal">
         <span class="eyebrow" style="--hue:var(--cyan)">what you can build</span>
-        <h2>Eight primitives. Every memory design you've read about.</h2>
-        <p>Episodic and semantic memory, reflection, consolidation as in <b>Anthropic's Dreams</b>, a self-wiring graph as in <b>Garry Tan's gbrain</b>. Normally each is its own store and pipeline. Here each is those same eight, arranged differently: <b>YAML you review in a pull request</b>.</p>
-      </div>
-
-      <div class="prims reveal">
-        <div class="prim"><b>collections</b><span>Where records live: an append-only log, or one current value per field.</span></div>
-        <div class="prim"><b>processors</b><span>Small jobs that run the moment a record lands: embed, score, extract.</span></div>
-        <div class="prim"><b>derivations</b><span>Budgeted jobs that turn events into stated facts, each one cited or dropped.</span></div>
-        <div class="prim"><b>triggers</b><span>What starts a derivation: enough events, a count, or a clock. You run no cron.</span></div>
-        <div class="prim"><b>views</b><span>Saved queries (search, graph walks, orphan checks) behind one name.</span></div>
-        <div class="prim"><b>artifacts</b><span>Prompt assembly under a token budget, with a receipt of what went in.</span></div>
-        <div class="prim"><b>packages</b><span>The versioned bundle you publish to a workspace.</span></div>
-        <div class="prim"><b>mcp</b><span>The short list of tools an agent may see, and nothing beyond it.</span></div>
+        <h2>Every memory design you've read about, already running.</h2>
+        <p>Episodic and semantic memory, reflection, consolidation as in <b>Anthropic's Dreams</b>, a self-wiring graph as in <b>Garry Tan's gbrain</b>. Normally each is its own store and pipeline. Here each is the same declared catalog, arranged differently: <b>YAML you review in a pull request</b>.</p>
       </div>
 
       <div class="reveal">
@@ -1006,47 +1060,172 @@ $ memseek mcp
         </div>
       </div>
 
-      <p class="sec-foot reveal">Same eight primitives every time, arranged differently. Six of the
-        seven ship as a runnable example in the repo —
-        <a href="/showcase/">open the walkthroughs</a>.</p>
+      <!-- The whole vocabulary, after the things it builds. Eight nouns is a
+           reference, not an opening argument: a reader who has just seen seven
+           products wants to know what they were made of; a reader who hasn't
+           reads it as an adoption tax. -->
+      <div class="prim-band reveal">
+        <p class="prim-lead">Raw records come in; <b>processors</b> enrich each one (score it, embed
+          it, classify it); <b>derivations</b> combine the enriched records into durable state like
+          profiles and reflections; and <b>views</b> and <b>artifacts</b> hand that state back to
+          your application as search results and finished prompts. When a run goes wrong, the
+          outcome comes back as evidence — a learning signal that can draft a revision to the very
+          skill or policy that produced it, <b>for a human to approve</b>. You describe each stage
+          once, in YAML:</p>
+        <div class="band-h"><span>eight primitives, and that's all of them</span><span>a reference, not a checklist</span></div>
+        <div class="prims">
+          <div class="prim"><b>collections</b><span>Where records live: an append-only log, or one current value per field.</span></div>
+          <div class="prim"><b>processors</b><span>Enrich each record the moment it lands: score it, embed it, classify it.</span></div>
+          <div class="prim"><b>derivations</b><span>Budgeted jobs that combine enriched records into durable state — profiles, reflections — each fact cited or dropped.</span></div>
+          <div class="prim"><b>triggers</b><span>What starts a derivation: enough events, a count, or a clock. You run no cron.</span></div>
+          <div class="prim"><b>views</b><span>Semantic search over everything ever recorded, plus graph walks and orphan checks, behind one name.</span></div>
+          <div class="prim"><b>artifacts</b><span>Prompt-ready briefings assembled on demand, under a token budget, with a receipt of what went in.</span></div>
+          <div class="prim"><b>packages</b><span>The versioned bundle you publish to a workspace.</span></div>
+          <div class="prim"><b>mcp</b><span>The short list of tools an agent may see, and nothing beyond it.</span></div>
+        </div>
+      </div>
+
+      <p class="sec-foot reveal">You only meet two of them to get started — a collection and a
+        derivation. Six of the seven walkthroughs above ship as a runnable example in the repo —
+        <a href="/showcase/">open them</a>.</p>
     </div>
   </section>
 
-  <!-- ============ WHY NOT RAG ============ -->
-  <section id="why">
+  <!-- ============ NAMED COMPARISONS ============ -->
+  <section id="compare">
     <div class="wrap">
       <div class="sec-head reveal">
-        <span class="eyebrow" style="--hue:var(--pink)">why it isn't RAG</span>
-        <h2>Retrieval finds what looks similar.<br>Memory knows what's true now.</h2>
-        <p>Reliable memory is context <em>selection</em>, not context <em>volume</em> — the part a vector search was never built to do.</p>
+        <span class="eyebrow" style="--hue:var(--violet)">how we compare</span>
+        <h2>What you're actually weighing us against.</h2>
+        <p>All three are free, and one ships from the model vendor. Each one below opens with the
+          case for <em>not</em> buying us.</p>
       </div>
-      <div class="vs reveal">
-        <div class="vs-card bad">
-          <h3><span class="k">plain RAG</span> vector search</h3>
-          <ul>
-            <li><span class="m">✕</span><div>Returns chunks that <em>look</em> similar — no idea which one is current.</div></li>
-            <li><span class="m">✕</span><div>Contradictions arrive side by side and the model guesses.</div></li>
-            <li><span class="m">✕</span><div>Dumps the whole history into the prompt to be safe.</div></li>
-            <li><span class="m">✕</span><div>Sources and dates fall off along the way.</div></li>
-          </ul>
+
+      <div class="ctabs reveal">
+        <div class="crail" id="crail" role="tablist" aria-orientation="vertical" aria-label="Comparisons">
+          <button class="ctab" style="--hue:var(--violet)" role="tab" aria-selected="true" aria-controls="c0" data-c="0">
+            <span class="cn">01</span>
+            <b>Building it yourself</b>
+            <span class="cd">Postgres, pgvector, and a nightly job</span>
+          </button>
+          <button class="ctab" style="--hue:var(--cyan)" role="tab" aria-selected="false" aria-controls="c1" data-c="1">
+            <span class="cn">02</span>
+            <b>Anthropic's memory tool</b>
+            <span class="cd">Free, client-side, on Bedrock and Vertex</span>
+          </button>
+          <button class="ctab" style="--hue:var(--amber)" role="tab" aria-selected="false" aria-controls="c2" data-c="2">
+            <span class="cn">03</span>
+            <b>CLAUDE.md / AGENTS.md</b>
+            <span class="cd">A markdown file of rules in your repo</span>
+          </button>
         </div>
-        <div class="vs-card good">
-          <h3><span class="k">memseek</span> declared memory</h3>
-          <ul>
-            <li><span class="m">✓</span><div>Serves the <b>few facts that hold now</b>, with what they superseded still on record.</div></li>
-            <li><span class="m">✓</span><div>Reconciles sources into <b>one coherent picture</b>, and flags real contradictions as events.</div></li>
-            <li><span class="m">✓</span><div>Compact context — <b>~32× fewer tokens</b> than the full history.</div></li>
-            <li><span class="m">✓</span><div>Every belief <b>cites its evidence</b> or is rejected. Point-in-time replay included.</div></li>
-          </ul>
+
+        <div class="cstack">
+          <div class="cpanel on" id="c0" role="tabpanel" style="--hue:var(--violet)">
+            <p class="cverdict"><b>Build it yourself</b> if retrieval quality is the whole problem.
+              pgvector and a table really are enough.</p>
+            <div class="crow">
+              <span class="clab pro">does better</span>
+              <p><b>Two weeks</b> gets you embed → store → retrieve that works, on a schema you wrote, with nothing new in the request path.</p>
+            </div>
+            <div class="crow">
+              <span class="clab">where it stops</span>
+              <p>The next <b>six to twelve engineer-months</b> aren't retrieval — they're supersession, citations, point-in-time replay, and recursive erase. Easy to defer, expensive to add once your app reads its history through the shape you picked in week two.</p>
+            </div>
+          </div>
+
+          <div class="cpanel" id="c1" role="tabpanel" style="--hue:var(--cyan)">
+            <p class="cverdict"><b>Use the memory tool</b> if one agent keeping its own notes is the
+              job. It costs nothing and it's already there.</p>
+            <div class="crow">
+              <span class="clab pro">does better</span>
+              <p><b>$0 beyond tokens</b>, and the files stay in your infrastructure — the model issues file commands your handler executes, so the vendor stores nothing.</p>
+            </div>
+            <div class="crow">
+              <span class="clab">where it stops</span>
+              <p>It's the model's notebook, not your system of record. <code>str_replace</code> overwrites, so last quarter's value is <b>gone</b> — and there's no schema refusing a bad write, no citation naming the event a line came from.</p>
+            </div>
+          </div>
+
+          <div class="cpanel" id="c2" role="tabpanel" style="--hue:var(--amber)">
+            <p class="cverdict"><b>Keep CLAUDE.md</b> if you have fewer than 40 rules and no audit
+              requirement. A memory layer would be overhead.</p>
+            <div class="crow">
+              <span class="clab pro">does better</span>
+              <p>Free, in version control, reviewed in a pull request, and <b>every agent tool already reads it</b>. A human wrote every line, so a human can delete any line.</p>
+            </div>
+            <div class="crow">
+              <span class="clab">where it stops</span>
+              <p>Four things break as it grows: <b>nothing supersedes</b>, so changed rules sit next to the old ones; it's a prompt rather than a store, so every rule competes for context on every task; <b>no provenance</b>, so stale and live constraints look identical and nobody deletes either; and it only learns by hand.</p>
+            </div>
+          </div>
         </div>
       </div>
-      <p class="sec-foot reveal">The long version, and the failure it comes from:
+
+      <!-- the settled question, kept because the points still hold -->
+      <div class="reveal" style="margin-top:1.9rem">
+        <div class="band-h"><span>and the question that used to come first</span><span>retrieval is a primitive here, not a rival</span></div>
+        <div class="vs">
+          <div class="vs-card bad">
+            <h3><span class="k">plain RAG</span> vector search</h3>
+            <ul>
+              <li><span class="m">✕</span><div>Returns chunks that <em>look</em> similar — no idea which one is current.</div></li>
+              <li><span class="m">✕</span><div>Contradictions arrive side by side and the model guesses.</div></li>
+              <li><span class="m">✕</span><div>Dumps the whole history into the prompt to be safe.</div></li>
+              <li><span class="m">✕</span><div>Sources and dates fall off along the way.</div></li>
+            </ul>
+          </div>
+          <div class="vs-card good">
+            <h3><span class="k">memseek</span> declared memory</h3>
+            <ul>
+              <li><span class="m">✓</span><div>Serves the <b>few facts that hold now</b>, with what they superseded still on record.</div></li>
+              <li><span class="m">✓</span><div>Reconciles sources into <b>one coherent picture</b>, and flags real contradictions as events.</div></li>
+              <li><span class="m">✓</span><div>Compact context — <b>~32× fewer tokens</b> than the full history.</div></li>
+              <li><span class="m">✓</span><div>Every belief <b>cites its evidence</b> or is rejected. Point-in-time replay included.</div></li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <p class="sec-foot reveal">You already know RAG isn't memory — hybrid retrieval is one
+        primitive inside memseek, not the product. The long version, and the failure it comes from:
         <a href="/blog/why-current-beats-similar/">Your agent doesn't need more context. It needs the current context.</a></p>
     </div>
   </section>
 
+  <!-- ============ THE GAP, ITEMIZED ============
+       The receipt for the "six to twelve engineer-months" figure one section up.
+       Each item is a confirmed capability, not a roadmap entry. -->
+  <section id="buildvsbuy" class="alt">
+    <div class="wrap">
+      <div class="sec-head reveal">
+        <span class="eyebrow" style="--hue:var(--green)">the governance gap</span>
+        <h2>Six to twelve engineer-months, itemized.</h2>
+        <p>This is what separates a retrieval layer that works from one you'd put in front of an
+          auditor. It is also the entire reason to not build this yourself — every item below is
+          <em>declared</em> here, in YAML you review in a pull request.</p>
+      </div>
+
+      <div class="prims reveal">
+        <div class="prim"><b>supersession</b><span>A rewrite never erases. The previous version stays addressable, so "what did we believe then" has an answer.</span></div>
+        <div class="prim"><b>citations or nothing</b><span>Citations are a required field of the output schema. A belief with no evidence isn't softened — it's dropped.</span></div>
+        <div class="prim"><b>point-in-time replay</b><span>Reconstruct any entity's beliefs as of any date, from version history rather than a backup you hope exists.</span></div>
+        <div class="prim"><b>contradiction detection</b><span>Sources that disagree become first-class records, instead of two chunks in one prompt and a coin flip.</span></div>
+        <div class="prim"><b>bounded cost</b><span>Every derivation caps its calls, tokens, rows and wall-clock. A runaway model is a config error, not an invoice.</span></div>
+        <div class="prim"><b>audited runs</b><span>Every derivation records its trigger, model, inputs and outputs. Nothing is promoted behind your back.</span></div>
+        <div class="prim"><b>recursive erase</b><span>Delete a record and everything derived from it goes too. Right-to-be-forgotten that closes over the lineage.</span></div>
+        <div class="prim"><b>retention jobs</b><span>Scheduled expiry declared alongside everything else, not a script one person remembers owning.</span></div>
+      </div>
+
+      <p class="sec-foot reveal">None of these improve a demo, which is exactly why they get deferred.
+        And nothing here locks shut: the definitions are YAML in your repo, models sit behind aliases
+        you repoint at will, and the memory itself is <b>ordinary Postgres rows you can query and
+        export</b> — leave with your data whenever you like.</p>
+    </div>
+  </section>
+
   <!-- ============ BENCHMARKS ============ -->
-  <section id="benchmarks" class="alt">
+  <section id="benchmarks">
     <div class="wrap">
       <div class="sec-head reveal">
         <span class="eyebrow" style="--hue:var(--green)">public benchmarks</span>
@@ -1078,23 +1257,6 @@ $ memseek mcp
     </div>
   </section>
 
-  <!-- ============ BUY VS BUILD ============ -->
-  <section id="buildvsbuy">
-    <div class="wrap">
-      <div class="sec-head reveal">
-        <span class="eyebrow" style="--hue:var(--violet)">buy vs. build</span>
-        <h2>The same reason you don't hand-roll your own Postgres.</h2>
-        <p>A real memory layer is substantial engineering most teams don't solve well. The question isn't whether you could build it. It's whether that's the best use of your team.</p>
-      </div>
-      <div class="bvb reveal">
-        <div class="bvb-card"><div class="ic">◐</div><h3>Value on day one</h3><p>Declare a catalog and you have a working memory product — <b>faster than an internal build</b>, with triggers, limits, retries, and audits already solved.</p></div>
-        <div class="bvb-card"><div class="ic">◔</div><h3>It compounds</h3><p>Ranking, routing, and temporal rules tune to <b>your data</b>, and every belief keeps its lineage — until replacing it means rebuilding how your app reads its own history.</p></div>
-        <div class="bvb-card"><div class="ic">✓</div><h3>You can see it working</h3><p>Every derivation is an <b>audited run</b> with its trigger, model, inputs, and citations. No black box, and nothing promoted behind your back.</p></div>
-        <div class="bvb-card"><div class="ic">⇄</div><h3>Nothing locks shut</h3><p>The definitions are YAML in your repo, the models sit behind aliases you repoint at will, and the memory itself is <b>ordinary Postgres rows you can export</b>. Deploy it where you like; leave with your data if you ever want to.</p></div>
-      </div>
-    </div>
-  </section>
-
   <!-- ============ FAQ ============ -->
   <section id="faq" class="alt">
     <div class="wrap">
@@ -1104,10 +1266,18 @@ $ memseek mcp
       </div>
       <div class="faq reveal">
         <details open>
-          <summary>Isn't this just RAG?<span class="pm">+</span></summary>
-          <div class="ans">No. RAG retrieves text that looks similar. Memseek maintains <b>current, keyed beliefs</b> derived from immutable events: it knows what superseded what, flags contradictions as first-class records, requires a citation for every derived belief, and serves <b>~32× fewer tokens</b>. On public benchmarks it beats standard dense retrieval by <b>+7.5 to +10.8 points</b> on multi-hop QA. Hybrid retrieval is <em>one</em> primitive inside it, not the product.</div>
+          <summary>Why wouldn't we just build this on Postgres ourselves?<span class="pm">+</span></summary>
+          <div class="ans">You could, and the first two weeks go well — pgvector, a records table, an embed job, and retrieval that genuinely works. What takes the next <b>six to twelve engineer-months</b> isn't retrieval quality: it's supersession, citation enforcement, point-in-time reconstruction, contradiction detection, per-derivation cost ceilings, audited runs, and erase that closes over everything derived from a deleted record. If none of that is a requirement for you, <b>build it</b> — we'd rather you did. If all of it is, that's the whole reason we exist, and you still end up with ordinary Postgres rows you can query and export.</div>
         </details>
         <details open>
+          <summary>Anthropic ships a memory tool, and it's free. Why pay for this?<span class="pm">+</span></summary>
+          <div class="ans">Because it answers a different question, and you should know that before you talk to us. Anthropic's memory tool is generally available, works on Bedrock and Vertex, and costs <b>nothing beyond tokens</b>: the model issues file commands — <code>view</code>, <code>create</code>, <code>str_replace</code>, <code>insert</code>, <code>delete</code>, <code>rename</code> — that <em>your</em> handler executes against storage <em>you</em> own. Nothing is stored on the vendor's side. For one agent keeping notes for itself, use it. What it isn't: <b>schema-validated</b> (the model decides what the file says), <b>supersession-preserving</b> (<code>str_replace</code> overwrites, so the previous value is gone), <b>cited</b> (a line never names the event it came from), <b>budgeted</b> (no token ceiling per block, no manifest of what went into the prompt), or <b>shared</b> (it's one agent's directory, not one current answer across several agents and apps). Those five properties are the product.</div>
+        </details>
+        <details>
+          <summary>We already have CLAUDE.md / AGENTS.md.<span class="pm">+</span></summary>
+          <div class="ans">Then you have the right tool for the size you're at. Under roughly <b>40 rules</b> with nobody auditing them, keep it — a memory layer would be overhead. Four things break as it grows: nothing supersedes, so a changed rule leaves two rules that disagree; it's a prompt rather than a store, so every rule competes for context on every task and the file that grows is the one that gets ignored; there's no provenance, so a stale constraint and a live one look identical and nobody dares delete either; and it only learns by hand, so an approach you rejected last month is a rule only if someone remembered to write it down. Memseek keeps the property you actually like — definitions reviewed in a pull request — and moves the facts themselves into dated, cited records that supersede instead of overwrite.</div>
+        </details>
+        <details>
           <summary>How long until I see it working?<span class="pm">+</span></summary>
           <div class="ans">Four commands. <code>make quickstart</code> brings up PostgreSQL&nbsp;16 + pgvector, applies the schema and prints a workspace key; then you start the API and the worker. <b>Set <code>LLM_FAKE=1</code> and you need no provider account at all</b> — a deterministic stub stands in for the model, so the whole loop runs and you can read the audited run it produced. <code>make e2e</code> does that end to end as an acceptance test. Point it at a real model when you want real language out of it.</div>
         </details>
@@ -1117,7 +1287,7 @@ $ memseek mcp
         </details>
         <details>
           <summary>What do I actually get back?<span class="pm">+</span></summary>
-          <div class="ans">Four shapes from the same catalog: a <b>document</b> of current cited beliefs, a bounded <b>cited answer</b> with declared gaps, a deterministic <b>prompt artifact</b> with a hashed input manifest, or a small <b>MCP tool surface</b>. Plus ordinary hybrid search when you want the raw records.</div>
+          <div class="ans">Four shapes from the same catalog: the <b>current profile</b> as a document of cited beliefs, a bounded <b>cited answer</b> with declared gaps, a <b>prompt-ready briefing</b> assembled on demand with a hashed input manifest, or a small <b>MCP tool surface</b>. Plus semantic search over everything ever recorded, when you want the raw records.</div>
         </details>
         <details>
           <summary>How much control do I have over cost and behavior?<span class="pm">+</span></summary>
@@ -1136,12 +1306,16 @@ $ memseek mcp
           <div class="ans">A PostgreSQL instance — the kind you are probably already paying for — plus the model calls you declare, and you declare their ceiling per derivation: <code>max_llm_calls</code>, <code>max_total_tokens</code>, <code>max_wall_s</code>. Reading is the cheap part: roughly <b>3,200 tokens of assembled context per question</b> instead of ~101,000 for the raw history, on every call your agent makes for the life of the product. Several adapters run at <code>max_llm_calls: 0</code> and cost nothing but Postgres.</div>
         </details>
         <details>
-          <summary>How is this different from the memory products I've already seen?<span class="pm">+</span></summary>
-          <div class="ans">Most sit in one of two camps: a service that keeps your snippets and hands back whatever looks relevant, or memory built into a model vendor's product, where the store, the rules and the model are all theirs. Memseek is <b>infrastructure, and the parts that matter stay yours</b>: the rules are YAML in your repo and reviewed like any other change, the records are ordinary Postgres rows, the model is an alias you can repoint at any provider, every derived fact has to cite the events it came from, and nothing is promoted unless you declared that it could be. We put one of those comparisons on the page side by side — see the <a href="/showcase/dreams/">dreams showcase</a>.</div>
+          <summary>Isn't this just RAG?<span class="pm">+</span></summary>
+          <div class="ans">You already know it isn't, so briefly: RAG retrieves text that looks similar; memseek maintains <b>current, keyed beliefs</b> derived from immutable events. It knows what superseded what, flags contradictions as first-class records, requires a citation for every derived belief, and serves <b>~32× fewer tokens</b>. On public benchmarks it beats standard dense retrieval by <b>+7.5 to +10.8 points</b> on multi-hop QA. Hybrid retrieval is <em>one</em> primitive inside it, not the product — which is why the comparisons that decide anything are <a href="#compare">the other three</a>.</div>
+        </details>
+        <details>
+          <summary>What about the hosted memory services?<span class="pm">+</span></summary>
+          <div class="ans">The common shape is a service that keeps your snippets and hands back whatever looks relevant, with the store and the ranking rules on their side. That's a reasonable trade if speed to first value is the only axis. Memseek is <b>infrastructure, and the parts that matter stay yours</b>: the rules are YAML in your repo and reviewed like any other change, the records are ordinary Postgres rows, the model is an alias you can repoint at any provider, every derived fact must cite the events it came from, and nothing is promoted unless you declared that it could be. For a side-by-side against a specific approach, see the <a href="/showcase/dreams/">dreams showcase</a>.</div>
         </details>
         <details>
           <summary>How do I get access?<span class="pm">+</span></summary>
-          <div class="ans">Memseek is in <b>early access</b>. <a href="#waitlist">Join the waitlist</a> and tell us what your agent keeps forgetting — that is genuinely how we choose what to harden next. If you are running agents in production today, say so; those teams go first.</div>
+          <div class="ans">The code is at <a href="https://github.com/memseekai/memseek">github.com/memseekai/memseek</a> — clone it and run the quickstart without talking to anyone. Hosted Memseek is in <b>early access</b>: <a href="#waitlist">join the waitlist</a> and tell us what your agent keeps forgetting — that is genuinely how we choose what to harden next. If you are running agents in production today, say so; those teams go first.</div>
         </details>
       </div>
     </div>
@@ -1165,7 +1339,8 @@ $ memseek mcp
             marginwidth="0"
             title="Join the Memseek waitlist"></iframe>
         </div>
-        <span class="cta-note">Early access for agent teams</span>
+        <span class="cta-note">Early access for agent teams · or start from the source:
+          <a href="https://github.com/memseekai/memseek">github.com/memseekai/memseek</a></span>
         <noscript><p class="waitlist-fallback"><a href="https://tally.so/r/EkrGDN">Join the Memseek waitlist</a></p></noscript>
       </div>
     </div>
@@ -1176,9 +1351,11 @@ $ memseek mcp
   <div class="wrap foot">
     <div class="brand" style="font-size:.95rem;"><span class="dot"></span>memseek</div>
     <div class="fl">
+      <a href="https://github.com/memseekai/memseek" class="gh"><svg aria-hidden="true"><use href="#gh-mark"/></svg>GitHub</a>
       <a href="#quickstart">Quickstart</a>
       <a href="#uses">Use cases</a>
-      <a href="#why">Why not RAG</a>
+      <a href="#compare">Comparisons</a>
+      <a href="#buildvsbuy">Buy vs. build</a>
       <a href="#benchmarks">Benchmarks</a>
       <a href="#faq">FAQ</a>
       <a href="/showcase/">Showcases</a>
@@ -1471,6 +1648,32 @@ if (typeof Tally !== "undefined") {
       clr();
       if (staticMode) { finalState(); return; }
       scene(0);
+    });
+  })();
+
+  /* ===== comparisons: vertical tabs ===== */
+  (function () {
+    var rail = document.getElementById('crail');
+    if (!rail) return;
+    var tabs = Array.prototype.slice.call(rail.querySelectorAll('.ctab'));
+    var panes = tabs.map(function (t) { return document.getElementById('c' + t.getAttribute('data-c')); });
+
+    function show(n) {
+      tabs.forEach(function (t, k) { t.setAttribute('aria-selected', k === n ? 'true' : 'false'); });
+      panes.forEach(function (p, k) { if (p) p.classList.toggle('on', k === n); });
+    }
+    tabs.forEach(function (t, k) {
+      t.addEventListener('click', function () { show(k); });
+      /* A vertical tablist is expected to move with the arrow keys; the buttons
+         stay in the tab order, so this is an addition rather than a substitute. */
+      t.addEventListener('keydown', function (e) {
+        var d = e.key === 'ArrowDown' ? 1 : e.key === 'ArrowUp' ? -1 : 0;
+        if (!d) return;
+        e.preventDefault();
+        var n = (k + d + tabs.length) % tabs.length;
+        show(n);
+        tabs[n].focus();
+      });
     });
   })();
 

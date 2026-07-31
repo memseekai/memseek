@@ -130,6 +130,11 @@ header.nav {
   cursor: pointer; letter-spacing: .05em;
 }
 .theme-toggle:hover { color: var(--orange); border-color: var(--orange); }
+/* The repo link, same treatment the landing page gives it: icon plus wordmark,
+   and the label drops on narrow screens rather than the whole link. */
+.nav-gh { display: inline-flex; align-items: center; gap: .45rem; }
+.nav-gh svg { width: 16px; height: 16px; fill: currentColor; flex: none; }
+@media (max-width: 700px) { .nav-gh .lbl { display: none; } }
 @media (max-width: 900px) { .nav-links .hide-sm { display: none; } }
 
 /* ---------- FOOTER ---------- */
@@ -137,6 +142,8 @@ footer { border-top: 1px solid var(--border); padding-block: 2.5rem; }
 .foot { display: flex; flex-wrap: wrap; gap: 1rem 2rem; align-items: center; justify-content: space-between; font-family: var(--mono); font-size: var(--step--1); color: var(--faint); }
 .foot a { color: var(--muted); }
 .foot .fl { display: flex; gap: 1.4rem; flex-wrap: wrap; }
+.foot .gh { display: inline-flex; align-items: center; gap: .4rem; color: var(--text); }
+.foot .gh svg { width: 15px; height: 15px; fill: currentColor; }
 
 /* ---------- shared bits ---------- */
 .tag-pill {
