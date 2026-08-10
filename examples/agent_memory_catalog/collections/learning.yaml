@@ -1,0 +1,87 @@
+collections:
+  # Selected outcomes worth changing future knowledge, not a trace store.  A
+  # signal names the artifact use it refers to and carries bounded evidence, so
+  # a candidate derivation can diagnose a pattern without querying any external
+  # observability backend.
+  - name: learning_signals
+    version: 1
+    active: true
+    mode: event
+    schema:
+      type: object
+      required: [text, artifact_use, signal]
+      properties:
+        text:
+          type: string
+          maxLength: 4096
+        artifact_use:
+          type: object
+          required: [id, artifact, render_sha256]
+          properties:
+            id: {type: string, format: uuid}
+            artifact:
+              type: object
+              required: [name, version, definition_hash]
+              properties:
+                name: {type: string}
+                version: {type: integer, minimum: 1}
+                definition_hash: {type: string, pattern: "^[0-9a-f]{64}$"}
+              additionalProperties: false
+            render_sha256: {type: string, pattern: "^[0-9a-f]{64}$"}
+            snapshot_id: {type: [string, "null"]}
+            learning_target: {type: [object, "null"]}
+          additionalProperties: false
+        signal:
+          type: object
+          required: [kind, source]
+          properties:
+            kind:
+              type: string
+              enum:
+                - thumbs_up
+                - thumbs_down
+                - correction
+                - task_success
+                - task_failure
+                - exception
+                - evaluation
+            source:
+              type: string
+              enum: [end_user, operator, evaluator, application]
+            # Optional members are omitted rather than written as null: a
+            # declared field must hold its declared scalar type when present.
+            label: {type: string, maxLength: 128}
+            score: {type: number, minimum: 0, maximum: 1}
+          additionalProperties: false
+        evidence:
+          type: object
+          properties:
+            comment: {type: string}
+            expected: {type: string}
+            actual_excerpt: {type: string}
+          additionalProperties: false
+        # Informational only.  A reference into an external trace backend may
+        # expire, be sampled out, or live in another tenant, so no processor may
+        # depend on fetching it.
+        execution_refs:
+          type: array
+          maxItems: 8
+          items:
+            type: object
+            required: [system, id]
+            properties:
+              system: {type: string, maxLength: 64}
+              id: {type: string, maxLength: 256}
+              url: {type: [string, "null"]}
+            additionalProperties: false
+      additionalProperties: false
+    fields:
+      signal_kind: {path: content.signal.kind, type: string, filter: true, project: true}
+      signal_source: {path: content.signal.source, type: string, filter: true, project: true}
+      signal_label: {path: content.signal.label, type: string, filter: true, project: true}
+      signal_score:
+        {path: content.signal.score, type: number, filter: true, sort: true, project: true}
+      target_artifact:
+        {path: content.artifact_use.artifact.name, type: string, filter: true, project: true}
+    required_processors: []
+    search_profile: pg_default

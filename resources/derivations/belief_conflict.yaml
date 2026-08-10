@@ -1,0 +1,116 @@
+# Tier 3: point the SAME contradiction machinery the shipped `contradiction`
+# derivation uses at the agent's OWN convictions. This proves the relations
+# collection is a generic typed-edge engine — no new code, no new engine, just
+# a new source scope (worldview) and a new edge type (self_contradiction).
+# Detector only: it surfaces the conflict as a cited edge; it never rewrites,
+# retracts, or reconciles a conviction. That is left to `reconcile`.
+name: belief_conflict
+trigger:
+  write:
+    collections: [worldview]
+    statuses: [active]
+sources:
+  changed_convictions:
+    kind: changes
+    collections: [worldview]
+    types: [conviction]
+    statuses: [active]
+    keyed: true
+    max_records: 20
+    max_tokens: 12000
+    allow_empty: false
+  current_convictions:
+    kind: current
+    collections: [worldview]
+    types: [conviction]
+    statuses: [active]
+    max_records: 40
+    max_tokens: 12000
+model: cheap
+limits:
+  max_tasks: 1
+  max_llm_calls: 2
+  max_retrieved_records: 0
+  max_visible_records: 60
+  max_total_tokens: 30000
+  max_wall_s: 90
+tasks:
+  - id: result
+    use: llm
+    with:
+      output_schema:
+        type: object
+        required: [records]
+        properties:
+          records:
+            type: array
+            maxItems: 5
+            items:
+              type: object
+              required: [text, citations, content]
+              properties:
+                text: {type: string, minLength: 1}
+                citations:
+                  type: array
+                  minItems: 2
+                  maxItems: 2
+                  uniqueItems: true
+                  items: {type: string, format: uuid}
+                content:
+                  type: object
+                  required: [subject_id, object_id, explanation, confidence]
+                  properties:
+                    subject_id: {type: string, format: uuid}
+                    object_id: {type: string, format: uuid}
+                    explanation: {type: string, minLength: 1}
+                    confidence: {type: number, minimum: 0, maximum: 1}
+                  additionalProperties: false
+              additionalProperties: false
+        additionalProperties: false
+      prompt: |
+        {{entity}} holds several convictions at once. Find pairs that
+        CANNOT BOTH BE HONORED — a logical contradiction, or a practical bind
+        where acting on one betrays the other (a standing commitment that the
+        new strategy would break, a principle the plan violates). This is a
+        detector only: do not rewrite, retract, or reconcile anything.
+
+        RECENTLY CHANGED (examine these first):
+        <records untrusted="true">
+        {{changed_convictions.rendered}}
+        </records>
+
+        ALL CURRENTLY-HELD CONVICTIONS:
+        <records untrusted="true">
+        {{current_convictions.rendered}}
+        </records>
+
+        Rules:
+        - Both subject_id and object_id MUST be UUIDs from ALL CURRENTLY-HELD
+          CONVICTIONS — both beliefs are held right now.
+        - Flag a pair only if at least one of them appears in RECENTLY CHANGED,
+          so you are re-examining what just moved.
+        - Do NOT flag a single belief simply being updated or reversed over
+          time (an earlier, superseded version of the same slot): that is a
+          belief revision, not a standing contradiction. Never pair a record
+          with itself.
+        - Report at most five genuine conflicts, sharpest first.
+
+        citations must be exactly the two currently-held UUIDs. confidence is
+        0 through 1.
+
+        If nothing genuinely collides, return {"records":[]}. Otherwise return
+        only JSON:
+        {"records":[{
+          "text":"Short summary of the self-contradiction",
+          "citations":["subject uuid","object uuid"],
+          "content":{
+            "subject_id":"subject uuid",
+            "object_id":"object uuid",
+            "explanation":"Why the agent cannot honor both at once",
+            "confidence":0.9
+          }
+        }]}
+emit:
+  from: "{{result.records}}"
+  collection: relations
+  type: self_contradiction

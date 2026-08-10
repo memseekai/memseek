@@ -1,0 +1,21 @@
+collections:
+  - name: atoms
+    version: 1
+    active: true
+    mode: event
+    schema:
+      type: object
+      required: [text, kind, confidence]
+      properties:
+        text: {type: string, minLength: 1}
+        kind:
+          type: string
+          enum: [fact, preference, commitment, decision, outcome, relationship]
+        confidence: {type: number, minimum: 0, maximum: 1}
+      additionalProperties: false
+    fields:
+      kind: {path: content.kind, type: string, filter: true, project: true}
+      confidence: {path: content.confidence, type: number, filter: true, sort: true, project: true}
+    required_processors: [embedding_v1]
+    search_profile: pg_default
+    answerable: true

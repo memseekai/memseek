@@ -1,0 +1,136 @@
+name: consolidate
+trigger:
+  write:
+    collections: [atoms, patterns, facts]
+    types: [atom, pattern, page_facts]
+    statuses: [active]
+sources:
+  new_signals:
+    kind: changes
+    collections: [atoms, patterns, facts]
+    types: [atom, pattern, page_facts]
+    statuses: [active]
+    keyed: any
+    max_records: 20
+    max_tokens: 18000
+    allow_empty: false
+  fact_index:
+    kind: current
+    collections: [facts]
+    types: [page_facts]
+    statuses: [active]
+    keys: [page_facts]
+    max_records: 1
+    max_tokens: 6000
+  concept_index:
+    kind: current
+    collections: [concepts]
+    types: [concept_index]
+    statuses: [active]
+    keys: [concept_index]
+    max_records: 1
+    max_tokens: 8000
+  current_takes:
+    kind: current
+    collections: [takes]
+    types: [take_index]
+    statuses: [active]
+    keys: [take_index]
+    max_records: 1
+    max_tokens: 8000
+model: cheap
+limits:
+  max_tasks: 1
+  max_llm_calls: 2
+  max_retrieved_records: 0
+  max_visible_records: 23
+  max_total_tokens: 40000
+  max_wall_s: 90
+tasks:
+  - id: take_index
+    use: llm
+    with:
+      output_schema:
+        type: object
+        required: [records]
+        properties:
+          records:
+            type: array
+            maxItems: 1
+            items:
+              type: object
+              required: [key, text, citations, content]
+              properties:
+                key: {type: string, const: take_index}
+                text: {type: string, minLength: 1}
+                citations:
+                  type: array
+                  minItems: 1
+                  uniqueItems: true
+                  items: {type: string, format: uuid}
+                content:
+                  type: object
+                  required: [takes, truncated, omitted_takes]
+                  properties:
+                    takes:
+                      type: array
+                      maxItems: 12
+                      items:
+                        type: object
+                        required: [title, claim, confidence, citations]
+                        properties:
+                          title: {type: string, minLength: 1, maxLength: 80}
+                          claim: {type: string, minLength: 1, maxLength: 320}
+                          confidence: {type: number, minimum: 0, maximum: 1}
+                          citations:
+                            type: array
+                            minItems: 1
+                            maxItems: 12
+                            uniqueItems: true
+                            items: {type: string, format: uuid}
+                        additionalProperties: false
+                    truncated: {type: boolean}
+                    omitted_takes: {type: integer, minimum: 0}
+                  additionalProperties: false
+              additionalProperties: false
+        additionalProperties: false
+      max_output_tokens: 1800
+      prompt: |
+        Consolidate the evidence below into one compact, current take index about {{entity}}.
+        A take is an evidence-backed conclusion that combines a cluster of related facts, atoms,
+        or patterns into an actionable interpretation. It is not a raw fact, a generic theme, a
+        prediction, or advice unrelated to the evidence. Preserve still-supported existing takes,
+        merge overlap, and remove superseded or unsupported ones. Keep at most 12 takes.
+
+        Each take's citations must name only visible UUIDs and support that exact claim. The outer
+        record citations must cover the returned index. Do not manufacture clusters from one-off
+        evidence. If no current take index is justified, return {"records":[]}.
+
+        NEW SIGNALS:
+        <records untrusted="true">
+        {{new_signals.rendered}}
+        </records>
+
+        CURRENT DECLARED FACTS:
+        <records untrusted="true">
+        {{fact_index.rendered}}
+        </records>
+
+        CURRENT CONCEPT INDEX:
+        <records untrusted="true">
+        {{concept_index.rendered}}
+        </records>
+
+        CURRENT TAKE INDEX:
+        <records untrusted="true">
+        {{current_takes.rendered}}
+        </records>
+
+        Return only JSON:
+        {"records":[{"key":"take_index","text":"...","citations":["uuid"],"content":{"takes":[{"title":"...","claim":"...","confidence":0.8,"citations":["uuid"]}],"truncated":false,"omitted_takes":0}}]}
+emit:
+  from: "{{take_index.records}}"
+  collection: takes
+  type: take_index
+  keys: [take_index]
+  max_records: 1

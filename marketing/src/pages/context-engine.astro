@@ -1,0 +1,314 @@
+---
+/**
+ * The category page, and the main search surface for "context engine" /
+ * "context engineering" / "agent context".
+ *
+ * Deliberately short. It answers four questions and stops: what a context
+ * engine is, what shape it has, how it works, and what an agent actually
+ * receives. The arguments against RAG and against memory stores are one line
+ * in the headline — a developer arriving here already knows them, and the
+ * landing page carries the product detail.
+ *
+ * Every claim here is one the landing page also makes and the repo implements.
+ */
+import BaseLayout from '../layouts/BaseLayout.astro';
+
+/** The four stages. One sentence each — the landing page has the long form. */
+const stages = [
+  {
+    hue: 'var(--orange)',
+    n: '01 · observe',
+    title: 'Capture evidence',
+    body: 'Append what happened: events, documents, conversations, tool results, agent outcomes.',
+  },
+  {
+    hue: 'var(--cyan)',
+    n: '02 · maintain',
+    title: 'Turn evidence into state',
+    body: 'Keep current facts, what they superseded, and the provenance behind both.',
+  },
+  {
+    hue: 'var(--violet)',
+    n: '03 · assemble',
+    title: 'Build context for one task',
+    body: 'Rank what is relevant, then cut it to a declared token budget.',
+  },
+  {
+    hue: 'var(--green)',
+    n: '04 · serve',
+    title: 'Hand it to the agent',
+    body: 'Over the SDK, the HTTP API, or a short list of MCP tools you declared.',
+  },
+];
+---
+
+<BaseLayout
+  title="What is a context engine? — Memseek"
+  description="A context engine continuously turns changing evidence into the compact, trustworthy context an agent needs for its current task. How Memseek maintains current, cited, bounded agent context from versioned YAML over Postgres."
+>
+  <section class="head">
+    <div class="wrap">
+      <span class="eyebrow" style="--hue:var(--violet)">context engine</span>
+      <h1>
+        RAG finds information.<br />
+        Memory remembers information.<br />
+        <span class="hot">A context engine decides what the agent should know now.</span>
+      </h1>
+      <p class="lede">
+        Not the most similar passage. Not the whole history. <b>The few things that are still
+        true</b>, with the evidence attached.
+      </p>
+      <div class="ctas">
+        <a class="btn btn-primary" href="/#quickstart">Run it locally →</a>
+        <a class="btn btn-ghost" href="https://github.com/memseekai/memseek">View on GitHub</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ THE DEFINITION ============ -->
+  <section id="definition" class="alt">
+    <div class="wrap">
+      <div class="defs">
+        <div class="def">
+          <span class="dk">the category</span>
+          <p>
+            A <b>context engine</b> continuously turns changing evidence into the compact,
+            trustworthy context an agent needs for its current task.
+          </p>
+        </div>
+        <div class="def now">
+          <span class="dk">memseek, specifically</span>
+          <p>
+            <b>Memseek</b> turns changing evidence into current, cited knowledge and assembles it
+            for agents on demand — from rules you declare in versioned YAML, over data that stays
+            in your Postgres.
+          </p>
+        </div>
+      </div>
+
+      <div class="arch">
+        <div class="arch-col">
+          <span class="ah">data + events</span>
+          <ul class="feed">
+            <li>CRM &amp; business apps</li>
+            <li>documents</li>
+            <li>conversations &amp; calls</li>
+            <li>tool results</li>
+            <li>agent traces &amp; outcomes</li>
+          </ul>
+        </div>
+
+        <span class="arrow" aria-hidden="true">→</span>
+
+        <div class="engine">
+          <span class="eh">memseek<br /><b>context engine</b></span>
+          <ul class="verbs">
+            <li>retrieve</li>
+            <li>derive</li>
+            <li>supersede</li>
+            <li>reconcile</li>
+            <li>cite</li>
+            <li>assemble</li>
+          </ul>
+        </div>
+
+        <span class="arrow" aria-hidden="true">→</span>
+
+        <div class="arch-col out">
+          <span class="ah">current context</span>
+          <ul class="feed">
+            <li>what is true now</li>
+            <li>+ what it superseded</li>
+            <li>+ provenance</li>
+            <li>+ a token budget</li>
+          </ul>
+          <span class="dest">→ any agent</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ THE FOUR STAGES ============ -->
+  <section id="how">
+    <div class="wrap">
+      <div class="sec-head">
+        <span class="eyebrow" style="--hue:var(--cyan)">how it works</span>
+        <h2>Observe → Maintain → Assemble → Serve.</h2>
+        <p>Four stages, described once in a folder of YAML.</p>
+      </div>
+
+      <ol class="stages">
+        {
+          stages.map((s) => (
+            <li class="stage" style={`--hue: ${s.hue}`}>
+              <span class="sn">{s.n}</span>
+              <b>{s.title}</b>
+              <p>{s.body}</p>
+            </li>
+          ))
+        }
+      </ol>
+
+      <p class="sec-foot">
+        The stage that separates a context engine from a memory store is <b>maintain</b>. A store
+        keeps what you wrote; an engine keeps deciding what it means as new evidence lands — which
+        is why a fact can stop being true here without anyone deleting anything.
+        <a href="/blog/why-current-beats-similar/">Why current beats similar →</a>
+      </p>
+    </div>
+  </section>
+
+  <!-- ============ THE ARTIFACT ============ -->
+  <section id="artifact" class="alt">
+    <div class="wrap">
+      <div class="sec-head">
+        <span class="eyebrow" style="--hue:var(--green)">the output</span>
+        <h2>What the agent actually receives.</h2>
+        <p>
+          A <b>context artifact</b> — a compact package assembled for one task, with a receipt
+          attached.
+        </p>
+      </div>
+
+      <div class="anat">
+        <ul class="parts">
+          <li><b>current state</b><span>the beliefs that hold right now</span></li>
+          <li><b>evidence</b><span>the records that earned their place, cited</span></li>
+          <li><b>token count</b><span>measured against the budget you declared</span></li>
+          <li><b>manifest</b><span>exactly what went in, and a hash of the bytes</span></li>
+        </ul>
+
+        <div class="decl">
+          <div class="dhead">
+            <span class="dfile">artifacts/profile_brief.yaml</span>
+            <span class="dtag">the whole assembly step</span>
+          </div>
+          <pre><code>  - <span class="yk">name</span>: <span class="ys">crm_profile_brief</span>
+    <span class="yk">blocks</span>:
+      <span class="yk">profile</span>:                    <span class="yc"># what holds now</span>
+        <span class="yk">document</span>: &#123;<span class="yk">entity</span>: <span class="ys">"&#123;&#123;entity&#125;&#125;"</span>&#125;
+        <span class="yk">max_tokens</span>: <span class="yn">2000</span>
+      <span class="yk">evidence</span>:                   <span class="yc"># what supports it</span>
+        <span class="yk">view</span>: <span class="ys">crm_history@1</span>
+        <span class="yk">max_tokens</span>: <span class="yn">3000</span></code></pre>
+          <p class="dnote">
+            The budget is a field. The sources are named. The rendered output carries
+            <code>input_record_ids</code> and <code>rendered_sha256</code> back with it, so the
+            context an agent received six weeks ago is something you can reconstruct.
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ CTA ============ -->
+  <section id="start">
+    <div class="wrap end">
+      <h2>Memory is one capability inside this.</h2>
+      <p>
+        Long-term agent memory, hybrid retrieval, derived state and prompt-time assembly in one
+        declarative layer. Episodic and semantic memory, reflection and consolidation are all
+        mechanisms it runs — and <code>docker compose up</code> gets you a working one to query.
+      </p>
+      <div class="ctas">
+        <a class="btn btn-primary" href="/#quickstart">Run it locally →</a>
+        <a class="btn btn-ghost" href="/showcase/">See it running</a>
+        <a class="btn btn-ghost" href="/">The whole product</a>
+      </div>
+    </div>
+  </section>
+</BaseLayout>
+
+<style>
+  /* Chrome mirrored from public/index.html — same tokens, same section rhythm,
+     so the category page reads as the same artifact. */
+  section { padding-block: clamp(3rem, 6vw, 5.2rem); }
+  .alt { background: var(--surface); border-block: 1px solid var(--border); }
+  .hot { color: var(--orange); }
+  :root[data-theme='light'] .hot { color: color-mix(in srgb, var(--orange) 85%, var(--text)); }
+
+  /* The thesis is three sentences, so it takes a smaller step than a one-line
+     hero headline would — at --step-3 it becomes a wall rather than a claim. */
+  h1 { font-size: clamp(1.5rem, .95rem + 2.1vw, 2.55rem); margin-top: .9rem; max-width: 26ch; line-height: 1.22; }
+  .head .lede { color: var(--muted); font-size: var(--step-1); line-height: 1.55; max-width: 56ch; margin-top: 1.3rem; }
+  .head .lede b { color: var(--text); font-weight: 600; }
+  .ctas { display: flex; flex-wrap: wrap; align-items: center; gap: .8rem; margin-top: 1.7rem; }
+
+  .sec-head { max-width: 64ch; margin-bottom: clamp(1.6rem, 3vw, 2.3rem); }
+  .sec-head h2 { font-size: var(--step-2); margin-top: .8rem; }
+  .sec-head p { color: var(--muted); font-size: var(--step-1); margin-top: .9rem; line-height: 1.5; text-wrap: pretty; }
+  .sec-head p b { color: var(--text); font-weight: 600; }
+  .sec-foot { margin-top: 1.6rem; font-size: var(--step--1); color: var(--muted); line-height: 1.6; max-width: 76ch; }
+  .sec-foot b { color: var(--text); font-weight: 600; }
+  :root[data-theme='light'] .dk,
+  :root[data-theme='light'] .sn,
+  :root[data-theme='light'] .ah { color: color-mix(in srgb, var(--hue, var(--orange)) 72%, var(--text)); }
+
+  /* ---------- the two definitions ----------
+     Stated, not argued, so either one can be quoted without the section under it. */
+  .defs { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: clamp(2rem, 4vw, 3rem); }
+  @media (max-width: 820px) { .defs { grid-template-columns: 1fr; } }
+  .def { --hue: var(--violet); border: 1px solid var(--border); border-left: 2px solid var(--hue); border-radius: 0 12px 12px 0; background: var(--bg); padding: 1.15rem 1.3rem 1.25rem; }
+  .def.now { --hue: var(--green); }
+  .dk { font-family: var(--mono); font-size: .58rem; letter-spacing: .14em; text-transform: uppercase; color: var(--hue); }
+  .def p { margin-top: .6rem; font-size: var(--step-1); line-height: 1.5; color: var(--muted); text-wrap: pretty; }
+  .def p b { color: var(--text); font-weight: 600; }
+
+  /* ---------- architecture ----------
+     Three columns and two arrows. The arrows are text, so they rotate with the
+     stack instead of pointing sideways at a card that is now below. */
+  .arch { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1.05fr) auto minmax(0, 1fr); gap: .9rem; align-items: stretch; }
+  @media (max-width: 900px) { .arch { grid-template-columns: 1fr; justify-items: stretch; } .arrow { justify-self: center; rotate: 90deg; } }
+  .arch-col, .engine { border: 1px solid var(--border); border-radius: 12px; background: var(--bg); padding: .95rem 1rem 1.05rem; display: flex; flex-direction: column; gap: .55rem; }
+  .arch-col { --hue: var(--orange); }
+  .arch-col.out { --hue: var(--green); border-color: color-mix(in srgb, var(--green) 40%, var(--border)); }
+  .ah { font-family: var(--mono); font-size: .58rem; letter-spacing: .14em; text-transform: uppercase; color: var(--hue); }
+  .feed { list-style: none; display: grid; gap: .3rem; font-family: var(--mono); font-size: .68rem; color: var(--muted); line-height: 1.4; }
+  .feed li::before { content: "· "; color: var(--hue); }
+  .dest { margin-top: auto; padding-top: .8rem; font-family: var(--mono); font-size: .66rem; color: var(--green); }
+  .arrow { align-self: center; font-family: var(--mono); color: var(--faint); font-size: 1.1rem; }
+
+  .engine { --hue: var(--violet); border-color: color-mix(in srgb, var(--violet) 45%, var(--border)); background: linear-gradient(168deg, color-mix(in srgb, var(--violet) 12%, var(--bg)), var(--bg)); }
+  .eh { font-family: var(--mono); font-size: .62rem; letter-spacing: .14em; text-transform: uppercase; color: var(--faint); line-height: 1.7; }
+  .eh b { display: block; font-size: .8rem; color: var(--violet); letter-spacing: .1em; }
+  :root[data-theme='light'] .eh b { color: color-mix(in srgb, var(--violet) 78%, var(--text)); }
+  .verbs { list-style: none; display: grid; grid-template-columns: 1fr 1fr; gap: .3rem .7rem; font-family: var(--mono); font-size: .72rem; color: var(--text); }
+  .verbs li::before { content: "› "; color: var(--violet); }
+
+  /* ---------- stages ---------- */
+  .stages { list-style: none; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .8rem; }
+  @media (max-width: 1000px) { .stages { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (max-width: 560px) { .stages { grid-template-columns: 1fr; } }
+  .stage { border: 1px solid var(--border); border-radius: 12px; background: var(--surface); padding: 1rem 1.05rem 1.1rem; display: flex; flex-direction: column; gap: .45rem; }
+  .sn { font-family: var(--mono); font-size: .58rem; letter-spacing: .16em; text-transform: uppercase; color: var(--hue); }
+  .stage b { font-family: var(--mono); font-size: var(--step-1); letter-spacing: -.01em; color: var(--text); line-height: 1.2; }
+  .stage p { color: var(--muted); font-size: var(--step--2); line-height: 1.55; }
+
+  /* ---------- artifact anatomy ---------- */
+  .anat { display: grid; grid-template-columns: minmax(0, .8fr) minmax(0, 1.2fr); gap: 1.1rem; align-items: start; }
+  @media (max-width: 900px) { .anat { grid-template-columns: 1fr; } }
+  .parts { list-style: none; display: grid; gap: 1px; background: var(--border); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+  .parts li { background: var(--bg); padding: .7rem .9rem .75rem; }
+  .parts b { display: block; font-family: var(--mono); font-size: .68rem; color: var(--cyan); }
+  :root[data-theme='light'] .parts b { color: color-mix(in srgb, var(--cyan) 72%, var(--text)); }
+  .parts span { display: block; font-size: var(--step--2); color: var(--muted); line-height: 1.45; margin-top: .12rem; }
+
+  .decl { border: 1px solid var(--border-strong); border-radius: 13px; background: var(--bg); box-shadow: var(--shadow); overflow: hidden; }
+  .dhead { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .5rem; padding: .55rem .85rem; border-bottom: 1px solid var(--border); background: var(--surface-2); font-family: var(--mono); font-size: .62rem; }
+  .dfile { color: var(--orange); }
+  .dtag { color: var(--faint); }
+  .decl pre { padding: .95rem 1rem; overflow-x: auto; font-family: var(--mono); font-size: .69rem; line-height: 1.65; color: var(--text); }
+  .yk { color: var(--violet); }
+  .ys { color: var(--cyan); }
+  .yn { color: var(--green); }
+  .yc { color: var(--faint); }
+  :root[data-theme='light'] .yc { color: #6f7a85; }
+  .dnote { padding: .9rem 1rem 1.05rem; border-top: 1px solid var(--border); font-size: var(--step--2); color: var(--muted); line-height: 1.6; }
+  .dnote code { font-family: var(--mono); font-size: .95em; color: var(--text); }
+
+  /* ---------- closing ---------- */
+  .end { max-width: 64ch; }
+  .end h2 { font-size: var(--step-2); }
+  .end p { color: var(--muted); font-size: var(--step-1); margin-top: 1rem; line-height: 1.55; }
+  .end code { font-family: var(--mono); font-size: .92em; color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: 5px; padding: .05rem .3rem; }
+</style>

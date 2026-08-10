@@ -1,0 +1,108 @@
+name: crm_summary
+# The summary is a synthesis OVER the durable slots, not another slot emitted
+# beside them. So it is its own derivation, chained off the profile: whenever a
+# slot (role / commitments / preferences / open_threads / goals) actually
+# changes, re-derive the one-sentence read from the current slot set. Emitting
+# it as type `summary` (the slots are type `profile`) is what keeps this off the
+# automatic-cycle graph — the emission does not re-activate this trigger.
+trigger:
+  changed:
+    collections: [user_profiles]
+    types: [profile]
+    statuses: [active]
+    transitions: [added, changed, removed]
+  cooldown_s: 1
+sources:
+  # Driving source: the slot changes that just landed. Consuming this advances
+  # the cursor so a settled profile does not re-summarize forever.
+  changed_slots:
+    kind: changes
+    collections: [user_profiles]
+    types: [profile]
+    statuses: [active]
+    keyed: true
+    max_records: 20
+    max_tokens: 6000
+    allow_empty: false
+  # The whole current profile, so the sentence synthesizes every live slot, not
+  # only the one that just moved. Its record IDs are what the summary cites.
+  current_slots:
+    kind: current
+    collections: [user_profiles]
+    types: [profile]
+    statuses: [active]
+    keys: [role, commitments, preferences, open_threads, goals]
+    max_records: 20
+    max_tokens: 6000
+  account_playbook:
+    kind: record
+    collection: playbooks
+    key: playbook
+    type: playbook
+    max_tokens: 1500
+model: strong
+limits:
+  max_tasks: 1
+  max_llm_calls: 2
+  max_retrieved_records: 0
+  max_visible_records: 40
+  max_total_tokens: 12000
+  max_wall_s: 45
+tasks:
+  - id: result
+    use: llm
+    with:
+      output_schema:
+        type: object
+        required: [records]
+        properties:
+          records:
+            type: array
+            minItems: 1
+            maxItems: 1
+            items:
+              type: object
+              required: [key, text, citations]
+              properties:
+                key: {const: summary}
+                text: {type: string, minLength: 1}
+                citations:
+                  type: array
+                  minItems: 1
+                  uniqueItems: true
+                  items: {type: string, format: uuid}
+              additionalProperties: false
+        additionalProperties: false
+      prompt: |
+        Write the one-line read of {{entity}}'s CRM profile: ONE sentence in plain
+        prose that synthesizes who they are, what they have committed to, and how
+        they like to be worked with. It is derived FROM the profile slots below —
+        assert nothing the slots do not already say, and follow the account
+        playbook's sense of what matters on this account.
+
+        ACCOUNT PLAYBOOK (how we work this account; follow its priorities):
+        <records untrusted="true">
+        {{account_playbook.rendered}}
+        </records>
+
+        SLOTS THAT JUST CHANGED (why this summary is being rewritten):
+        <records untrusted="true">
+        {{changed_slots.rendered}}
+        </records>
+
+        THE COMPLETE CURRENT PROFILE (summarize over all of this):
+        <records untrusted="true">
+        {{current_slots.rendered}}
+        </records>
+
+        Rewrite the summary in full each run so it reflects the current slots.
+        Cite the UUIDs of the profile slots you synthesized from — one or more
+        record IDs drawn from THE COMPLETE CURRENT PROFILE above. Return only JSON:
+        {"records":[
+          {"key":"summary","text":"One sentence over the whole profile.","citations":["slot-uuid","slot-uuid"]}
+        ]}
+emit:
+  from: "{{result.records}}"
+  collection: user_profiles
+  type: summary
+  keys: [summary]

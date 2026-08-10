@@ -1,0 +1,140 @@
+views:
+  # The relevance half of recall: one question, three layers, fused. Persona is
+  # weighted highest because a stable trait outranks a single episode, and scenes
+  # sit above raw memories because a scene is the situation a memory belongs to.
+  - name: memory_recall
+    version: 1
+    active: true
+    parameters:
+      entity: {type: string, required: true}
+      task: {type: string, required: true}
+    query:
+      q: "{{task}}"
+      sources:
+        - name: persona
+          mode: vector
+          scope:
+            entities: ["{{entity}}"]
+            collections: [persona]
+            types: [trait]
+          k: 6
+          weight: 1.4
+        - name: scenes
+          mode: vector
+          scope:
+            entities: ["{{entity}}"]
+            collections: [scenes]
+            types: [scene_block]
+          k: 3
+          weight: 1.2
+        - name: memories
+          mode: hybrid
+          scope:
+            entities: ["{{entity}}"]
+            collections: [memories]
+            types: [memory]
+          k: 24
+          weight: 1.0
+      fuse: {kind: rrf, rank_constant: 60}
+      k: 18
+      include: [text, collection, type, occurred_at]
+      render: true
+
+  # The exactness half of recall. A rule at priority 100 must never depend on a
+  # vector neighbourhood, so this is `mode: structured`: declared filters, an
+  # explicit order, and `rank` forbidden by the engine.
+  - name: standing_instructions
+    version: 1
+    active: true
+    required_capabilities: [structured]
+    parameters:
+      entity: {type: string, required: true}
+      min_priority: {type: number, default: 80, minimum: 0, maximum: 100}
+    query:
+      mode: structured
+      scope:
+        entities: ["{{entity}}"]
+        collections: [memories]
+        types: [memory]
+        status: active
+      where:
+        memory_kind: {eq: instruction}
+        priority: {gte: "{{min_priority}}"}
+      order_by:
+        - {field: priority, direction: desc}
+      k: 12
+      include: [text, occurred_at]
+      fields: [priority, scene_name, supersedes]
+      render: true
+
+  # The L1 audit surface: every atomic claim for one agent, sharpest first, with
+  # the dedup verdict and any supersession projected. This is what makes the
+  # store / skip / merge decision inspectable — and the only place a reader can
+  # see that a superseded claim still exists.
+  - name: memory_audit
+    version: 1
+    active: true
+    required_capabilities: [structured]
+    parameters:
+      entity: {type: string, required: true}
+    query:
+      mode: structured
+      scope:
+        entities: ["{{entity}}"]
+        collections: [memories]
+        types: [memory]
+        status: active
+      order_by:
+        - {field: priority, direction: desc}
+      k: 60
+      include: [text, occurred_at]
+      fields: [memory_kind, priority, scene_name, decision, supersedes]
+      # Rendered as well as projected: scene_synthesis reads this same view as a
+      # source, and a pipeline source needs the prompt-ready form.
+      render: true
+
+  # Exact L0 replay for one conversation, in the order it happened. The drill-down
+  # target when a derived claim needs to be checked against what was literally said.
+  - name: session_window
+    version: 1
+    active: true
+    required_capabilities: [structured]
+    parameters:
+      entity: {type: string, required: true}
+      session: {type: string, required: true}
+    query:
+      mode: structured
+      scope:
+        entities: ["{{entity}}"]
+        collections: [messages]
+        types: [message]
+        status: active
+      where:
+        session_id: {eq: "{{session}}"}
+      order_by:
+        - {field: ordinal, direction: asc}
+      k: 40
+      include: [text, occurred_at]
+      fields: [role, session_id, ordinal]
+      render: true
+
+  # The bounded prior slice an extraction pass needs for context. `mode: recent`
+  # ranks by recency without pretending a query exists, which is what "background
+  # messages" means in the source design.
+  - name: recent_messages
+    version: 1
+    active: true
+    required_capabilities: [recent]
+    parameters:
+      entity: {type: string, required: true}
+    query:
+      mode: recent
+      scope:
+        entities: ["{{entity}}"]
+        collections: [messages]
+        types: [message]
+        status: active
+      k: 12
+      include: [text, occurred_at]
+      fields: [role, session_id, ordinal]
+      render: true

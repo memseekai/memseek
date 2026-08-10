@@ -1,0 +1,78 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "pytest-m3",
+			"type": "shell",
+			"command": "pytest",
+			"args": [
+				"-q",
+				"tests/test_rank.py",
+				"tests/test_definitions.py",
+				"tests/test_api.py"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "uv-pytest-m3",
+			"type": "shell",
+			"command": "uv",
+			"args": [
+				"run",
+				"pytest",
+				"-q",
+				"tests/test_rank.py",
+				"tests/test_definitions.py",
+				"tests/test_api.py"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "uv-pytest-all",
+			"type": "shell",
+			"command": "uv",
+			"args": [
+				"run",
+				"pytest",
+				"-q"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "uv-pytest-docs-sanity",
+			"type": "shell",
+			"command": "uv",
+			"args": [
+				"run",
+				"pytest",
+				"-q",
+				"tests/test_api.py",
+				"tests/test_rank.py"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "uv-pytest-search",
+			"type": "shell",
+			"command": "uv",
+			"args": [
+				"run",
+				"pytest",
+				"-q",
+				"tests/test_search.py"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "uv-pytest-all-after-m3",
+			"type": "shell",
+			"command": "uv",
+			"args": [
+				"run",
+				"pytest",
+				"-q"
+			],
+			"isBackground": false
+		}
+	]
+}

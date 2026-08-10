@@ -1,0 +1,26 @@
+collections:
+  - name: pages
+    version: 1
+    active: true
+    mode: keyed
+    schema:
+      type: object
+      required: [text, title, body, type]
+      properties:
+        text: {type: string}
+        title: {type: string, minLength: 1}
+        body: {type: string}
+        type: {type: string, minLength: 1}
+        gbrain_enriched: {type: boolean}
+        # System-owned retraction marker, never written by a client. Declared
+        # because this is the collection the package's purge_pages retention
+        # policy erases tombstones from.
+        tombstone: {type: boolean}
+      additionalProperties: true
+    fields:
+      title: {path: content.title, type: string, filter: true, project: true}
+      type: {path: content.type, type: string, filter: true, project: true}
+      gbrain_enriched: {path: content.gbrain_enriched, type: boolean, filter: true, project: true}
+    required_processors: [embedding_v1]
+    search_profile: pg_default
+    answerable: true

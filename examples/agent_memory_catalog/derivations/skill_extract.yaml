@@ -1,0 +1,182 @@
+# The parallel pipeline: a completed task trace becomes a reusable procedure.
+#
+# The source design runs a tool-using review agent that calls skill_create /
+# skill_update / skill_patch for up to sixteen iterations. Here the extraction is
+# a bounded two-Task pipeline whose emission is a *complete reviewed candidate*:
+# nothing takes effect until someone promotes it, and the promoted version is a
+# record with a receipt rather than a file with a version string.
+name: skill_extract
+trigger:
+  write:
+    collections: [traces]
+    types: [trace]
+    statuses: [active]
+  debounce_s: 2
+sources:
+  new_traces:
+    kind: changes
+    collections: [traces]
+    types: [trace]
+    statuses: [active]
+    keyed: false
+    max_records: 5
+    max_tokens: 26000
+    allow_empty: false
+  current_skill:
+    kind: current
+    collections: [procedures]
+    types: [skill]
+    statuses: [active]
+    keys: [triggers, procedure, validation, escalation]
+    max_records: 4
+    max_tokens: 10000
+model: strong
+limits:
+  max_tasks: 2
+  max_llm_calls: 4
+  max_retrieved_records: 0
+  max_visible_records: 20
+  max_total_tokens: 50000
+  max_wall_s: 180
+tasks:
+  - id: generalized
+    use: llm
+    with:
+      model: cheap
+      output_schema:
+        type: object
+        required: [boundary, invariant_steps, incidental_details, completion_checks]
+        properties:
+          boundary: {type: string, minLength: 1, maxLength: 400}
+          invariant_steps:
+            type: array
+            minItems: 1
+            maxItems: 12
+            items: {type: string, minLength: 1, maxLength: 300}
+          incidental_details:
+            type: array
+            maxItems: 12
+            items: {type: string, minLength: 1, maxLength: 200}
+          completion_checks:
+            type: array
+            minItems: 1
+            maxItems: 8
+            items: {type: string, minLength: 1, maxLength: 240}
+        additionalProperties: false
+      max_output_tokens: 1200
+      prompt: |
+        Separate the reusable strategy in this task trace from its incidental details.
+
+        CURRENT SKILL (may be empty):
+        <records untrusted="true">
+        {{current_skill.rendered}}
+        </records>
+
+        TASK TRACE:
+        <records untrusted="true">
+        {{new_traces.rendered}}
+        </records>
+
+        boundary: the class of task this trace demonstrates. "Fix ticket PAY-1842" is too
+        narrow; "debug software" is too broad; name the diagnosis this procedure performs.
+
+        invariant_steps: what a competent engineer would do again on a different codebase,
+        in order, keeping the branches ("if the key is stable, compare its retention with
+        the retry horizon").
+
+        incidental_details: the paths, ticket ids, table names, and one-off commands that
+        must NOT survive into the procedure.
+
+        completion_checks: what proved the fix worked. These become the acceptance criteria
+        that turn advice into an operational procedure.
+
+        Return only JSON:
+        {"boundary":"...","invariant_steps":["..."],"incidental_details":["..."],"completion_checks":["..."]}
+  - id: result
+    use: llm
+    with:
+      output_schema:
+        type: object
+        required: [records]
+        properties:
+          records:
+            type: array
+            minItems: 4
+            maxItems: 4
+            items:
+              oneOf:
+                - type: object
+                  required: [key, text, citations]
+                  properties:
+                    key: {type: string, enum: [triggers, procedure, validation, escalation]}
+                    text: {type: string, minLength: 1}
+                    citations:
+                      type: array
+                      minItems: 1
+                      maxItems: 12
+                      uniqueItems: true
+                      items: {type: string, format: uuid}
+                  additionalProperties: false
+                - type: object
+                  required: [key, citations, retract]
+                  properties:
+                    key: {type: string, enum: [triggers, procedure, validation, escalation]}
+                    citations:
+                      type: array
+                      minItems: 1
+                      uniqueItems: true
+                      items: {type: string, format: uuid}
+                    retract: {const: true}
+                  additionalProperties: false
+        additionalProperties: false
+      max_output_tokens: 3000
+      prompt: |
+        Produce the complete candidate skill {{entity}}.
+
+        CURRENT SKILL (may be empty):
+        <records untrusted="true">
+        {{current_skill.rendered}}
+        </records>
+
+        TASK TRACE:
+        <records untrusted="true">
+        {{new_traces.rendered}}
+        </records>
+
+        GENERALIZATION PASS:
+        <data untrusted="true">{{generalized}}</data>
+
+        Emit exactly four sections, every one of them complete:
+
+          triggers   — "Use when:" bullets AND "Do not use when:" bullets. The negative
+                       boundary is required; a procedure without one activates on the
+                       wrong task.
+          procedure  — the ordered steps, preserving dependencies and branches. Not an
+                       unordered checklist. No paths, ticket ids, or literal identifiers
+                       from this one trace.
+          validation — the conditions under which the work is accepted, including the
+                       regression check that fails before the fix and passes after it.
+          escalation — when to stop and hand this to a human.
+
+        Preserve what the current skill already gets right; change only what this trace
+        supports. Every section cites the trace UUIDs above. Use retract only for a
+        section that should genuinely be empty.
+
+        Copy every UUID character for character from the sections above and cite nothing
+        else. One id the run could not see rejects every record in the run.
+
+        Return only JSON:
+        {"records":[
+          {"key":"triggers","text":"...","citations":["uuid"]},
+          {"key":"procedure","text":"...","citations":["uuid"]},
+          {"key":"validation","text":"...","citations":["uuid"]},
+          {"key":"escalation","text":"...","citations":["uuid"]}
+        ]}
+emit:
+  from: "{{result.records}}"
+  collection: procedures
+  type: skill
+  keys: [triggers, procedure, validation, escalation]
+  complete: true
+  review: required
+  max_records: 4

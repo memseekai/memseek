@@ -1,0 +1,121 @@
+# Two independent stacks live here.
+#
+#   docker compose up -d --wait     the local stack: postgres, api, worker, and a
+#                                   published catalog. This is the one-command
+#                                   install; nothing but Docker is required.
+#
+#   docker compose up -d --wait postgres-test
+#                                   just the throwaway test database the Makefile
+#                                   drives. `make test` destroys it when it is
+#                                   done, which is why the local stack does not
+#                                   share it.
+#
+# They deliberately use different databases, ports and storage: a test run that
+# wipes its database must never take your local workspace with it.
+
+services:
+  # ---------- the local stack ----------
+  postgres:
+    image: pgvector/pgvector:0.8.2-pg16
+    environment:
+      POSTGRES_DB: memseek
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_USER: postgres
+    ports:
+      - "${MEMSEEK_DB_PORT:-5433}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d memseek"]
+      interval: 1s
+      timeout: 5s
+      retries: 30
+    volumes:
+      - memseek-data:/var/lib/postgresql/data
+
+  # Schema first, as its own container, so a failed migration is a failed
+  # container you can read rather than a crash loop inside the API.
+  migrate:
+    build: .
+    command: ["memseek", "migrate"]
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/memseek
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  api:
+    build: .
+    command: ["uvicorn", "memseek.api:app", "--host", "0.0.0.0", "--port", "8000"]
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/memseek
+      # Only credentials come from the environment; conf/models.yaml names the
+      # variable each provider reads. Without a key the deterministic reads
+      # still work and anything model-backed fails loudly.
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      LLM_FAKE: ${LLM_FAKE:-0}
+    ports:
+      - "${MEMSEEK_PORT:-8000}:8000"
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health').status == 200 else 1)\""]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+      start_period: 5s
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  worker:
+    build: .
+    command: ["memseek", "worker"]
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/memseek
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      LLM_FAKE: ${LLM_FAKE:-0}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  # Mints the workspace, writes its key to ./.memseek/api_key, and publishes the
+  # agent-memory catalog so there is a tool surface to point an agent at before
+  # you have written anything. Idempotent: re-running keeps the existing key.
+  setup:
+    build: .
+    command: ["python", "scripts/local_setup.py"]
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/memseek
+      MEMSEEK_URL: http://api:8000
+      MEMSEEK_WORKSPACE: ${MEMSEEK_WORKSPACE:-local}
+      MEMSEEK_CATALOG_DIR: ${MEMSEEK_CATALOG_DIR:-examples/agent_memory_catalog}
+      MEMSEEK_PACKAGE: ${MEMSEEK_PACKAGE:-agent_memory@0.3.0}
+      MEMSEEK_KEY_FILE: /state/api_key
+      MEMSEEK_PUBLIC_URL: http://127.0.0.1:${MEMSEEK_PORT:-8000}
+    volumes:
+      - ./.memseek:/state
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: "no"
+
+  # ---------- the test database, driven by the Makefile ----------
+  # Ephemeral on purpose: tmpfs storage, its own port, its own database name.
+  # `make test` refuses to run against a database whose name lacks "test".
+  postgres-test:
+    image: pgvector/pgvector:0.8.2-pg16
+    environment:
+      POSTGRES_DB: memseek_test
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_USER: postgres
+    ports:
+      - "${MEMSEEK_TEST_DB_PORT:-55432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d memseek_test"]
+      interval: 1s
+      timeout: 5s
+      retries: 30
+    tmpfs:
+      - /var/lib/postgresql/data
+    profiles: ["test"]
+
+volumes:
+  memseek-data:

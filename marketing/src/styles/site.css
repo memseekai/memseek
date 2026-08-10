@@ -16,6 +16,9 @@
   --faint: #7d8794;
   --orange: #ff7a2f;
   --pink: #ff3d67;
+  /* the caution red: says "read this differently" without the alarm --pink
+     carries. Used for the self-graded rows on /benchmarks/. */
+  --rose: #d97b83;
   --cyan: #2fd4c4;
   --violet: #9b87ff;
   --green: #58d68d;
@@ -46,6 +49,7 @@
   --faint: #666f78;
   --orange: #e0641c;
   --pink: #e02a54;
+  --rose: #b35a63;
   --cyan: #0e9e90;
   --violet: #6d4ae0;
   --green: #1f9d57;
@@ -114,7 +118,10 @@ header.nav {
 .brand { display: flex; align-items: center; gap: .6rem; font-family: var(--mono); font-weight: 700; font-size: 1.15rem; color: var(--text); }
 .brand:hover { text-decoration: none; }
 .brand .dot { width: 12px; height: 12px; border-radius: 50%; background: var(--grad); flex: none; }
-.nav-links { display: flex; align-items: center; gap: 1.6rem; }
+/* Every item is nowrap: the labels are two and three words now, and a nav that
+   wraps mid-label reads as broken rather than as full. */
+.nav-links { display: flex; align-items: center; gap: 1.25rem; }
+.nav-links a, .nav-cta { white-space: nowrap; }
 .nav-links a { color: var(--muted); font-family: var(--mono); font-size: var(--step--1); }
 .nav-links a:hover { color: var(--text); text-decoration: none; }
 .nav-links a[aria-current="page"] { color: var(--text); }
@@ -135,7 +142,19 @@ header.nav {
 .nav-gh { display: inline-flex; align-items: center; gap: .45rem; }
 .nav-gh svg { width: 16px; height: 16px; fill: currentColor; flex: none; }
 @media (max-width: 700px) { .nav-gh .lbl { display: none; } }
-@media (max-width: 900px) { .nav-links .hide-sm { display: none; } }
+/* Raised from 900px when the section labels grew to two and three words: below
+   this the row no longer fits, and the footer carries every link. */
+@media (max-width: 1120px) { .nav-links .hide-sm { display: none; } }
+/* Below ~620px only the theme toggle and the CTA still fit — the same cut the
+   landing page makes. The footer carries every link, so nothing is lost. */
+@media (max-width: 620px) {
+  .nav-inner { gap: .8rem; }
+  .nav-links { gap: .85rem; }
+  .nav-links a:not(.nav-cta):not(.nav-gh) { display: none; }
+  /* The CTA can no longer wrap to two lines, so it gives back the width in
+     padding instead — otherwise the row runs flush into the wordmark. */
+  .nav-cta { padding-inline: .75rem; }
+}
 
 /* ---------- FOOTER ---------- */
 footer { border-top: 1px solid var(--border); padding-block: 2.5rem; }

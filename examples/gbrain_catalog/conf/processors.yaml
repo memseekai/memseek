@@ -1,0 +1,15 @@
+processors:
+  - name: embedding_v1
+    kind: embedding
+    input:
+      collections: [transcripts, pages, edges, syntheses, atoms, facts, patterns, concepts, takes]
+
+  # The generic document renderer orders records by this score. Keeping the
+  # score in this catalog lets the package stand alone without importing the
+  # default memory catalog's importance processor.
+  - name: importance
+    kind: score
+    source: constant
+    input: {collections: [syntheses]}
+    scale: [1, 10]
+    value: 5

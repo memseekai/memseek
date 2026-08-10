@@ -6,16 +6,18 @@
 const { pathname } = Astro.url;
 const onBlog = pathname.startsWith('/blog') || pathname.startsWith('/tags');
 const onShowcase = pathname.startsWith('/showcase');
+const onBenchmarks = pathname.startsWith('/benchmarks');
+const onContextEngine = pathname.startsWith('/context-engine');
 ---
 
 <header class="nav">
   <div class="wrap nav-inner">
     <a href="/" class="brand"><span class="dot"></span>memseek</a>
     <nav class="nav-links">
-      <a href="/#why" class="hide-sm">Why not RAG</a>
-      <a href="/#uses" class="hide-sm">Use cases</a>
-      <a href="/#benchmarks" class="hide-sm">Benchmarks</a>
-      <a href="/#faq" class="hide-sm">FAQ</a>
+      <a href="/context-engine/" class="hide-sm" aria-current={onContextEngine ? 'page' : undefined}>Context engine</a>
+      <a href="/#how" class="hide-sm">How it works</a>
+      <a href="/#designs" class="hide-sm">Memory designs</a>
+      <a href="/benchmarks/" class="hide-sm" aria-current={onBenchmarks ? 'page' : undefined}>Benchmarks</a>
       <a href="/showcase/" aria-current={onShowcase ? 'page' : undefined}>Showcases</a>
       <a href="/blog/" aria-current={onBlog ? 'page' : undefined}>Blog</a>
       <a href="https://github.com/memseekai/memseek" class="nav-gh" aria-label="Memseek on GitHub"><svg aria-hidden="true"><use href="#gh-mark" /></svg><span class="lbl">GitHub</span></a>

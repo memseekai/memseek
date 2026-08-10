@@ -3,13 +3,13 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="description" content="A memseek package declares its MCP tool surface; the shipped bridge compiles it and serves it over stdio. The agent's tools are reviewable YAML, not handler code." />
+    <meta name="description" content="A memseek package declares its MCP tool surface; the API serves it remotely over authenticated Streamable HTTP, with stdio available locally." />
     <title>The tool surface — memseek</title>
     <link rel="canonical" href="https://memseek.pages.dev/showcase/mcp/" />
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="Memseek" />
     <meta property="og:title" content="The tool surface — memseek" />
-    <meta property="og:description" content="A memseek package declares its MCP tool surface; the shipped bridge compiles it and serves it over stdio. The agent's tools are reviewable YAML, not handler code." />
+    <meta property="og:description" content="A memseek package declares its MCP tool surface; the API serves it remotely over authenticated Streamable HTTP, with stdio available locally." />
     <meta property="og:url" content="https://memseek.pages.dev/showcase/mcp/" />
     <meta property="og:image" content="https://memseek.pages.dev/og-default.png" />
     <meta name="twitter:card" content="summary_large_image" />
@@ -74,7 +74,7 @@
               <a class="btn btn-primary" href="#declare">See the declaration <span aria-hidden="true">→</span></a>
               <a class="btn btn-ghost" href="#use">Plug in an agent</a>
             </div>
-            <p class="cta-note" style="margin-top:1.1rem">opt-in · authenticated discovery · stdio bridge</p>
+            <p class="cta-note" style="margin-top:1.1rem">opt-in · authenticated discovery · remote HTTP + local stdio</p>
           </div>
 
           <div class="panel rv">
@@ -181,22 +181,22 @@
         <div class="wrap">
           <div class="region-head rv">
             <p class="eyebrow">03 · the bridge</p>
-            <h2>One command, and no new trust.</h2>
-            <p class="lede"><code>memseek mcp</code> speaks MCP over stdio and forwards to the same authenticated HTTP routes everything else uses. What it deliberately cannot do is the point.</p>
+            <h2>One endpoint, and no new trust.</h2>
+            <p class="lede"><code>POST /mcp</code> serves remote clients over authenticated Streamable HTTP and forwards to the same workspace routes everything else uses. <code>memseek mcp</code> remains the local stdio fallback.</p>
           </div>
 
           <div class="work rv">
             <div class="panel">
-              <div class="panel-head"><span class="t">the bridge</span><span class="badge" style="--bh: var(--green)">stdio</span></div>
+              <div class="panel-head"><span class="t">the bridge</span><span class="badge" style="--bh: var(--green)">HTTP</span></div>
               <div class="panel-body">
                 <div class="term" style="border:0">
                   <div class="term-body" style="padding:0">
-                    <div><span class="p">$</span> <span class="hl">memseek mcp</span></div>
+                    <div><span class="p">›</span> <span class="hl">POST https://memory.example.com/mcp</span></div>
                     <div class="o">interface agentic_memory_core@1 · 5 tools</div>
-                    <div class="o">transport stdio · workspace from MEMSEEK_API_KEY</div>
+                    <div class="o">streamable HTTP · workspace from bearer token</div>
                   </div>
                 </div>
-                <div class="panel-foot" style="border:0;padding:.9rem 0 0">Point any MCP client at that command. The client learns the tools from the workspace, not from a config file you maintain by hand.</div>
+                <div class="panel-foot" style="border:0;padding:.9rem 0 0">Point a remote MCP client at that URL, or use <code>memseek mcp</code> locally. The client learns the tools from the workspace, not a hand-maintained tool config.</div>
               </div>
             </div>
             <div>
@@ -278,7 +278,7 @@ result = <span class="k">await</span> agent.<span class="z">run</span>(
             </div>
           </div>
 
-          <p class="disclosure rv">The package manifest, the interface file, and the five tools are the checked-in catalog (<code>packages/agentic_memory_core.yaml</code>, <code>mcp/agentic_memory_core.yaml</code>); the client is <code>examples/pydantic_ai_mcp_showcase.py</code>, which needs the optional <code>examples</code> extra because Pydantic AI is not a dependency of the server or SDK.</p>
+          <p class="disclosure rv">The package manifest, the interface file, and the five tools are the checked-in catalog (<code>packages/agentic_memory_core.yaml</code>, <code>mcp/agentic_memory_core.yaml</code>); the client is <code>examples/pydantic_ai_mcp_showcase.py</code>. It runs Pydantic AI in an isolated environment and launches Memseek's current MCP SDK 2.x server from the project environment.</p>
         </div>
       </section>
 
@@ -303,11 +303,11 @@ result = <span class="k">await</span> agent.<span class="z">run</span>(
             <div class="term-body">
               <div class="c"># api running, package published, key exported</div>
               <div><span class="p">$</span> <span class="hl">export MEMSEEK_URL=http://127.0.0.1:8000</span></div>
-              <div><span class="p">$</span> <span class="hl">export MEMSEEK_API_KEY=msk_…</span></div>
+              <div><span class="p">$</span> <span class="hl">export MEMSEEK_API_KEY=&lt;workspace-key&gt;</span></div>
               <div class="c"># inspect the declared surface</div>
               <div><span class="p">$</span> <span class="hl">curl -s "$MEMSEEK_URL/tools" -H "Authorization: Bearer $MEMSEEK_API_KEY"</span></div>
               <div class="c"># then let an agent use it</div>
-              <div><span class="p">$</span> <span class="hl">uv run --extra examples python examples/pydantic_ai_mcp_showcase.py</span></div>
+              <div><span class="p">$</span> <span class="hl">uv run --no-project --with 'pydantic-ai-slim[mcp,openai]&gt;=2.11,&lt;3' --with 'httpx&gt;=0.28' python examples/pydantic_ai_mcp_showcase.py</span></div>
               <div class="o" style="margin-top:.5rem">agent ▸ <span class="hl">relevant_memory("what am I working on?")</span></div>
             </div>
           </div>

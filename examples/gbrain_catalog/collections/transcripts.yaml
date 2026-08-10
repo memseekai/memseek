@@ -1,0 +1,13 @@
+collections:
+  - name: transcripts
+    version: 1
+    active: true
+    mode: event
+    schema:
+      type: object
+      required: [text]
+      properties:
+        text: {type: string}
+      additionalProperties: true
+    required_processors: [embedding_v1]
+    search_profile: pg_default

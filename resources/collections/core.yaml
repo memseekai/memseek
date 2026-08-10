@@ -1,0 +1,117 @@
+collections:
+  - name: main
+    version: 1
+    active: true
+    mode: mixed
+    schema:
+      type: object
+      required: [text]
+      properties:
+        text: {type: string}
+      additionalProperties: true
+    required_processors: [embedding_v1, importance]
+    search_profile: pg_default
+    answerable: true
+
+  - name: profiles
+    version: 1
+    active: true
+    mode: keyed
+    schema:
+      type: object
+      required: [text]
+      properties:
+        text: {type: string}
+        tombstone: {type: boolean}
+      additionalProperties: true
+    required_processors: [embedding_v1]
+    search_profile: pg_default
+    answerable: true
+
+  - name: reflections
+    version: 1
+    active: true
+    mode: event
+    schema:
+      type: object
+      required: [text]
+      properties:
+        text: {type: string}
+        kind: {type: string}
+      additionalProperties: true
+    required_processors: [embedding_v1]
+    search_profile: pg_default
+    answerable: true
+    allowed_search_profiles: [pg_default, memory_tpuf]
+
+  - name: skills
+    version: 1
+    active: true
+    mode: keyed
+    schema:
+      type: object
+      required: [text]
+      properties:
+        text: {type: string}
+        tombstone: {type: boolean}
+      additionalProperties: true
+    required_processors: [embedding_v1]
+    search_profile: pg_default
+
+  - name: plans
+    version: 1
+    active: true
+    mode: keyed
+    schema:
+      type: object
+      required: [text]
+      properties:
+        text: {type: string}
+        tombstone: {type: boolean}
+      additionalProperties: true
+    required_processors: [embedding_v1]
+    search_profile: pg_default
+
+  - name: transcripts
+    version: 1
+    active: true
+    mode: event
+    schema:
+      type: object
+      required: [text]
+      properties:
+        text: {type: string}
+      additionalProperties: true
+    required_processors: [embedding_v1]
+    search_profile: pg_default
+
+  - name: outcomes
+    version: 1
+    active: true
+    mode: event
+    schema:
+      type: object
+      required: [text]
+      properties:
+        text: {type: string}
+        kind: {type: string}
+        base_version_id: {type: string}
+      additionalProperties: true
+    required_processors: [embedding_v1, importance]
+    search_profile: pg_default
+
+  - name: prompt_snapshots
+    version: 1
+    active: true
+    mode: keyed
+    schema:
+      type: object
+      required: [text]
+      properties:
+        text: {type: string}
+        artifact_name: {type: string}
+        artifact_version: {type: integer}
+        rendered_sha256: {type: string}
+      additionalProperties: true
+    required_processors: []
+    search_profile: pg_default

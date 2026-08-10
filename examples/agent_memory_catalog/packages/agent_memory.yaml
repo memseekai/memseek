@@ -1,0 +1,37 @@
+name: agent_memory
+version: 0.3.0
+collections:
+  - messages@1
+  - memories@1
+  - scenes@1
+  - scenes@2
+  - scenes@3
+  - persona@1
+  - traces@1
+  - procedures@1
+  - context_snapshots@1
+  - learning_signals@1
+processors:
+  - embedding_v1
+  - importance
+  - l1_extract
+  - scene_synthesis
+  - persona
+  - skill_extract
+triggers:
+  - l1_extract.default
+  - scene_synthesis.default
+  - persona.default
+  - skill_extract.default
+views:
+  - memory_recall@1
+  - standing_instructions@1
+  - memory_audit@1
+  - session_window@1
+  - recent_messages@1
+artifacts:
+  - agent_context@1
+  - maintained_procedure@1
+mcp: agent_memory@1
+search_profiles:
+  - pg_default

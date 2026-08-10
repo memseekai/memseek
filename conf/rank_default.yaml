@@ -1,0 +1,26 @@
+# Deployment-level ranking, and deliberately scorer-free.
+#
+# Ranking that references a scorer belongs to the catalog that defines that
+# scorer: `resources/conf/rank_default.yaml` is the reference catalog's version
+# and does use `importance`. This file has to compile against a service that has
+# published nothing at all, so it ranks on the two signals every record has —
+# how well it matches, and how recently it was touched.
+#
+# A published catalog carrying its own conf/rank_default.yaml replaces this.
+candidates: 200
+variants:
+  hybrid:
+    - sum
+    - - [product, 1.0, [normalize, [max, [[similarity], [text_match]]]]]
+      - [product, 1.0, [decay, [age_hours, last_accessed], {midpoint: 24, exponent: 1}]]
+  vector:
+    - sum
+    - - [product, 1.0, [normalize, [similarity]]]
+      - [product, 1.0, [decay, [age_hours, last_accessed], {midpoint: 24, exponent: 1}]]
+  text:
+    - sum
+    - - [product, 1.0, [normalize, [text_match]]]
+      - [product, 1.0, [decay, [age_hours, last_accessed], {midpoint: 24, exponent: 1}]]
+  recent:
+    - sum
+    - - [product, 1.0, [decay, [age_hours, occurred_at], {midpoint: 24, exponent: 1}]]

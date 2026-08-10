@@ -1,0 +1,17 @@
+views:
+  - name: crm_history
+    version: 1
+    active: true
+    parameters:
+      entity: {type: string, required: true}
+      query: {type: string, required: true}
+    query:
+      q: "{{query}}"
+      mode: hybrid
+      scope:
+        entities: ["{{entity}}"]
+        collections: [crm_events]
+        types: [crm_event]
+      k: 20
+      include: [text, collection, type, entity, scores, occurred_at]
+      render: true

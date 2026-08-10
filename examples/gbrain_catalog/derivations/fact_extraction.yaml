@@ -1,0 +1,47 @@
+name: fact_extraction
+trigger:
+  write:
+    collections: [pages]
+    statuses: [active]
+    keyed: true
+sources:
+  changed_pages:
+    kind: changes
+    collections: [pages]
+    statuses: [active]
+    keyed: true
+    max_records: 50
+    max_tokens: 24000
+    allow_empty: false
+  current_pages:
+    kind: current
+    collections: [pages]
+    statuses: [active]
+    keyed: true
+    max_records: 64
+    max_tokens: 40000
+model: null
+limits:
+  max_tasks: 1
+  max_llm_calls: 0
+  max_retrieved_records: 0
+  max_visible_records: 114
+  max_total_tokens: 40000
+  max_wall_s: 30
+tasks:
+  - id: fact_index
+    use: extract_facts
+    input:
+      records: "{{current_pages.records}}"
+      changed_records: "{{changed_pages.records}}"
+    with:
+      heading: Facts
+      max_facts: 100
+      max_fact_chars: 80
+emit:
+  from: "{{fact_index}}"
+  collection: facts
+  type: page_facts
+  keys: [page_facts]
+  complete: true
+  max_records: 1

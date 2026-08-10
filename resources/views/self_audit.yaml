@@ -1,0 +1,23 @@
+views:
+  # The agent's open self-contradictions, sharpest first. A structured listing
+  # (no relevance guessing): every standing self_contradiction edge for one
+  # entity, ordered by the confidence the detector assigned it.
+  - name: open_self_contradictions
+    version: 1
+    active: true
+    parameters:
+      entity: {type: string, required: true}
+    required_capabilities: [structured]
+    query:
+      mode: structured
+      scope:
+        entities: ["{{entity}}"]
+        collections: [relations]
+        types: [self_contradiction]
+        status: active
+      order_by:
+        - {field: confidence, direction: desc}
+      k: 25
+      include: [text, occurred_at]
+      fields: [subject_id, object_id, confidence]
+      render: true

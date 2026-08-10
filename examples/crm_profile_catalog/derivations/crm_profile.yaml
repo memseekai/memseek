@@ -1,0 +1,153 @@
+name: crm_profile
+trigger:
+  # Low enough that a single stable preference (importance ~6-8) trips it on its
+  # own. Keeping it here means the novel preference each round drives its own
+  # derivation and is guaranteed ready + in the changes window when it fires,
+  # rather than a pile of low-signal fillers tripping the threshold first.
+  accumulator:
+    metric: importance
+    threshold: 1
+  cooldown_s: 1
+sources:
+  new_crm_events:
+    kind: changes
+    collections: [crm_events]
+    types: [crm_event]
+    statuses: [active]
+    keyed: false
+    max_records: 100
+    max_tokens: 12000
+    allow_empty: false
+  current_profile:
+    kind: current
+    collections: [user_profiles]
+    types: [profile]
+    statuses: [active]
+    keys: [role, commitments, preferences, open_threads, goals]
+    max_records: 20
+    max_tokens: 6000
+  account_playbook:                       # one guarded current record
+    kind: record
+    collection: playbooks
+    key: playbook
+    type: playbook
+    max_tokens: 1500
+  commitment_history:                     # a named view source
+    kind: view
+    view: crm_history
+    params: {entity: "{{entity}}", query: "commitments and next steps"}
+    max_tokens: 3000
+model: strong
+limits:
+  max_tasks: 1
+  max_llm_calls: 2
+  max_retrieved_records: 0
+  max_visible_records: 100
+  max_total_tokens: 20000
+  max_wall_s: 60
+tasks:
+  - id: result
+    use: llm
+    with:
+      output_schema:
+        type: object
+        required: [records]
+        properties:
+          records:
+            type: array
+            maxItems: 5
+            items:
+              oneOf:
+                - type: object
+                  required: [key, text, citations]
+                  properties:
+                    key: {type: string, enum: [role, commitments, preferences, open_threads, goals]}
+                    text: {type: string, minLength: 1}
+                    citations:
+                      type: array
+                      minItems: 1
+                      uniqueItems: true
+                      items: {type: string, format: uuid}
+                  additionalProperties: false
+                - type: object
+                  required: [key, citations, retract]
+                  properties:
+                    key: {type: string, enum: [role, commitments, preferences, open_threads, goals]}
+                    citations:
+                      type: array
+                      minItems: 1
+                      uniqueItems: true
+                      items: {type: string, format: uuid}
+                    retract: {const: true}
+                  additionalProperties: false
+        additionalProperties: false
+      prompt: |
+        Maintain a precise, durable CRM profile for {{entity}}. Use only facts that
+        are explicitly supported by the visible CRM events. Preserve useful current
+        facts when the new evidence does not supersede them.
+
+        This is a business account profile, not a diary. Record only facts that a
+        rep would act on to advance the relationship. Route each supported fact into
+        exactly one slot using these definitions:
+
+          role          Who they are on this account: current title, scope, and what
+                        they own or decide. One concise line.
+          commitments   Concrete obligations either side has made, with dates or
+                        deliverables — deadlines, signed deals, promised ships. Each
+                        item names the obligation and its timing.
+          preferences   How they want to be worked with — cadence, channel, meeting
+                        and update format. WORKING preferences only; ignore personal
+                        tastes (food, hobbies) that carry no CRM action.
+          open_threads  Unresolved items needing follow-up — shipped defects,
+                        incidents, escalations, blockers, or questions awaiting an
+                        answer. Drop a thread once evidence shows it is resolved.
+          goals         Outcomes they are trying to achieve — the strategic results
+                        or success criteria driving their decisions.
+
+        If a supported fact fits none of these slots, OMIT it — do not invent a slot
+        or stretch one to hold it. A slot with no supporting evidence stays absent.
+
+        This runs incrementally: each run sees the current profile plus only the
+        newest events. For the list-like slots — preferences, commitments, and
+        open_threads — ADD newly-evidenced items to the ones already in the current
+        profile instead of replacing them, dropping an old item only when new
+        evidence contradicts, resolves, or completes it. Carry every still-valid
+        citation forward alongside the new ones so the accumulated slot stays fully
+        cited. role and goals are single durable statements: rewrite in place when
+        evidence supersedes them.
+
+        CURRENT PROFILE:
+        <records untrusted="true">
+        {{current_profile.rendered}}
+        </records>
+
+        ACCOUNT PLAYBOOK (how we work this account; follow its priorities):
+        <records untrusted="true">
+        {{account_playbook.rendered}}
+        </records>
+
+        EARLIER COMMITMENT HISTORY (older events retrieved for reference):
+        <records untrusted="true">
+        {{commitment_history.rendered}}
+        </records>
+
+        NEW CRM EVENTS:
+        <records untrusted="true">
+        {{new_crm_events.rendered}}
+        </records>
+
+        Emit only the slots the evidence supports — role, commitments, preferences,
+        open_threads, or goals. Do NOT emit a summary: a separate derivation
+        synthesizes the one-sentence summary from these slots once they settle.
+        Do not infer sensitive traits. Every record must cite one or more visible
+        CRM event UUIDs that directly support it. Return only JSON matching this
+        shape:
+        {"records":[
+          {"key":"role","text":"...","citations":["uuid"]},
+          {"key":"commitments","text":"...","citations":["uuid"]}
+        ]}
+emit:
+  from: "{{result.records}}"
+  collection: user_profiles
+  type: profile
+  keys: [role, commitments, preferences, open_threads, goals]

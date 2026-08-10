@@ -1,0 +1,44 @@
+collections:
+  - name: syntheses
+    version: 1
+    active: false
+    mode: keyed
+    schema:
+      type: object
+      required: [text, question, gaps]
+      properties:
+        text: {type: string}
+        question: {type: string, minLength: 1}
+        gaps:
+          type: array
+          maxItems: 20
+          items: {type: string, minLength: 1}
+        anchor: {type: string, minLength: 1}
+      additionalProperties: false
+    fields:
+      question: {path: content.question, type: string, filter: true, project: true}
+    required_processors: [embedding_v1]
+    search_profile: pg_default
+  - name: syntheses
+    version: 2
+    active: true
+    mode: keyed
+    schema:
+      type: object
+      required: [text, question, gaps, rewrite]
+      properties:
+        text: {type: string}
+        question: {type: string, minLength: 1}
+        gaps:
+          type: array
+          maxItems: 20
+          items: {type: string, minLength: 1}
+        rewrite: {type: boolean}
+        anchor: {type: string, minLength: 1}
+        since: {type: string, format: date-time}
+        until: {type: string, format: date-time}
+      additionalProperties: false
+    fields:
+      question: {path: content.question, type: string, filter: true, project: true}
+    required_processors: [embedding_v1]
+    search_profile: pg_default

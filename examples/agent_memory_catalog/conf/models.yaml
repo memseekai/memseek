@@ -1,0 +1,37 @@
+# Point these targets at models your own account can call. `cheap` runs the
+# high-volume passes (scene segmentation, the skill generalization review); `strong`
+# runs the passes whose output becomes a durable head someone will read later.
+#
+# `strong` needs a model that copies UUIDs exactly and follows a long, rule-heavy
+# extraction prompt: a small model will sometimes return no claims at all, or miscopy
+# one citation and lose the whole Candidate Set. Use your best JSON-capable model here
+# and keep `cheap` for the two bounded passes.
+
+# Named endpoints. Alias targets and the embedding block refer to a provider by
+# the key you choose here; the credential stays in the environment.
+providers:
+  openai:
+    adapter: openai_compat
+    base_url: https://api.openai.com/v1
+    api_key_env: OPENAI_API_KEY
+
+aliases:
+  cheap:
+    targets: ["openai:gpt-5.4-2026-03-05"]
+    params: {temperature: 0, max_output_tokens: 1200}
+    context_tokens: 60000
+
+  strong:
+    targets: ["openai:gpt-5.4-2026-03-05"]
+    params: {temperature: 0, max_output_tokens: 4000}
+    context_tokens: 120000
+
+embedding:
+  provider: openai
+  model: text-embedding-3-small
+  dimensions: 1536
+  space: default-v1
+
+defaults:
+  derivation: strong
+  fold: strong

@@ -1,0 +1,160 @@
+# L2 → L3. The upstream implementation generates the persona from scene files
+# that changed since the last persona pass, not directly from raw L1 claims.
+# That keeps L3 a stable interpretation of consolidated context.
+#
+# One definition covers both of the source design's modes: a `current` source
+# renders empty when no head exists, so the "first" run and every "incremental"
+# run read the same prompt. The emission is a partial keyed update — a run
+# rewrites only the traits the new evidence actually changed, and the receipt
+# records the rest as unchanged.
+name: persona
+trigger:
+  changed:
+    collections: [scenes]
+    types: [scene_block]
+    statuses: [active]
+    transitions: [added, changed]
+  cooldown_s: 30
+sources:
+  changed_scenes:
+    kind: changes
+    collections: [scenes]
+    types: [scene_block]
+    statuses: [active]
+    keyed: true
+    max_records: 15
+    max_tokens: 18000
+    allow_empty: false
+  current_scenarios:
+    kind: current
+    collections: [scenes]
+    types: [scene_block]
+    statuses: [active]
+    max_records: 15
+    max_tokens: 18000
+  current_persona:
+    kind: current
+    collections: [persona]
+    types: [trait]
+    statuses: [active]
+    keys: [archetype, role, technical_preferences, interaction_protocol, decision_pattern]
+    max_records: 5
+    max_tokens: 8000
+model: strong
+limits:
+  max_tasks: 1
+  max_llm_calls: 2
+  max_retrieved_records: 0
+  max_visible_records: 45
+  max_total_tokens: 50000
+  max_wall_s: 150
+tasks:
+  - id: result
+    use: llm
+    with:
+      output_schema:
+        type: object
+        required: [records]
+        properties:
+          records:
+            type: array
+            maxItems: 5
+            items:
+              oneOf:
+                - type: object
+                  required: [key, text, citations]
+                  properties:
+                    key:
+                      type: string
+                      enum:
+                        - archetype
+                        - role
+                        - technical_preferences
+                        - interaction_protocol
+                        - decision_pattern
+                    text: {type: string, minLength: 1}
+                    citations:
+                      type: array
+                      minItems: 1
+                      maxItems: 12
+                      uniqueItems: true
+                      items: {type: string, format: uuid}
+                  additionalProperties: false
+                - type: object
+                  required: [key, citations, retract]
+                  properties:
+                    key:
+                      type: string
+                      enum:
+                        - archetype
+                        - role
+                        - technical_preferences
+                        - interaction_protocol
+                        - decision_pattern
+                    citations:
+                      type: array
+                      minItems: 1
+                      uniqueItems: true
+                      items: {type: string, format: uuid}
+                    retract: {const: true}
+                  additionalProperties: false
+        additionalProperties: false
+      max_output_tokens: 1800
+      prompt: |
+        Maintain the durable profile of {{entity}}.
+
+        CURRENT PROFILE:
+        <records untrusted="true">
+        {{current_persona.rendered}}
+        </records>
+
+        SCENE BLOCKS CHANGED SINCE THE LAST PERSONA UPDATE:
+        <records untrusted="true">
+        {{changed_scenes.rendered}}
+        </records>
+
+        CURRENT SCENE BLOCKS, FOR COMPARISON:
+        <records untrusted="true">
+        {{current_scenarios.rendered}}
+        </records>
+
+        The five slots are:
+          archetype              — one line naming how this person operates
+          role                   — the work they are actually doing
+          technical_preferences  — durable choices, not this week's decision
+          interaction_protocol   — how an agent must behave toward them
+          decision_pattern       — the sequence they follow when deciding
+
+        Only stable patterns belong here. "Mobile version 8 ships in October" is scene
+        context and remains in its block; "requires evidence before removing a compatibility
+        path" may become a trait when it is a cross-context operating pattern. A dated plan,
+        a version number, or a ticket is never a trait.
+
+        A general rule that survives across scene blocks is interaction_protocol. A repeated
+        demand for evidence before an irreversible step is decision_pattern. A framework,
+        database, or cross-project design standard is technical_preferences. A rule tied only
+        to one block remains there.
+
+        When the current profile is empty, populate every slot the visible evidence can
+        support: an agent with no profile behaves worse than one with a cautious profile.
+        When it is not empty, emit only the slots whose value should change.
+
+        Every value must be specific enough that deleting it would change what an agent
+        does. "Maintain a cautious, evidence-based approach" is worthless — it names no
+        behaviour. "Requires telemetry showing zero traffic before any compatibility path is
+        removed, and treats writing code and shipping it as separate approvals" is a trait.
+
+        Keep each value under three sentences and cite only the visible scene-block UUIDs
+        that support it. Use retract only when a slot's claim is no longer true at all.
+
+        Copy every UUID character for character from the sections above and cite nothing
+        else. One id the run could not see rejects every record in the run.
+
+        If nothing stable changed, return {"records":[]}. Otherwise return only JSON:
+        {"records":[{"key":"interaction_protocol","text":"...","citations":["uuid"]}]}
+emit:
+  from: "{{result.records}}"
+  collection: persona
+  type: trait
+  keys: [archetype, role, technical_preferences, interaction_protocol, decision_pattern]
+  max_records: 5

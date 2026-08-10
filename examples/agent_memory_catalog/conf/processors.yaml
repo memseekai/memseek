@@ -1,0 +1,17 @@
+processors:
+  - name: embedding_v1
+    kind: embedding
+    input:
+      collections: [messages, memories, scenes, persona, traces, procedures]
+
+  # A constant score so the shared rank expressions in conf/rank_default.yaml
+  # resolve for every collection in this catalog. Retrieval ordering that should
+  # reflect *importance* uses the declared `priority` field on a memory instead:
+  # priority is extracted with the claim and stays inside the record contract,
+  # where a reader can see it and a structured view can order by it.
+  - name: importance
+    kind: score
+    source: constant
+    input: {collections: [messages, memories, scenes, persona, traces, procedures]}
+    scale: [1, 10]
+    value: 5

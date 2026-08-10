@@ -1,0 +1,74 @@
+:root {
+  --memseek-ink: #17202a;
+  --memseek-accent: #0b756e;
+  --memseek-dark: #102d2d;
+}
+
+body {
+  color: var(--memseek-ink);
+}
+
+.wy-nav-side {
+  background: var(--memseek-dark);
+}
+
+.wy-side-nav-search {
+  background: #0b756e;
+}
+
+.wy-nav-content {
+  max-width: 1180px;
+}
+
+.wy-nav-content h1,
+.wy-nav-content h2,
+.wy-nav-content h3,
+.wy-nav-content h4 {
+  color: var(--memseek-dark);
+}
+
+.wy-nav-content h1 {
+  letter-spacing: -.035em;
+}
+
+.wy-nav-content a {
+  color: var(--memseek-accent);
+}
+
+.wy-nav-content pre,
+.wy-nav-content code {
+  border-radius: 5px;
+  /* Pin the monospace stack. ASCII schematics align only if every glyph —
+     including box-drawing U+2500–U+257F — comes from one fixed-width font.
+     Left to the browser default, a missing glyph falls back to a proportional
+     face and the diagram's columns collapse. Every font listed here covers
+     the box-drawing range. */
+  font-family: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas,
+    "DejaVu Sans Mono", "Liberation Mono", monospace;
+  font-variant-ligatures: none;
+}
+
+/* Mermaid blocks are diagrams, not code: drop the code-block chrome. Before
+   mermaid runs (or if it never loads) this still reads as plain text. */
+.wy-nav-content .mermaid {
+  margin: 1.4em 0;
+  text-align: center;
+  overflow-x: auto;
+}
+
+.wy-nav-content .mermaid svg {
+  max-width: 100%;
+  height: auto;
+}
+
+/* A diagram must scroll, never reflow: wrapping a schematic destroys it. */
+.wy-nav-content div[class^="highlight"] pre,
+.wy-nav-content pre.literal-block {
+  white-space: pre;
+  overflow-x: auto;
+  tab-size: 4;
+}
+
+.wy-nav-content table th {
+  background: #eef5f2;
+}

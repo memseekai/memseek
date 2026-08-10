@@ -1,0 +1,23 @@
+artifacts:
+  - name: maintained_skill
+    version: 1
+    active: true
+    kind: skill
+    lifecycle: reviewed
+    parameters:
+      entity: {type: string, required: true}
+    blocks:
+      sections:
+        document:
+          entity: "{{entity}}"
+          collections: [skills]
+          status: active
+        max_tokens: 12000
+    # A maintained skill is reviewed before it is promoted, and its rendering is
+    # the skill body itself rather than a prompt wrapped around retrieved data.
+    # It declares no fence: an untrusted-data element here would end up inside
+    # whatever prompt later carries the skill.
+    template: |
+      {{sections}}
+    candidate_processor: skill
+    complete_keys: [steps, pitfalls, examples]

@@ -1,0 +1,8 @@
+---
+import page from '../../../public/showcase/agent-memory/index.html?raw';
+
+// The showcase stays a self-contained HTML artifact, while this thin route lets
+// Astro's development server resolve the same trailing-slash URL as production.
+---
+
+<Fragment set:html={page} />

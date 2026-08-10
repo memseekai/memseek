@@ -1,0 +1,97 @@
+# Tier 4 — the escalation that closes the loop. One stray edge can be noise;
+# a standing BIND is a crisis of belief. The `census` condition fires only when
+# the entity has >= 2 standing self_contradiction edges AND a new one just
+# landed — "enough dissonance to force a reckoning". The agent then reflects on
+# the conflict itself: it reads the conflicting convictions and the edges between
+# them and writes a cited reconciliation insight back into `reflections`.
+#
+# That insight is a `reflection`-family record, so on the NEXT worldview run it
+# becomes evidence — the loop feeds back on itself: observe -> reflect -> form
+# convictions -> detect self-conflict -> reflect on the conflict -> revise.
+name: reconcile
+trigger:
+  census:
+    collections: [relations]
+    types: [self_contradiction]
+    statuses: [active]
+    threshold: 2
+sources:
+  new_conflicts:
+    kind: changes
+    collections: [relations]
+    types: [self_contradiction]
+    statuses: [active]
+    keyed: false
+    max_records: 20
+    max_tokens: 8000
+    allow_empty: false
+  current_convictions:
+    kind: current
+    collections: [worldview]
+    types: [conviction]
+    statuses: [active]
+    max_records: 40
+    max_tokens: 12000
+model: strong
+limits:
+  max_tasks: 1
+  max_llm_calls: 2
+  max_retrieved_records: 0
+  max_visible_records: 80
+  max_total_tokens: 50000
+  max_wall_s: 120
+tasks:
+  - id: result
+    use: llm
+    with:
+      output_schema:
+        type: object
+        required: [records]
+        properties:
+          records:
+            type: array
+            maxItems: 3
+            items:
+              type: object
+              required: [text, citations, content]
+              properties:
+                text: {type: string, minLength: 1}
+                citations:
+                  type: array
+                  minItems: 1
+                  uniqueItems: true
+                  items: {type: string, format: uuid}
+                content:
+                  type: object
+                  required: [kind]
+                  properties:
+                    kind: {const: reconciliation}
+                  additionalProperties: false
+              additionalProperties: false
+        additionalProperties: false
+      max_output_tokens: 1200
+      prompt: |
+        {{entity}} is holding several convictions that contradict each other.
+        The dissonance has accumulated to the point of a reckoning.
+
+        THE CONFLICTS DETECTED:
+        <records untrusted="true">
+        {{new_conflicts.rendered}}
+        </records>
+
+        THE CONVICTIONS CURRENTLY HELD:
+        <records untrusted="true">
+        {{current_convictions.rendered}}
+        </records>
+
+        Reflect on WHY these beliefs collide and what a coherent stance would be.
+        Write up to three one-sentence reconciliation insights that name the
+        tension plainly and point toward how it resolves. Each must cite the
+        decisive conviction and/or conflict UUIDs above — nothing uncited.
+
+        Return only JSON:
+        {"records":[{"text":"...","citations":["uuid"],"content":{"kind":"reconciliation"}}]}
+emit:
+  from: "{{result.records}}"
+  collection: reflections
+  type: reconciliation

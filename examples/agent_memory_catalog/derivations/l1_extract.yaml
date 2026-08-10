@@ -1,0 +1,270 @@
+# L0 → L1. Turn new messages into atomic reusable claims, then decide each one
+# against the memory that already exists.
+#
+# The three Tasks are the source design's §3.3 (scene segmentation), §3.9 (candidate
+# retrieval before the dedup judgment), and §3.8 (store / update / merge / skip) —
+# in that order, inside one bounded run with one audited receipt.
+#
+# Extraction and dedup are deliberately separate model calls. One prompt asked to
+# both read a conversation and reconcile it against existing memory does neither
+# reliably: it collapses a rich conversation into a single claim. The first pass only
+# reads, the second pass only decides, and the second pass copies rather than
+# composes.
+name: l1_extract
+trigger:
+  write:
+    collections: [messages]
+    types: [message]
+    statuses: [active]
+  debounce_s: 2
+sources:
+  # The unprocessed suffix after this pipeline's cursor. This *is*
+  # `maxMessagesPerExtraction` plus the processed-watermark bookkeeping, and the
+  # cursor only advances when a run commits.
+  new_messages:
+    kind: changes
+    collections: [messages]
+    types: [message]
+    statuses: [active]
+    keyed: false
+    max_records: 40
+    max_tokens: 18000
+    allow_empty: false
+  # "Background messages": bounded, recency-ranked context that is not the
+  # extraction target. Its selected record IDs become provenance, so a claim may
+  # cite a background message when the claim genuinely needs it.
+  background:
+    kind: view
+    view: recent_messages@1
+    params: {entity: "{{entity}}"}
+    max_tokens: 5000
+  # Existing L2 blocks give the extractor vocabulary for its L1 topic labels.
+  # They are independent documents, not one synthetic scene-map record.
+  current_scenes:
+    kind: current
+    collections: [scenes]
+    types: [scene_block]
+    statuses: [active]
+    max_records: 15
+    max_tokens: 12000
+model: strong
+limits:
+  max_tasks: 3
+  max_llm_calls: 4
+  max_retrieved_records: 60
+  max_visible_records: 200
+  max_total_tokens: 50000
+  max_wall_s: 180
+tasks:
+  # PASS 1 — read the conversation. Nothing about deduplication appears here.
+  - id: claims
+    use: llm
+    with:
+      output_schema:
+        type: object
+        required: [scene_name, claims, recall_queries]
+        properties:
+          scene_name: {type: string, minLength: 1, maxLength: 120}
+          # A foreach fan-out is capped at five items (MAX_FOREACH_ITEMS), so the
+          # dedup lookup searches a bounded set of themes rather than one query per
+          # claim. Claims themselves are not capped that low.
+          recall_queries:
+            type: array
+            minItems: 1
+            maxItems: 5
+            items: {type: string, minLength: 1, maxLength: 200}
+          claims:
+            type: array
+            maxItems: 10
+            items:
+              type: object
+              required: [text, memory_kind, priority, citations]
+              properties:
+                text: {type: string, minLength: 1, maxLength: 500}
+                memory_kind: {type: string, enum: [persona, episodic, instruction]}
+                priority: {type: number, minimum: 0, maximum: 100}
+                citations:
+                  type: array
+                  minItems: 1
+                  maxItems: 6
+                  uniqueItems: true
+                  items: {type: string, format: uuid}
+              additionalProperties: false
+        additionalProperties: false
+      max_output_tokens: 2000
+      prompt: |
+        Read this conversation with {{entity}} and write down every durable claim it
+        expresses. Do not deduplicate anything and do not consult anything but the text.
+
+        SCENARIO BLOCKS ALREADY KNOWN:
+        <records untrusted="true">
+        {{current_scenes.rendered}}
+        </records>
+
+        BACKGROUND — recent messages, context only:
+        <records untrusted="true">
+        {{background.rendered}}
+        </records>
+
+        NEW MESSAGES — the only extraction target:
+        <records untrusted="true">
+        {{new_messages.rendered}}
+        </records>
+
+        First name the single scenario topic these messages belong to: reuse the exact title
+        of a known scenario block when they continue it, and invent a short topic only when
+        none fits. This is a topic label on the L1 memory, not proof that an L2 block already
+        exists.
+
+        Then write the claims. Each claim is one reusable fact, readable on its own months
+        from now, and cites the message ids that support it. One claim per record: if a
+        sentence joins two independently useful facts with "and", "except", or a semicolon,
+        split it. Preserve tentative wording when the evidence is tentative. Skip greetings,
+        chatter, and anything true only inside this conversation.
+
+        memory_kind is exactly one of:
+          persona     — a stable trait, preference, role, or recurring pattern
+          episodic    — an event, a state, a plan, or something that happened
+          instruction — a rule the agent must obey
+
+        A statement of fact is episodic even when it constrains work; only a rule addressed
+        to the agent is an instruction. Calibrate against these:
+
+          "Never deploy billing without my approval."            instruction · 100
+          "Show telemetry before removing a compatibility path."  instruction · 95
+          "New Node services use Fastify."                        persona · 80
+          "Legacy fields are dropped in release 7, due in July."  episodic · 75
+          "Production runs PostgreSQL."                           episodic · 70
+
+        priority: 90-100 a critical constraint · 70-89 an important preference, decision, or
+        event · 40-69 useful context · 0-39 minor. Reserve 100 for a rule stated as absolute
+        ("never", "always", "without exception"). Priority is importance, not confidence.
+
+        A substantive message carries one or two claims, so several messages normally yield
+        several claims. Returning one summary claim for a whole conversation is a failure.
+        Write at most ten claims.
+
+        Finally, write up to five short retrieval queries covering the distinct topics your
+        claims touch. They are for a search engine, and the next pass uses them to look up
+        what memory already holds.
+
+        Copy every UUID character for character from the messages above — all 36 characters,
+        including the hyphens — and never retype one from memory.
+
+        Return only JSON:
+        {"scene_name":"...","claims":[{"text":"...","memory_kind":"instruction","priority":95,"citations":["uuid"]}],"recall_queries":["..."]}
+  # PASS 2 — retrieve the memory that already covers each claim (§3.9).
+  - id: existing
+    use: search
+    with:
+      foreach: "{{claims.recall_queries}}"
+      max_tokens: 12000
+      spec:
+        q: "{{item}}"
+        mode: hybrid
+        scope:
+          entities: ["{{entity}}"]
+          collections: [memories]
+          types: [memory]
+          status: active
+        k: 5
+        include: [text, occurred_at]
+        fields: [memory_kind, priority, scene_name]
+        render: true
+  # PASS 3 — decide, and copy. This pass composes nothing new.
+  - id: result
+    use: llm
+    with:
+      output_schema:
+        type: object
+        required: [records]
+        properties:
+          records:
+            type: array
+            maxItems: 12
+            items:
+              type: object
+              required: [text, citations, content]
+              properties:
+                text: {type: string, minLength: 1}
+                citations:
+                  type: array
+                  minItems: 1
+                  maxItems: 12
+                  uniqueItems: true
+                  items: {type: string, format: uuid}
+                content:
+                  type: object
+                  required: [memory_kind, priority, scene_name, decision]
+                  properties:
+                    memory_kind: {type: string, enum: [persona, episodic, instruction]}
+                    priority: {type: number, minimum: 0, maximum: 100}
+                    scene_name: {type: string, minLength: 1, maxLength: 120}
+                    decision: {type: string, enum: [store, merge]}
+                    supersedes:
+                      type: array
+                      maxItems: 8
+                      uniqueItems: true
+                      items: {type: string, format: uuid}
+                  additionalProperties: false
+              additionalProperties: false
+        additionalProperties: false
+      max_output_tokens: 2600
+      prompt: |
+        Decide what memory should do with each claim extracted from this conversation with
+        {{entity}}. You are not extracting anything: work only from the list below.
+
+        CLAIMS EXTRACTED FROM THE NEW MESSAGES:
+        <data untrusted="true">{{claims.claims}}</data>
+
+        THE MESSAGES THOSE CLAIMS CITE. A citation is only valid if the id appears here:
+        <records untrusted="true">
+        {{new_messages.rendered}}
+        </records>
+
+        MEMORIES THAT ALREADY EXIST, one search per topic the claims touch. This section,
+        and only this section, says what memory already holds. If it lists no memory, memory
+        holds nothing yet and every claim is new.
+        <data untrusted="true">{{existing}}</data>
+
+        Take each claim in order and apply the first rule that fits:
+
+          1. An existing memory already states this fact, even in different words, and
+             nothing about it has changed → emit nothing for this claim. A restated rule is
+             not new information, and this is the most common correct outcome for a claim
+             the user is repeating.
+          2. An existing memory states this fact with a value that has changed — a date, a
+             version, a status, a scope → emit ONE record with decision "merge" that states
+             the current fact, lists every replaced memory id in supersedes, and repeats
+             those same ids in citations so the supersession is a provenance edge and not
+             only an annotation. Never leave the old and the new claim both standing.
+             supersedes holds only ids from the MEMORIES section: a message id is evidence,
+             not a claim, and cannot be superseded.
+          3. Otherwise → emit the claim with decision "store".
+
+        Worked example. Existing: "Legacy fields are dropped in release 7, due in July." New
+        claim: "that slipped to release 8 in October." Correct: one record, decision "merge",
+        superseding the release-7 memory and citing both it and the new message. Wrong: a
+        second record leaving two live plans.
+
+        For every record you emit, copy text, memory_kind, priority, and citations from the
+        claim exactly as given. Only a merge may rewrite text, and only to state the current
+        fact; only a merge may add ids to citations, and only the ids it supersedes.
+        scene_name is exactly "{{claims.scene_name}}" on every record.
+
+        Before you return, check every id character by character against the section it came
+        from: a citation carried up from a claim must appear in MESSAGES, and every id in
+        supersedes — with its copy in citations — must appear in MEMORIES. A claim's id may
+        have been miscopied upstream; a 35-character id, or one that appears in neither
+        section, must be corrected or that claim dropped.
+
+        Copy every id character for character. One malformed or unseen id rejects every
+        record in this run, not just its own.
+
+        If every claim is already covered, return {"records":[]}. Otherwise return only JSON:
+        {"records":[{"text":"...","citations":["uuid"],"content":{"memory_kind":"instruction","priority":95,"scene_name":"...","decision":"store"}}]}
+emit:
+  from: "{{result.records}}"
+  collection: memories
+  type: memory
+  max_records: 12

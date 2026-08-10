@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="Watch a conversation become useful agent memory, one layer at a time."
+    />
+    <title>Agent Memory Reactor — memseek</title>
+    <link rel="canonical" href="https://memseek.pages.dev/showcase/agent-memory/" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Memseek" />
+    <meta property="og:title" content="Agent Memory Reactor — memseek" />
+    <meta
+      property="og:description"
+      content="One conversation becomes exact messages, useful facts, a working scene, and durable context."
+    />
+    <meta property="og:url" content="https://memseek.pages.dev/showcase/agent-memory/" />
+    <meta property="og:image" content="https://memseek.pages.dev/showcase/agent-memory/og.png" />
+    <meta property="og:image:width" content="1731" />
+    <meta property="og:image:height" content="909" />
+    <meta property="og:image:alt" content="A four-layer memory reactor turning messages into useful context." />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:image" content="https://memseek.pages.dev/showcase/agent-memory/og.png" />
+
+    <script>
+      try {
+        var t = localStorage.getItem('ms-theme');
+        if (t === 'dark' || t === 'light') document.documentElement.setAttribute('data-theme', t);
+        else if (window.matchMedia('(prefers-color-scheme: light)').matches)
+          document.documentElement.setAttribute('data-theme', 'light');
+      } catch (e) {}
+    </script>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600;700&family=Manrope:wght@600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="../showcase.css" />
+    <link rel="stylesheet" href="./agent-memory.css" />
+  </head>
+  <body>
+    <script>document.documentElement.className += ' js';</script>
+    <a class="skip" href="#main">Skip to the memory demo</a>
+
+    <header class="nav am-nav">
+      <div class="wrap nav-inner">
+        <a class="brand" href="/">memseek<span class="caret">▌</span></a>
+        <nav class="nav-right" aria-label="Showcase navigation">
+          <a class="navlink" href="#demo">Demo</a>
+          <a class="navlink" href="#connect">Connect</a>
+          <button class="theme-toggle" id="theme" type="button" aria-label="Toggle colour theme">◐</button>
+          <a class="nav-cta" href="https://github.com/memseekai/memseek/blob/main/examples/agent_memory.py">View code</a>
+        </nav>
+      </div>
+    </header>
+
+    <main id="main">
+      <section class="am-hero">
+        <div class="am-grid" aria-hidden="true"></div>
+        <div class="wrap am-hero-layout">
+          <div class="am-hero-copy">
+            <p class="am-kicker">Agent memory, made visible</p>
+            <h1>A memory<br />you can <em>see.</em></h1>
+            <p>
+              A conversation becomes useful context in four small steps. Nothing is hidden, and
+              every layer can point back to the exact words that created it.
+            </p>
+            <button class="am-button am-button-primary" id="hero-start" type="button">Watch it build <span>↓</span></button>
+          </div>
+
+          <div class="am-hero-stack" aria-label="Four layers of agent memory">
+            <div class="am-hero-layer am-hero-l3"><span>L3</span><div><small>PERSONA</small><b>How Alice works</b></div><i>1</i></div>
+            <div class="am-hero-line" aria-hidden="true"></div>
+            <div class="am-hero-layer am-hero-l2"><span>L2</span><div><small>SCENE</small><b>Billing migration</b></div><i>1</i></div>
+            <div class="am-hero-line" aria-hidden="true"></div>
+            <div class="am-hero-layer am-hero-l1"><span>L1</span><div><small>MEMORY</small><b>Rules and facts</b></div><i>3</i></div>
+            <div class="am-hero-line" aria-hidden="true"></div>
+            <div class="am-hero-layer am-hero-l0"><span>L0</span><div><small>MESSAGE</small><b>What Alice said</b></div><i>3</i></div>
+            <p><span></span> Each layer cites the one below it</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="am-demo" id="demo">
+        <div class="wrap">
+          <div class="am-section-head rv">
+            <p class="am-kicker">Interactive demo</p>
+            <h2>One conversation. Four useful forms.</h2>
+            <p>Press play, or move through the layers yourself.</p>
+          </div>
+
+          <div class="am-demo-shell rv">
+            <div class="am-demo-toolbar">
+              <span><i></i> <b id="demo-status">Ready</b></span>
+              <div>
+                <button id="demo-back" type="button" aria-label="Previous step">←</button>
+                <button class="am-play" id="demo-play" type="button" aria-label="Play memory build" aria-pressed="false">▶</button>
+                <button id="demo-next" type="button" aria-label="Next step">→</button>
+              </div>
+            </div>
+
+            <div class="am-demo-body">
+              <section class="am-conversation" aria-labelledby="conversation-heading">
+                <header><span>CONVERSATION</span><h3 id="conversation-heading">Alice · platform review</h3></header>
+                <div class="am-messages" id="demo-messages" aria-live="polite"></div>
+              </section>
+
+              <section class="am-memory" aria-label="Memory layers">
+                <div class="am-layer-list">
+                  <button class="am-layer am-layer-l3" data-layer="l3" type="button"><span>L3</span><div><small>PERSONA</small><b>Working style</b></div><i id="count-l3">0</i></button>
+                  <button class="am-layer am-layer-l2" data-layer="l2" type="button"><span>L2</span><div><small>SCENE</small><b>Billing migration</b></div><i id="count-l2">0</i></button>
+                  <button class="am-layer am-layer-l1" data-layer="l1" type="button"><span>L1</span><div><small>MEMORY</small><b>Rules and facts</b></div><i id="count-l1">0</i></button>
+                  <button class="am-layer am-layer-l0 is-selected" data-layer="l0" type="button"><span>L0</span><div><small>MESSAGE</small><b>Exact conversation</b></div><i id="count-l0">0</i></button>
+                </div>
+                <div class="am-layer-detail" id="layer-detail" aria-live="polite"></div>
+              </section>
+            </div>
+
+            <div class="am-demo-footer">
+              <div><b id="step-title">Start with a conversation</b><p id="step-copy">No memory exists before the first message arrives.</p></div>
+              <div class="am-steps" aria-label="Memory build progress">
+                <button class="is-active" data-step="0" type="button" aria-label="Start"></button>
+                <button data-step="1" type="button" aria-label="L0 messages"></button>
+                <button data-step="2" type="button" aria-label="L1 memories"></button>
+                <button data-step="3" type="button" aria-label="L2 scene"></button>
+                <button data-step="4" type="button" aria-label="L3 persona"></button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="am-recall" id="recall">
+        <div class="wrap am-recall-grid">
+          <div class="am-recall-copy rv">
+            <p class="am-kicker">Why it matters</p>
+            <h2>Memory changes the answer.</h2>
+            <p>The request sounds simple. The remembered rules make the safe next step obvious.</p>
+          </div>
+          <div class="am-recall-card rv">
+            <span class="am-request-label">REQUEST</span>
+            <p id="recall-task">Rewrite billing in Fastify and deploy it tonight.</p>
+            <div class="am-remembered">
+              <span>Needs explicit approval</span>
+              <span>Keep mobile compatibility</span>
+              <span>Attach a rollback plan</span>
+            </div>
+            <button class="am-button am-button-primary" id="recall-button" type="button">Use memory</button>
+            <div class="am-answer" id="recall-answer" aria-live="polite">
+              <small>MEMORY-AWARE ANSWER</small>
+              <p>Ready to check the request against memory.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="am-connect" id="connect">
+        <div class="wrap">
+          <div class="am-section-head rv">
+            <p class="am-kicker">Optional live connection</p>
+            <h2>Load a real Memseek run.</h2>
+            <p>The demo works on its own. Connect only when you want to inspect records created by <code>agent_memory.py</code>.</p>
+          </div>
+
+          <div class="am-connect-grid rv">
+            <div class="am-connect-guide">
+              <h3>Run locally</h3>
+              <p>The complete guide covers the database, real model, worker, workspace key, and CORS.</p>
+              <a href="https://github.com/memseekai/memseek/blob/main/docs/agent-memory-example.md">Open the setup guide →</a>
+            </div>
+
+            <form class="am-connect-card" id="api-connect-form">
+              <header><div><span>LIVE SNAPSHOT</span><h3>Connect to Memseek</h3></div><em id="api-status"><i></i> Offline</em></header>
+              <label><span>API URL</span><input id="api-url" type="url" value="http://127.0.0.1:8000" required spellcheck="false" /></label>
+              <label><span>Workspace API key</span><input id="api-key" type="password" placeholder="msk_…" required autocomplete="off" /></label>
+              <label><span>Run ID</span><input id="api-run" type="text" value="demo" required pattern="[A-Za-z0-9_-]{1,32}" maxlength="32" spellcheck="false" /></label>
+              <button class="am-button am-button-primary" id="api-connect-button" type="submit">Connect</button>
+              <p class="am-connect-message" id="api-message" aria-live="polite">Your key stays in this tab and is never saved.</p>
+              <div class="am-live" id="api-results" hidden>
+                <div class="am-live-counts">
+                  <button class="is-selected" data-live-layer="messages" type="button"><span>L0</span><b id="live-l0">0</b></button>
+                  <button data-live-layer="memories" type="button"><span>L1</span><b id="live-l1">0</b></button>
+                  <button data-live-layer="scenes" type="button"><span>L2</span><b id="live-l2">0</b></button>
+                  <button data-live-layer="persona" type="button"><span>L3</span><b id="live-l3">0</b></button>
+                </div>
+                <div class="am-live-list" id="api-live-list"></div>
+              </div>
+            </form>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <div class="wrap foot"><span>memseek · agent memory</span><span class="foot-links"><a href="/showcase/">All showcases</a><a href="https://github.com/memseekai/memseek">GitHub</a></span></div>
+    </footer>
+
+    <script src="../showcase.js"></script>
+    <script src="./agent-memory.js"></script>
+  </body>
+</html>

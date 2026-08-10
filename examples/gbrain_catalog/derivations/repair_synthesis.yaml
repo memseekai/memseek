@@ -1,0 +1,34 @@
+name: repair_synthesis
+trigger:
+  cron:
+    expr: "17 * * * *"
+    entities: any
+sources:
+  stale_syntheses:
+    kind: stale_citations
+    collections: [syntheses]
+    types: [synthesis]
+    statuses: [active]
+    keyed: true
+    max_records: 1
+    max_tokens: 12000
+    allow_empty: false
+model: strong
+limits:
+  max_tasks: 1
+  max_llm_calls: 4
+  max_retrieved_records: 40
+  max_visible_records: 41
+  max_total_tokens: 60000
+  max_wall_s: 150
+tasks:
+  - id: repaired_synthesis
+    use: repair_synthesis
+    input:
+      records: "{{stale_syntheses.records}}"
+emit:
+  from: "{{repaired_synthesis}}"
+  collection: syntheses
+  type: synthesis
+  driver_key: true
+  max_records: 1

@@ -1,0 +1,27 @@
+collections:
+  - name: calendar_events
+    version: 1
+    active: true
+    mode: event
+    schema:
+      type: object
+      required: [text, title, starts_at, ends_at]
+      properties:
+        text: {type: string}
+        title: {type: string}
+        starts_at: {type: string, format: date-time}
+        ends_at: {type: string, format: date-time}
+        attendees:
+          type: array
+          items: {type: string}
+        external_id: {type: string}
+      additionalProperties: false
+    text_projection: "{{title}} starts {{starts_at}} and ends {{ends_at}}; attendees: {{attendees}}"
+    fields:
+      starts_at: {path: content.starts_at, type: datetime, filter: true, sort: true, project: true}
+      ends_at: {path: content.ends_at, type: datetime, filter: true, sort: true, project: true}
+      attendees: {path: content.attendees, type: [string], filter: true, project: true}
+      external_id: {path: content.external_id, type: string, filter: true, project: true}
+    required_processors: []
+    optional_processors: [embedding_v1, importance]
+    search_profile: pg_default

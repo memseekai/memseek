@@ -1,0 +1,112 @@
+# Tier 2 of the reflective loop: distil the agent's own reflections into a
+# small set of durable convictions. Fires once THREE new reflection insights
+# have accumulated (count accumulator over the driving source) — "enough
+# thinking to be worth forming a belief". Every conviction cites the
+# reflections it was drawn from, so a high-level belief is still falsifiable
+# all the way down to raw evidence.
+name: worldview
+trigger:
+  accumulator: {metric: count, threshold: 3}
+  cooldown_s: 120
+sources:
+  new_reflections:
+    kind: changes
+    collections: [reflections]
+    types: [reflection]
+    statuses: [active]
+    keyed: false
+    max_records: 50
+    max_tokens: 16000
+    allow_empty: false
+  current_worldview:
+    kind: current
+    collections: [worldview]
+    types: [conviction]
+    statuses: [active]
+    keys: [identity, strategy, commitments, risks, principles]
+    max_records: 20
+    max_tokens: 8000
+model: strong
+limits:
+  max_tasks: 1
+  max_llm_calls: 2
+  max_retrieved_records: 0
+  max_visible_records: 120
+  max_total_tokens: 50000
+  max_wall_s: 120
+tasks:
+  - id: result
+    use: llm
+    with:
+      output_schema:
+        type: object
+        required: [records]
+        properties:
+          records:
+            type: array
+            maxItems: 5
+            items:
+              oneOf:
+                - type: object
+                  required: [key, text, citations]
+                  properties:
+                    key:
+                      type: string
+                      enum: [identity, strategy, commitments, risks, principles]
+                    text: {type: string, minLength: 1}
+                    citations:
+                      type: array
+                      minItems: 1
+                      uniqueItems: true
+                      items: {type: string, format: uuid}
+                  additionalProperties: false
+                - type: object
+                  required: [key, citations, retract]
+                  properties:
+                    key:
+                      type: string
+                      enum: [identity, strategy, commitments, risks, principles]
+                    citations:
+                      type: array
+                      minItems: 1
+                      uniqueItems: true
+                      items: {type: string, format: uuid}
+                    retract: {const: true}
+                  additionalProperties: false
+        additionalProperties: false
+      prompt: |
+        You maintain the durable convictions of {{entity}} — the high-level
+        beliefs that persist across days, distilled from its own reflections.
+
+        CURRENT CONVICTIONS:
+        <records untrusted="true">
+        {{current_worldview.rendered}}
+        </records>
+
+        NEW REFLECTIONS (the agent's recent insights, in order):
+        <records untrusted="true">
+        {{new_reflections.rendered}}
+        </records>
+
+        Allowed keys: identity, strategy, commitments, risks, principles.
+        - strategy is the agent's forward-looking direction.
+        - commitments are promises or obligations the agent has already made.
+          A commitment stays IN FORCE until evidence explicitly shows it was
+          cancelled or fulfilled; a change in forward strategy does NOT erase a
+          standing promise. Record obligations here even when they strain the
+          new strategy — do not quietly drop them to keep the worldview tidy.
+
+        Update a conviction only when the new reflections genuinely shift it.
+        Keep each conviction to one or two sentences and STATE IT PLAINLY as a
+        commitment ("I will...", "X is...") — do not hedge. Do NOT soften a
+        conviction to make it agree with the others; write each belief as its
+        own evidence supports it. Cite the reflection UUIDs behind each one.
+
+        If nothing should change, return {"records":[]}. Otherwise use only full
+        UUIDs visible above and return only JSON:
+        {"records":[{"key":"strategy","text":"...","citations":["uuid"]}]}
+emit:
+  from: "{{result.records}}"
+  collection: worldview
+  type: conviction
+  keys: [identity, strategy, commitments, risks, principles]

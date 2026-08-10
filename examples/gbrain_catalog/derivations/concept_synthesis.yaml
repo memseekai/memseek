@@ -1,0 +1,118 @@
+name: concept_synthesis
+trigger:
+  write:
+    collections: [atoms, patterns]
+    types: [atom, pattern]
+    statuses: [active]
+    keyed: false
+sources:
+  new_signals:
+    kind: changes
+    collections: [atoms, patterns]
+    types: [atom, pattern]
+    statuses: [active]
+    keyed: false
+    max_records: 20
+    max_tokens: 18000
+    allow_empty: false
+  fact_index:
+    kind: current
+    collections: [facts]
+    types: [page_facts]
+    statuses: [active]
+    keys: [page_facts]
+    max_records: 1
+    max_tokens: 6000
+  current_concepts:
+    kind: current
+    collections: [concepts]
+    types: [concept_index]
+    statuses: [active]
+    keys: [concept_index]
+    max_records: 1
+    max_tokens: 8000
+model: cheap
+limits:
+  max_tasks: 1
+  max_llm_calls: 2
+  max_retrieved_records: 0
+  max_visible_records: 22
+  max_total_tokens: 36000
+  max_wall_s: 90
+tasks:
+  - id: concept_index
+    use: llm
+    with:
+      output_schema:
+        type: object
+        required: [records]
+        properties:
+          records:
+            type: array
+            maxItems: 1
+            items:
+              type: object
+              required: [key, text, citations, content]
+              properties:
+                key: {type: string, const: concept_index}
+                text: {type: string, minLength: 1}
+                citations:
+                  type: array
+                  minItems: 1
+                  uniqueItems: true
+                  items: {type: string, format: uuid}
+                content:
+                  type: object
+                  required: [concepts, truncated, omitted_concepts]
+                  properties:
+                    concepts:
+                      type: array
+                      maxItems: 12
+                      items:
+                        type: object
+                        required: [title, text, confidence]
+                        properties:
+                          title: {type: string, minLength: 1, maxLength: 80}
+                          text: {type: string, minLength: 1, maxLength: 280}
+                          confidence: {type: number, minimum: 0, maximum: 1}
+                        additionalProperties: false
+                    truncated: {type: boolean}
+                    omitted_concepts: {type: integer, minimum: 0}
+                  additionalProperties: false
+              additionalProperties: false
+        additionalProperties: false
+      max_output_tokens: 1800
+      prompt: |
+        Maintain one compact, evidence-grounded concept index about {{entity}}. Incorporate
+        genuinely durable themes from the new signals, retain still-supported concepts from
+        the current index, and merge overlap. A concept is a reusable operating theme or
+        stable relationship, not a one-off fact or a prediction. Keep at most 12 concepts;
+        use truncated and omitted_concepts only when more supported concepts exist.
+
+        Cite only UUIDs visible below. Citations must directly support the returned index;
+        cite new signals for updates and existing-index UUIDs only when preserving a still
+        supported concept. If there is no justified change, return {"records":[]}.
+
+        NEW SIGNALS:
+        <records untrusted="true">
+        {{new_signals.rendered}}
+        </records>
+
+        CURRENT DECLARED FACTS:
+        <records untrusted="true">
+        {{fact_index.rendered}}
+        </records>
+
+        CURRENT CONCEPT INDEX:
+        <records untrusted="true">
+        {{current_concepts.rendered}}
+        </records>
+
+        Return only JSON:
+        {"records":[{"key":"concept_index","text":"...","citations":["uuid"],"content":{"concepts":[{"title":"...","text":"...","confidence":0.8}],"truncated":false,"omitted_concepts":0}}]}
+emit:
+  from: "{{concept_index.records}}"
+  collection: concepts
+  type: concept_index
+  keys: [concept_index]
+  max_records: 1

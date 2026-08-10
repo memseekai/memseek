@@ -1,0 +1,61 @@
+collections:
+  - name: crm_events
+    version: 1
+    active: true
+    mode: event
+    schema:
+      type: object
+      required: [text, source, event_kind]
+      properties:
+        text: {type: string}
+        source: {type: string, enum: [salesforce, hubspot, support, product]}
+        event_kind: {type: string, enum: [role, commitment, preference, interaction]}
+        account_id: {type: string}
+      additionalProperties: false
+    fields:
+      source:
+        path: content.source
+        type: string
+        filter: true
+        project: true
+      event_kind:
+        path: content.event_kind
+        type: string
+        filter: true
+        project: true
+      account_id:
+        path: content.account_id
+        type: string
+        filter: true
+        project: true
+    required_processors: [crm_embedding, importance]
+    optional_processors: [deal_signals]
+    search_profile: pg_default
+
+  - name: user_profiles
+    version: 1
+    active: true
+    mode: keyed
+    schema:
+      type: object
+      required: [text]
+      properties:
+        text: {type: string}
+        tombstone: {type: boolean}
+      additionalProperties: false
+    required_processors: [crm_embedding]
+    search_profile: pg_default
+
+  - name: playbooks
+    version: 1
+    active: true
+    mode: keyed
+    schema:
+      type: object
+      required: [text]
+      properties:
+        text: {type: string}
+        tombstone: {type: boolean}
+      additionalProperties: false
+    required_processors: [crm_embedding]
+    search_profile: pg_default

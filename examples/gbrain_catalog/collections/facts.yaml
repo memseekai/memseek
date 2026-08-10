@@ -1,0 +1,35 @@
+collections:
+  - name: facts
+    version: 1
+    active: true
+    mode: keyed
+    schema:
+      type: object
+      required: [text, facts, page_keys, truncated, omitted_facts]
+      properties:
+        text: {type: string, minLength: 1}
+        facts:
+          type: array
+          maxItems: 100
+          items:
+            type: object
+            required: [page_key, text]
+            properties:
+              page_key: {type: string, minLength: 1, maxLength: 128}
+              text: {type: string, minLength: 1, maxLength: 80}
+            additionalProperties: false
+        page_keys:
+          type: array
+          maxItems: 64
+          uniqueItems: true
+          items: {type: string, minLength: 1, maxLength: 128}
+        truncated: {type: boolean}
+        omitted_facts: {type: integer, minimum: 0}
+        tombstone: {type: boolean}
+      additionalProperties: false
+    fields:
+      page_keys: {path: content.page_keys, type: [string], filter: true, project: true}
+      truncated: {path: content.truncated, type: boolean, filter: true, project: true}
+    required_processors: [embedding_v1]
+    search_profile: pg_default
+    answerable: true

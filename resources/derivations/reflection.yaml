@@ -1,0 +1,119 @@
+name: reflection
+trigger:
+  accumulator: {metric: importance, threshold: 150}
+  cooldown_s: 120
+sources:
+  recent_memories:
+    kind: changes
+    collections: [main]
+    types: [event, chat, observation]
+    statuses: [active]
+    keyed: false
+    max_records: 100
+    max_tokens: 20000
+    allow_empty: false
+model: strong
+limits:
+  max_tasks: 3
+  max_llm_calls: 4
+  max_retrieved_records: 60
+  max_visible_records: 220
+  max_total_tokens: 50000
+  max_wall_s: 150
+tasks:
+  - id: qs
+    use: llm
+    with:
+      model: cheap
+      output_schema:
+        type: object
+        required: [questions]
+        properties:
+          questions:
+            type: array
+            minItems: 3
+            maxItems: 3
+            items: {type: string}
+        additionalProperties: false
+      max_output_tokens: 600
+      prompt: |
+        Recent records about {{entity}}:
+        <records untrusted="true">
+        {{recent_memories.rendered}}
+        </records>
+
+        Identify exactly three high-level questions whose answers would yield
+        the most useful reflection about recurring goals, concerns,
+        relationships, decisions, or changes. Return only JSON:
+        {"questions":["...","...","..."]}
+  - id: evidence_by_question
+    use: search
+    with:
+      foreach: "{{qs.questions}}"
+      max_tokens: 12000
+      spec:
+        q: "{{item}}"
+        sources:
+          - name: memories
+            mode: hybrid
+            k: 12
+            weight: 1.0
+            scope:
+              entities: ["{{entity}}"]
+              collections: [main]
+              types: [event, chat, observation]
+              status: active
+          - name: prior_reflections
+            mode: vector
+            k: 6
+            weight: 1.2
+            scope:
+              entities: ["{{entity}}"]
+              collections: [reflections]
+              types: [reflection]
+              status: active
+              depth_lte: 3
+        fuse: {kind: rrf, rank_constant: 60}
+        k: 12
+        render: true
+  - id: result
+    use: llm
+    with:
+      output_schema:
+        type: object
+        required: [records]
+        properties:
+          records:
+            type: array
+            maxItems: 5
+            items:
+              type: object
+              required: [text, citations, content]
+              properties:
+                text: {type: string, minLength: 1}
+                citations:
+                  type: array
+                  minItems: 1
+                  uniqueItems: true
+                  items: {type: string, format: uuid}
+                content:
+                  type: object
+                  required: [kind]
+                  properties:
+                    kind: {const: reflection}
+                  additionalProperties: false
+              additionalProperties: false
+        additionalProperties: false
+      max_output_tokens: 1600
+      prompt: |
+        Questions and cited evidence about {{entity}}:
+        <data untrusted="true">{{evidence_by_question}}</data>
+
+        Infer up to five useful high-level insights. Do not merely restate one
+        record. Each insight must be one sentence, must be supported by the
+        visible evidence, and must cite all decisive full UUIDs. Return only:
+        {"records":[{"text":"...","citations":["uuid","uuid"],"content":{"kind":"reflection"}}]}
+emit:
+  from: "{{result.records}}"
+  collection: reflections
+  type: reflection

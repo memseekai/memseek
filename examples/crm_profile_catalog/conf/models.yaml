@@ -1,0 +1,43 @@
+# Named endpoints. Alias targets and the embedding block refer to a provider by
+# the key you choose here; the credential stays in the environment.
+providers:
+  openai:
+    adapter: openai_compat
+    base_url: https://api.openai.com/v1
+    api_key_env: OPENAI_API_KEY
+
+aliases:
+  cheap:
+    targets: ["openai:gpt-5.4-nano-2026-03-17"]
+    params: {max_output_tokens: 1200}
+    context_tokens: 1050000
+
+  # The profile derivation must do a real incremental merge each run — ADD the
+  # newly-evidenced item to a list slot and carry every prior citation forward.
+  # A nano model does not reliably follow that, so it re-states the first fact
+  # and churns citations; use the full model here (the accumulation smoke test
+  # asserts the novel event lands in the slot, so a weak model fails it).
+  strong:
+    targets: ["openai:gpt-5.4-2026-03-05"]
+    params: {max_output_tokens: 4000}
+    context_tokens: 1050000
+
+  # This score IS the trigger: the accumulator sums importance and fires the
+  # profile derivation when it crosses the threshold. A nano scorer rates a clear,
+  # durable preference inconsistently (often as low as a routine interaction), so a
+  # round carrying just one preference never reliably crosses the bar. Use the full
+  # model so a stable preference scores ~6-8 and dependably trips the derivation.
+  importance_scorer:
+    targets: ["openai:gpt-5.4-2026-03-05"]
+    params: {max_output_tokens: 800}
+    context_tokens: 1050000
+
+embedding:
+  provider: openai
+  model: text-embedding-3-small
+  dimensions: 1536
+  space: default-v1
+
+defaults:
+  derivation: strong
+  fold: strong

@@ -1,0 +1,105 @@
+name: profile
+trigger:
+  read: true
+  accumulator: {metric: importance, threshold: 100}
+  cooldown_s: 60
+sources:
+  new_events:
+    kind: changes
+    collections: [main]
+    types: [event, chat, observation]
+    statuses: [active]
+    keyed: false
+    max_records: 200
+    max_tokens: 24000
+    allow_empty: false
+  current_profile:
+    kind: current
+    collections: [profiles]
+    types: [fact]
+    statuses: [active]
+    keys: [role, preferences, commitments, open_threads, timeline]
+    max_records: 100
+    max_tokens: 12000
+model: strong
+limits:
+  max_tasks: 1
+  max_llm_calls: 2
+  max_retrieved_records: 0
+  max_visible_records: 255
+  max_total_tokens: 50000
+  max_wall_s: 120
+tasks:
+  - id: result
+    use: llm
+    with:
+      output_schema:
+        type: object
+        required: [records]
+        properties:
+          records:
+            type: array
+            maxItems: 5
+            items:
+              oneOf:
+                - type: object
+                  required: [key, text, citations]
+                  properties:
+                    key:
+                      type: string
+                      enum: [role, preferences, commitments, open_threads, timeline]
+                    text: {type: string, minLength: 1}
+                    citations:
+                      type: array
+                      minItems: 1
+                      uniqueItems: true
+                      items: {type: string, format: uuid}
+                  additionalProperties: false
+                - type: object
+                  required: [key, citations, retract]
+                  properties:
+                    key:
+                      type: string
+                      enum: [role, preferences, commitments, open_threads, timeline]
+                    citations:
+                      type: array
+                      minItems: 1
+                      uniqueItems: true
+                      items: {type: string, format: uuid}
+                    retract: {const: true}
+                  additionalProperties: false
+        additionalProperties: false
+      prompt: |
+        Maintain the current cited profile of {{entity}}.
+
+        CURRENT PROFILE STATE:
+        <records untrusted="true">
+        {{current_profile.rendered}}
+        </records>
+
+        NEW EVIDENCE IN CANONICAL INGEST ORDER:
+        <records untrusted="true">
+        {{new_events.rendered}}
+        </records>
+
+        Use each row's occurred_at timestamp for domain chronology. A late-arriving
+        old event must not override newer domain evidence merely because it was
+        ingested later.
+
+        Allowed keys are: role, preferences, commitments, open_threads, timeline.
+        Emit only records whose current value should change because of the new
+        evidence. Prefer newer direct evidence over older claims, preserve useful
+        nuance, and keep each value under two sentences. A retraction is appropriate
+        only when evidence shows a prior section is no longer valid.
+
+        If no key should change, return {"records":[]}.
+        Otherwise use only full record UUIDs visible above. Return only JSON:
+        {"records":[
+          {"key":"role","text":"...","citations":["uuid"]},
+          {"key":"open_threads","retract":true,"citations":["uuid"]}
+        ]}
+emit:
+  from: "{{result.records}}"
+  collection: profiles
+  type: fact
+  keys: [role, preferences, commitments, open_threads, timeline]

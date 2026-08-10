@@ -1,0 +1,42 @@
+collections:
+  # A completed task trace: the L0 of the Skill pipeline. Ingested under the skill's
+  # own entity (`skill.<slug>`), which is how a new skill comes into existence —
+  # the application chooses the identity, the catalog maintains the value.
+  - name: traces
+    version: 1
+    active: true
+    mode: event
+    schema:
+      type: object
+      required: [text, outcome]
+      properties:
+        text: {type: string, minLength: 1}
+        outcome: {type: string, enum: [resolved, abandoned, regression]}
+        task_ref: {type: string, maxLength: 128}
+      additionalProperties: false
+    fields:
+      outcome: {path: content.outcome, type: string, filter: true, project: true}
+    required_processors: [embedding_v1]
+    search_profile: pg_default
+
+  # The maintained procedure. Four required sections, emitted complete and
+  # reviewed: a candidate never takes effect until it is promoted, and every
+  # promoted version stays readable as its own record.
+  #
+  # `triggers` carries both halves of the activation boundary — when to use this
+  # skill and when not to — because a Skill without a negative boundary activates
+  # on the wrong task.
+  - name: procedures
+    version: 1
+    active: true
+    mode: keyed
+    schema:
+      type: object
+      required: [text]
+      properties:
+        text: {type: string, minLength: 1}
+        tombstone: {type: boolean}
+      additionalProperties: false
+    required_processors: [embedding_v1]
+    search_profile: pg_default
+    answerable: true

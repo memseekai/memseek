@@ -1,0 +1,89 @@
+name: pattern_detection
+trigger:
+  write:
+    collections: [edges, atoms]
+    types: [edge, atom]
+    statuses: [active]
+    keyed: false
+sources:
+  new_signals:
+    kind: changes
+    collections: [edges, atoms]
+    types: [edge, atom]
+    statuses: [active]
+    keyed: false
+    max_records: 20
+    max_tokens: 18000
+    allow_empty: false
+  fact_index:
+    kind: current
+    collections: [facts]
+    types: [page_facts]
+    statuses: [active]
+    keys: [page_facts]
+    max_records: 1
+    max_tokens: 6000
+model: cheap
+limits:
+  max_tasks: 1
+  max_llm_calls: 2
+  max_retrieved_records: 0
+  max_visible_records: 21
+  max_total_tokens: 30000
+  max_wall_s: 90
+tasks:
+  - id: pattern_records
+    use: llm
+    with:
+      output_schema:
+        type: object
+        required: [records]
+        properties:
+          records:
+            type: array
+            maxItems: 3
+            items:
+              type: object
+              required: [text, citations, content]
+              properties:
+                text: {type: string, minLength: 1}
+                citations:
+                  type: array
+                  minItems: 2
+                  uniqueItems: true
+                  items: {type: string, format: uuid}
+                content:
+                  type: object
+                  required: [confidence]
+                  properties:
+                    confidence: {type: number, minimum: 0, maximum: 1}
+                  additionalProperties: false
+              additionalProperties: false
+        additionalProperties: false
+      max_output_tokens: 1200
+      prompt: |
+        Identify only recurring, durable patterns about {{entity}} from the new graph or
+        atom signals and the current declared page facts below. A pattern must connect at
+        least two distinct visible records, express a useful repeated relationship, trend,
+        or operating theme, and remain concise. Do not emit a one-off fact, restate an
+        edge verbatim, predict the future, or invent missing context.
+
+        Cite exactly the visible UUIDs that support each pattern. If the evidence does not
+        support a recurring pattern yet, return {"records":[]}.
+
+        NEW SIGNALS:
+        <records untrusted="true">
+        {{new_signals.rendered}}
+        </records>
+
+        CURRENT DECLARED FACTS:
+        <records untrusted="true">
+        {{fact_index.rendered}}
+        </records>
+
+        Return only JSON:
+        {"records":[{"text":"...","citations":["uuid","uuid"],"content":{"confidence":0.8}}]}
+emit:
+  from: "{{pattern_records.records}}"
+  collection: patterns
+  type: pattern

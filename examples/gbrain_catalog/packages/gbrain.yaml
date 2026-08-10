@@ -1,0 +1,47 @@
+name: gbrain
+version: 0.13.0
+collections:
+  - pages@1
+  - edges@1
+  - syntheses@2
+  - atoms@1
+  - facts@1
+  - patterns@1
+  - concepts@1
+  - takes@1
+  - transcripts@1
+processors:
+  - embedding_v1
+  - importance
+  - link_extraction
+  - atom_extraction
+  - fact_extraction
+  - pattern_detection
+  - concept_synthesis
+  - consolidate
+  - enrich_thin
+  - repair_synthesis
+triggers:
+  - link_extraction.default
+  - atom_extraction.default
+  - fact_extraction.default
+  - pattern_detection.default
+  - concept_synthesis.default
+  - consolidate.default
+  - enrich_thin.default
+  - repair_synthesis.default
+views:
+  - gbrain_search@1
+  - graph_query@1
+  - orphan_pages@1
+artifacts:
+  - gbrain_context@1
+mcp: gbrain@1
+search_profiles:
+  - pg_default
+retentions:
+  - name: purge_pages
+    collection: pages@1
+    after_days: 30
+    cron: "23 3 * * *"
+    max_pages: 25

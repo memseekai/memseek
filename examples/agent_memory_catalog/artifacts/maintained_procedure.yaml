@@ -1,0 +1,25 @@
+artifacts:
+  # The reviewed value: the four skill sections as one promotable unit. The
+  # engine checks that skill_extract emits exactly these keys, completely, and
+  # under review — so this artifact and that pipeline cannot drift apart.
+  - name: maintained_procedure
+    version: 1
+    active: true
+    kind: skill
+    lifecycle: reviewed
+    parameters:
+      entity: {type: string, required: true}
+    blocks:
+      sections:
+        document:
+          entity: "{{entity}}"
+          collections: [procedures]
+          status: active
+        max_tokens: 12000
+    # No fence: this rendering is the procedure body, and it gets embedded in
+    # `agent_context`, which marks it as untrusted data there. Fencing it twice
+    # would put a stray element in the middle of that prompt.
+    template: |
+      {{sections}}
+    candidate_processor: skill_extract
+    complete_keys: [triggers, procedure, validation, escalation]

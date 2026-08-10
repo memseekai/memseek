@@ -1,0 +1,16 @@
+views:
+  - name: orphan_pages
+    version: 1
+    active: true
+    kind: graph_orphans
+    graph:
+      edges: edges
+      nodes: pages
+    parameters:
+      # Bounded by MAX_GRAPH_PATHS (default 100), like every graph-kind read.
+      limit:
+        type: integer
+        default: 50
+        description: Maximum number of isolated current pages to return.
+        minimum: 1
+        maximum: 100

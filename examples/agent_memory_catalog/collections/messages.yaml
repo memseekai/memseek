@@ -1,0 +1,31 @@
+collections:
+  # L0 — the evidence layer. One immutable record per message, exactly as it
+  # was said. Nothing here is interpreted, scored, or merged; the layer exists
+  # so every claim above it can be opened back to the words that produced it.
+  #
+  # The source design's `sessionKey` is the memseek entity (the memory scope);
+  # `sessionId` is a declared field, so one conversation can be replayed in
+  # order without that ordering being a property of the whole collection.
+  - name: messages
+    version: 1
+    active: true
+    mode: event
+    schema:
+      type: object
+      required: [text, role, session_id, ordinal]
+      properties:
+        text: {type: string, minLength: 1}
+        role: {type: string, enum: [user, assistant, tool]}
+        session_id: {type: string, minLength: 1, maxLength: 128}
+        # Position within the session. Declared sortable because `structured`
+        # ordering needs a declared field: the canonical occurred_at column
+        # orders `mode: recent` relevance, not an exact structured listing.
+        ordinal: {type: integer, minimum: 0}
+        tool_name: {type: string, maxLength: 64}
+      additionalProperties: false
+    fields:
+      role: {path: content.role, type: string, filter: true, project: true}
+      session_id: {path: content.session_id, type: string, filter: true, project: true}
+      ordinal: {path: content.ordinal, type: integer, filter: true, sort: true, project: true}
+    required_processors: [embedding_v1]
+    search_profile: pg_default

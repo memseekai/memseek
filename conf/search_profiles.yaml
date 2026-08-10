@@ -1,0 +1,9 @@
+profiles:
+  pg_default:
+    backend: pg
+
+  memory_tpuf:
+    backend: turbopuffer
+    layout: shared
+    consistency: strong
+    enabled_if_credentials: true

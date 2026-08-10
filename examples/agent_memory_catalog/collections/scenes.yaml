@@ -1,0 +1,123 @@
+collections:
+  # Keep the former record contract available so a published v1 catalog can be
+  # upgraded without making stored scene records unreadable.
+  - name: scenes
+    version: 1
+    active: false
+    mode: keyed
+    schema:
+      type: object
+      required: [text, scenes, truncated, omitted_scenes]
+      properties:
+        text: {type: string, minLength: 1}
+        scenes:
+          type: array
+          maxItems: 8
+          items:
+            type: object
+            required: [slug, title, state, constraints, open_questions, citations]
+            properties:
+              slug: {type: string, minLength: 1, maxLength: 80}
+              title: {type: string, minLength: 1, maxLength: 120}
+              state: {type: string, minLength: 1, maxLength: 600}
+              constraints:
+                type: array
+                maxItems: 8
+                items: {type: string, minLength: 1, maxLength: 240}
+              open_questions:
+                type: array
+                maxItems: 6
+                items: {type: string, minLength: 1, maxLength: 240}
+              citations:
+                type: array
+                minItems: 1
+                maxItems: 12
+                uniqueItems: true
+                items: {type: string, format: uuid}
+            additionalProperties: false
+        truncated: {type: boolean}
+        omitted_scenes: {type: integer, minimum: 0}
+        tombstone: {type: boolean}
+      additionalProperties: false
+    fields:
+      truncated: {path: content.truncated, type: boolean, filter: true, project: true}
+    required_processors: [embedding_v1]
+    search_profile: pg_default
+    answerable: true
+
+  # Legacy v2 contract, retained so a workspace that stored the former
+  # single-index representation can still read its historical records. New
+  # writes use v3's independent scene blocks below.
+  - name: scenes
+    version: 2
+    active: false
+    mode: keyed
+    schema:
+      type: object
+      required: [text, scenes, truncated, omitted_scenes]
+      properties:
+        text: {type: string, minLength: 1}
+        scenes:
+          type: array
+          maxItems: 8
+          items:
+            type: object
+            required: [slug, title, kind, status, state, constraints, open_questions, citations]
+            properties:
+              slug: {type: string, minLength: 1, maxLength: 80}
+              title: {type: string, minLength: 1, maxLength: 120}
+              kind: {type: string, enum: [project, incident, decision]}
+              status: {type: string, enum: [active, paused, completed, resolved, archived]}
+              state: {type: string, minLength: 1, maxLength: 600}
+              constraints:
+                type: array
+                maxItems: 8
+                items: {type: string, minLength: 1, maxLength: 240}
+              open_questions:
+                type: array
+                maxItems: 6
+                items: {type: string, minLength: 1, maxLength: 240}
+              citations:
+                type: array
+                minItems: 1
+                maxItems: 12
+                uniqueItems: true
+                items: {type: string, format: uuid}
+            additionalProperties: false
+        truncated: {type: boolean}
+        omitted_scenes: {type: integer, minimum: 0}
+        tombstone: {type: boolean}
+      additionalProperties: false
+    fields:
+      truncated: {path: content.truncated, type: boolean, filter: true, project: true}
+    required_processors: [embedding_v1]
+    search_profile: pg_default
+    answerable: true
+
+  # L2 — one independently maintained scene document per project, method, or
+  # situation.  This follows TencentDB Agent Memory's representation: the
+  # scene index is navigation metadata, never the scene itself.  `key` is the
+  # stable filename-like identifier; the Markdown body is the block an agent
+  # actually reads and updates.
+  - name: scenes
+    version: 3
+    active: true
+    mode: keyed
+    schema:
+      type: object
+      required: [text, created, updated, summary, heat]
+      properties:
+        text: {type: string, minLength: 1, maxLength: 6000}
+        created: {type: string, format: date-time}
+        updated: {type: string, format: date-time}
+        summary: {type: string, minLength: 1, maxLength: 320}
+        heat: {type: integer, minimum: 1, maximum: 10000}
+        tombstone: {type: boolean}
+      additionalProperties: false
+    fields:
+      summary: {path: content.summary, type: string, filter: true, project: true}
+      heat: {path: content.heat, type: integer, filter: true, sort: true, project: true}
+      updated: {path: content.updated, type: string, filter: true, sort: true, project: true}
+    required_processors: [embedding_v1]
+    search_profile: pg_default
+    answerable: true

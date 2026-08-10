@@ -1,0 +1,25 @@
+collections:
+  - name: edges
+    version: 1
+    active: true
+    mode: event
+    schema:
+      type: object
+      required: [text, subject, object, predicate, link_source, context, confidence]
+      properties:
+        text: {type: string}
+        subject: {type: string}
+        object: {type: string}
+        predicate:
+          type: string
+          enum: [works_at, invested_in, founded, advises, attended, mentions, image_of, wikilink_basename]
+        link_source: {type: string, enum: [markdown, wikilink-resolved, bare-slug]}
+        context: {type: string}
+        confidence: {type: number, minimum: 0, maximum: 1}
+      additionalProperties: false
+    fields:
+      subject: {path: content.subject, type: string, filter: true, project: true}
+      object: {path: content.object, type: string, filter: true, project: true}
+      predicate: {path: content.predicate, type: string, filter: true, project: true}
+    required_processors: [embedding_v1]
+    search_profile: pg_default

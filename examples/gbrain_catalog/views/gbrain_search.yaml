@@ -1,0 +1,28 @@
+views:
+  - name: gbrain_search
+    version: 1
+    active: true
+    kind: search
+    parameters:
+      query:
+        type: string
+        required: true
+        description: Memory topic, question, person, project, or fact to retrieve.
+        min_length: 1
+        max_length: 8192
+      limit:
+        type: integer
+        default: 20
+        description: Maximum number of relevant memory records to return.
+        minimum: 1
+        maximum: 50
+    query:
+      q: "{{query}}"
+      mode: hybrid
+      scope:
+        collections: [pages, atoms, facts, patterns, concepts, takes]
+        status: active
+        versions: current
+      k: "{{limit}}"
+      include: [text, collection, collection_version, entity, type, key, scores, occurred_at]
+      render: true

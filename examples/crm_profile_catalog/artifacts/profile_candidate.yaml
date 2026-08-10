@@ -1,0 +1,22 @@
+artifacts:
+  - name: crm_profile_candidate
+    version: 1
+    active: true
+    kind: profile
+    lifecycle: reviewed
+    parameters:
+      entity: {type: string, required: true}
+    blocks:
+      profile:
+        document:
+          entity: "{{entity}}"
+          collections: [user_profiles]
+          status: active
+        max_tokens: 2500
+    # A reviewed candidate is read by a human reviewer, not sent to a model, so
+    # it declares no untrusted-data element.
+    template: |
+      REVIEWED CRM PROFILE
+      {{profile}}
+    candidate_processor: crm_profile_rebuild
+    complete_keys: [role, commitments, preferences, open_threads, goals]

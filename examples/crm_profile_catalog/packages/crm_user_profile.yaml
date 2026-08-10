@@ -1,0 +1,8 @@
+name: crm_user_profile
+version: 2.0.0
+collections: [crm_events@1, user_profiles@1, playbooks@1]
+processors: [crm_embedding, importance, deal_signals, crm_profile, crm_summary, crm_profile_rebuild]
+triggers: [crm_profile.default, crm_summary.default]
+views: [crm_history@1]
+artifacts: [crm_profile_brief@1, crm_profile_candidate@1]
+search_profiles: [pg_default]

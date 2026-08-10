@@ -1,0 +1,22 @@
+collections:
+  # L3 — the persona layer. Five keyed slots holding only what is stable across
+  # scenes. A project fact ("mobile version 8 ships in October") belongs to L2 and
+  # must never be copied up here; a durable pattern ("requires evidence before
+  # removing a compatibility path") belongs here and nowhere else.
+  #
+  # Keyed, so a trait is revised by supersession: the old value stays byte-identical
+  # and remains readable through /document/history.
+  - name: persona
+    version: 1
+    active: true
+    mode: keyed
+    schema:
+      type: object
+      required: [text]
+      properties:
+        text: {type: string, minLength: 1}
+        tombstone: {type: boolean}
+      additionalProperties: false
+    required_processors: [embedding_v1]
+    search_profile: pg_default
+    answerable: true

@@ -1,0 +1,19 @@
+collections:
+  # The exact bytes of one rendered context prompt, kept so a later outcome can
+  # be attached to what the agent actually saw rather than to what the current
+  # heads would render today.
+  - name: context_snapshots
+    version: 1
+    active: true
+    mode: keyed
+    schema:
+      type: object
+      required: [text]
+      properties:
+        text: {type: string}
+        artifact_name: {type: string}
+        artifact_version: {type: integer}
+        rendered_sha256: {type: string}
+      additionalProperties: true
+    required_processors: []
+    search_profile: pg_default

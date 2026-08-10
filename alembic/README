@@ -1,0 +1,2 @@
+Alembic owns Memseek's schema history. The initial revision executes the immutable
+repository SQL at migrations/001_init.sql; later schema changes belong in new revisions.

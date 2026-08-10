@@ -1,0 +1,21 @@
+collections:
+  # A tier ABOVE reflections: the agent's durable, high-level convictions.
+  # Keyed, so each conviction is one current answer that can be superseded —
+  # and, crucially, so the contradiction machinery (which compares changed
+  # keyed facts against current keyed facts) can be pointed at the agent's own
+  # conclusions, not just its raw inputs.
+  - name: worldview
+    version: 1
+    active: true
+    mode: keyed
+    schema:
+      type: object
+      required: [text]
+      properties:
+        text: {type: string}
+        kind: {type: string}
+        tombstone: {type: boolean}
+      additionalProperties: true
+    required_processors: [embedding_v1]
+    search_profile: pg_default
+    answerable: true

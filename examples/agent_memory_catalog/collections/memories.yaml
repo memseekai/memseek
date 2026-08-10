@@ -1,0 +1,45 @@
+collections:
+  # L1 — atomic memory. One reusable claim per record, each citing the exact L0
+  # messages that support it. Append-only on purpose: a claim that turns out to
+  # be redundant or outdated is never edited or deleted, it is superseded by a
+  # later claim that cites it.
+  #
+  # `decision` and `supersedes` record what the dedup pass concluded, so the
+  # store / skip / merge judgment is auditable instead of invisible. Nothing was
+  # skipped in this collection — a skipped candidate is simply never written.
+  - name: memories
+    version: 1
+    active: true
+    mode: event
+    schema:
+      type: object
+      required: [text, memory_kind, priority, scene_name, decision]
+      properties:
+        text: {type: string, minLength: 1}
+        # persona: a stable trait. episodic: something that happened.
+        # instruction: a rule that must constrain future behaviour.
+        memory_kind: {type: string, enum: [persona, episodic, instruction]}
+        # 90-100 critical constraint · 70-89 important · 40-69 context · 0-39 minor.
+        priority: {type: number, minimum: 0, maximum: 100}
+        scene_name: {type: string, minLength: 1, maxLength: 120}
+        decision: {type: string, enum: [store, merge]}
+        # The memory records this claim replaces. Also cited, so the supersession
+        # is a provenance edge and not just a content annotation.
+        supersedes:
+          type: array
+          maxItems: 8
+          uniqueItems: true
+          items: {type: string, format: uuid}
+        # §3.4 timing metadata for episodic claims, omitted for the others.
+        activity_start_time: {type: string, format: date-time}
+        activity_end_time: {type: string, format: date-time}
+      additionalProperties: false
+    fields:
+      memory_kind: {path: content.memory_kind, type: string, filter: true, project: true}
+      priority: {path: content.priority, type: number, filter: true, sort: true, project: true}
+      scene_name: {path: content.scene_name, type: string, filter: true, project: true}
+      decision: {path: content.decision, type: string, filter: true, project: true}
+      supersedes: {path: content.supersedes, type: [string], filter: true, project: true}
+    required_processors: [embedding_v1]
+    search_profile: pg_default
+    answerable: true

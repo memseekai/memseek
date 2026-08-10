@@ -1,0 +1,39 @@
+name: agentic_memory_core
+version: 2.2.0
+collections:
+  - main@1
+  - learning_signals@1
+  - profiles@1
+  - reflections@1
+  - skills@1
+  - plans@1
+  - transcripts@1
+  - outcomes@1
+  - calendar_events@1
+  - prompt_snapshots@1
+  - relations@1
+processors:
+  - embedding_v1
+  - importance
+  - profile
+  - harvest
+  - reflection
+  - skill
+  - contradiction
+triggers:
+  - profile.default
+  - harvest.default
+  - reflection.default
+  - skill.default
+  - contradiction.default
+views:
+  - agent_relevant_memory@1
+  - upcoming_calendar@1
+artifacts:
+  - daily_agent_prompt@1
+  - maintained_skill@1
+mcp: agentic_memory_core@1
+search_profiles:
+  - pg_default
+optional_search_profiles:
+  - memory_tpuf

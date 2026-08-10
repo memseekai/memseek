@@ -1,0 +1,36 @@
+collections:
+  - name: takes
+    version: 1
+    active: true
+    mode: keyed
+    schema:
+      type: object
+      required: [text, takes, truncated, omitted_takes]
+      properties:
+        text: {type: string, minLength: 1}
+        takes:
+          type: array
+          maxItems: 12
+          items:
+            type: object
+            required: [title, claim, confidence, citations]
+            properties:
+              title: {type: string, minLength: 1, maxLength: 80}
+              claim: {type: string, minLength: 1, maxLength: 320}
+              confidence: {type: number, minimum: 0, maximum: 1}
+              citations:
+                type: array
+                minItems: 1
+                maxItems: 12
+                uniqueItems: true
+                items: {type: string, format: uuid}
+            additionalProperties: false
+        truncated: {type: boolean}
+        omitted_takes: {type: integer, minimum: 0}
+        tombstone: {type: boolean}
+      additionalProperties: false
+    fields:
+      truncated: {path: content.truncated, type: boolean, filter: true, project: true}
+    required_processors: [embedding_v1]
+    search_profile: pg_default
+    answerable: true

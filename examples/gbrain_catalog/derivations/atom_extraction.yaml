@@ -1,0 +1,77 @@
+name: atom_extraction
+trigger:
+  write:
+    collections: [transcripts]
+    types: [transcript]
+    statuses: [active]
+sources:
+  new_transcripts:
+    kind: changes
+    collections: [transcripts]
+    types: [transcript]
+    statuses: [active]
+    keyed: false
+    max_records: 5
+    max_tokens: 30000
+    allow_empty: false
+model: cheap
+limits:
+  max_tasks: 1
+  max_llm_calls: 2
+  max_retrieved_records: 0
+  max_visible_records: 5
+  max_total_tokens: 40000
+  max_wall_s: 90
+tasks:
+  - id: atom_records
+    use: llm
+    with:
+      output_schema:
+        type: object
+        required: [records]
+        properties:
+          records:
+            type: array
+            maxItems: 20
+            items:
+              type: object
+              required: [text, citations, content]
+              properties:
+                text: {type: string, minLength: 1}
+                citations:
+                  type: array
+                  minItems: 1
+                  uniqueItems: true
+                  items: {type: string, format: uuid}
+                content:
+                  type: object
+                  required: [kind, confidence]
+                  properties:
+                    kind:
+                      type: string
+                      enum: [fact, preference, commitment, decision, outcome, relationship]
+                    confidence: {type: number, minimum: 0, maximum: 1}
+                  additionalProperties: false
+              additionalProperties: false
+        additionalProperties: false
+      prompt: |
+        Extract small, durable memory atoms about {{entity}} from these session transcripts.
+        An atom must state exactly one concrete fact, preference, commitment, decision,
+        outcome, or relationship change. Keep it self-contained, specific, and useful for
+        later synthesis. Do not restate greetings, transient chatter, or unsupported guesses.
+
+        Cite only the transcript UUIDs visibly supporting each atom. Confidence is your
+        evidence-grounded estimate, not a guess about future truth. Return no more than 20 atoms.
+
+        TRANSCRIPTS:
+        <records untrusted="true">
+        {{new_transcripts.rendered}}
+        </records>
+
+        If there are no durable atoms, return {"records":[]}.
+        Otherwise return only JSON:
+        {"records":[{"text":"...","citations":["uuid"],"content":{"kind":"fact","confidence":0.9}}]}
+emit:
+  from: "{{atom_records.records}}"
+  collection: atoms
+  type: atom

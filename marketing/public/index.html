@@ -3,10 +3,10 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Memseek — memory for AI applications</title>
-<meta name="description" content="Memseek is memory for AI applications. Your app writes down what happens — messages, events, observations — and Memseek turns that raw stream into a current profile that maintains itself, semantic search over everything ever recorded, and prompt-ready briefings assembled on demand. Every derived fact cites the evidence it came from, nothing is ever silently overwritten, and the whole design is a few files of YAML you review like a schema migration.">
-<meta property="og:title" content="Memseek — memory for AI applications">
-<meta property="og:description" content="Your app writes down what happens. Memseek turns that raw stream into a current profile that maintains itself, semantic search over everything ever recorded, and prompt-ready briefings on demand — every derived fact cited, nothing ever silently overwritten, the whole design a few files of YAML.">
+<title>Memseek — the declarative context engine for AI agents</title>
+<meta name="description" content="Memseek is the declarative context engine for AI agents. It turns everything your applications and agents observe into the context they should act on now — current, cited, compact, and under your control. Long-term agent memory, hybrid retrieval, derived state and prompt-time context assembly in one declarative layer: your rules live in versioned YAML, your data stays in Postgres, and every derived fact cites the evidence it came from.">
+<meta property="og:title" content="Memseek — the declarative context engine for AI agents">
+<meta property="og:description" content="Memseek turns everything your agents observe into the context they should act on now — current, cited, compact, and under your control. RAG finds information. Memory remembers it. A context engine decides what the agent should know now.">
 <meta property="og:type" content="website">
 <meta property="og:image" content="/og-default.png">
 <meta name="twitter:card" content="summary_large_image">
@@ -29,6 +29,10 @@
     --faint: #7d8794;
     --orange: #ff7a2f;
     --pink: #ff3d67;
+    /* The caution red. --pink is a call-to-action hue and reads as alarm when a
+       whole chart is built out of it; --rose says "read this differently"
+       without shouting, which is the entire job in the benchmark charts. */
+    --rose: #d97b83;
     --cyan: #2fd4c4;
     --violet: #9b87ff;
     --green: #58d68d;
@@ -59,6 +63,7 @@
     --faint: #666f78;
     --orange: #e0641c;
     --pink: #e02a54;
+    --rose: #b35a63;
     --cyan: #0e9e90;
     --violet: #6d4ae0;
     --green: #1f9d57;
@@ -151,7 +156,10 @@
   .nav-inner { display: flex; align-items: center; justify-content: space-between; height: 64px; }
   .brand { display: flex; align-items: center; gap: .6rem; font-family: var(--mono); font-weight: 700; font-size: 1.15rem; color: var(--text); }
   .brand .dot { width: 12px; height: 12px; border-radius: 50%; background: var(--grad); }
-  .nav-links { display: flex; align-items: center; gap: 1.5rem; }
+  /* Every item is nowrap: the labels are two and three words now, and a nav
+     that wraps mid-label reads as broken rather than as full. */
+  .nav-links { display: flex; align-items: center; gap: 1.25rem; }
+  .nav-links a, .nav-cta { white-space: nowrap; }
   .nav-links a { color: var(--muted); font-family: var(--mono); font-size: var(--step--1); }
   .nav-links a:hover { color: var(--text); text-decoration: none; }
   .nav-cta {
@@ -172,12 +180,18 @@
     cursor: pointer; letter-spacing: .05em;
   }
   .theme-toggle:hover { color: var(--orange); border-color: var(--orange); }
-  @media (max-width: 980px) { .nav-links .hide-sm { display: none; } }
+  /* Raised from 980px when the section labels grew to two and three words:
+     below this the row no longer fits, and the footer carries every link. */
+  @media (max-width: 1120px) { .nav-links .hide-sm { display: none; } }
   /* Below ~500px only the theme toggle and the CTA still fit; the footer
      carries every link, so nothing becomes unreachable. */
   @media (max-width: 620px) {
+    .nav-inner { gap: .8rem; }
     .nav-links { gap: .85rem; }
     .nav-links a:not(.nav-cta):not(.nav-gh) { display: none; }
+    /* The CTA can no longer wrap to two lines, so it gives back the width in
+       padding instead — otherwise the row runs flush into the wordmark. */
+    .nav-cta { padding-inline: .75rem; }
   }
 
   /* Coarse-pointer hit areas. The mono controls are deliberately compact for a
@@ -277,7 +291,10 @@
      and `display: none` would have resized the panel under the reader every
      time it did. Hidden panels leave the a11y tree exactly as display:none. */
   .yzs { display: grid; }
-  .yz { grid-area: 1 / 1; visibility: hidden; }
+  /* min-width:0 or the panel takes its min-content width — the YAML is `pre`,
+     so that is the longest line — and overflows the track on a phone instead
+     of letting pre.y scroll inside itself. */
+  .yz { grid-area: 1 / 1; visibility: hidden; min-width: 0; }
   .yz.on { visibility: visible; }
 
   /* Terse by default. `.yx` holds the fields a reader only wants once they've
@@ -379,12 +396,90 @@
   .integ-inner .chip:nth-child(6)::before { background: var(--green); }
   .integ-inner .chip:nth-child(7)::before { background: var(--amber); }
 
+  /* ---------- THE FLOW DIAGRAM ----------
+     One picture in place of four cards of prose. Every colour is a theme token,
+     so the drawing inverts with the page instead of being baked into an asset.
+     Below ~940px it scrolls inside itself rather than shrinking the labels past
+     legibility — the same trade the benchmark scatter makes. */
+  .flow-scroll { overflow-x: auto; overflow-y: hidden; margin-block: clamp(.5rem, 2vw, 1.4rem); }
+  .flow { display: block; width: 100%; min-width: 820px; height: auto; }
+
+  .flow text { font-family: var(--mono); }
+  .f-lab { font-size: 12px; letter-spacing: 1.4px; fill: var(--orange); }
+  .f-out-lab { fill: var(--green); }
+  .f-cap { font-size: 12.5px; fill: var(--muted); }
+  .f-out-cap { fill: var(--text); }
+  .f-dim { font-size: 12px; fill: var(--faint); }
+
+  /* the pile on the left: many, uniform, unremarkable — that is the point */
+  .f-in rect { fill: color-mix(in srgb, var(--orange) 16%, transparent); stroke: color-mix(in srgb, var(--orange) 45%, var(--border)); }
+  .f-engine { fill: color-mix(in srgb, var(--violet) 8%, transparent); stroke: color-mix(in srgb, var(--violet) 45%, var(--border)); }
+  .f-eng-lab { font-size: 12px; letter-spacing: 2px; fill: var(--violet); }
+  .f-stage rect { fill: var(--surface); stroke: var(--border); }
+  .alt .f-stage rect { fill: var(--bg); }
+  .f-st { font-size: 12.5px; letter-spacing: .6px; fill: var(--text); text-anchor: middle; }
+  /* 11px so the longest sub-label ("cut to budget") stays inside its box */
+  .f-sd { font-size: 11px; fill: var(--faint); text-anchor: middle; }
+
+  /* the one small block on the right, and the citation stub on every line */
+  .f-out { fill: color-mix(in srgb, var(--green) 10%, transparent); stroke: color-mix(in srgb, var(--green) 50%, var(--border)); }
+  .f-line rect { fill: color-mix(in srgb, var(--text) 45%, transparent); }
+  .f-cite rect { fill: var(--cyan); }
+
+  /* the eight primitives, banded by the stage they belong to */
+  .prim-svg { min-width: 880px; }
+  .p-band rect { fill: none; stroke: var(--border); stroke-dasharray: 3 4; }
+  .p-stage { font-size: 12px; letter-spacing: 2px; fill: var(--hue); }
+  .p-card rect { fill: var(--surface); stroke: color-mix(in srgb, var(--hue) 40%, var(--border)); }
+  .alt .p-card rect { fill: var(--bg); }
+  .p-name { font-size: 14px; fill: var(--hue); }
+  .p-desc { font-size: 12px; fill: var(--muted); }
+
+  .f-arrow { stroke: var(--border-strong); stroke-width: 1.5; fill: none; }
+  .f-arrow-head { fill: var(--border-strong); }
+
+  /* ---------- CONTEXT ARTIFACT ----------
+     The output, shown as an object rather than described: the ask and what the
+     engine put in on the left, the assembled artifact and its receipt on the
+     right. Every number is the CRM example's own manifest. */
+  .art { margin-top: clamp(1.7rem, 3.2vw, 2.6rem); }
+  /* The pane bar's one label here names a file rather than switching between
+     two, so it borrows the selected tab's look without being a control. */
+  .ytab.ystatic { cursor: default; color: var(--orange); border-color: color-mix(in srgb, var(--orange) 55%, var(--border)); background: color-mix(in srgb, var(--orange) 10%, transparent); }
+  .alt .pane { background: var(--bg); }
+  .art-grid { display: grid; grid-template-columns: minmax(0, .86fr) minmax(0, 1.14fr); }
+  @media (max-width: 900px) { .art-grid { grid-template-columns: 1fr; } }
+  .art-in, .art-out { padding: 1rem 1.1rem 1.15rem; min-width: 0; display: flex; flex-direction: column; }
+  .art-out { border-left: 1px solid var(--border); background: color-mix(in srgb, var(--green) 5%, transparent); }
+  @media (max-width: 900px) { .art-out { border-left: 0; border-top: 1px solid var(--border); } }
+  .ask { font-family: var(--mono); font-size: .8rem; line-height: 1.45; color: var(--text); border-left: 2px solid var(--orange); padding-left: .7rem; margin-bottom: .95rem; }
+  .art-src { list-style: none; display: grid; gap: .42rem; }
+  .art-src li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: .6rem; align-items: baseline; font-size: .73rem; color: var(--muted); line-height: 1.4; border-bottom: 1px dashed var(--border); padding-bottom: .4rem; }
+  .art-src li .c { font-family: var(--mono); font-size: .6rem; color: var(--faint); white-space: nowrap; }
+  /* Follows its content rather than sinking to the bottom of the column: with
+     the panel trimmed down, `margin-top: auto` left the caption stranded under
+     an empty half-column. */
+  .art-note { margin-top: .95rem; font-size: var(--step--2); color: var(--faint); line-height: 1.55; }
+  .art-note b { color: var(--muted); font-weight: 600; }
+  .art-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .5rem; margin-bottom: .85rem; }
+  @media (max-width: 520px) { .art-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  .art-stats div { border: 1px solid var(--border); border-radius: 8px; padding: .45rem .55rem; background: var(--surface); }
+  .alt .art-stats div, .alt pre.arender { background: var(--bg); }
+  .art-stats .n { display: block; font-family: var(--mono); font-weight: 700; font-size: .92rem; color: var(--green); font-variant-numeric: tabular-nums; line-height: 1.2; }
+  .art-stats .l { display: block; font-family: var(--mono); font-size: .54rem; letter-spacing: .07em; text-transform: uppercase; color: var(--faint); margin-top: .12rem; }
+  pre.arender { font-family: var(--mono); font-size: .66rem; line-height: 1.65; overflow-x: auto; color: var(--muted); border: 1px solid var(--border); border-radius: 9px; background: var(--surface); padding: .8rem .9rem; }
+  @media (min-width: 1040px) { pre.arender { font-size: .69rem; } }
+  .arender .ah { color: var(--text); font-weight: 700; }
+  .arender .acite { color: var(--cyan); }
+  .arender .adim { color: var(--faint); }
+
   /* ---------- SECTIONS ---------- */
   section { padding-block: clamp(3rem, 6vw, 5.2rem); }
   .alt { background: var(--surface); border-block: 1px solid var(--border); }
   .sec-head { max-width: 64ch; margin-bottom: clamp(1.8rem, 3.5vw, 2.6rem); }
   .sec-head h2 { font-size: var(--step-2); margin-top: .8rem; }
   .sec-head p { color: var(--muted); font-size: var(--step-1); margin-top: .9rem; line-height: 1.5; text-wrap: pretty; }
+  .sec-head p b, .sec-head p strong { color: var(--text); font-weight: 600; }
   .sec-head em { color: var(--text); font-style: normal; text-decoration: underline; text-decoration-color: var(--orange); text-underline-offset: 3px; }
   /* the line that closes a region: one thought, one way onward */
   .sec-foot { margin-top: 1.25rem; font-size: var(--step--1); color: var(--muted); line-height: 1.55; }
@@ -401,9 +496,17 @@
   .step-side p { color: var(--muted); font-size: var(--step--1); line-height: 1.6; max-width: 42ch; }
   .step-side p b { color: var(--text); font-weight: 600; }
   .step:nth-child(1) { --hue: var(--green); }
-  .step:nth-child(2) { --hue: var(--orange); }
-  .step:nth-child(3) { --hue: var(--violet); }
-  .step:nth-child(4) { --hue: var(--cyan); }
+  .step:nth-child(2) { --hue: var(--cyan); }
+  .step:nth-child(3) { --hue: var(--orange); }
+  .step:nth-child(4) { --hue: var(--violet); }
+  .step:nth-child(5) { --hue: var(--pink); }
+  /* The one line under a step's panel that qualifies what you just read —
+     what it needs, or what it will honestly not do. It lives inside the panel,
+     below a hairline, so it reads as a footnote to the code and not as prose
+     that escaped the column. */
+  .step-note { border-top: 1px solid var(--border); padding: .7rem 1.1rem .85rem; font-family: var(--mono); font-size: .64rem; line-height: 1.6; color: var(--faint); }
+  .step-note b { color: var(--muted); font-weight: 400; }
+  .step-note code { color: var(--text); }
   .code { background: var(--surface-2); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
   .alt .code { background: var(--bg); }
   .code-tabs { display: flex; gap: .25rem; flex-wrap: wrap; padding: .45rem .5rem; border-bottom: 1px solid var(--border); }
@@ -436,18 +539,6 @@
   .prim-band { margin-top: clamp(1.7rem, 3vw, 2.6rem); }
   .prim-lead { color: var(--muted); max-width: 84ch; line-height: 1.65; margin-bottom: 1.2rem; }
   .prim-lead b { color: var(--text); font-weight: 600; }
-  .prims { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: var(--border); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
-  @media (max-width: 860px) { .prims { grid-template-columns: repeat(2, 1fr); } }
-  @media (max-width: 460px) { .prims { grid-template-columns: 1fr; } }
-  .prim { background: var(--surface); padding: .8rem .9rem .85rem; }
-  .alt .prim { background: var(--bg); }
-  .prim b { display: block; font-family: var(--mono); font-size: .66rem; color: var(--hue, var(--orange)); letter-spacing: .02em; }
-  .prim span { display: block; font-size: var(--step--2); color: var(--muted); line-height: 1.45; margin-top: .2rem; }
-  .prim:nth-child(1) { --hue: var(--orange); } .prim:nth-child(2) { --hue: var(--cyan); }
-  .prim:nth-child(3) { --hue: var(--violet); } .prim:nth-child(4) { --hue: var(--pink); }
-  .prim:nth-child(5) { --hue: var(--green); } .prim:nth-child(6) { --hue: var(--amber); }
-  .prim:nth-child(7) { --hue: var(--cyan); } .prim:nth-child(8) { --hue: var(--violet); }
-
   /* ---------- MEMORY KINDS ----------
      Readers arrive already knowing these names. Naming them is the whole job —
      a gloss per kind was a second wall of prose competing with the primitives
@@ -578,38 +669,85 @@
   .vs-card li .m { font-family: var(--mono); color: var(--hue); }
   .vs-card.good li b { color: var(--text); font-weight: 600; }
 
-  /* ---------- BENCHMARKS ---------- */
-  .bench { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: var(--border); border: 1px solid var(--border); border-radius: 13px; overflow: hidden; }
-  @media (max-width: 820px) { .bench { grid-template-columns: repeat(2, 1fr); } }
-  .bm { background: var(--surface); padding: 1.35rem 1.25rem; border-top: 2px solid var(--hue); }
-  .alt .bm { background: var(--bg); }
-  .bm:nth-child(1) { --hue: var(--orange); }
-  .bm:nth-child(2) { --hue: var(--cyan); }
-  .bm:nth-child(3) { --hue: var(--violet); }
-  .bm:nth-child(4) { --hue: var(--pink); }
-  .bm .n { font-family: var(--mono); color: var(--hue); font-size: 2.2rem; letter-spacing: -.03em; font-variant-numeric: tabular-nums; line-height: 1; }
-  .bm .metric { margin-top: .5rem; color: var(--text); font-size: var(--step--1); font-weight: 600; }
-  .bm .bench-name { margin-top: .28rem; color: var(--muted); font-size: .76rem; line-height: 1.4; }
-  .tokens { margin-top: 1rem; border: 1px solid var(--border); border-radius: 13px; background: var(--surface); padding: 1.4rem; }
-  .alt .tokens { background: var(--bg); }
-  .tokens .th { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: .5rem; margin-bottom: 1rem; }
-  .tokens .th h3 { font-size: var(--step-1); }
-  .tokens .th .mult { font-family: var(--mono); color: var(--green); font-weight: 700; font-size: var(--step-1); }
-  .trow { display: grid; grid-template-columns: 9rem 1fr; gap: .8rem; align-items: center; margin-bottom: .7rem; }
-  @media (max-width: 560px) { .trow { grid-template-columns: 1fr; gap: .2rem; } }
-  .trow .lab { font-family: var(--mono); font-size: .72rem; color: var(--muted); }
-  .tbar { height: 20px; border-radius: 5px; background: var(--surface-2); overflow: hidden; position: relative; }
+  /* ---------- BENCHMARKS ----------
+     Two panels over one dataset: answer accuracy as bars, then that same
+     accuracy against cost per answer. Every coordinate is derived from the
+     table on /benchmarks/, which is the source of truth for these numbers:
+       bar:     --w = score / 1.076        (92.6% reads 86, leaving headroom)
+       point:   bottom% = (accuracy - 55) / 45 * 100
+                left%   = (log10(cost) + 3.75) / 3.45 * 100   — three decades  */
+  .bench-ctas { display: flex; flex-wrap: wrap; align-items: center; gap: .8rem; margin-top: 1.5rem; }
+  .console-chip { font-family: var(--mono); font-size: .74rem; color: var(--faint); background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: .6rem .9rem; }
+  .console-chip .p { color: var(--orange); }
+  .charts { display: grid; grid-template-columns: 1.05fr 1.3fr; gap: 1.1rem; align-items: start; }
+  @media (max-width: 1000px) { .charts { grid-template-columns: 1fr; } }
+  /* min-width:0 or the panel is sized by the scatter's 560px floor and overflows
+     the single-column track on a phone, instead of letting .scatter-scroll
+     scroll inside itself. */
+  .panel { border: 1px solid var(--border); border-radius: 13px; background: var(--surface); padding: 1.5rem 1.6rem; min-width: 0; }
+  .alt .panel, .alt .console-chip { background: var(--bg); }
+  .panel .th { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: .5rem; margin-bottom: 1.4rem; }
+  .panel .th h3 { font-size: var(--step-1); }
+  .panel .th .mult { font-family: var(--mono); color: var(--green); font-weight: 700; font-size: var(--step--1); }
+  .sec-head h2 .big { font-size: 1.5em; color: var(--orange); font-variant-numeric: tabular-nums; }
+
+  /* one system per row. Striped bars are the vendors who graded themselves —
+     the distinction the whole section exists to make, so it is carried by
+     pattern, hue and an italic label rather than by a footnote alone. */
+  .trow { display: grid; grid-template-columns: 11.5rem 1fr; gap: .85rem; align-items: center; margin-bottom: 1rem; }
+  @media (max-width: 560px) { .trow { grid-template-columns: 1fr; gap: .25rem; } }
+  .trow .lab { font-family: var(--mono); font-size: .72rem; color: var(--muted); line-height: 1.35; }
+  .trow.us .lab { color: var(--text); font-weight: 700; }
+  .trow.selfg .lab { color: color-mix(in srgb, var(--rose) 78%, var(--muted)); font-style: italic; }
+  .trow .lab .sub { display: block; font-size: .62rem; font-weight: 400; font-style: normal; color: var(--faint); }
+  .trow.selfg .lab .sub { color: color-mix(in srgb, var(--rose) 50%, var(--faint)); }
+  .tbar { height: 22px; border-radius: 5px; background: var(--surface-2); overflow: hidden; position: relative; }
   /* Reveals by clipping, not by animating width: no layout work per frame, and
      `round` keeps the bar's corners while the right edge travels. */
   .tbar > i { position: absolute; left: 0; top: 0; bottom: 0; width: 100%; border-radius: 5px; clip-path: inset(0 calc(100% - var(--w) * 1%) 0 0 round 5px); transition: clip-path 1.1s cubic-bezier(.2,.7,.3,1); }
   .js .tbar > i { clip-path: inset(0 100% 0 0 round 5px); }
-  .tbar.full > i { background: linear-gradient(90deg, color-mix(in srgb, var(--pink) 60%, var(--surface-2)), var(--pink)); }
   .tbar.mem > i { background: linear-gradient(90deg, var(--green), var(--cyan)); }
-  /* The label sits over the track, so it must stay readable even when the bar
-     itself is only a few percent wide (which is the whole point of this chart). */
-  .tbar .v { position: absolute; right: .5rem; top: 50%; transform: translateY(-50%); font-family: var(--mono); font-size: .64rem; color: var(--text); }
-  .tbar.mem .v { color: var(--green); }
-  .bench-foot { margin-top: 1rem; color: var(--faint); font-size: var(--step--1); font-family: var(--mono); line-height: 1.5; }
+  .tbar.other > i { background: var(--border-strong); }
+  .tbar.full > i { background: linear-gradient(90deg, color-mix(in srgb, var(--rose) 45%, var(--surface-2)), var(--rose)); }
+  .tbar.selfg > i { background: repeating-linear-gradient(45deg, color-mix(in srgb, var(--rose) 30%, var(--surface-2)) 0 5px, var(--surface-2) 5px 11px); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--rose) 45%, transparent); }
+  .tbar .v { position: absolute; right: .5rem; top: 50%; transform: translateY(-50%); font-family: var(--mono); font-size: .68rem; color: var(--muted); }
+  .tbar.selfg .v { color: color-mix(in srgb, var(--rose) 80%, var(--muted)); font-style: italic; }
+  /* Our own number rides inside its own bar. It fades in with the fill, so it
+     is never dark-on-dark over an empty track mid-animation. */
+  .tbar.mem .v { right: calc(100% - var(--w) * 1% + .55rem); color: #0a1510; font-weight: 700; }
+  .js .tbar.mem .v { opacity: 0; transition: opacity .45s .45s; }
+  .js .charted .tbar.mem .v { opacity: 1; }
+
+  /* ---------- accuracy vs. cost ----------
+     Absolutely positioned in % of the plot box, so the chart scales with the
+     panel. Below 700px it scrolls sideways instead of stacking the labels. */
+  .scatter-scroll { overflow: visible; }
+  .scatter { position: relative; height: 500px; margin: 1.9rem 1rem 2.6rem 3rem; }
+  @media (max-width: 1000px) { .scatter { height: 440px; } }
+  @media (max-width: 700px) {
+    .scatter-scroll { overflow-x: auto; overflow-y: hidden; }
+    .scatter { min-width: 560px; height: 420px; }
+  }
+  .gridline-y { position: absolute; left: 0; right: 0; height: 1px; background: var(--border); }
+  .gridline-y .tag { position: absolute; left: -2.5rem; top: -.5em; font-family: var(--mono); font-size: .66rem; color: var(--faint); }
+  .gridline-x { position: absolute; top: 0; bottom: -1.6rem; width: 1px; background: var(--border); }
+  .gridline-x .tag { position: absolute; bottom: 0; left: 50%; transform: translateX(-50%); font-family: var(--mono); font-size: .66rem; color: var(--faint); white-space: nowrap; }
+  .gridline-x .tag2 { position: absolute; top: -1.5rem; left: 50%; transform: translateX(-50%); font-family: var(--mono); font-size: .62rem; color: var(--faint); opacity: .75; white-space: nowrap; }
+  .pt { position: absolute; width: 13px; height: 13px; border-radius: 50%; transform: translate(-50%, 50%); }
+  .pt.us { width: 16px; height: 16px; background: var(--green); box-shadow: 0 0 0 3px color-mix(in srgb, var(--green) 25%, transparent); }
+  .pt.other { background: var(--border-strong); }
+  .pt.selfg { background: transparent; border: 2px dashed var(--rose); }
+  .ptlab { position: absolute; font-family: var(--mono); font-size: .68rem; line-height: 1.35; color: var(--muted); white-space: nowrap; }
+  .ptlab.r { text-align: right; }
+  .ptlab .score { color: var(--text); font-weight: 700; }
+  .ptlab.us { color: var(--green); }
+  .ptlab.us .score { color: var(--green); font-size: .84rem; }
+  .ptlab.selfg { color: color-mix(in srgb, var(--rose) 80%, var(--muted)); font-style: italic; }
+  .ptlab.selfg .score { color: var(--rose); }
+  .legend { display: flex; flex-wrap: wrap; gap: .8rem 1.6rem; font-family: var(--mono); font-size: .68rem; color: var(--muted); }
+  .legend .sw { display: inline-block; width: 11px; height: 11px; border-radius: 50%; margin-right: .45em; vertical-align: -1px; }
+  .bench-foot { margin-top: 1.05rem; padding-top: .85rem; border-top: 1px solid var(--border); color: var(--faint); font-size: .72rem; font-family: var(--mono); line-height: 1.55; }
+  .bench-foot a { color: var(--cyan); }
 
   /* ---------- FAQ ---------- */
   .faq { max-width: 820px; display: flex; flex-direction: column; gap: .65rem; }
@@ -620,7 +758,7 @@
   .faq summary::-webkit-details-marker { display: none; }
   .faq summary .pm { font-family: var(--mono); color: var(--violet); font-size: 1.2rem; flex: 0 0 auto; transition: transform .25s; line-height: 1; }
   .faq details[open] summary .pm { transform: rotate(45deg); }
-  .faq .ans { padding: 0 1.1rem 1.1rem; color: var(--muted); font-size: var(--step--1); line-height: 1.65; max-width: 70ch; }
+  .faq .ans { padding: .1rem 1.15rem 1.15rem; color: var(--muted); font-size: var(--step-0); line-height: 1.72; max-width: 66ch; }
   .faq .ans b { color: var(--text); font-weight: 600; }
   .faq .ans code { font-family: var(--mono); font-size: .95em; color: var(--text); }
 
@@ -663,9 +801,9 @@
   <div class="wrap nav-inner">
     <div class="brand"><span class="dot"></span>memseek</div>
     <nav class="nav-links">
-      <a href="#quickstart" class="hide-sm">Quickstart</a>
-      <a href="#uses" class="hide-sm">Use cases</a>
-      <a href="#compare" class="hide-sm">Comparisons</a>
+      <a href="/context-engine/" class="hide-sm">Context engine</a>
+      <a href="#how" class="hide-sm">How it works</a>
+      <a href="#designs" class="hide-sm">Memory designs</a>
       <a href="#benchmarks" class="hide-sm">Benchmarks</a>
       <a href="/showcase/">Showcases</a>
       <a href="/blog/">Blog</a>
@@ -682,8 +820,8 @@
     <div class="wrap">
       <div class="hero-top">
         <div>
-          <span class="eyebrow">Memory for AI applications</span>
-          <h1>Agent memory you <span class="hot">declare</span>, not build.</h1>
+          <span class="eyebrow">Context engine for AI agents</span>
+          <h1>Agent context you <span class="hot">declare</span>, not build.</h1>
           <p class="lede">
             <b>Record everything. Turn records into knowledge.</b> Search across everything you've
             recorded — and everything Memseek has learned from it. Every fact is dated, cited, and
@@ -695,14 +833,14 @@
             <a href="https://github.com/memseekai/memseek" class="btn btn-gh"><svg aria-hidden="true"><use href="#gh-mark"/></svg>memseekai/memseek</a>
           </div>
           <div class="hero-run">
-            <code><span class="cd">$</span> make quickstart</code>
-            <span>Postgres + pgvector, the schema, a workspace key. With
-              <b>LLM_FAKE=1</b> the whole loop runs before you spend a token.</span>
+            <code><span class="cd">$</span> docker compose up -d --wait</code>
+            <span>Postgres, the API, the worker — and <b>a working agent memory published for
+              you</b>. Then point Claude Code or Codex at it over MCP.</span>
           </div>
         </div>
         <ul class="proof">
-          <li><span class="n">82%</span><span class="l">recall &amp; reasoning accuracy<span class="s">LongMemEval-S</span></span></li>
-          <li><span class="n">91%</span><span class="l">picks the latest valid fact<span class="s">after facts change over time</span></span></li>
+          <li><span class="n">92.6%</span><span class="l">on LongMemEval-S, scored by the benchmark's own judge<span class="s">highest independently graded</span></span></li>
+          <li><span class="n">88.8%</span><span class="l">on open weights you can host<span class="s">$0.0004 per answer</span></span></li>
           <li><span class="n">32×</span><span class="l">fewer tokens per question<span class="s">~3,200 vs. ~101,000</span></span></li>
         </ul>
       </div>
@@ -711,8 +849,8 @@
       <div class="pane hero-pane">
         <div class="pane-bar">
           <div class="ytabs" id="ytabs" role="tablist" aria-label="Catalog definitions">
-            <button class="ytab" role="tab" aria-selected="true" data-y="0">collections/crm.yaml</button>
-            <button class="ytab" role="tab" aria-selected="false" data-y="1">derivations/crm_profile.yaml</button>
+            <button class="ytab" role="tab" aria-selected="true" data-y="0">collections/messages.yaml</button>
+            <button class="ytab" role="tab" aria-selected="false" data-y="1">derivations/l1_extract.yaml</button>
           </div>
           <span class="live">live · self-maintaining</span>
         </div>
@@ -723,102 +861,97 @@
 
             <div class="yzs" id="yzs">
             <div class="yz on" id="y0" role="tabpanel">
-              <p class="ycap"><b>What you store.</b> Two shapes — an append-only log of things that
-                happened, and a profile that keeps exactly one current value per field. Each is a
-                versioned, schema-validated contract: a write that doesn't match is refused.</p>
+              <p class="ycap"><b>What you store.</b> Two append-only layers: what was
+                <b>said</b>, and the reusable <b>claims</b> extracted from it. Neither is ever
+                edited — a claim that stops being true is superseded by a later one that cites it.</p>
 <pre class="y"><span class="yk">collections</span>:
-  - <span class="yk">name</span>: <span class="ys">crm_events</span><span class="yx">
+  - <span class="yk">name</span>: <span class="ys">messages</span>             <span class="yc"># L0 — what was literally said</span><span class="yx">
     <span class="yk">version</span>: <span class="yn">1</span>                <span class="yc"># a change ships v2; v1 keeps serving</span></span>
     <span class="yk">mode</span>: <span class="ys">event</span>              <span class="yc"># immutable, append-only</span>
     <span class="yk">schema</span>:                  <span class="yc"># enforced at ingest, not at read</span>
-      <span class="yk">required</span>: [<span class="ys">text</span>, <span class="ys">source</span>, <span class="ys">event_kind</span>]<span class="yx">
+      <span class="yk">required</span>: [<span class="ys">text</span>, <span class="ys">role</span>, <span class="ys">session_id</span>, <span class="ys">ordinal</span>]<span class="yx">
       <span class="yk">properties</span>:
-        <span class="yk">source</span>:     {<span class="yk">enum</span>: [<span class="ys">salesforce</span>, <span class="ys">hubspot</span>, <span class="ys">support</span>]}
-        <span class="yk">event_kind</span>: {<span class="yk">enum</span>: [<span class="ys">role</span>, <span class="ys">commitment</span>, <span class="ys">preference</span>]}
-      <span class="yk">additionalProperties</span>: <span class="yn">false</span>   <span class="yc"># no stray keys, ever</span>
-    <span class="yk">fields</span>:                  <span class="yc"># lifted out of content, to filter on</span>
-      <span class="yk">account_id</span>: {<span class="yk">path</span>: <span class="ypath">content.account_id</span>, <span class="yk">filter</span>: <span class="yn">true</span>}</span>
-    <span class="yk">required_processors</span>: [<span class="ys">crm_embedding</span>, <span class="ys">importance</span>]<span class="yx">
-    <span class="yk">optional_processors</span>: [<span class="ys">deal_signals</span>]   <span class="yc"># may fail, won't block</span>
-    <span class="yk">search_profile</span>: <span class="ys">pg_default</span>        <span class="yc"># how it ranks, by name</span></span><span class="yel">
-    <span class="yc"># … plus the property enums, filterable fields, and ranking</span></span>
+        <span class="yk">role</span>: {<span class="yk">enum</span>: [<span class="ys">user</span>, <span class="ys">assistant</span>, <span class="ys">tool</span>]}
+      <span class="yk">additionalProperties</span>: <span class="yn">false</span>   <span class="yc"># no stray keys, ever</span></span>
+    <span class="yk">required_processors</span>: [<span class="ys">embedding_v1</span>]
 
-  - <span class="yk">name</span>: <span class="ys">user_profiles</span><span class="yx">
+  - <span class="yk">name</span>: <span class="ys">memories</span>             <span class="yc"># L1 — one atomic claim per record</span><span class="yx">
     <span class="yk">version</span>: <span class="yn">1</span></span>
-    <span class="yk">mode</span>: <span class="ys">keyed</span>              <span class="yc"># one current version per key;
-                            #   rewrites supersede, never erase</span><span class="yx">
-    <span class="yk">schema</span>: {<span class="yk">required</span>: [<span class="ys">text</span>], <span class="yk">properties</span>: {<span class="yk">tombstone</span>: {<span class="yk">type</span>: <span class="ys">boolean</span>}}}
-    <span class="yk">required_processors</span>: [<span class="ys">crm_embedding</span>]</span></pre>
+    <span class="yk">mode</span>: <span class="ys">event</span>
+    <span class="yk">schema</span>:
+      <span class="yk">required</span>: [<span class="ys">text</span>, <span class="ys">memory_kind</span>, <span class="ys">priority</span>, <span class="ys">decision</span>]
+      <span class="yk">properties</span>:
+        <span class="yk">memory_kind</span>: {<span class="yk">enum</span>: [<span class="ys">persona</span>, <span class="ys">episodic</span>, <span class="ys">instruction</span>]}<span class="yx">
+        <span class="yk">priority</span>:    {<span class="yk">minimum</span>: <span class="yn">0</span>, <span class="yk">maximum</span>: <span class="yn">100</span>}
+        <span class="yk">decision</span>:    {<span class="yk">enum</span>: [<span class="ys">store</span>, <span class="ys">merge</span>]}  <span class="yc"># what dedup concluded</span>
+        <span class="yk">supersedes</span>:  {<span class="yk">items</span>: {<span class="yk">format</span>: <span class="ys">uuid</span>}}   <span class="yc"># the claims it replaces</span></span><span class="yel">
+        <span class="yc"># … plus priority, the dedup decision, and what it supersedes</span></span></pre>
             </div>
 
             <div class="yz" id="y1" role="tabpanel">
-              <p class="ycap"><b>How events become facts.</b> Once enough important events pile up,
-                one job — with a hard ceiling on calls, tokens and seconds — rewrites the profile.
-                Citations are a required field of its output schema, so it cannot skip them.</p>
-<pre class="y"><span class="yk">name</span>: <span class="ys">crm_profile</span>
-<span class="yk">trigger</span>: {<span class="yk">accumulator</span>: {<span class="yk">metric</span>: <span class="ys">importance</span>, <span class="yk">threshold</span>: <span class="yn">6</span>}<span class="yx">, <span class="yk">cooldown_s</span>: <span class="yn">60</span></span>}
+              <p class="ycap"><b>How a message becomes a claim.</b> New messages arrive, one job
+                reads them, checks each candidate against the memory that already exists, and writes
+                only what is new. Citations are a required field, so a claim without evidence is
+                dropped.</p>
+<pre class="y"><span class="yk">name</span>: <span class="ys">l1_extract</span>
+<span class="yk">trigger</span>: {<span class="yk">write</span>: {<span class="yk">collections</span>: [<span class="ys">messages</span>]}<span class="yx">, <span class="yk">debounce_s</span>: <span class="yn">2</span></span>}
 <span class="yk">sources</span>:                   <span class="yc"># all the run may see — every one capped</span>
-  <span class="yk">new_crm_events</span>:  {<span class="yk">kind</span>: <span class="ys">changes</span>, <span class="yk">collections</span>: [<span class="ys">crm_events</span>]<span class="yx">,
-                    <span class="yk">max_records</span>: <span class="yn">100</span>, <span class="yk">max_tokens</span>: <span class="yn">12000</span></span>}
-  <span class="yk">current_profile</span>: {<span class="yk">kind</span>: <span class="ys">current</span>, <span class="yk">keys</span>: [<span class="ys">role</span>, <span class="ys">commitments</span>]<span class="yx">,
-                    <span class="yk">max_tokens</span>: <span class="yn">6000</span></span>}
-  <span class="yk">commitment_history</span>: {<span class="yk">kind</span>: <span class="ys">view</span>, <span class="yk">view</span>: <span class="ys">crm_history</span><span class="yx">, <span class="yk">max_tokens</span>: <span class="yn">3000</span></span>}
+  <span class="yk">new_messages</span>:   {<span class="yk">kind</span>: <span class="ys">changes</span>, <span class="yk">collections</span>: [<span class="ys">messages</span>]<span class="yx">,
+                   <span class="yk">max_records</span>: <span class="yn">40</span>, <span class="yk">max_tokens</span>: <span class="yn">18000</span></span>}
+  <span class="yk">background</span>:     {<span class="yk">kind</span>: <span class="ys">view</span>, <span class="yk">view</span>: <span class="ys">recent_messages@1</span><span class="yx">, <span class="yk">max_tokens</span>: <span class="yn">5000</span></span>}
+  <span class="yk">current_scenes</span>: {<span class="yk">kind</span>: <span class="ys">current</span>, <span class="yk">collections</span>: [<span class="ys">scenes</span>]<span class="yx">, <span class="yk">max_records</span>: <span class="yn">15</span></span>}
 <span class="yk">model</span>: <span class="ys">strong</span>              <span class="yc"># an alias you repoint, not a model id</span>
-<span class="yk">limits</span>: {<span class="yk">max_llm_calls</span>: <span class="yn">2</span>, <span class="yk">max_total_tokens</span>: <span class="yn">20000</span><span class="yx">, <span class="yk">max_wall_s</span>: <span class="yn">60</span></span>}<span class="yx">
-<span class="yk">tasks</span>:
-  - <span class="yk">id</span>: <span class="ys">result</span>
-    <span class="yk">use</span>: <span class="ys">llm</span>
-    <span class="yk">with</span>:
-      <span class="yk">prompt</span>: …             <span class="yc"># the slot definitions, in the file</span>
-      <span class="yk">output_schema</span>:
-        <span class="yk">required</span>: [<span class="ys">key</span>, <span class="ys">text</span>, <span class="ys">citations</span>]
-        <span class="yk">properties</span>:
-          <span class="yk">key</span>:  {<span class="yk">enum</span>: [<span class="ys">role</span>, <span class="ys">commitments</span>, <span class="ys">preferences</span>, <span class="ys">goals</span>]}
-          <span class="yk">text</span>: {<span class="yk">minLength</span>: <span class="yn">1</span>}
-          <span class="yk">citations</span>: {<span class="yk">minItems</span>: <span class="yn">1</span>, <span class="yk">items</span>: {<span class="yk">format</span>: <span class="ys">uuid</span>}}</span><span class="yel">
-<span class="yc"># … and the task: one prompt, plus the output schema that makes
-#   citations a required field — so no citation means no write</span></span>
-<span class="yk">emit</span>: {<span class="yx"><span class="yk">from</span>: <span class="ys">"{{result.records}}"</span>, </span><span class="yk">collection</span>: <span class="ys">user_profiles</span>,
-       <span class="yx"><span class="yk">type</span>: <span class="ys">profile</span>, </span><span class="yk">keys</span>: [<span class="ys">role</span>, <span class="ys">commitments</span>, <span class="ys">preferences</span>, <span class="ys">goals</span>]}</pre>
+<span class="yk">limits</span>: {<span class="yk">max_llm_calls</span>: <span class="yn">4</span>, <span class="yk">max_total_tokens</span>: <span class="yn">50000</span><span class="yx">, <span class="yk">max_wall_s</span>: <span class="yn">180</span></span>}<span class="yx">
+<span class="yk">tasks</span>:                     <span class="yc"># read, then decide — never both in one prompt</span>
+  - <span class="yk">id</span>: <span class="ys">claims</span>              <span class="yc"># 1 · propose atomic claims from the messages</span>
+  - <span class="yk">id</span>: <span class="ys">candidates</span>          <span class="yc"># 2 · which existing memory is nearby?</span>
+  - <span class="yk">id</span>: <span class="ys">decide</span>              <span class="yc"># 3 · store · merge · skip, and what it supersedes</span>
+    <span class="yk">output_schema</span>:
+      <span class="yk">required</span>: [<span class="ys">text</span>, <span class="ys">memory_kind</span>, <span class="ys">decision</span>, <span class="ys">citations</span>]
+      <span class="yk">properties</span>:
+        <span class="yk">citations</span>: {<span class="yk">minItems</span>: <span class="yn">1</span>, <span class="yk">items</span>: {<span class="yk">format</span>: <span class="ys">uuid</span>}}</span><span class="yel">
+<span class="yc"># … three tasks: propose claims, retrieve what is nearby, then decide
+#   store / merge / skip — with citations required, so no evidence, no write</span></span>
+<span class="yk">emit</span>: {<span class="yx"><span class="yk">from</span>: <span class="ys">"{{decide.records}}"</span>, </span><span class="yk">collection</span>: <span class="ys">memories</span>, <span class="yk">type</span>: <span class="ys">atom</span>}</pre>
             </div>
             </div>
           </div>
 
           <div class="zone">
-            <div class="zone-h" style="--hue:var(--cyan)"><b>memseek runs</b> · worker, no code of yours</div>
+            <div class="zone-h" style="--hue:var(--cyan)"><b>memseek maintains</b> · worker, no code of yours</div>
             <div class="ev" id="ev">
-              <div class="ev-h"><span class="src" id="evSrc">salesforce · commitment</span><span class="st" id="evSt">ingested</span></div>
-              <span class="ev-tx" id="evTx">Avery now owns the Atlas migration and committed to an August launch.</span>
+              <div class="ev-h"><span class="src" id="evSrc">user · platform review</span><span class="st" id="evSt">ingested</span></div>
+              <span class="ev-tx" id="evTx">Every new Node service goes out on Fastify now.</span>
             </div>
             <div class="pips" id="pips">
               <span class="pip" data-p="embed">embed</span>
-              <span class="pip" data-p="score">importance <b>—</b></span>
-              <span class="pip" data-p="trig">accumulator</span>
-              <span class="pip" data-p="derive">derive</span>
+              <span class="pip" data-p="extract">extract claims</span>
+              <span class="pip" data-p="dedup">dedup</span>
+              <span class="pip" data-p="write">write</span>
             </div>
 
-            <div class="zone-h" style="--hue:var(--green)"><b>your agent reads</b> · one document</div>
+            <div class="zone-h" style="--hue:var(--green)"><b>your agent reads</b> · the claims that hold now</div>
             <div class="mcard" id="mcard">
               <div class="mcard-h">
-                <span class="ent">entity: contact:avery-chen</span>
-                <span class="badge">current</span>
+                <span class="ent">entity: agent.alice</span>
+                <span class="badge">atoms</span>
               </div>
-              <div class="ms" data-slot="role">
-                <span class="k">role</span>
-                <span class="v">VP of Product at Acme Cloud, owns enterprise collaboration</span>
+              <div class="ms" data-slot="instruction">
+                <span class="k">instruction</span>
+                <span class="v">Billing changes need explicit approval before they ship</span>
                 <span class="c">1 cited</span>
               </div>
-              <div class="ms" data-slot="commitments">
-                <span class="k">commitments</span>
-                <span class="v">Evaluating Atlas for a Q3 pilot</span>
+              <div class="ms" data-slot="persona">
+                <span class="k">persona</span>
+                <span class="v">Ships new Node services on Fastify</span>
                 <span class="c">1 cited</span>
               </div>
-              <div class="ms" data-slot="preferences">
-                <span class="k">preferences</span>
-                <span class="v">Prefers a live walkthrough over slides</span>
+              <div class="ms" data-slot="episodic">
+                <span class="k">episodic</span>
+                <span class="v">Billing stays on Express for the mobile app</span>
                 <span class="c">1 cited</span>
               </div>
-              <div class="mnote" id="mnote">current · every slot cites the events it was fused from</div>
+              <div class="mnote" id="mnote">latest claim per kind · every one cites the message it came from</div>
             </div>
             <div class="mfoot">
               <div class="tmini">
@@ -831,7 +964,7 @@
                 <span class="tt"><i style="--w:100"></i></span>
                 <b class="tv">~101,000</b>
               </div>
-              <span class="tnote">tokens per read · <span id="citeN">3 citations</span> · nothing dropped, only superseded</span>
+              <span class="tnote">tokens per read · <span id="citeN">3 citations</span> · nothing edited, only superseded</span>
             </div>
           </div>
         </div>
@@ -842,7 +975,7 @@
   <!-- ============ SOURCE STRIP ============ -->
   <div class="integ">
     <div class="wrap integ-inner">
-      <span class="lead">Your app writes down what happens</span>
+      <span class="lead">Observe · everything your apps and agents see</span>
       <span class="chip">CRM &amp; business apps</span>
       <span class="chip">Calls &amp; transcripts</span>
       <span class="chip">Email &amp; chat</span>
@@ -852,140 +985,382 @@
     </div>
   </div>
 
+  <!-- ============ OBSERVE → MAINTAIN → ASSEMBLE → SERVE ============
+       The conceptual model, ahead of the vocabulary. The primitives named in
+       each card's footer are defined in the strip further down the page —
+       here they are a pointer, not the argument. -->
+  <section id="how">
+    <div class="wrap">
+      <div class="sec-head reveal">
+        <span class="eyebrow" style="--hue:var(--cyan)">how memseek works</span>
+        <h2>Observe → Maintain → Assemble → Serve.</h2>
+        <p>You describe all four stages in a <b>catalog</b> — a folder of YAML files. Memseek runs
+          them. There is no pipeline of yours in the middle.</p>
+      </div>
+
+      <!-- One picture instead of four cards of prose. The argument it has to
+           carry is many-and-growing on the left, one-small-and-cited on the
+           right, and the four stage names in between. Everything is drawn from
+           the theme tokens, so it inverts with the page. -->
+      <div class="flow-scroll reveal">
+        <svg class="flow" viewBox="0 0 972 250" role="img"
+             aria-label="Everything you record — messages, events, documents, tool results — flows into Memseek, which observes, maintains, assembles and serves. What comes out is one small cited context block of about 3,200 tokens, which goes to your agent.">
+          <!-- left: everything you record, many and growing -->
+          <text class="f-lab" x="8" y="30">WHAT YOU RECORD</text>
+          <g class="f-in">
+            <rect x="8"   y="46" width="52" height="26" rx="5"/>
+            <rect x="68"  y="46" width="52" height="26" rx="5"/>
+            <rect x="128" y="46" width="52" height="26" rx="5"/>
+            <rect x="8"   y="80" width="52" height="26" rx="5"/>
+            <rect x="68"  y="80" width="52" height="26" rx="5"/>
+            <rect x="128" y="80" width="52" height="26" rx="5"/>
+            <rect x="8"   y="114" width="52" height="26" rx="5"/>
+            <rect x="68"  y="114" width="52" height="26" rx="5"/>
+            <rect x="128" y="114" width="52" height="26" rx="5"/>
+          </g>
+          <text class="f-cap" x="8" y="166">messages · events · documents</text>
+          <text class="f-cap" x="8" y="182">tool results · agent outcomes</text>
+          <text class="f-dim" x="8" y="206">append-only, and it only grows</text>
+
+          <path class="f-arrow" d="M198 93 H236" marker-end="url(#fa)"/>
+
+          <!-- middle: the engine, and the four stages by name -->
+          <rect class="f-engine" x="250" y="30" width="404" height="150" rx="12"/>
+          <text class="f-eng-lab" x="268" y="56">MEMSEEK</text>
+          <g class="f-stage">
+            <rect x="268" y="70" width="88" height="60" rx="7"/>
+            <rect x="366" y="70" width="88" height="60" rx="7"/>
+            <rect x="464" y="70" width="88" height="60" rx="7"/>
+            <rect x="562" y="70" width="74" height="60" rx="7"/>
+          </g>
+          <text class="f-st" x="312" y="92">OBSERVE</text>
+          <text class="f-sd" x="312" y="112">write it</text>
+          <text class="f-st" x="410" y="92">MAINTAIN</text>
+          <text class="f-sd" x="410" y="112">keep it true</text>
+          <text class="f-st" x="508" y="92">ASSEMBLE</text>
+          <text class="f-sd" x="508" y="112">cut to budget</text>
+          <text class="f-st" x="599" y="92">SERVE</text>
+          <text class="f-sd" x="599" y="112">hand over</text>
+          <text class="f-dim" x="268" y="164">you declare all four in a folder of YAML</text>
+
+          <path class="f-arrow" d="M666 93 H704" marker-end="url(#fa)"/>
+
+          <!-- right: one small, cited block -->
+          <text class="f-lab f-out-lab" x="718" y="30">CONTEXT FOR THIS TASK</text>
+          <rect class="f-out" x="718" y="46" width="214" height="94" rx="7"/>
+          <g class="f-line">
+            <rect x="732" y="60" width="130" height="7" rx="3.5"/>
+            <rect x="732" y="76" width="158" height="7" rx="3.5"/>
+            <rect x="732" y="92" width="112" height="7" rx="3.5"/>
+            <rect x="732" y="108" width="146" height="7" rx="3.5"/>
+          </g>
+          <g class="f-cite">
+            <rect x="872" y="60" width="26" height="7" rx="3.5"/>
+            <rect x="898" y="76" width="20" height="7" rx="3.5"/>
+            <rect x="852" y="92" width="26" height="7" rx="3.5"/>
+            <rect x="886" y="108" width="20" height="7" rx="3.5"/>
+          </g>
+          <text class="f-cap f-out-cap" x="718" y="166">~3,200 tokens · every line cited</text>
+          <text class="f-dim" x="718" y="206">→ your agent</text>
+
+          <defs>
+            <marker id="fa" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path d="M0 0 L10 5 L0 10 z" class="f-arrow-head"/>
+            </marker>
+          </defs>
+        </svg>
+      </div>
+
+      <!-- the output as an object: request in, artifact out, receipt attached -->
+      <div class="pane art reveal">
+        <div class="pane-bar">
+          <div class="ytabs"><span class="ytab ystatic">agent_context@1 · context artifact</span></div>
+          <span class="live">assembled on request</span>
+        </div>
+        <div class="art-grid">
+          <div class="art-in">
+            <div class="zone-h"><b>what goes in</b> · one task</div>
+            <p class="ask">“Can I rewrite billing in Fastify and deploy it tonight?”</p>
+            <ul class="art-src">
+              <li>Persona — the durable traits <span class="c">1,200</span></li>
+              <li>Standing rules, by priority <span class="c">1,500</span></li>
+              <li>Scene blocks for this work <span class="c">2,500</span></li>
+              <li>Relevant claims <span class="c">2,500</span></li>
+            </ul>
+            <p class="art-note">Each block has <b>its own ceiling</b>, so a long scene can never
+              crowd out a priority-100 rule.</p>
+          </div>
+          <div class="art-out">
+            <div class="zone-h" style="--hue:var(--green)"><b>what comes back</b> · compact and cited</div>
+            <div class="art-stats">
+              <div><span class="n">11,700</span><span class="l">token budget</span></div>
+              <div><span class="n">5</span><span class="l">blocks, each capped</span></div>
+              <div><span class="n">1</span><span class="l">file declares it</span></div>
+            </div>
+<pre class="arender"><span class="ah">## Persona</span>
+  Ships new Node services on Fastify.        <span class="acite">[9f1c…]</span>
+
+<span class="ah">## Standing rules</span> <span class="adim">(priority ≥ 90)</span>
+  Billing needs explicit approval to ship.   <span class="acite">[b704…]</span>
+  Telemetry before removing a compat path.   <span class="acite">[4d18…]</span>
+
+<span class="ah">## Relevant claims</span> <span class="adim">(2 of 41, by relevance)</span>
+  Billing stays on Express for mobile.       <span class="acite">[c221…]</span>
+  Legacy fields go in mobile release 7.      <span class="acite">[7ee0…]</span></pre>
+            <p class="art-note"><b>This is the object that goes into the model before it
+              reasons.</b></p>
+          </div>
+        </div>
+      </div>
+
+      <p class="sec-foot reveal">That artifact is <b>one file</b> —
+        <code>artifacts/agent_context.yaml</code> — with no assembly code behind it.
+        <a href="#quickstart">Run the example →</a></p>
+    </div>
+  </section>
+
   <!-- ============ QUICKSTART ============ -->
-  <section id="quickstart">
+  <section id="quickstart" class="alt">
     <div class="wrap">
       <div class="sec-head reveal">
         <span class="eyebrow">run it locally</span>
-        <h2>Four commands, then it's your data.</h2>
-        <p>An API, a worker, and ordinary Postgres — so it runs wherever you decide to put it, starting with your laptop. You publish YAML, append events, and read what is true. There is no pipeline to orchestrate, no cron to schedule, and no queue to own.</p>
+        <h2>One command, then it's your data.</h2>
+        <p>Everything runs on your machine: an API, a worker, and ordinary Postgres. <b>Docker
+          brings up all three and publishes a working memory for you</b>, so there is something real
+          to query before you have written a line. Then point your coding agent at it, or start
+          writing YAML of your own. No account, no cron to schedule, no queue to own.</p>
       </div>
 
       <div class="steps">
         <div class="step reveal">
           <div class="step-side">
             <span class="step-n">01 · RUN</span>
-            <h3>Two processes and a Postgres.</h3>
-            <p><code>make quickstart</code> starts PostgreSQL 16 + pgvector, applies the schema, and prints a workspace key. <b>With <code>LLM_FAKE=1</code> there is no API key to find</b> — a deterministic stub provider stands in, so you can watch ingest, scoring, triggering, deriving and reading all work before you spend a token. The same two processes are what you deploy later, unchanged.</p>
+            <h3>One command brings up the whole stack.</h3>
+            <p>Five services: <b>Postgres</b> (with pgvector), a one-shot <b>migration</b>, the
+              <b>API</b> your app and agents talk to, the <b>worker</b> that embeds, scores and
+              derives in the background, and a <b>setup</b> step that mints a workspace key and
+              publishes the four-layer agent-memory catalog. <b>Docker is the only thing you need
+              installed.</b></p>
           </div>
           <div class="code">
             <div class="code-tabs"><button class="t" aria-selected="true" tabindex="-1">console</button><span class="fname">your terminal</span></div>
-<pre class="p on"><span class="cd">$</span> make quickstart                    <span class="cm"># postgres · schema · workspace key</span>
-<span class="cd">$</span> source .env.sh &amp;&amp; export LLM_FAKE=1 MEMSEEK_API_KEY=<span class="cs">&lt;key&gt;</span>
+<pre class="p on"><span class="cd">$</span> git clone https://github.com/memseekai/memseek &amp;&amp; <span class="ck">cd</span> memseek
+<span class="cd">$</span> make up
 
-<span class="cd">$</span> uv run uvicorn memseek.api:app     <span class="cm"># terminal A · reads and writes</span>
-<span class="cd">$</span> uv run memseek worker              <span class="cm"># terminal B · embeds, scores, derives</span>
+<span class="cm"># postgres → migrate → api + worker → setup, in that order:
+#
+#   published agent_memory@0.3.0 (20 files) from examples/agent_memory_catalog
+#   MCP interface ready — 6 tools: context, recall, standing_rules,
+#                                  replay_session, record, answer
+#
+#   API   http://127.0.0.1:8000
+#   MCP   http://127.0.0.1:8000/mcp
+#   Key   export MEMSEEK_API_KEY=$(cat .memseek/api_key)</span>
 
-<span class="cm"># prefer to see it prove itself first?</span>
-<span class="cd">$</span> make e2e                           <span class="cm"># ingest → enrich → search → cited derive</span></pre>
+<span class="cd">$</span> <span class="ck">export</span> MEMSEEK_URL=http://127.0.0.1:8000
+<span class="cd">$</span> <span class="ck">export</span> MEMSEEK_API_KEY=$(cat .memseek/api_key)</pre>
+            <p class="step-note">Raw Docker, without make:
+              <code>docker compose up -d --wait &amp;&amp; docker compose wait setup</code> — the second
+              half matters, because <code>--wait</code> returns while the setup step is still
+              publishing. Prefer to run the processes yourself? <code>make quickstart</code> starts
+              just the database and prints a key; <code>uv run uvicorn memseek.api:app</code> and
+              <code>uv run memseek worker</code> are <b>the two ordinary processes</b> the containers
+              are running for you — the same two you deploy later, unchanged.</p>
           </div>
         </div>
 
         <div class="step reveal">
           <div class="step-side">
-            <span class="step-n">02 · DECLARE</span>
-            <h3>A memory product is a directory.</h3>
-            <p>Collections, processors, derivations, views, artifacts and a package manifest — a few files of <b>versioned YAML you review like a schema migration</b>, not code you maintain. This is the whole CRM example, and it ships in the repo.</p>
+            <span class="step-n">02 · SEE IT WORK</span>
+            <h3>Give your coding agent a memory it can be held to.</h3>
+            <p>Step 01 published one already: <b>the four-layer agent-memory catalog</b>, 20 files of
+              YAML and no code. Attach it and a fresh session <b>knows the rules you set weeks
+              ago</b> — and can show you the message each one came from. It sees the six tools the
+              catalog declares and nothing else.</p>
+          </div>
+          <div class="code" data-tabs>
+            <div class="code-tabs" role="tablist" aria-label="Ways to see it work">
+              <button class="t" role="tab" aria-selected="true" data-r="0" data-file="your terminal">claude code</button>
+              <button class="t" role="tab" aria-selected="false" data-r="1" data-file="~/.codex/config.toml">codex</button>
+              <button class="t" role="tab" aria-selected="false" data-r="2" data-file="your terminal">example</button>
+              <span class="fname">your terminal</span>
+            </div>
+<pre class="p on" role="tabpanel"><span class="cm"># step 01 published the memory. one command attaches it:</span>
+<span class="cd">$</span> claude mcp add --transport http --scope local \
+    memseek <span class="cs">"$MEMSEEK_URL/mcp"</span> \
+    --header <span class="cs">"Authorization: Bearer $MEMSEEK_API_KEY"</span>
+
+<span class="cd">&gt;</span> billing deploys always need my explicit approval — remember that
+
+<span class="cf">⏺ memseek · remember</span>  <span class="cm">(write · entity agent.alice)</span>
+  <span class="cm">{"inserted":[{"id":"b704…"}]}</span>
+
+  Noted. I've written it to memory.
+
+<span class="cm"># … a new session, days later, in a different repo:</span>
+
+<span class="cd">&gt;</span> rewrite billing in Fastify and ship it tonight
+
+<span class="cf">⏺ memseek · context</span>  <span class="cm">task: "rewrite billing, ship tonight"</span>
+
+  <span class="cn">## Standing rules</span> <span class="cm">(priority ≥ 80)</span>
+    Billing needs explicit approval to ship.       <span class="cs">[b704…]</span>
+    Migrations never run automatically on deploy.  <span class="cs">[3a90…]</span>
+  <span class="cn">## Relevant claims</span>
+    Billing stays on Express for the mobile app.   <span class="cs">[c221…]</span>
+
+  I'll write the change, but I'm not shipping it tonight: billing
+  deploys need your explicit approval, and mobile still depends on
+  the Express response format. Want me to open the PR instead?
+
+<span class="cm"># it never saw that rule in this session. it asked memseek, and every
+# line it got back cites the message you said it in.</span></pre>
+<pre class="p" role="tabpanel"><span class="cm"># the same endpoint; the key stays in the environment</span>
+[<span class="yk">mcp_servers.memseek</span>]
+<span class="yk">url</span> = <span class="cs">"http://127.0.0.1:8000/mcp"</span>
+<span class="yk">bearer_token_env_var</span> = <span class="cs">"MEMSEEK_API_KEY"</span>
+<span class="yk">startup_timeout_sec</span> = <span class="cn">20</span>
+<span class="yk">tool_timeout_sec</span> = <span class="cn">180</span>
+<span class="yk">default_tools_approval_mode</span> = <span class="cs">"writes"</span>
+
+<span class="cm"># or, equivalently:</span>
+<span class="cd">$</span> codex mcp add memseek --url <span class="cs">"$MEMSEEK_URL/mcp"</span> \
+    --bearer-token-env-var MEMSEEK_API_KEY
+
+<span class="cd">$</span> codex mcp list                     <span class="cm"># then /mcp inside the TUI</span></pre>
+<pre class="p" role="tabpanel"><span class="cm"># watch the same catalog build itself from one conversation</span>
+<span class="cd">$</span> <span class="ck">export</span> OPENAI_API_KEY=sk-...       <span class="cm"># conf/models.yaml names the variable</span>
+<span class="cd">$</span> uv run python examples/agent_memory.py
+
+<span class="cm"># examples/agent_memory_catalog — 20 files, no code — then:
+#
+#   L0  messages   what was literally said, immutable
+#   L1  memories   atomic claims, each citing its messages
+#   L2  scenes     one keyed block per project or situation
+#   L3  persona    the traits that stayed true across scenes
+#
+# then renders one bounded context prompt for a request that must be
+# refused, and opens a single trait back down to the message behind it.</span></pre>
+            <p class="step-note"><b>One tool writes; the rest only read.</b> <code>remember</code>
+              is declared <code>kind: ingest</code> against one named collection, so the agent
+              appends evidence there and <b>nowhere else</b> — it cannot edit, retract, or aim a
+              write at another drawer, and it is annotated as a write so your host can prompt on it.
+              Five of the seven are deterministic reads answered straight from Postgres; only
+              <code>answer</code> calls a model.</p>
+          </div>
+        </div>
+
+        <div class="step reveal">
+          <div class="step-side">
+            <span class="step-n">03 · DECLARE</span>
+            <h3>A context engine is a directory.</h3>
+            <p>Collections, processors, derivations, views, artifacts, an MCP interface and a package manifest — a few files of <b>versioned YAML you review like a schema migration</b>, not code you maintain. This is the whole four-layer memory from step 01, exactly as it ships.</p>
           </div>
           <div class="code">
-            <div class="code-tabs"><button class="t" aria-selected="true" tabindex="-1">catalog</button><span class="fname">examples/crm_profile_catalog/</span></div>
-<pre class="p on"><span class="cp">crm_profile_catalog/</span>
-├── <span class="cs">collections/crm.yaml</span>            <span class="cm"># crm_events (event) · user_profiles (keyed)</span>
-├── <span class="cs">conf/processors.yaml</span>            <span class="cm"># embedding · importance score · deal signals</span>
-├── <span class="cs">derivations/crm_profile.yaml</span>    <span class="cm"># accumulator trigger → cited keyed profile</span>
-├── <span class="cs">views/crm_history.yaml</span>          <span class="cm"># hybrid search over the events</span>
-├── <span class="cs">artifacts/profile_brief.yaml</span>    <span class="cm"># deterministic prompt block</span>
-└── <span class="cs">packages/crm_user_profile.yaml</span>  <span class="cm"># the versioned bundle you publish</span></pre>
+            <div class="code-tabs"><button class="t" aria-selected="true" tabindex="-1">catalog</button><span class="fname">examples/agent_memory_catalog/</span></div>
+<pre class="p on"><span class="cp">agent_memory_catalog/</span>                    <span class="cm"># 20 files, no code</span>
+├── <span class="cs">collections/</span>   <span class="cm">messages · memories · scenes · persona · …</span>   7
+├── <span class="cs">conf/</span>          <span class="cm">models · processors · ranking · search</span>       4
+├── <span class="cs">derivations/</span>   <span class="cm">l1_extract · scene_synthesis · persona · …</span>   4
+├── <span class="cs">views/</span>         <span class="cm">recall — one search across all four layers</span>    1
+├── <span class="cs">artifacts/</span>     <span class="cm">agent_context · maintained_procedure</span>         2
+├── <span class="cs">mcp/</span>           <span class="cm">agent_memory — the 6 tools an agent may see</span>   1
+└── <span class="cs">packages/</span>      <span class="cm">agent_memory@0.3.0 — what you publish</span>        1</pre>
           </div>
         </div>
 
         <div class="step reveal">
           <div class="step-side">
-            <span class="step-n">03 · WRITE</span>
-            <h3>Publish it, then just append events.</h3>
-            <p>Ingest returns immediately. In the background the worker embeds each event, scores how much it matters, and rewrites the profile once enough important events have piled up. <b>Your application never orchestrates a pipeline.</b></p>
+            <span class="step-n">04 · WRITE</span>
+            <h3>Publish it, then just append what happens.</h3>
+            <p>Ingest returns immediately. In the background the worker embeds each message and, once a conversation has enough in it, extracts the atomic claims that become scenes and persona. <b>Your application never orchestrates a pipeline.</b></p>
           </div>
           <div class="code">
             <div class="code-tabs"><button class="t" aria-selected="true" tabindex="-1">python</button><span class="fname">app.py</span></div>
 <pre class="p on"><span class="ck">from</span> memseek.sdk <span class="ck">import</span> MemseekClient
 
+TEXT = <span class="cs">"Every new Node service goes out on Fastify now. Billing "</span>
+       <span class="cs">"stays on Express until mobile drops the legacy fields."</span>
+
 <span class="ck">async with</span> <span class="cf">MemseekClient</span>(BASE_URL, API_KEY) <span class="ck">as</span> memseek:
     <span class="ck">await</span> memseek.catalog.<span class="cf">publish</span>(
-        package=<span class="cs">"crm_user_profile@2.0.0"</span>,
-        directory=<span class="cs">"examples/crm_profile_catalog"</span>,
+        package=<span class="cs">"agent_memory@0.3.0"</span>,
+        directory=<span class="cs">"examples/agent_memory_catalog"</span>,
     )
 
     <span class="ck">await</span> memseek.records.<span class="cf">ingest_many</span>([{
-        <span class="cs">"collection"</span>: <span class="cs">"crm_events"</span>,
-        <span class="cs">"entity"</span>:     <span class="cs">"contact:avery-chen"</span>,
-        <span class="cs">"type"</span>:       <span class="cs">"crm_event"</span>,
-        <span class="cs">"text"</span>:       <span class="cs">"Avery now owns the Atlas migration and "</span>
-                      <span class="cs">"committed to an August launch."</span>,
-        <span class="cs">"content"</span>:    {<span class="cs">"source"</span>: <span class="cs">"salesforce"</span>,
-                       <span class="cs">"event_kind"</span>: <span class="cs">"commitment"</span>,
-                       <span class="cs">"account_id"</span>: <span class="cs">"acme-cloud"</span>},
-        <span class="cs">"dedupe_key"</span>: <span class="cs">"sf:evt:88421"</span>,   <span class="cm"># replay-safe</span>
+        <span class="cs">"collection"</span>: <span class="cs">"messages"</span>,
+        <span class="cs">"entity"</span>:     <span class="cs">"agent.alice"</span>,     <span class="cm"># the memory this belongs to</span>
+        <span class="cs">"type"</span>:       <span class="cs">"message"</span>,
+        <span class="cs">"text"</span>:       TEXT,
+        <span class="cs">"content"</span>:    {<span class="cs">"text"</span>: TEXT, <span class="cs">"role"</span>: <span class="cs">"user"</span>,
+                       <span class="cs">"session_id"</span>: <span class="cs">"s1-platform-review"</span>,
+                       <span class="cs">"ordinal"</span>: <span class="cn">0</span>},
+        <span class="cs">"dedupe_key"</span>: <span class="cs">"msg:s1:0"</span>,      <span class="cm"># replay-safe</span>
     }])</pre>
           </div>
         </div>
 
         <div class="step reveal">
           <div class="step-side">
-            <span class="step-n">04 · READ</span>
+            <span class="step-n">05 · READ</span>
             <h3>Four shapes, one layer.</h3>
-            <p>Whatever your agent needs: the <b>current profile</b>, a bounded cited <b>answer</b> over everything ever recorded, a <b>prompt-ready briefing</b>, or a small MCP tool surface. <b>Same catalog, no second pipeline.</b></p>
+            <p>Whatever your agent needs: the <b>current profile</b>, a bounded cited <b>answer</b> over everything ever recorded, a <b>context artifact</b> assembled under a token budget, or a small MCP tool surface. <b>Same catalog, no second pipeline.</b></p>
           </div>
-          <div class="code" id="readCode">
+          <div class="code" id="readCode" data-tabs>
             <div class="code-tabs" role="tablist" aria-label="Read shapes">
               <button class="t" role="tab" aria-selected="true" data-r="0">document</button>
               <button class="t" role="tab" aria-selected="false" data-r="1">answer</button>
               <button class="t" role="tab" aria-selected="false" data-r="2">artifact</button>
               <button class="t" role="tab" aria-selected="false" data-r="3">mcp</button>
             </div>
-<pre class="p on" role="tabpanel"><span class="cm"># the current, keyed profile — plus how fresh it is</span>
+<pre class="p on" role="tabpanel"><span class="cm"># the durable traits, each one citing the messages behind it</span>
 doc = <span class="ck">await</span> memseek.<span class="cf">document</span>(
-    entity=<span class="cs">"contact:avery-chen"</span>, collections=<span class="cs">"user_profiles"</span>,
+    entity=<span class="cs">"agent.alice"</span>, collections=<span class="cs">"persona"</span>,
 )
 
 <span class="ck">for</span> belief <span class="ck">in</span> doc[<span class="cs">"beliefs"</span>]:
     <span class="cf">print</span>(belief[<span class="cs">"key"</span>], belief[<span class="cs">"text"</span>], belief[<span class="cs">"citations"</span>])
 
-<span class="cm"># role         VP of Product at Acme Cloud, owns enterprise…  [9f1c…]
-# commitments  Owns the Atlas migration; August launch committed  [b704…]
-# preferences  Concise written updates the day before any call    [4d18…]</span>
+<span class="cm"># stack        Fastify for new Node services; billing stays on…  [9f1c…]
+# approval     Billing deploys need explicit sign-off            [b704…]
+# evidence     Wants telemetry before removing a compat path     [4d18…]</span>
 
-doc[<span class="cs">"freshness"</span>]   <span class="cm"># {"crm_profile": {"stale": false, …}} — is it caught up?</span></pre>
+doc[<span class="cs">"freshness"</span>]   <span class="cm"># has the worker caught up with what you wrote?</span></pre>
 <pre class="p" role="tabpanel"><span class="cm"># one bounded, cited synthesis — with the gaps named</span>
 res = <span class="ck">await</span> memseek.<span class="cf">answer</span>(
-    question=<span class="cs">"What did we promise Acme for August?"</span>,
+    question=<span class="cs">"What do I need approval for before deploying?"</span>,
+    entities=[<span class="cs">"agent.alice"</span>],
 )
 
-res[<span class="cs">"answer"</span>]      <span class="cm"># "An Atlas migration launch, owned by Avery Chen…"</span>
+res[<span class="cs">"answer"</span>]      <span class="cm"># "Billing changes: writing them is fine, shipping…"</span>
 res[<span class="cs">"citations"</span>]   <span class="cm"># ["9f1c…", "b704…"] — every claim traceable</span>
-res[<span class="cs">"gaps"</span>]        <span class="cm"># ["no signed amendment on file"] — it says what it lacks</span>
+res[<span class="cs">"gaps"</span>]        <span class="cm"># what it could not find, named rather than guessed</span>
 
 <span class="cm"># save=True writes the answer back as a provenance-carrying record.</span></pre>
-<pre class="p" role="tabpanel"><span class="cm"># a deterministic prompt block: profile + evidence, token-budgeted</span>
+<pre class="p" role="tabpanel"><span class="cm"># the bounded prompt block: persona + scenes + rules + relevance</span>
 brief = <span class="ck">await</span> memseek.<span class="cf">render_artifact</span>(
-    <span class="cs">"crm_profile_brief"</span>,
-    entity=<span class="cs">"contact:avery-chen"</span>,
-    query=<span class="cs">"commitments and launch dates"</span>,
+    <span class="cs">"agent_context"</span>,
+    entity=<span class="cs">"agent.alice"</span>,
+    task=<span class="cs">"rewrite billing in Fastify and deploy tonight"</span>,
+    skill=<span class="cs">"deploy"</span>,
 )
 
 brief[<span class="cs">"rendered"</span>]                          <span class="cm"># drop straight into your prompt</span>
-brief[<span class="cs">"manifest"</span>][<span class="cs">"tokens"</span>]                <span class="cm"># 3184</span>
+brief[<span class="cs">"manifest"</span>][<span class="cs">"tokens"</span>]                <span class="cm"># measured, against the declared budget</span>
 brief[<span class="cs">"manifest"</span>][<span class="cs">"input_record_ids"</span>]      <span class="cm"># exactly what went in</span>
 brief[<span class="cs">"manifest"</span>][<span class="cs">"rendered_sha256"</span>]       <span class="cm"># same inputs → same bytes</span></pre>
-<pre class="p" role="tabpanel"><span class="cm"># mcp/crm_memory.yaml — the ONLY tools the agent can see.
+<pre class="p" role="tabpanel"><span class="cm"># mcp/agent_memory.yaml — the ONLY tools the agent can see.
 # nothing becomes a tool just because it exists.</span>
 <span class="yk">tools</span>:
-  - {<span class="yk">name</span>: <span class="cs">search_crm_memory</span>, <span class="yk">kind</span>: <span class="cs">view</span>,     <span class="yk">view</span>: <span class="cs">crm_history@1</span>}
-  - {<span class="yk">name</span>: <span class="cs">crm_brief</span>,         <span class="yk">kind</span>: <span class="cs">artifact</span>, <span class="yk">artifact</span>: <span class="cs">crm_profile_brief@1</span>}
+  - {<span class="yk">name</span>: <span class="cs">context</span>,        <span class="yk">kind</span>: <span class="cs">artifact</span>, <span class="yk">artifact</span>: <span class="cs">agent_context@1</span>}
+  - {<span class="yk">name</span>: <span class="cs">recall</span>,         <span class="yk">kind</span>: <span class="cs">view</span>,     <span class="yk">view</span>: <span class="cs">memory_recall@1</span>}
+  - {<span class="yk">name</span>: <span class="cs">standing_rules</span>, <span class="yk">kind</span>: <span class="cs">view</span>,     <span class="yk">view</span>: <span class="cs">standing_instructions@1</span>}
+  - {<span class="yk">name</span>: <span class="cs">replay_session</span>, <span class="yk">kind</span>: <span class="cs">view</span>,     <span class="yk">view</span>: <span class="cs">session_window@1</span>}
+  - {<span class="yk">name</span>: <span class="cs">record</span>,         <span class="yk">kind</span>: <span class="cs">record</span>}
+  - {<span class="yk">name</span>: <span class="cs">answer</span>,         <span class="yk">kind</span>: <span class="cs">answer</span>}
 
-<span class="cm"># then bridge the declared surface to any MCP client over stdio:</span>
-$ memseek mcp
-
-<span class="cm"># GET /tools returns the same declaration, per workspace.</span></pre>
+<span class="cm"># these are the six tools Claude Code and Codex saw in step 02.</span></pre>
           </div>
         </div>
       </div>
@@ -993,54 +1368,139 @@ $ memseek mcp
       <div class="quick-foot reveal">
         <span>Clone it: <a href="https://github.com/memseekai/memseek"><code>github.com/memseekai/memseek</code></a></span>
         <span>Two processes + PostgreSQL/pgvector — deploy them wherever you already deploy things</span>
-        <span>Try it with no provider key: <code>LLM_FAKE=1</code></span>
-        <span>Python SDK, HTTP API, or MCP</span>
+        <span>Runnable catalogs ship in <code>examples/</code></span>
+        <span>Python SDK, HTTP API, or MCP over stdio and Streamable HTTP</span>
         <span>Swap models by alias, not by redesign</span>
         <span>Ordinary tables: query, export or replay it with <code>psql</code></span>
       </div>
     </div>
   </section>
 
-  <!-- ============ USE CASES ============ -->
-  <section id="uses" class="alt">
+  <!-- ============ NAMED MEMORY DESIGNS ============
+       The strongest single argument on the page: the memory architectures a
+       reader already respects are not integrations here, they are arrangements
+       of the same eight primitives. File counts are the proof — measured from
+       the repo, not estimated. -->
+  <section id="designs">
     <div class="wrap">
       <div class="sec-head reveal">
-        <span class="eyebrow" style="--hue:var(--cyan)">what you can build</span>
-        <h2>Every memory design you've read about, already running.</h2>
-        <p>Episodic and semantic memory, reflection, consolidation as in <b>Anthropic's Dreams</b>, a self-wiring graph as in <b>Garry Tan's gbrain</b>. Normally each is its own store and pipeline. Here each is the same declared catalog, arranged differently: <b>YAML you review in a pull request</b>.</p>
+        <span class="eyebrow" style="--hue:var(--amber)">not a fork — a folder of yaml</span>
+        <h2>The memory designs you've read about, as configuration.</h2>
+        <p>gbrain, TencentDB Agent Memory, the Generative Agents paper, Anthropic's Dreams — each is
+          a different arrangement of <b>the same eight primitives</b>. There is no plugin to write,
+          no service to fork and no pipeline to maintain: you publish a folder of YAML and the design
+          is running. <b>Between 10 and 27 files</b>, reviewed in a pull request like a schema
+          migration.</p>
       </div>
 
+      <!-- The vocabulary as a picture: the eight nouns in the order data moves
+           through them, so a reader sees which stage each one belongs to
+           instead of reading eight definitions and building the order
+           themselves. Drawn from theme tokens, so it inverts with the page. -->
+      <div class="prim-band reveal">
+        <div class="band-h"><span>eight primitives, and that's all of them</span><span>in the order the data moves</span></div>
+        <div class="flow-scroll">
+          <svg class="flow prim-svg" viewBox="0 0 972 236" role="img"
+               aria-label="The eight primitives grouped by stage. Observe: collections hold records, processors enrich each one. Maintain: triggers start derivations. Assemble: views retrieve evidence, artifacts build the prompt. Serve: packages publish a versioned bundle, mcp lists the tools an agent may see.">
+            <g class="p-band">
+              <rect x="4"   y="26" width="232" height="184" rx="10"/>
+              <rect x="248" y="26" width="232" height="184" rx="10"/>
+              <rect x="492" y="26" width="232" height="184" rx="10"/>
+              <rect x="736" y="26" width="232" height="184" rx="10"/>
+            </g>
+            <text class="p-stage" style="--hue:var(--orange)" x="20"  y="48">OBSERVE</text>
+            <text class="p-stage" style="--hue:var(--cyan)"   x="264" y="48">MAINTAIN</text>
+            <text class="p-stage" style="--hue:var(--violet)" x="508" y="48">ASSEMBLE</text>
+            <text class="p-stage" style="--hue:var(--green)"  x="752" y="48">SERVE</text>
+
+            <g class="p-card" style="--hue:var(--orange)">
+              <rect x="20"  y="62" width="200" height="60" rx="7"/>
+              <rect x="20"  y="132" width="200" height="60" rx="7"/>
+            </g>
+            <text class="p-name" style="--hue:var(--orange)" x="34" y="84">collections</text>
+            <text class="p-desc" x="34" y="104">where records live</text>
+            <text class="p-name" style="--hue:var(--orange)" x="34" y="154">processors</text>
+            <text class="p-desc" x="34" y="174">score · embed · classify</text>
+
+            <g class="p-card" style="--hue:var(--cyan)">
+              <rect x="264" y="62" width="200" height="60" rx="7"/>
+              <rect x="264" y="132" width="200" height="60" rx="7"/>
+            </g>
+            <text class="p-name" style="--hue:var(--cyan)" x="278" y="84">triggers</text>
+            <text class="p-desc" x="278" y="104">when to run — no cron</text>
+            <text class="p-name" style="--hue:var(--cyan)" x="278" y="154">derivations</text>
+            <text class="p-desc" x="278" y="174">budgeted · cited or dropped</text>
+
+            <g class="p-card" style="--hue:var(--violet)">
+              <rect x="508" y="62" width="200" height="60" rx="7"/>
+              <rect x="508" y="132" width="200" height="60" rx="7"/>
+            </g>
+            <text class="p-name" style="--hue:var(--violet)" x="522" y="84">views</text>
+            <text class="p-desc" x="522" y="104">find the evidence</text>
+            <text class="p-name" style="--hue:var(--violet)" x="522" y="154">artifacts</text>
+            <text class="p-desc" x="522" y="174">build the prompt, to budget</text>
+
+            <g class="p-card" style="--hue:var(--green)">
+              <rect x="752" y="62" width="200" height="60" rx="7"/>
+              <rect x="752" y="132" width="200" height="60" rx="7"/>
+            </g>
+            <text class="p-name" style="--hue:var(--green)" x="766" y="84">packages</text>
+            <text class="p-desc" x="766" y="104">the versioned bundle</text>
+            <text class="p-name" style="--hue:var(--green)" x="766" y="154">mcp</text>
+            <text class="p-desc" x="766" y="174">the tools an agent sees</text>
+
+            <path class="f-arrow" d="M236 118 H246" marker-end="url(#pa)"/>
+            <path class="f-arrow" d="M480 118 H490" marker-end="url(#pa)"/>
+            <path class="f-arrow" d="M724 118 H734" marker-end="url(#pa)"/>
+            <defs>
+              <marker id="pa" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                <path d="M0 0 L10 5 L0 10 z" class="f-arrow-head"/>
+              </marker>
+            </defs>
+          </svg>
+        </div>
+      </div>
+
+      <p class="sec-foot reveal" style="margin-bottom:clamp(1.7rem,3vw,2.5rem)">You only
+        meet two of them to get started — a collection and a derivation. Every design below
+        is built out of these eight and nothing else.</p>
+
       <div class="reveal">
-        <div class="band-h"><span>walkthroughs · one per memory kind people already name</span><span>no privileged internals</span></div>
+        <div class="band-h"><span>each one runs on the same engine</span><span>measured from the repo · no code, only definitions</span></div>
         <div class="feat3">
           <a class="fcard" href="/showcase/gbrain/" style="--hue:var(--orange)">
-            <span class="wk">semantic · graph</span>
+            <span class="wk">semantic · knowledge graph</span>
             <b>An entire brain, declared</b>
-            <span class="wd">Five markdown pages land; the graph and the fact index extract themselves at
-              <b>zero model calls</b>.</span>
-            <span class="cred">Garry Tan's gbrain<i>→</i></span>
+            <span class="wd">Five markdown pages land, and the graph, the fact index and the concept
+              index extract themselves at <b>zero model calls</b>.</span>
+            <span class="cred">Garry Tan's gbrain · 27 YAML files<i>→</i></span>
           </a>
-          <a class="fcard" href="/showcase/dreams/" style="--hue:var(--amber)">
-            <span class="wk">consolidation</span>
-            <b>dreams × memseek</b>
-            <span class="wd">A hosted dream returns a second store to eyeball. Here it is one cited derivation
-              you adopt as a <b>classified diff</b>.</span>
-            <span class="cred">Anthropic's Dreams<i>→</i></span>
+          <a class="fcard" href="/showcase/agent-memory/" style="--hue:var(--violet)">
+            <span class="wk">layered · L0 → L3</span>
+            <b>Four-layer agent memory</b>
+            <span class="wd">Conversations become atomic claims, claims become maintained scene
+              blocks, and what stays true across scenes becomes a <b>durable persona</b>.</span>
+            <span class="cred">TencentDB Agent Memory · 20 YAML files<i>→</i></span>
           </a>
-          <a class="fcard" href="/showcase/generative-agents/" style="--hue:var(--violet)">
-            <span class="wk">episodic</span>
+          <a class="fcard" href="/showcase/generative-agents/" style="--hue:var(--cyan)">
+            <span class="wk">episodic · reflection</span>
             <b>Generative agents</b>
-            <span class="wd">Memory stream, importance, retrieval score, reflection — <b>the paper's whole
-              architecture</b>, as one catalog.</span>
-            <span class="cred">Park et al., 2023<i>→</i></span>
+            <span class="wd">Memory stream, importance scoring, the retrieval score, reflection —
+              <b>the paper's whole architecture</b>, on the catalog that ships by default.</span>
+            <span class="cred">Park et al., 2023 · the 25-file shipped catalog<i>→</i></span>
           </a>
         </div>
 
         <div class="walks">
+          <a class="walk" href="/showcase/dreams/" style="--hue:var(--amber)">
+            <span class="wk">consolidation</span>
+            <b>dreams × memseek</b>
+            <span class="wd">Consolidation as one cited derivation you adopt as a reviewable diff.</span>
+          </a>
           <a class="walk" href="/showcase/living-profile/" style="--hue:var(--cyan)">
             <span class="wk">entity profiles</span>
             <b>The living profile</b>
-            <span class="wd">A CRM profile that maintains itself from raw events, every slot cited.</span>
+            <span class="wd">A CRM profile that maintains itself from raw events — 10 YAML files.</span>
           </a>
           <a class="walk" href="/showcase/self-audit/" style="--hue:var(--pink)">
             <span class="wk">reflection</span>
@@ -1052,42 +1512,140 @@ $ memseek mcp
             <b>The maintained skill</b>
             <span class="wd">A playbook that revises itself from real outcomes, behind a human gate.</span>
           </a>
-          <a class="walk" href="/showcase/mcp/" style="--hue:var(--violet)">
-            <span class="wk">tool surface</span>
-            <b>Plug it into an existing agent</b>
-            <span class="wd">Five declared tools, compiled over stdio. Capabilities as YAML, not code.</span>
-          </a>
         </div>
       </div>
 
-      <!-- The whole vocabulary, after the things it builds. Eight nouns is a
-           reference, not an opening argument: a reader who has just seen seven
-           products wants to know what they were made of; a reader who hasn't
-           reads it as an adoption tax. -->
-      <div class="prim-band reveal">
-        <p class="prim-lead">Raw records come in; <b>processors</b> enrich each one (score it, embed
-          it, classify it); <b>derivations</b> combine the enriched records into durable state like
-          profiles and reflections; and <b>views</b> and <b>artifacts</b> hand that state back to
-          your application as search results and finished prompts. When a run goes wrong, the
-          outcome comes back as evidence — a learning signal that can draft a revision to the very
-          skill or policy that produced it, <b>for a human to approve</b>. You describe each stage
-          once, in YAML:</p>
-        <div class="band-h"><span>eight primitives, and that's all of them</span><span>a reference, not a checklist</span></div>
-        <div class="prims">
-          <div class="prim"><b>collections</b><span>Where records live: an append-only log, or one current value per field.</span></div>
-          <div class="prim"><b>processors</b><span>Enrich each record the moment it lands: score it, embed it, classify it.</span></div>
-          <div class="prim"><b>derivations</b><span>Budgeted jobs that combine enriched records into durable state — profiles, reflections — each fact cited or dropped.</span></div>
-          <div class="prim"><b>triggers</b><span>What starts a derivation: enough events, a count, or a clock. You run no cron.</span></div>
-          <div class="prim"><b>views</b><span>Semantic search over everything ever recorded, plus graph walks and orphan checks, behind one name.</span></div>
-          <div class="prim"><b>artifacts</b><span>Prompt-ready briefings assembled on demand, under a token budget, with a receipt of what went in.</span></div>
-          <div class="prim"><b>packages</b><span>The versioned bundle you publish to a workspace.</span></div>
-          <div class="prim"><b>mcp</b><span>The short list of tools an agent may see, and nothing beyond it.</span></div>
+      <p class="sec-foot reveal">If you have a memory design of your own, this is the point:
+        <b>you are writing definitions, not a system.</b> Six of these seven ship as a runnable
+        example in the repo — <a href="/showcase/">open them</a>, or
+        <a href="#quickstart">publish one locally in one command</a>.</p>
+    </div>
+  </section>
+
+  <!-- ============ BENCHMARKS ============
+       One dataset (LongMemEval-S, 500 questions), two readings of it: accuracy,
+       then accuracy against cost per answer. /benchmarks/ tabulates every number
+       shown here — when a score changes, change it in both places. -->
+  <section id="benchmarks" class="alt">
+    <div class="wrap">
+      <div class="sec-head reveal" id="benchHead">
+        <span class="eyebrow" style="--hue:var(--green)">public benchmarks · official grader</span>
+        <h2><span class="big"><span data-count="92.6" data-dec="1">92.6</span>%</span> on LongMemEval.<br>The highest independently graded memory score.</h2>
+        <p>Everyone else grades their own homework. We're scored by the
+          <strong>benchmark's official judge</strong> — and still top the chart.
+          Every number here <strong>reruns with one command</strong>.</p>
+        <div class="bench-ctas">
+          <a class="btn btn-primary" href="/benchmarks/">Check our work →</a>
+          <a class="btn btn-ghost" href="/benchmarks/#methodology">Full methodology</a>
+          <span class="console-chip"><span class="p">$</span> memseek bench longmemeval --official-judge</span>
         </div>
       </div>
 
-      <p class="sec-foot reveal">You only meet two of them to get started — a collection and a
-        derivation. Six of the seven walkthroughs above ship as a runnable example in the repo —
-        <a href="/showcase/">open them</a>.</p>
+      <div class="charts">
+        <!-- accuracy, every vendor at its best published configuration -->
+        <div class="panel reveal" id="benchScores">
+          <div class="th">
+            <h3>Answer accuracy</h3>
+            <span class="mult">every vendor's best claim</span>
+          </div>
+          <div class="trow selfg">
+            <span class="lab">Mem0 Cloud + GPT-5<span class="sub">graded its own answers</span></span>
+            <div class="tbar selfg"><i data-w="87.8" style="--w:87.8"></i><span class="v">94.4%</span></div>
+          </div>
+          <div class="trow us">
+            <span class="lab">Memseek + gpt-5.4<span class="sub">official grader</span></span>
+            <div class="tbar mem"><i data-w="86" style="--w:86"></i><span class="v" style="--w:86">92.6%</span></div>
+          </div>
+          <div class="trow selfg">
+            <span class="lab">Hindsight + Gemini-3 Pro<span class="sub">graded its own answers</span></span>
+            <div class="tbar selfg"><i data-w="85" style="--w:85"></i><span class="v">91.4%</span></div>
+          </div>
+          <div class="trow selfg">
+            <span class="lab">Zep + gpt-5.4<span class="sub">graded its own answers</span></span>
+            <div class="tbar selfg"><i data-w="83.9" style="--w:83.9"></i><span class="v">90.2%</span></div>
+          </div>
+          <div class="trow">
+            <span class="lab">Supermemory + Gemini-3 Pro<span class="sub">official grader · markets a “95%” on a different metric</span></span>
+            <div class="tbar other"><i data-w="79.2" style="--w:79.2"></i><span class="v">85.2%</span></div>
+          </div>
+          <div class="trow">
+            <span class="lab">Zep + GPT-4o<span class="sub">official grader</span></span>
+            <div class="tbar other"><i data-w="66.2" style="--w:66.2"></i><span class="v">71.2%</span></div>
+          </div>
+          <div class="trow">
+            <span class="lab">whole history into GPT-4o<span class="sub">no memory system</span></span>
+            <div class="tbar full"><i data-w="56" style="--w:56"></i><span class="v">60.2%</span></div>
+          </div>
+          <p class="bench-foot">500-question public memory test (LongMemEval-S); scores are answer
+            accuracy at each vendor's best published configuration. Striped bars: answers scored by
+            the vendor's own AI, not the benchmark's official grader. Memseek is the highest score
+            under the official grader.</p>
+        </div>
+
+        <!-- the same scores against what each answer costs to produce -->
+        <div class="panel reveal" id="benchCost">
+          <div class="th">
+            <h3>Accuracy vs. cost per answer</h3>
+            <span class="mult">better and cheaper ↓</span>
+          </div>
+
+          <div class="scatter-scroll">
+            <div class="scatter" role="img" aria-label="Accuracy against cost per answer on LongMemEval-S. Memseek reaches 92.6% at $0.015 per answer with gpt-5.4, and 88.8% at $0.0004 per answer on open-weight Gemma 26B. Reading the whole history into GPT-4o scores 60.2% at $0.29 per answer.">
+              <div class="gridline-y" style="bottom:11.1%"><span class="tag">60%</span></div>
+              <div class="gridline-y" style="bottom:33.3%"><span class="tag">70%</span></div>
+              <div class="gridline-y" style="bottom:55.6%"><span class="tag">80%</span></div>
+              <div class="gridline-y" style="bottom:77.8%"><span class="tag">90%</span></div>
+              <div class="gridline-y" style="bottom:100%"><span class="tag">100%</span></div>
+              <div class="gridline-x" style="left:21.7%"><span class="tag2">$1k / 1M answers</span><span class="tag">$0.001</span></div>
+              <div class="gridline-x" style="left:50.7%"><span class="tag2">$10k / 1M</span><span class="tag">$0.01</span></div>
+              <div class="gridline-x" style="left:79.7%"><span class="tag2">$100k / 1M</span><span class="tag">$0.10</span></div>
+
+              <div class="pt us" style="left:8.5%; bottom:75.1%"></div>
+              <div class="ptlab us" style="left:5%; bottom:83%">Memseek + Gemma 26B (open weights)<br><span class="score">88.8%</span> · $0.0004</div>
+
+              <div class="pt us" style="left:13.6%; bottom:60%"></div>
+              <div class="ptlab us" style="left:10%; bottom:47%">Memseek + gpt-4o-mini<br><span class="score">82.0%</span> · $0.0005</div>
+
+              <div class="pt us" style="left:55.7%; bottom:83.6%"></div>
+              <div class="ptlab us" style="left:59%; bottom:84.5%">Memseek + gpt-5.4<br><span class="score">92.6%</span> · $0.015</div>
+
+              <div class="pt other" style="left:42%; bottom:67.1%"></div>
+              <div class="ptlab" style="left:29%; bottom:55.5%">Supermemory + Gemini-3 Pro<br><span class="score">85.2%</span></div>
+
+              <div class="pt other" style="left:46.2%; bottom:36%"></div>
+              <div class="ptlab" style="left:41%; bottom:26%">Zep + GPT-4o<br><span class="score">71.2%</span></div>
+
+              <div class="pt other" style="left:93.1%; bottom:11.6%"></div>
+              <div class="ptlab r" style="right:.5%; bottom:16%">whole history into GPT-4o<br><span class="score">60.2%</span> · $0.29</div>
+
+              <div class="pt other" style="left:85.4%; bottom:76%"></div>
+              <div class="ptlab r" style="right:.5%; bottom:58%">Gemini 2.5 Pro alone,<br>re-reads all 123k tokens<br><span class="score">89.2%</span> · $0.16</div>
+
+              <div class="pt selfg" style="left:52.6%; bottom:87.6%"></div>
+              <div class="ptlab selfg" style="left:30%; bottom:92%">Mem0 Cloud + GPT-5<br>(self-graded) <span class="score">94.4%</span></div>
+
+              <div class="pt selfg" style="left:56.2%; bottom:78.2%"></div>
+              <div class="ptlab selfg" style="left:36%; bottom:76.5%">Zep + gpt-5.4<br>(self-graded) <span class="score">90.2%</span></div>
+
+              <div class="pt selfg" style="left:60.1%; bottom:80.9%"></div>
+              <div class="ptlab selfg" style="left:63.5%; bottom:72%">Hindsight + Gemini-3 Pro<br>(self-graded) <span class="score">91.4%</span></div>
+            </div>
+          </div>
+
+          <div class="legend">
+            <span><span class="sw" style="background:var(--green)"></span>Memseek, official grading</span>
+            <span><span class="sw" style="background:var(--border-strong)"></span>others, official grading</span>
+            <span><span class="sw" style="background:transparent;border:2px dashed var(--rose)"></span>graded their own answers</span>
+          </div>
+
+          <p class="bench-foot">One point per system at its best published score (LongMemEval-S,
+            500 questions). Hollow = answers scored by the vendor's own AI, not the benchmark's
+            official grader. Cost = model list prices on measured context; frontier models bill
+            hidden reasoning tokens above the floor. Gemini 2.5 Pro full-context: independent
+            academic measurement (arXiv:2601.14287), 122.9k tokens re-read per question.
+            <a href="/benchmarks/">Every number, with its source →</a></p>
+        </div>
+      </div>
     </div>
   </section>
 
@@ -1149,7 +1707,7 @@ $ memseek mcp
 
           <div class="cpanel" id="c2" role="tabpanel" style="--hue:var(--amber)">
             <p class="cverdict"><b>Keep CLAUDE.md</b> if you have fewer than 40 rules and no audit
-              requirement. A memory layer would be overhead.</p>
+              requirement. A context engine would be overhead.</p>
             <div class="crow">
               <span class="clab pro">does better</span>
               <p>Free, in version control, reviewed in a pull request, and <b>every agent tool already reads it</b>. A human wrote every line, so a human can delete any line.</p>
@@ -1164,7 +1722,7 @@ $ memseek mcp
 
       <!-- the settled question, kept because the points still hold -->
       <div class="reveal" style="margin-top:1.9rem">
-        <div class="band-h"><span>and the question that used to come first</span><span>retrieval is a primitive here, not a rival</span></div>
+        <div class="band-h"><span>RAG finds information · memory remembers it · a context engine decides what the agent should know now</span><span>retrieval is a primitive here, not a rival</span></div>
         <div class="vs">
           <div class="vs-card bad">
             <h3><span class="k">plain RAG</span> vector search</h3>
@@ -1176,7 +1734,7 @@ $ memseek mcp
             </ul>
           </div>
           <div class="vs-card good">
-            <h3><span class="k">memseek</span> declared memory</h3>
+            <h3><span class="k">memseek</span> declared context</h3>
             <ul>
               <li><span class="m">✓</span><div>Serves the <b>few facts that hold now</b>, with what they superseded still on record.</div></li>
               <li><span class="m">✓</span><div>Reconciles sources into <b>one coherent picture</b>, and flags real contradictions as events.</div></li>
@@ -1187,73 +1745,10 @@ $ memseek mcp
         </div>
       </div>
 
-      <p class="sec-foot reveal">You already know RAG isn't memory — hybrid retrieval is one
-        primitive inside memseek, not the product. The long version, and the failure it comes from:
+      <p class="sec-foot reveal">You already know RAG isn't memory, and memory isn't context —
+        hybrid retrieval is one primitive inside memseek, not the product. The category, in full:
+        <a href="/context-engine/">what a context engine is</a>. The failure it comes from:
         <a href="/blog/why-current-beats-similar/">Your agent doesn't need more context. It needs the current context.</a></p>
-    </div>
-  </section>
-
-  <!-- ============ THE GAP, ITEMIZED ============
-       The receipt for the "six to twelve engineer-months" figure one section up.
-       Each item is a confirmed capability, not a roadmap entry. -->
-  <section id="buildvsbuy" class="alt">
-    <div class="wrap">
-      <div class="sec-head reveal">
-        <span class="eyebrow" style="--hue:var(--green)">the governance gap</span>
-        <h2>Six to twelve engineer-months, itemized.</h2>
-        <p>This is what separates a retrieval layer that works from one you'd put in front of an
-          auditor. It is also the entire reason to not build this yourself — every item below is
-          <em>declared</em> here, in YAML you review in a pull request.</p>
-      </div>
-
-      <div class="prims reveal">
-        <div class="prim"><b>supersession</b><span>A rewrite never erases. The previous version stays addressable, so "what did we believe then" has an answer.</span></div>
-        <div class="prim"><b>citations or nothing</b><span>Citations are a required field of the output schema. A belief with no evidence isn't softened — it's dropped.</span></div>
-        <div class="prim"><b>point-in-time replay</b><span>Reconstruct any entity's beliefs as of any date, from version history rather than a backup you hope exists.</span></div>
-        <div class="prim"><b>contradiction detection</b><span>Sources that disagree become first-class records, instead of two chunks in one prompt and a coin flip.</span></div>
-        <div class="prim"><b>bounded cost</b><span>Every derivation caps its calls, tokens, rows and wall-clock. A runaway model is a config error, not an invoice.</span></div>
-        <div class="prim"><b>audited runs</b><span>Every derivation records its trigger, model, inputs and outputs. Nothing is promoted behind your back.</span></div>
-        <div class="prim"><b>recursive erase</b><span>Delete a record and everything derived from it goes too. Right-to-be-forgotten that closes over the lineage.</span></div>
-        <div class="prim"><b>retention jobs</b><span>Scheduled expiry declared alongside everything else, not a script one person remembers owning.</span></div>
-      </div>
-
-      <p class="sec-foot reveal">None of these improve a demo, which is exactly why they get deferred.
-        And nothing here locks shut: the definitions are YAML in your repo, models sit behind aliases
-        you repoint at will, and the memory itself is <b>ordinary Postgres rows you can query and
-        export</b> — leave with your data whenever you like.</p>
-    </div>
-  </section>
-
-  <!-- ============ BENCHMARKS ============ -->
-  <section id="benchmarks">
-    <div class="wrap">
-      <div class="sec-head reveal">
-        <span class="eyebrow" style="--hue:var(--green)">public benchmarks</span>
-        <h2>Better context. A fraction of the tokens.</h2>
-        <p>These test exactly what agents get wrong today: finding the right thing in a long history, handling updates and contradictions, and connecting evidence across sources.</p>
-      </div>
-      <div class="bench reveal" id="benchGrid">
-        <div class="bm"><div class="n"><span data-count="82" data-dec="0">82</span>%</div><div class="metric">recall &amp; reasoning accuracy</div><div class="bench-name">LongMemEval-S · long-conversation memory</div></div>
-        <div class="bm"><div class="n"><span data-count="91" data-dec="0">91</span>%</div><div class="metric">picks the latest valid fact</div><div class="bench-name">LongMemEval-S · after facts change over time</div></div>
-        <div class="bm"><div class="n">+<span data-count="7.5" data-dec="1">7.5</span><span style="font-size:.5em"> pts</span></div><div class="metric">exact match vs. dense retrieval</div><div class="bench-name">MuSiQue · multi-hop QA</div></div>
-        <div class="bm"><div class="n">+<span data-count="10.8" data-dec="1">10.8</span><span style="font-size:.5em"> pts</span></div><div class="metric">exact match vs. dense retrieval</div><div class="bench-name">2WikiMultiHopQA · multi-hop QA</div></div>
-      </div>
-
-      <div class="tokens reveal" id="tokChart">
-        <div class="th">
-          <h3>Context per question</h3>
-          <span class="mult">≈ 32× fewer tokens</span>
-        </div>
-        <div class="trow">
-          <span class="lab">Full history</span>
-          <div class="tbar full"><i data-w="100" style="--w:100"></i><span class="v">~101,000</span></div>
-        </div>
-        <div class="trow">
-          <span class="lab">Memseek</span>
-          <div class="tbar mem"><i data-w="3.2" style="--w:3.2"></i><span class="v">~3,200</span></div>
-        </div>
-        <p class="bench-foot">Measured on inexpensive, self-hostable models, with no frontier model in the loop. On your own data, every derivation is an audited run, so you can measure correction rate and task success from the first integration.</p>
-      </div>
     </div>
   </section>
 
@@ -1266,56 +1761,24 @@ $ memseek mcp
       </div>
       <div class="faq reveal">
         <details open>
-          <summary>Why wouldn't we just build this on Postgres ourselves?<span class="pm">+</span></summary>
-          <div class="ans">You could, and the first two weeks go well — pgvector, a records table, an embed job, and retrieval that genuinely works. What takes the next <b>six to twelve engineer-months</b> isn't retrieval quality: it's supersession, citation enforcement, point-in-time reconstruction, contradiction detection, per-derivation cost ceilings, audited runs, and erase that closes over everything derived from a deleted record. If none of that is a requirement for you, <b>build it</b> — we'd rather you did. If all of it is, that's the whole reason we exist, and you still end up with ordinary Postgres rows you can query and export.</div>
+          <summary>Is this a memory system or a context engine?<span class="pm">+</span></summary>
+          <div class="ans">A context engine — and long-term agent memory is <b>one capability inside it</b>. A memory system stores and recalls information. A context engine decides what belongs in <em>this</em> prompt: what is currently true, what it replaced, and the evidence behind both. If you came looking for agent memory, all of it is here. It just isn't the whole product.</div>
         </details>
         <details open>
-          <summary>Anthropic ships a memory tool, and it's free. Why pay for this?<span class="pm">+</span></summary>
-          <div class="ans">Because it answers a different question, and you should know that before you talk to us. Anthropic's memory tool is generally available, works on Bedrock and Vertex, and costs <b>nothing beyond tokens</b>: the model issues file commands — <code>view</code>, <code>create</code>, <code>str_replace</code>, <code>insert</code>, <code>delete</code>, <code>rename</code> — that <em>your</em> handler executes against storage <em>you</em> own. Nothing is stored on the vendor's side. For one agent keeping notes for itself, use it. What it isn't: <b>schema-validated</b> (the model decides what the file says), <b>supersession-preserving</b> (<code>str_replace</code> overwrites, so the previous value is gone), <b>cited</b> (a line never names the event it came from), <b>budgeted</b> (no token ceiling per block, no manifest of what went into the prompt), or <b>shared</b> (it's one agent's directory, not one current answer across several agents and apps). Those five properties are the product.</div>
-        </details>
-        <details>
-          <summary>We already have CLAUDE.md / AGENTS.md.<span class="pm">+</span></summary>
-          <div class="ans">Then you have the right tool for the size you're at. Under roughly <b>40 rules</b> with nobody auditing them, keep it — a memory layer would be overhead. Four things break as it grows: nothing supersedes, so a changed rule leaves two rules that disagree; it's a prompt rather than a store, so every rule competes for context on every task and the file that grows is the one that gets ignored; there's no provenance, so a stale constraint and a live one look identical and nobody dares delete either; and it only learns by hand, so an approach you rejected last month is a rule only if someone remembered to write it down. Memseek keeps the property you actually like — definitions reviewed in a pull request — and moves the facts themselves into dated, cited records that supersede instead of overwrite.</div>
-        </details>
-        <details>
-          <summary>How long until I see it working?<span class="pm">+</span></summary>
-          <div class="ans">Four commands. <code>make quickstart</code> brings up PostgreSQL&nbsp;16 + pgvector, applies the schema and prints a workspace key; then you start the API and the worker. <b>Set <code>LLM_FAKE=1</code> and you need no provider account at all</b> — a deterministic stub stands in for the model, so the whole loop runs and you can read the audited run it produced. <code>make e2e</code> does that end to end as an acceptance test. Point it at a real model when you want real language out of it.</div>
+          <summary>What does it cost to run?<span class="pm">+</span></summary>
+          <div class="ans">A PostgreSQL instance, plus the model calls you declare — and you declare their ceiling per job: <code>max_llm_calls</code>, <code>max_total_tokens</code>, <code>max_wall_s</code>. Reading is the cheap part: roughly <b>3,200 tokens</b> of assembled context per question instead of ~101,000 for raw history. Several adapters run at <code>max_llm_calls: 0</code> and cost nothing but Postgres, and the open-weight configuration scores <b>88.8% at $0.0004 per answer</b>.</div>
         </details>
         <details>
           <summary>Where does my data live?<span class="pm">+</span></summary>
-          <div class="ans"><b>Wherever you choose to put it</b> — it's an API, a worker, and PostgreSQL 16 + pgvector, so it deploys like anything else you already run. Run it in your own VPC today and nothing leaves your infrastructure except the model calls you configure, which can point at a model you host yourself. The property that holds either way is portability: records are <b>ordinary rows you can query and export</b>, and writes are append-only — a rewrite supersedes, it never overwrites — so point-in-time reconstruction and recursive-closure erase stay possible no matter who operates the database.</div>
+          <div class="ans"><b>Wherever you put it.</b> It is an API, a worker and PostgreSQL 16 + pgvector, so it deploys like anything else you already run. Nothing leaves your infrastructure except the model calls you configure, and those can point at a model you host yourself. Records are <b>ordinary rows you can query and export</b>, and a rewrite supersedes rather than overwrites — so point-in-time reconstruction stays possible no matter who operates the database.</div>
         </details>
         <details>
-          <summary>What do I actually get back?<span class="pm">+</span></summary>
-          <div class="ans">Four shapes from the same catalog: the <b>current profile</b> as a document of cited beliefs, a bounded <b>cited answer</b> with declared gaps, a <b>prompt-ready briefing</b> assembled on demand with a hashed input manifest, or a small <b>MCP tool surface</b>. Plus semantic search over everything ever recorded, when you want the raw records.</div>
-        </details>
-        <details>
-          <summary>How much control do I have over cost and behavior?<span class="pm">+</span></summary>
-          <div class="ans">Every derivation declares hard limits — <code>max_llm_calls</code>, <code>max_retrieved_records</code>, <code>max_total_tokens</code>, <code>max_wall_s</code> — and models are referenced by alias, so swapping providers is a config change, not a redesign. Several adapters run with <code>max_llm_calls: 0</code>: structural extraction with no model in the loop.</div>
-        </details>
-        <details>
-          <summary>Will it change things without asking?<span class="pm">+</span></summary>
-          <div class="ans">Only what you declared. Write-triggered derivations maintain the slots they own; anything gated (a revised skill, a rebuilt profile) lands as a <b>reviewed draft</b> that stays in the audit trail until you promote it. Feedback becomes ordinary records, never an automatic change.</div>
-        </details>
-        <details>
-          <summary>Does it need an expensive frontier model?<span class="pm">+</span></summary>
-          <div class="ans">No. The benchmark results above are on <b>inexpensive, self-hostable models</b>. Model aliases let you put a strong model on the one derivation that needs it and a cheap one everywhere else.</div>
-        </details>
-        <details>
-          <summary>What does it cost to run?<span class="pm">+</span></summary>
-          <div class="ans">A PostgreSQL instance — the kind you are probably already paying for — plus the model calls you declare, and you declare their ceiling per derivation: <code>max_llm_calls</code>, <code>max_total_tokens</code>, <code>max_wall_s</code>. Reading is the cheap part: roughly <b>3,200 tokens of assembled context per question</b> instead of ~101,000 for the raw history, on every call your agent makes for the life of the product. Several adapters run at <code>max_llm_calls: 0</code> and cost nothing but Postgres.</div>
-        </details>
-        <details>
-          <summary>Isn't this just RAG?<span class="pm">+</span></summary>
-          <div class="ans">You already know it isn't, so briefly: RAG retrieves text that looks similar; memseek maintains <b>current, keyed beliefs</b> derived from immutable events. It knows what superseded what, flags contradictions as first-class records, requires a citation for every derived belief, and serves <b>~32× fewer tokens</b>. On public benchmarks it beats standard dense retrieval by <b>+7.5 to +10.8 points</b> on multi-hop QA. Hybrid retrieval is <em>one</em> primitive inside it, not the product — which is why the comparisons that decide anything are <a href="#compare">the other three</a>.</div>
-        </details>
-        <details>
-          <summary>What about the hosted memory services?<span class="pm">+</span></summary>
-          <div class="ans">The common shape is a service that keeps your snippets and hands back whatever looks relevant, with the store and the ranking rules on their side. That's a reasonable trade if speed to first value is the only axis. Memseek is <b>infrastructure, and the parts that matter stay yours</b>: the rules are YAML in your repo and reviewed like any other change, the records are ordinary Postgres rows, the model is an alias you can repoint at any provider, every derived fact must cite the events it came from, and nothing is promoted unless you declared that it could be. For a side-by-side against a specific approach, see the <a href="/showcase/dreams/">dreams showcase</a>.</div>
+          <summary>Will it change anything without asking?<span class="pm">+</span></summary>
+          <div class="ans">Only what you declared. Write-triggered jobs maintain the slots they own. Anything gated — a revised skill, a rebuilt profile — lands as a <b>reviewed draft</b> that stays in the audit trail until you promote it. Feedback becomes ordinary records, never an automatic change.</div>
         </details>
         <details>
           <summary>How do I get access?<span class="pm">+</span></summary>
-          <div class="ans">The code is at <a href="https://github.com/memseekai/memseek">github.com/memseekai/memseek</a> — clone it and run the quickstart without talking to anyone. Hosted Memseek is in <b>early access</b>: <a href="#waitlist">join the waitlist</a> and tell us what your agent keeps forgetting — that is genuinely how we choose what to harden next. If you are running agents in production today, say so; those teams go first.</div>
+          <div class="ans">The code is at <a href="https://github.com/memseekai/memseek">github.com/memseekai/memseek</a> — clone it and run <code>docker compose up</code> without talking to anyone. Hosted Memseek is in <b>early access</b>: <a href="#waitlist">join the waitlist</a> and tell us what your agent keeps getting wrong. If you are running agents in production today, say so; those teams go first.</div>
         </details>
       </div>
     </div>
@@ -1326,8 +1789,8 @@ $ memseek mcp
     <div class="wrap">
       <div class="cta-card reveal">
         <span class="eyebrow" style="--hue:var(--amber)">early access</span>
-        <h2>Give your agents memory they can <span class="grad">trust.</span></h2>
-        <p>Join the waitlist for early access — and tell us what your agent keeps forgetting.</p>
+        <h2>Give your agents context they can <span class="grad">trust.</span></h2>
+        <p>Join the waitlist for early access — and tell us what your agent keeps getting wrong.</p>
         <div class="waitlist-form">
           <iframe
             data-tally-src="https://tally.so/embed/EkrGDN?alignLeft=1&amp;hideTitle=1&amp;transparentBackground=1&amp;dynamicHeight=1"
@@ -1352,17 +1815,18 @@ $ memseek mcp
     <div class="brand" style="font-size:.95rem;"><span class="dot"></span>memseek</div>
     <div class="fl">
       <a href="https://github.com/memseekai/memseek" class="gh"><svg aria-hidden="true"><use href="#gh-mark"/></svg>GitHub</a>
+      <a href="/context-engine/">Context engine</a>
+      <a href="#how">How it works</a>
+      <a href="#designs">Memory designs</a>
       <a href="#quickstart">Quickstart</a>
-      <a href="#uses">Use cases</a>
       <a href="#compare">Comparisons</a>
-      <a href="#buildvsbuy">Buy vs. build</a>
-      <a href="#benchmarks">Benchmarks</a>
+      <a href="/benchmarks/">Benchmarks</a>
       <a href="#faq">FAQ</a>
       <a href="/showcase/">Showcases</a>
       <a href="/blog/">Blog</a>
       <a href="/rss.xml">RSS</a>
     </div>
-    <div>AI memory infrastructure</div>
+    <div>Context engine for AI agents</div>
   </div>
 </footer>
 
@@ -1488,48 +1952,41 @@ if (typeof Tally !== "undefined") {
        reduced-motion state are both complete. The loop then shows what actually
        matters — slots being rewritten, with the old version kept. */
     var seed = {
-      role:        { val: 'VP of Product at Acme Cloud, owns enterprise collaboration', cites: 1 },
-      commitments: { val: 'Evaluating Atlas for a Q3 pilot', cites: 1 },
-      preferences: { val: 'Prefers a live walkthrough over slides', cites: 1 }
+      instruction: { val: 'Billing changes need explicit approval before they ship', cites: 1 },
+      persona:     { val: 'Ships new Node services on Fastify', cites: 1 },
+      episodic:    { val: 'Billing stays on Express for the mobile app', cites: 1 }
     };
     var SEED_CITES = 3;
-    var SEED_NOTE = 'current · every slot cites the events it was fused from';
+    var SEED_NOTE = 'latest claim per kind · every one cites the message it came from';
 
-    /* Each scene is one ingested event. importance < 6 does not trip the
-       accumulator, which is the point of scene 3. */
+    /* One message per scene. The dedup pass decides what happens to the claims
+       it proposes — store, merge, or skip — which is why scene 3 writes
+       nothing at all. */
     var scenes = [
       {
-        src: 'salesforce · commitment', imp: 9,
-        tx: 'Avery now owns the Atlas migration and committed to an August launch.',
-        slot: 'commitments', val: 'Owns the Atlas migration; August launch committed', cites: 2,
+        src: 'user · platform review', decision: 'store',
+        tx: 'Mobile drops the legacy fields in release 7, landing next month.',
+        slot: 'episodic', val: 'Legacy fields go in mobile release 7 — billing can move after', cites: 2,
         supersede: true,
-        note: 'commitments rewritten · Q3 pilot superseded, still on record'
+        note: 'stored · supersedes the claim it replaces, which stays on record'
       },
       {
-        src: 'support · preference', imp: 7,
-        tx: 'Asked for a written recap the day before every call.',
-        slot: 'preferences', val: 'Concise written updates the day before any call', cites: 2,
-        supersede: true,
-        note: 'preferences rewritten · cites 2 events · run 91b4c2'
+        src: 'user · platform review', decision: 'merge',
+        tx: 'Before we remove a compat path I want telemetry showing zero traffic.',
+        slot: 'instruction', val: 'Billing needs approval; a compat path needs telemetry first', cites: 2,
+        note: 'merged · one claim now, citing both messages behind it'
       },
       {
-        src: 'product · interaction', imp: 2,
-        tx: 'Opened the release-notes email.',
+        src: 'assistant · platform review', decision: 'skip',
+        tx: 'Understood — Fastify for new services.',
         held: true,
-        note: 'no change · importance below threshold, nothing derived'
+        note: 'skipped · already known, so nothing was written'
       },
       {
-        src: 'hubspot · role', imp: 8,
-        tx: 'Avery promoted to SVP Product; platform now in scope.',
-        slot: 'role', val: 'SVP Product at Acme Cloud — product and platform', cites: 2,
-        supersede: true,
-        note: 'role rewritten · previous version kept, superseded not erased'
-      },
-      {
-        src: 'support · open thread', imp: 8,
-        tx: 'SSO has to ship before they sign the renewal.',
-        slot: 'commitments', val: 'Atlas launch in August · SSO before the renewal signature', cites: 3,
-        note: 'commitments accumulated · 3 cited events · nothing dropped'
+        src: 'user · incident review', decision: 'store',
+        tx: 'Migrations are never applied automatically during a deploy.',
+        slot: 'instruction', val: 'Migrations are never applied automatically during a deploy', cites: 1,
+        note: 'stored · a new rule, priority 90, cited to the message'
       }
     ];
 
@@ -1572,9 +2029,9 @@ if (typeof Tally !== "undefined") {
 
     function resetPips() {
       pips.forEach(function (p) { p.classList.remove('on', 'held', 'fire'); });
-      pip('score').innerHTML = 'importance <b>—</b>';
-      pip('trig').textContent = 'accumulator';
-      pip('derive').textContent = 'derive';
+      pip('extract').textContent = 'extract claims';
+      pip('dedup').textContent = 'dedup';
+      pip('write').textContent = 'write';
     }
 
     function scene(n) {
@@ -1590,36 +2047,36 @@ if (typeof Tally !== "undefined") {
 
       at(500, function () { pip('embed').classList.add('on'); });
       at(950, function () {
-        pip('score').innerHTML = 'importance <b>' + sc.imp + '</b>';
-        pip('score').classList.add('on');
+        pip('extract').textContent = 'extract claims';
+        pip('extract').classList.add('on');
       });
 
       if (sc.held) {
         at(1450, function () {
-          pip('trig').textContent = 'accumulator · held';
-          pip('trig').classList.add('held');
-          evSt.textContent = 'stored, not derived';
+          pip('dedup').textContent = 'dedup · skip';
+          pip('dedup').classList.add('held');
+          evSt.textContent = 'already known';
         });
         at(1900, function () {
-          pip('derive').textContent = 'no run';
+          pip('write').textContent = 'nothing written';
           note.textContent = sc.note;
           note.classList.add('held');
         });
       } else {
         at(1450, function () {
-          pip('trig').textContent = 'accumulator · trips';
-          pip('trig').classList.add('fire');
+          pip('dedup').textContent = 'dedup · ' + sc.decision;
+          pip('dedup').classList.add('fire');
         });
         at(1950, function () {
-          pip('derive').textContent = 'derive · cited';
-          pip('derive').classList.add('fire');
+          pip('write').textContent = 'write · cited';
+          pip('write').classList.add('fire');
           mcard.classList.add('pulse');
         });
         at(2400, function () {
           setSlot(sc);
           note.classList.remove('held');
           note.textContent = sc.note;
-          evSt.textContent = 'folded in';
+          evSt.textContent = 'claim written';
         });
         at(3200, function () { mcard.classList.remove('pulse'); });
       }
@@ -1636,12 +2093,12 @@ if (typeof Tally !== "undefined") {
         el.querySelector('.v').textContent = sc.val;
         el.querySelector('.c').textContent = sc.cites + ' cited';
       });
-      citeN.textContent = '7 citations';
+      citeN.textContent = '6 citations';
       pips.forEach(function (p) { p.classList.add('on'); });
-      pip('score').innerHTML = 'importance <b>8</b>';
-      pip('trig').textContent = 'accumulator · trips';
-      pip('derive').textContent = 'derive · cited';
-      note.textContent = 'current · every slot cites the events it was fused from';
+      pip('extract').textContent = 'extract claims';
+      pip('dedup').textContent = 'dedup · store';
+      pip('write').textContent = 'write · cited';
+      note.textContent = 'latest claim per kind · every one cites the message it came from';
     }
 
     onView(mcard, function (staticMode) {
@@ -1677,23 +2134,26 @@ if (typeof Tally !== "undefined") {
     });
   })();
 
-  /* ===== quickstart: read-shape tabs ===== */
-  (function () {
-    var box = document.getElementById('readCode');
-    if (!box) return;
+  /* ===== quickstart: tabbed code panels =====
+     Every .code[data-tabs] box wires its own .t buttons to its own pre.p
+     panels, so a panel is added by writing markup and nothing else. */
+  Array.prototype.forEach.call(document.querySelectorAll('.code[data-tabs]'), function (box) {
     var tabs = Array.prototype.slice.call(box.querySelectorAll('.t'));
     var panes = Array.prototype.slice.call(box.querySelectorAll('pre.p'));
+    var fname = box.querySelector('.fname');
     tabs.forEach(function (t, k) {
       t.addEventListener('click', function () {
         tabs.forEach(function (o, i) { o.setAttribute('aria-selected', i === k ? 'true' : 'false'); });
         panes.forEach(function (p, i) { p.classList.toggle('on', i === k); });
+        /* The filename caption belongs to the panel, not to the box. */
+        if (fname && t.getAttribute('data-file')) fname.textContent = t.getAttribute('data-file');
       });
     });
-  })();
+  });
 
-  /* ===== benchmark count-ups ===== */
-  onView(document.getElementById('benchGrid'), function (staticMode) {
-    var nums = Array.prototype.slice.call(document.querySelectorAll('#benchGrid [data-count]'));
+  /* ===== benchmarks: headline count-up, then the score bars ===== */
+  onView(document.getElementById('benchHead'), function (staticMode) {
+    var nums = Array.prototype.slice.call(document.querySelectorAll('#benchHead [data-count]'));
     nums.forEach(function (el) {
       var target = parseFloat(el.getAttribute('data-count'));
       var dec = parseInt(el.getAttribute('data-dec'), 10) || 0;
@@ -1710,13 +2170,17 @@ if (typeof Tally !== "undefined") {
     });
   });
 
-  /* ===== token bar chart ===== */
-  onView(document.getElementById('tokChart'), function () {
-    var bars = document.querySelectorAll('#tokChart .tbar > i');
+  /* ===== score bars ===== */
+  onView(document.getElementById('benchScores'), function () {
+    var panel = document.getElementById('benchScores');
+    var bars = panel.querySelectorAll('.tbar > i');
     bars.forEach(function (b) {
       var wpc = parseFloat(b.getAttribute('data-w'));
       requestAnimationFrame(function () { b.style.clipPath = 'inset(0 ' + (100 - wpc) + '% 0 0 round 5px)'; });
     });
+    /* releases the in-bar label, which is dark-on-green and unreadable until
+       the fill is actually under it */
+    panel.classList.add('charted');
   });
 })();
 </script>

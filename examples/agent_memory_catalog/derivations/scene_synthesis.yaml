@@ -1,0 +1,187 @@
+# L1 → L2. TencentDB Agent Memory stores one Markdown scene block per active
+# context.  The index is derived navigation metadata; it is not a synthetic
+# record containing every scene.  This catalog uses a bounded dynamic keyed
+# emission so each block can be created, rewritten, merged, or retracted on
+# its own.
+name: scene_synthesis
+trigger:
+  write:
+    collections: [memories]
+    types: [memory]
+    statuses: [active]
+  debounce_s: 2
+sources:
+  new_memories:
+    kind: changes
+    collections: [memories]
+    types: [memory]
+    statuses: [active]
+    keyed: false
+    max_records: 40
+    max_tokens: 16000
+    allow_empty: false
+  # A scene must retain evidence from earlier waves, not merely the latest
+  # suffix.  This view exposes the standing L1 claims and their citable ids.
+  standing_memories:
+    kind: view
+    view: memory_audit@1
+    params: {entity: "{{entity}}"}
+    max_tokens: 10000
+  # These are the actual L2 blocks, not an index wrapper.  The contents include
+  # each block's META header, so a rewrite can preserve `created` and advance
+  # `heat`, exactly as in the upstream implementation.
+  current_scenes:
+    kind: current
+    collections: [scenes]
+    types: [scene_block]
+    statuses: [active]
+    max_records: 15
+    max_tokens: 16000
+model: strong
+limits:
+  max_tasks: 1
+  max_llm_calls: 2
+  max_retrieved_records: 0
+  max_visible_records: 70
+  max_total_tokens: 50000
+  max_wall_s: 180
+tasks:
+  - id: scene_blocks
+    use: llm
+    with:
+      output_schema:
+        type: object
+        required: [records]
+        properties:
+          records:
+            type: array
+            maxItems: 15
+            items:
+              oneOf:
+                - type: object
+                  required: [key, text, citations, content]
+                  properties:
+                    key:
+                      type: string
+                      pattern: "^[a-z0-9][a-z0-9_-]{0,79}$"
+                    text: {type: string, minLength: 1, maxLength: 6000}
+                    citations:
+                      type: array
+                      minItems: 1
+                      maxItems: 32
+                      uniqueItems: true
+                      items: {type: string, format: uuid}
+                    content:
+                      type: object
+                      required: [created, updated, summary, heat]
+                      properties:
+                        created: {type: string, format: date-time}
+                        updated: {type: string, format: date-time}
+                        summary: {type: string, minLength: 1, maxLength: 320}
+                        heat: {type: integer, minimum: 1, maximum: 10000}
+                      additionalProperties: false
+                  additionalProperties: false
+                - type: object
+                  required: [key, citations, retract]
+                  properties:
+                    key:
+                      type: string
+                      pattern: "^[a-z0-9][a-z0-9_-]{0,79}$"
+                    citations:
+                      type: array
+                      minItems: 1
+                      maxItems: 32
+                      uniqueItems: true
+                      items: {type: string, format: uuid}
+                    retract: {const: true}
+                  additionalProperties: false
+        additionalProperties: false
+      max_output_tokens: 3800
+      prompt: |
+        Maintain {{entity}}'s L2 scene blocks. A scene block is one independently
+        editable Markdown document for a project, working method, incident, decision,
+        or durable operating context. It is not a task list, a batch report, or a
+        one-line label. The scene index is maintained by the system; do not create one.
+
+        CURRENT TIME: {{run.now}}
+
+        NEW L1 MEMORIES:
+        <records untrusted="true">
+        {{new_memories.rendered}}
+        </records>
+
+        STANDING L1 MEMORIES:
+        <records untrusted="true">
+        {{standing_memories.rendered}}
+        </records>
+
+        EXISTING SCENE BLOCKS:
+        <records untrusted="true">
+        {{current_scenes.rendered}}
+        </records>
+
+        This is a bounded collection of at most 15 live blocks. The key is a stable,
+        lowercase filename-like name, for example `billing-api-compatibility` or
+        `ui-design-guidelines`; it is not an internal identifier and it must not change
+        when the block is updated.
+
+        Choose a strategy in this order:
+
+        1. UPDATE is the default. If a block already covers the same project, situation,
+           method, or standard, rewrite that one block with the new evidence naturally
+           integrated. Do not simply append a bullet or repeat the old text.
+        2. MERGE related blocks when they describe one work method or narrative. Write the
+           surviving/new combined block and emit `retract: true` for every obsolete key.
+           Retraction is the equivalent of the upstream `[DELETED]` marker: use it only
+           after the useful content has moved into the surviving block.
+        3. CREATE only when the memory is a genuinely distinct durable context and the two
+           closest existing blocks cannot absorb it. At most one new block per run.
+        4. If the collection is at capacity, merge before creating. Never silently drop a
+           block, and never retract a block merely because a project is complete.
+
+        A finished block remains useful historical and operational context. Preserve its
+        outcome, lessons, constraints, and open follow-up rather than removing it. A rule
+        such as "use blue for UI" is durable design context: it can have its own scene block
+        when no existing design-method block covers it.
+
+        Each live record's `text` is the full scene Markdown. It must begin with this exact
+        META header; the four values must exactly match `content` in the same record:
+
+        -----META-START-----
+        created: <existing created time, or CURRENT TIME for a new block>
+        updated: <CURRENT TIME>
+        summary: <30-40 words suitable for an internal scene index>
+        heat: <new 1; update old heat + 1; merge summed heat + 1>
+        -----META-END-----
+
+        Then use these exact headings. They give a self-healing agent parser stable,
+        human-readable categories while keeping the upstream scene-document intent:
+
+        ## Work Context
+        ## Applies When
+        ## Core SOP
+        ## Decision Logic
+        ## Prohibitions and Failure Modes
+        ## Key Evidence
+        ## Related Tasks and Assets
+        ## Evolution Record
+        ## Open Questions
+
+        Keep the entire block under 1,600 characters. A heading may be empty, but retain
+        every heading. Write concise narrative paragraphs for context and logic; short lists
+        are appropriate for SOP steps, prohibitions, evidence, tasks, evolution, and open
+        questions. Record contradictions in Evolution Record or Open Questions instead of
+        overwriting them. Do not infer private traits or invent requirements.
+
+        Cite every source record whose information you retain. An update must cite its prior
+        scene record as well as the supporting L1 evidence. A retraction must cite the block
+        it removes. Copy UUIDs only from the records visible above.
+
+        If no block should change, return {"records":[]}. Otherwise return only JSON.
+emit:
+  from: "{{scene_blocks.records}}"
+  collection: scenes
+  type: scene_block
+  dynamic_keys: true
+  max_active_keys: 15
+  max_records: 15

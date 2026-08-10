@@ -1,0 +1,142 @@
+name: skill
+trigger:
+  write:
+    collections: [main, outcomes]
+    types: [skill_brief, outcome, observation, exception, feedback]
+    statuses: [active]
+  cooldown_s: 600
+sources:
+  new_evidence:
+    kind: changes
+    collections: [main, outcomes]
+    types: [skill_brief, outcome, observation, exception, feedback]
+    statuses: [active]
+    keyed: false
+    max_records: 100
+    max_tokens: 26000
+    allow_empty: false
+  current_skill:
+    kind: current
+    collections: [skills]
+    types: [skill]
+    statuses: [active]
+    keys: [steps, pitfalls, examples]
+    max_records: 100
+    max_tokens: 12000
+model: strong
+limits:
+  max_tasks: 2
+  max_llm_calls: 4
+  max_retrieved_records: 0
+  max_visible_records: 180
+  max_total_tokens: 50000
+  max_wall_s: 150
+tasks:
+  - id: proposal
+    use: llm
+    with:
+      model: cheap
+      output_schema:
+        type: object
+        required: [base_record_ids, changes, rationale]
+        properties:
+          base_record_ids:
+            type: array
+            items: {type: string, format: uuid}
+          changes:
+            type: array
+            items: {type: object}
+          rationale: {type: string}
+          suggested_evaluations:
+            type: array
+            items: {type: string}
+        additionalProperties: false
+      max_output_tokens: 1200
+      prompt: |
+        Review the current active skill and new usage evidence for {{entity}}.
+
+        CURRENT ACTIVE SKILL:
+        <records untrusted="true">
+        {{current_skill.rendered}}
+        </records>
+
+        NEW BRIEF, OUTCOMES, EXCEPTIONS, AND FEEDBACK:
+        <records untrusted="true">
+        {{new_evidence.rendered}}
+        </records>
+
+        Suggest the smallest evidence-supported patch. Identify the exact
+        current skill record UUIDs used as the base, list proposed section
+        changes, explain why, and state what should be evaluated. Do not claim
+        the patch is better. Return only JSON:
+        {"base_record_ids":["uuid"],"changes":[{"section":"steps","operation":"replace","summary":"...","cite":["uuid"]}],"rationale":"...","suggested_evaluations":["..."]}
+  - id: result
+    use: llm
+    with:
+      output_schema:
+        type: object
+        required: [records]
+        properties:
+          records:
+            type: array
+            minItems: 3
+            maxItems: 3
+            items:
+              oneOf:
+                - type: object
+                  required: [key, text, citations]
+                  properties:
+                    key: {type: string, enum: [steps, pitfalls, examples]}
+                    text: {type: string, minLength: 1}
+                    citations:
+                      type: array
+                      minItems: 1
+                      uniqueItems: true
+                      items: {type: string, format: uuid}
+                  additionalProperties: false
+                - type: object
+                  required: [key, citations, retract]
+                  properties:
+                    key: {type: string, enum: [steps, pitfalls, examples]}
+                    citations:
+                      type: array
+                      minItems: 1
+                      uniqueItems: true
+                      items: {type: string, format: uuid}
+                    retract: {const: true}
+                  additionalProperties: false
+        additionalProperties: false
+      max_output_tokens: 2600
+      prompt: |
+        Produce a complete candidate snapshot for the skill {{entity}}.
+
+        CURRENT ACTIVE SKILL:
+        <records untrusted="true">
+        {{current_skill.rendered}}
+        </records>
+
+        NEW EVIDENCE:
+        <records untrusted="true">
+        {{new_evidence.rendered}}
+        </records>
+
+        REVIEW PATCH PROPOSAL:
+        <data untrusted="true">{{proposal}}</data>
+
+        Required sections are steps, pitfalls, and examples. Preserve what
+        evidence shows still works. Apply only supported changes. If no section
+        should change, still emit the complete current value. Every section must cite
+        full UUIDs visible above and the candidate must contain exactly three
+        records; use retract only when a section should intentionally be empty:
+        {"records":[
+          {"key":"steps","text":"...","citations":["uuid"]},
+          {"key":"pitfalls","text":"...","citations":["uuid"]},
+          {"key":"examples","text":"...","citations":["uuid"]}
+        ]}
+emit:
+  from: "{{result.records}}"
+  collection: skills
+  type: skill
+  keys: [steps, pitfalls, examples]
+  complete: true
+  review: required

@@ -1,0 +1,95 @@
+[build-system]
+requires = ["uv_build>=0.11.28,<0.12.0"]
+build-backend = "uv_build"
+
+[project]
+name = "memseek"
+version = "0.1.0"
+description = "An async agentic data substrate backed by PostgreSQL"
+readme = "README.md"
+requires-python = ">=3.14,<3.15"
+dependencies = [
+    "alembic>=1.18.0,<2.0.0",
+    "croniter>=6.0.0",
+    "fastapi>=0.116.1",
+    "httpx>=0.28.1",
+    "jsonschema>=4.25.0",
+    "mcp>=2.0.0,<3.0.0",
+    "pgvector>=0.4.1",
+    "psycopg[binary,pool]>=3.2.9",
+    "pydantic>=2.11.7",
+    "pydantic-settings>=2.10.1",
+    "python-dotenv>=1.0.0",
+    "pyyaml>=6.0.2",
+    "sqlalchemy[asyncio]>=2.0.46,<3.0.0",
+    "uvicorn[standard]>=0.35.0",
+]
+
+# Correlation attributes are plain scalars, so the SDK works without any
+# telemetry library. This extra only adds the ambient span integration.
+[project.optional-dependencies]
+opentelemetry = [
+    "opentelemetry-api>=1.30.0,<2.0.0",
+]
+
+[project.scripts]
+memseek = "memseek.cli:main"
+
+[dependency-groups]
+dev = [
+    "mkdocs>=1.6.1,<2.0.0",
+    "pymdown-extensions>=10.9",
+    "pytest>=8.4.1",
+    "pytest-asyncio>=1.1.0",
+    "ruff>=0.15.20",
+    "ty>=0.0.59",
+]
+
+[tool.pytest.ini_options]
+addopts = "-ra --strict-config --strict-markers"
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py314"
+line-length = 100
+force-exclude = true
+extend-exclude = ["examples/reference.py", "spec/reference.py"]
+
+[tool.ruff.lint]
+select = [
+    "ASYNC",
+    "B",
+    "C4",
+    "DTZ",
+    "F",
+    "G",
+    "I",
+    "PIE",
+    "PT",
+    "PTH",
+    "RET",
+    "RUF",
+    "SIM",
+    "UP",
+]
+
+[tool.ruff.format]
+docstring-code-format = true
+quote-style = "double"
+
+[tool.ty.src]
+include = ["src", "tests"]
+exclude = ["examples/reference.py", "spec/reference.py"]
+
+[tool.ty.environment]
+python-version = "3.14"
+python-platform = "all"
+
+[tool.ty.rules]
+missing-type-argument = "error"
+possibly-missing-attribute = "error"
+possibly-missing-import = "error"
+
+[tool.ty.terminal]
+error-on-warning = true

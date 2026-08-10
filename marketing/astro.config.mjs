@@ -59,6 +59,8 @@ export default defineConfig({
         new URL('/showcase/self-audit/', site).href,
         new URL('/showcase/generative-agents/', site).href,
         new URL('/showcase/mcp/', site).href,
+        new URL('/showcase/workspace-explorer/', site).href,
+        new URL('/showcase/agent-memory/', site).href,
       ],
     }),
   ],

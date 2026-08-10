@@ -1,0 +1,38 @@
+name: link_extraction
+trigger:
+  write:
+    collections: [pages]
+    statuses: [active]
+    keyed: true
+sources:
+  changed_pages:
+    kind: changes
+    collections: [pages]
+    statuses: [active]
+    keyed: true
+    max_records: 50
+    max_tokens: 24000
+  current_pages:
+    kind: current
+    collections: [pages]
+    statuses: [active]
+    keyed: true
+    max_records: 64
+    max_tokens: 40000
+model: null
+limits:
+  max_tasks: 1
+  max_llm_calls: 0
+  max_wall_s: 30
+tasks:
+  - id: edges
+    use: extract_relations
+    input:
+      records: "{{changed_pages.records}}"
+      known_pages: "{{current_pages.records}}"
+    with:
+      emit_mentions: false
+emit:
+  from: "{{edges}}"
+  collection: edges
+  type: edge

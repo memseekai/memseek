@@ -1,0 +1,29 @@
+# Keep the build context small: the image needs the package, the catalog, and
+# the examples — nothing else. marketing/node_modules alone is ~300MB.
+.git
+.github
+.venv
+__pycache__
+*.pyc
+.pytest_cache
+.ruff_cache
+.ty_cache
+.mypy_cache
+htmlcov
+.coverage*
+
+marketing
+site
+dist
+build
+*.egg-info
+
+.memseek
+.env
+.env.sh
+docs
+spec
+
+# A host-side interpreter pin. The base image already fixes the interpreter, and
+# copying this in makes uv demand that exact patch release inside the container.
+.python-version

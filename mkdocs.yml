@@ -1,0 +1,81 @@
+site_name: Memseek
+site_description: Declarative, provenance-aware memory for agentic applications.
+docs_dir: docs
+site_dir: site
+use_directory_urls: true
+
+theme:
+  name: readthedocs
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - meta
+  - tables
+  - toc:
+      permalink: true
+  # Renders ```mermaid blocks as diagrams instead of code.
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          # div, not code: this emits <div class="mermaid">…</div>, which is
+          # exactly what mermaid's startOnLoad scans for.
+          format: !!python/name:pymdownx.superfences.fence_div_format
+
+extra_css:
+  - stylesheets/extra.css
+
+extra_javascript:
+  - https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js
+  - javascripts/mermaid-init.js
+
+nav:
+  - Overview: index.md
+  - Start here:
+      - Getting started: getting-started.md
+      - Core concepts: concepts.md
+      - Glossary: glossary.md
+  - Build a memory catalog:
+      - Catalog layout: catalog-layout.md
+      - Collections: collections.md
+      - Providers & model aliases: models.md
+      - Embeddings: embeddings.md
+      - Processors: processors.md
+      - Derivations: derivations.md
+      - Triggers: triggers.md
+      - Views & search: views-search.md
+      - Graph data: graph-data.md
+      - Artifacts: artifacts.md
+      - Artifact uses & feedback: artifact-uses.md
+      - Packages: packages.md
+  - Using Memseek:
+      - Python SDK: sdk.md
+      - HTTP API guide: api-surface.md
+      - MCP: mcp.md
+      - Operations: operations.md
+  - Evolve and operate:
+      - Changing definitions: changing-definitions.md
+      - Evaluation bases & Candidate Sets: evaluation-bases.md
+      - Contradiction detection: contradiction-detection.md
+      - Reference checklist: reference.md
+  - Guides:
+      - A migration, start to finish: migration-walkthrough.md
+      - CRM profile walkthrough: crm-walkthrough.md
+      - Authoring a workspace catalog: authoring-definitions.md
+      - SDK CRM profile quickstart: sdk-user-profile-quickstart.md
+      - Real-LLM skill maintenance: skill-maintenance.md
+      - Build an agent that remembers: generative-agents-example.md
+      - The gbrain showcase: gbrain-showcase.md
+      - The gbrain catalog, parameter by parameter: gbrain-catalog.md
+      - The L0–L3 agent memory example: agent-memory-example.md
+  - Background:
+      - Memseek vs. Cognee: memseek-vs-cognee.md
+  - Proposals and design notes:
+      - Schema evolution plan: schema-evolution-plan.md
+      - Synthesis & differentiation: synthesis-and-differentiation.md
+      - Python SDK vision: sdk-vision.md
+      - The gbrain capability plan: gbrain-plan.md
+      - Implementing qmd on memseek: qmd-on-memseek-plan.md
+      - Selective disclosure & agent filesystem: selective-disclosure-and-agent-fs-plan.md
+      - L0–L3 agent memory: agent-memory-l0-l3-plan.md

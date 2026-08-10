@@ -15,6 +15,20 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
  */
 const showcases = [
   {
+    slug: 'workspace-explorer',
+    kind: 'workspace surface',
+    title: 'The workspace explorer',
+    blurb: 'Collections, records, derivations, views, and artifacts in one calm control surface.',
+    accent: 'var(--cyan)',
+  },
+  {
+    slug: 'agent-memory',
+    kind: 'layered memory',
+    title: 'The agent memory reactor',
+    blurb: 'Watch exact messages rise into atomic claims, maintained scenes, and durable persona.',
+    accent: 'var(--green)',
+  },
+  {
     slug: 'generative-agents',
     kind: 'episodic',
     title: 'Generative agents',
@@ -68,15 +82,16 @@ const showcases = [
 
 <BaseLayout
   title="Showcases — Memseek"
-  description="Interactive walkthroughs of memseek: a self-wiring knowledge graph, and memory curation as a reviewable, cited diff."
+  description="Interactive walkthroughs of the Memseek context engine: a self-wiring knowledge graph, a profile that maintains itself from raw events, and memory curation as a reviewable, cited diff."
 >
   <section class="sc-hero">
     <div class="wrap">
       <span class="eyebrow">Showcases</span>
       <h1>See it <span class="grad">actually run.</span></h1>
       <p class="lede">
-        One walkthrough per memory kind people already name — episodic, semantic, reflection,
-        consolidation. Each is a single page you can poke at: no signup, nothing to provision.
+        One walkthrough per memory mechanism the context engine runs — episodic, semantic,
+        reflection, consolidation. Each is a single page you can poke at: no signup, nothing to
+        provision.
       </p>
     </div>
   </section>

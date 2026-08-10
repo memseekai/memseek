@@ -1,0 +1,127 @@
+name: enrich_thin
+trigger:
+  write:
+    collections: [pages]
+    types: [page]
+    statuses: [active]
+    keyed: true
+    ignore_own_outputs: true
+    where:
+      gbrain_enriched: {exists: false}
+sources:
+  changed_page:
+    kind: changes
+    collections: [pages]
+    types: [page]
+    statuses: [active]
+    keyed: true
+    max_records: 1
+    max_tokens: 12000
+    allow_empty: false
+  fact_index:
+    kind: current
+    collections: [facts]
+    types: [page_facts]
+    statuses: [active]
+    keys: [page_facts]
+    max_records: 1
+    max_tokens: 6000
+  concept_index:
+    kind: current
+    collections: [concepts]
+    types: [concept_index]
+    statuses: [active]
+    keys: [concept_index]
+    max_records: 1
+    max_tokens: 8000
+  take_index:
+    kind: current
+    collections: [takes]
+    types: [take_index]
+    statuses: [active]
+    keys: [take_index]
+    max_records: 1
+    max_tokens: 8000
+model: cheap
+limits:
+  max_tasks: 1
+  max_llm_calls: 2
+  max_retrieved_records: 0
+  max_visible_records: 4
+  max_total_tokens: 36000
+  max_wall_s: 90
+tasks:
+  - id: enriched_page
+    use: llm
+    with:
+      output_schema:
+        type: object
+        required: [records]
+        properties:
+          records:
+            type: array
+            maxItems: 1
+            items:
+              type: object
+              required: [key, text, citations, content]
+              properties:
+                key: {type: string, minLength: 1, maxLength: 128}
+                text: {type: string, minLength: 1}
+                citations:
+                  type: array
+                  minItems: 1
+                  uniqueItems: true
+                  items: {type: string, format: uuid}
+                content:
+                  type: object
+                  required: [title, body, type, gbrain_enriched]
+                  properties:
+                    title: {type: string, minLength: 1}
+                    body: {type: string, minLength: 1, maxLength: 12000}
+                    type: {type: string, minLength: 1}
+                    gbrain_enriched: {const: true}
+                  additionalProperties: true
+              additionalProperties: false
+        additionalProperties: false
+      max_output_tokens: 2000
+      prompt: |
+        You may directly replace exactly one live gbrain page. Enrich it only when its body is a
+        genuinely thin stub (for example, a short unsupported note or fewer than roughly 280
+        characters). Preserve its exact key, title, type, and every existing content field other
+        than text/body. Set gbrain_enriched to true. The returned text must be a concise plain-text
+        rendering of the returned title and body.
+
+        Add structure and explanation only from visible evidence. Do not invent facts, people,
+        dates, links, sources, or certainty. Do not replace a page that is already substantive, is
+        already marked gbrain_enriched, or cannot be expanded without invention; return
+        {"records":[]} in those cases. Cite the original page and every visible fact, concept, or
+        take index used in the replacement.
+
+        PAGE TO EVALUATE:
+        <records untrusted="true">
+        {{changed_page.rendered}}
+        </records>
+
+        CURRENT DECLARED FACTS:
+        <records untrusted="true">
+        {{fact_index.rendered}}
+        </records>
+
+        CURRENT CONCEPT INDEX:
+        <records untrusted="true">
+        {{concept_index.rendered}}
+        </records>
+
+        CURRENT TAKE INDEX:
+        <records untrusted="true">
+        {{take_index.rendered}}
+        </records>
+
+        Return only JSON:
+        {"records":[{"key":"same key as page","text":"Title\n\nBody","citations":["page-uuid"],"content":{"title":"unchanged title","body":"...","type":"unchanged type","gbrain_enriched":true}}]}
+emit:
+  from: "{{enriched_page.records}}"
+  collection: pages
+  type: page
+  driver_key: true
+  max_records: 1

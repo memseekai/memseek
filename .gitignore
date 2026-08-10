@@ -1,0 +1,34 @@
+# Python bytecode and local environments
+__pycache__/
+*.py[cod]
+*.so
+.venv/
+
+# Build and package output
+build/
+dist/
+site/
+.jekyll-cache/
+*.egg-info/
+
+# Tool caches and reports
+.coverage
+.coverage.*
+.pytest_cache/
+.ruff_cache/
+.ty_cache/
+htmlcov/
+
+# Local configuration and editor/OS files
+.env
+.env.local
+.env.*.local
+.env.sh
+.DS_Store
+*.log
+
+# PostgreSQL scratch data
+pgdata/
+
+# Local Docker stack state: the workspace key `docker compose up` mints.
+.memseek/

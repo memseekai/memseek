@@ -1,0 +1,43 @@
+processors:
+  # Every CRM record becomes findable by meaning. The vector lands in the
+  # record's embedding column; the annotation records the embedding space.
+  - name: crm_embedding
+    kind: embedding
+    input: {collections: [crm_events, user_profiles, playbooks]}
+
+  # One number per event: "should this change a durable profile?"
+  # Mirrored into scores.importance, which the accumulator trigger sums.
+  - name: importance
+    kind: score
+    source: llm
+    input: {collections: [crm_events]}
+    scale: [1, 10]
+    default: 3
+    render: true
+    model: importance_scorer
+    prompt: |
+      SCORER: importance
+      Rate whether each CRM event should change a durable user profile.
+      Role changes, explicit commitments, and stable preferences are important.
+      Routine interactions are less important. Return one number per record.
+
+  # Structured enrichment: deal stage plus churn risk. The churn_risk leaf is
+  # promoted into scores.churn_risk so ranking and boosts can use it.
+  - name: deal_signals
+    kind: json
+    source: llm
+    input:
+      collections: [crm_events]
+      types: [crm_event]
+    model: cheap
+    prompt: |
+      For each CRM event, classify the deal stage and estimate churn risk.
+    output_schema:
+      type: object
+      required: [stage, churn_risk]
+      properties:
+        stage: {type: string, enum: [discovery, evaluation, negotiation, active, renewal]}
+        churn_risk: {type: number, minimum: 0, maximum: 1}
+    default_output: {stage: discovery, churn_risk: 0}
+    score_fields:
+      churn_risk: churn_risk
