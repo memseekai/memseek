@@ -18,8 +18,7 @@ product tour, and it re-expresses the distinctive capabilities of
 immutable-record substrate. This page explains what it does, sketches how it is
 implemented in YAML, and shows what you can do with it. For the
 parameter-by-parameter reading of every catalog file, see
-[The gbrain catalog](gbrain-catalog.md); for the design rationale and the
-phase-by-phase build log, read [the implementation plan](gbrain-plan.md).
+[The gbrain catalog](gbrain-catalog.md).
 
 > Everything the showcase exercises ships as an **opt-in example catalog** —
 > `examples/gbrain_catalog/`, published as `gbrain@0.13.0`. The default Memseek

@@ -672,5 +672,4 @@ writes pages and transcripts and reads views.
 ## Next
 
 - Run it: [The gbrain showcase](gbrain-showcase.md)
-- The design rationale and build log: [The gbrain capability plan](gbrain-plan.md)
 - Deploy your own: [Authoring a workspace catalog](authoring-definitions.md)

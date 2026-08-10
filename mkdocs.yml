@@ -4,6 +4,21 @@ docs_dir: docs
 site_dir: site
 use_directory_urls: true
 
+# The repo is private, but a Pages site built from it is publicly readable
+# (private-site access control needs Enterprise Cloud). These pages are
+# internal planning and competitive material: they stay in the repo, but they
+# are never built, so they are not reachable on the published site. Removing a
+# file from here publishes it — check before you do.
+exclude_docs: |
+  agent-memory-l0-l3-plan.md
+  gbrain-plan.md
+  memseek-vs-cognee.md
+  qmd-on-memseek-plan.md
+  schema-evolution-plan.md
+  sdk-vision.md
+  selective-disclosure-and-agent-fs-plan.md
+  synthesis-and-differentiation.md
+
 theme:
   name: readthedocs
 
@@ -69,13 +84,3 @@ nav:
       - The gbrain showcase: gbrain-showcase.md
       - The gbrain catalog, parameter by parameter: gbrain-catalog.md
       - The L0–L3 agent memory example: agent-memory-example.md
-  - Background:
-      - Memseek vs. Cognee: memseek-vs-cognee.md
-  - Proposals and design notes:
-      - Schema evolution plan: schema-evolution-plan.md
-      - Synthesis & differentiation: synthesis-and-differentiation.md
-      - Python SDK vision: sdk-vision.md
-      - The gbrain capability plan: gbrain-plan.md
-      - Implementing qmd on memseek: qmd-on-memseek-plan.md
-      - Selective disclosure & agent filesystem: selective-disclosure-and-agent-fs-plan.md
-      - L0–L3 agent memory: agent-memory-l0-l3-plan.md
