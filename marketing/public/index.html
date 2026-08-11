@@ -544,6 +544,10 @@
   .sec-head h2 { font-size: var(--step-2); margin-top: .8rem; }
   .sec-head p { color: var(--muted); font-size: var(--step-1); margin-top: .9rem; line-height: 1.5; text-wrap: pretty; }
   .sec-head p b, .sec-head p strong { color: var(--text); font-weight: 600; }
+  /* A caption under the head's paragraph, not a second paragraph — and stated
+     at this specificity because `.sec-head p` would otherwise out-specify the
+     size .cta-note sets for itself. */
+  .sec-head p.cta-note { font-size: var(--step--1); color: var(--faint); margin-top: .8rem; }
   .sec-head em { color: var(--text); font-style: normal; text-decoration: underline; text-decoration-color: var(--orange); text-underline-offset: 3px; }
   /* the line that closes a region: one thought, one way onward */
   .sec-foot { margin-top: 1.25rem; font-size: var(--step--1); color: var(--muted); line-height: 1.55; }
@@ -1286,11 +1290,10 @@
       <div class="sec-head reveal">
         <span class="eyebrow">run it locally</span>
         <h2>One command. Your data stays yours.</h2>
-        <p>Everything runs on your machine: the API, the worker, and plain Postgres.</p>
-        <p>Run Docker once and Memseek brings up the full stack—<b>with a working memory already
-          loaded and ready to query</b>. You can point your coding agent at it immediately, or start
-          defining your own memories in YAML.</p>
-        <p>No account to create. No cron jobs to schedule. No queue infrastructure to manage.</p>
+        <p>Everything runs on your machine: the API, the worker, and plain Postgres. Docker brings
+          up the full stack — <b>with a working memory already loaded and ready to query</b>. Point
+          your coding agent at it, or start defining memories of your own in YAML.</p>
+        <p class="cta-note">no account to create · no cron to schedule · no queue to manage</p>
       </div>
 
       <div class="steps">
