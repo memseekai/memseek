@@ -980,31 +980,41 @@ ordering and scores already reflect those stages.
 
 ## Tuning relevance
 
-Everything below is optional. The defaults are chosen to be sensible, and most
-views never touch any of it. Reach for these when you have a specific relevance
-problem you can describe.
+Everything below is optional, and most views never touch any of it. Start with
+the defaults. Come back here when you can name the problem:
+
+| The problem you can describe | The knob |
+| --- | --- |
+| "The right record exists but never comes back at all." | `params.candidates` — cast a wider net. |
+| "It comes back, but too far down." | `rank` — change what counts as relevant. |
+| "The top few are nearly right but in the wrong order." | `rerank` — have a model re-judge them. |
+| "Results about *this* customer/project should come first." | `graph_boost` — favour records near a thing you name. |
+| "It should also search somewhere else." | Not a tuning problem — [combine several searches](#combining-several-searches). |
 
 ### Advanced query knobs
 
-- **`params.candidates`** (1–1000) — how many candidate records the search
-  engine proposes before final ranking. The default is
-  `min(1000, max(100, 10 * k))` per search. This controls how wide the net is
-  cast, **not** how many results you get back. The engine may return fewer,
-  duplicates are removed, and re-checking against the system of record can
-  remove more — so the proposed count, the ranked count, and the returned count
-  are all legitimately different numbers.
-- **`rank`** — replace the default relevance formula for one search. Not
-  allowed in `structured` mode. See [Rank expressions](#rank-expressions).
+- **`params.candidates`** (1–1000, default `min(1000, max(100, 10 * k))` per
+  search) — how many records the search engine proposes before ranking. This is
+  how wide the net is cast, **not** how many results you get. Raise it when a
+  record you know should match never appears; it costs time, not correctness.
+  Three counts are legitimately different: proposed, ranked, and returned —
+  duplicates and re-checking against the system of record both remove records
+  along the way.
+- **`rank`** — replace the relevance formula for one search. Not allowed in
+  `structured` mode. See [Rank expressions](#rank-expressions).
 - **`rerank`** — have a model re-judge the top results. See
   [Model reranking](#model-reranking).
-- **`graph_boost`** — nudge results up when they are close to something in your
-  relationship graph. See [Graph proximity boost](#graph-proximity-boost).
+- **`graph_boost`** — push results up when they are close to something you
+  name. See [Graph proximity boost](#graph-proximity-boost).
 
 ### Rank expressions
 
-Ranking normally comes from a deployment-wide default, which defines one
-formula per mode (exactly the four keys `hybrid`, `vector`, `text`, and
-`recent`) in `conf/rank_default.yaml`:
+Every scored search ranks with a formula. You normally inherit one: the
+deployment ships a default per mode in `conf/rank_default.yaml`. Setting `rank`
+on a search replaces that formula entirely — there is no partial override.
+
+The default that ships with the service uses only the two signals every record
+has, how well it matches and how recently it was touched:
 
 ```yaml
 candidates: 200
@@ -1012,33 +1022,32 @@ variants:
   text:
     - sum
     - - [product, 1.0, [normalize, [text_match]]]
-      - [product, 1.0, [normalize, [score, importance]]]
       - [product, 1.0, [decay, [age_hours, last_accessed], {midpoint: 24, exponent: 1}]]
 ```
 
-Read that as: "a record's rank is its keyword-match strength, plus its stored
-importance, plus a recency term that halves after 24 hours since the record was
-last read." The shipped `vector` default swaps semantic similarity in for
-keyword match; `hybrid` uses whichever of the two is stronger for each record;
-`recent` combines importance with how long ago the record happened. These are
-deployment defaults, not fixed behavior, and a `rank` on one search replaces
-the entire formula.
+Read it as: "keyword-match strength, plus a recency term worth 1 for a record
+just read and 0.5 for one last read 24 hours ago." `vector` swaps semantic
+similarity in for keyword match, `hybrid` takes whichever of the two is stronger
+per record, and `recent` keeps only the recency term.
 
-Writing `N(x)` for "rescaled to 0–1 across the candidates" and `D24(x)` for the
-shipped 24-hour decay, the defaults are:
+Writing `N(x)` for "rescaled to 0–1 across the candidates" and `D24(x)` for that
+24-hour decay:
 
-| Mode | How candidates are found | Shipped ranking formula |
+| Mode | How candidates are found | Default formula |
 | --- | --- | --- |
-| `hybrid` | Semantic distance, keyword rank, and newest first, interleaved and deduplicated. | `N(max(similarity, text_match)) + N(importance) + D24(age(last_accessed))` — components sum on a 0–3 scale. |
-| `vector` | Nearest embeddings. | `N(similarity) + N(importance) + D24(age(last_accessed))` — 0–3 scale. |
-| `text` | Matching English full-text rows. | `N(text_match) + N(importance) + D24(age(last_accessed))` — 0–3 scale. |
-| `recent` | Newest first. | `N(importance) + D24(age(occurred_at))` — 0–2 scale. |
-| `structured` | Declared filters and sorts. | No formula; your `order_by` is authoritative. |
+| `hybrid` | Semantic distance, keyword rank, and newest first, interleaved and deduplicated. | `N(max(similarity, text_match)) + D24(age(last_accessed))` — 0–2 |
+| `vector` | Nearest embeddings. | `N(similarity) + D24(age(last_accessed))` — 0–2 |
+| `text` | Matching English full-text rows. | `N(text_match) + D24(age(last_accessed))` — 0–2 |
+| `recent` | Newest first, then reordered by the formula. | `D24(age(occurred_at))` — 0–1 |
+| `structured` | Declared filters and sorts. | None; your `order_by` is authoritative. |
 
-Those ranges describe the shipped formula's components. They are not the public
-`score`, and not a promise about custom formulas. Note that `recent` mode first
-gathers a bounded set of newest records and can then reorder it by importance
-and recency.
+A catalog can publish its own `conf/rank_default.yaml` and replace these. The
+reference catalog does exactly that, adding `N(importance)` as a third term —
+which is why a deployment's own numbers may sit on a 0–3 scale instead. Check
+`GET /rank/schema` for the formulas actually active on your deployment.
+
+Those ranges are the formula's own scale. They are not the public `score`, which
+is always rescaled to 0–1 per response.
 
 A rank expression is a small typed language, not database SQL. The building
 blocks:
@@ -1057,12 +1066,16 @@ blocks:
 | `[saturate, expr, {midpoint: m, exponent: e}]` | With `x = max(0, expr)`: `x^e / (x^e + m^e)`. Starts at 0, is 0.5 at `x = m`, approaches 1. Use for "more is better, with diminishing returns." |
 | `[decay, expr, {midpoint: m, exponent: e}]` | With `x = max(0, expr)`: `1 / (1 + x^e / m^e)`. Starts at 1, is 0.5 at `x = m`, approaches 0. Use for "fades with age." |
 
+Use `normalize` on any signal with no fixed range — `text_match` and stored
+scores especially — so one runaway value cannot swamp the others. Use `saturate`
+for "more is better, but the tenth is worth less than the first", and `decay`
+for anything that should fade with time.
+
 Expressions are capped at 5 levels deep and 16 nodes, and every score and field
-they reference is verified when your definitions load. `midpoint` and
-`exponent` must be positive, and every result must be a finite number.
-`GET /rank/schema` returns the machine-readable grammar, the active default
-formulas and their hash, the score contract, and what the deployment's search
-engines support.
+they reference is checked when your definitions load, so a typo fails at load
+time rather than at query time. `midpoint` and `exponent` must be positive, and
+every result must be finite. `GET /rank/schema` returns the grammar, the active
+defaults and their hash, and what your deployment's search engines support.
 
 #### `normalize` inside a formula is not the public `score`
 
@@ -1070,14 +1083,12 @@ These two rescalings are easy to confuse:
 
 | | `[normalize, …]` inside a formula | The public `score` |
 | --- | --- | --- |
-| Purpose | Put one signal on a 0–1 scale before combining it with other signals. | Put the finished ranking value on a consistent display scale. |
-| Input | That one signal, across one search's surviving candidates. | Final values after ranking, merging, reranking, and boosts. |
+| Purpose | Put one signal on a 0–1 scale before adding it to the others. | Put the finished ranking value on a display scale. |
+| Input | That one signal, across one search's candidates. | Final values, after ranking, merging, reranking, and boosts. |
 | If all values tie | Every value becomes `0` — the signal stops discriminating. | Every value becomes `1` — every result ties for best. |
 | Visible to callers | No, it is internal. | Yes, as `score`; the unscaled value stays as `rank_score`. |
 
-Neither one calibrates relevance. Even when a raw similarity happens to land in
-0–1, the public score still means only "where this sits within this query's
-range of results."
+Neither one calibrates relevance.
 
 #### Ordering and ties
 
@@ -1092,23 +1103,27 @@ descending sorts. Remaining ties use ingestion order ascending, then record id.
 
 ### Model reranking
 
-`rerank: {backend: llm_judge, top_n: N}` asks a model to re-judge the top
-results after ordinary ranking. It is allowed only when every search uses text,
-vector, or hybrid mode. Each search sends at most its first `N` candidates
-(maximum 20) to the catalog's `cheap` model in a bounded, escaped prompt; token
-limits may reduce how many are actually judged. `backend: none` is accepted as
-an explicit "do nothing."
+`rerank: {backend: llm_judge, top_n: N}` asks a model to re-read the top results
+and re-order them. Ordinary ranking scores text; a model can tell whether a
+record actually answers the question. It costs a model call per search, so use
+it on views where the top few results matter more than latency.
 
-The model must return every record it was given, exactly once, with a score
-between 0 and 1. A missing, extra, duplicate, or invalid judgment fails the
-search rather than quietly falling back — you always know whether reranking
-happened.
+```yaml
+rerank: {backend: llm_judge, top_n: 20}   # top_n is 1–20; `none` means do nothing
+```
 
-Judged results are ordered by the model's value, with the pre-existing order
-breaking ties. Anything not judged keeps its original relative order but is
-guaranteed to stay behind every judged result. Public scores are then rescaled
-over the new range. Single-search responses report `ranking.kind: llm_judge`
-plus:
+It is allowed only when every search uses `text`, `vector`, or `hybrid` mode.
+Each search sends at most its first `N` results to the catalog's `cheap` model
+in a bounded, escaped prompt; token limits may cut that further.
+
+The model must return every record it was given, exactly once, scored 0–1. A
+missing, extra, duplicate, or invalid judgment **fails the search** instead of
+quietly falling back, so you always know whether reranking happened.
+
+Judged results are reordered by the model's score, ties broken by the previous
+order. Unjudged results keep their relative order and always stay behind the
+judged ones. Public scores are then rescaled over the new range. Single-search
+responses report `ranking.kind: llm_judge` plus:
 
 ```json
 "rerank": {
@@ -1126,32 +1141,45 @@ order.
 
 ### Graph proximity boost
 
-`graph_boost` nudges results upward when they are related — through your
-relationship graph — to something you name. It runs after ordinary ranking or
-merging:
+`graph_boost` pushes results up when they are connected — through your
+relationship graph — to something you name. "Rank these results, but favour
+anything touching Maya." It runs after ordinary ranking or merging:
 
 ```yaml
 graph_boost:
   graph: dependency_graph  # optional when exactly one graph view is active
   anchor: people/maya      # trimmed, 1–128 characters
-  depth: 2                 # 1–4, default 2
-  weight: 0.05             # greater than 0 and at most 1, default 0.05
+  depth: 2                 # how many links out to look, 1–4, default 2
+  weight: 0.05             # how hard to push, above 0 and at most 1, default 0.05
   limit: 100               # how many paths to walk, 1–100, default 100
 ```
 
-Memseek walks live links in both directions from the anchor, notes the shortest
-distance to each node reached, and matches a result when either its key or its
-entity is one of those nodes. A matched result's internal value becomes:
+Memseek walks links in both directions from the anchor, records the shortest
+distance to every node it reaches, and matches a result when its key or its
+entity is one of those nodes. A matched result gets:
 
 ```text
 boosted = previous + weight / (distance + 1)
 ```
 
-The anchor itself is distance 0 and gets the full weight; something one link
-away gets half. Unmatched results are left alone, and everything is sorted and
-rescaled again. The response reports the anchor, depth, and weight you asked
-for, plus how many records matched and how many links the walk used. The walk
-respects your deployment's graph limits.
+So the anchor itself (distance 0) gets the full weight, one link away gets half,
+two links a third. Unmatched results are untouched, then everything is sorted
+and rescaled again. The response reports what you asked for plus how many
+records matched and how many links the walk used.
+
+**Pick `weight` relative to the scores it is added to** — this is the one place
+people get burned, because it is an addition, not a percentage:
+
+| Where you use it | Typical score being added to | A `weight` that nudges |
+| --- | --- | --- |
+| A single search, default formula | 0–2 | `0.05`–`0.2` (the default fits here) |
+| [Combined searches](#combining-several-searches) | ~`0.01`–`0.03` (RRF values) | `0.001`–`0.002` |
+
+The default `0.05` on a combined search is **not** a nudge: it is larger than any
+RRF value in the response, so it stops being a tie-breaker and becomes the sort
+key — you get "everything near the anchor, then everything else." If that is
+what you want, fine; if not, scale the weight down to roughly a tenth of
+`1/rank_constant`.
 
 Graph boost is also permitted on a single structured search. Proximity can
 reorder structured results, but the response still reports
