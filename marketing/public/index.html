@@ -305,6 +305,9 @@
   .proof li:nth-child(3) { --hue: var(--green); }
   .proof .n { font-family: var(--mono); font-weight: 700; font-size: 1.5rem; color: var(--hue); line-height: 1.1; font-variant-numeric: tabular-nums; }
   .proof .n .u { font-size: .95rem; color: var(--muted); font-weight: 700; }
+  /* A claim in words rather than a figure: a step down in size so the row still
+     scans as three headlines and the flagship number stays the loudest. */
+  .proof .n.txt { font-size: 1.22rem; line-height: 1.25; text-wrap: balance; }
   .proof .l { display: block; font-size: var(--step--2); color: var(--muted); line-height: 1.35; margin-top: .15rem; }
   .proof .l b { color: var(--text); font-weight: 600; }
   /* Every number gets somewhere to check it — in the tile's own hue, so the
@@ -963,18 +966,18 @@
       <ul class="proof">
         <li>
           <span class="n">92.6%</span>
-          <span class="l">LongMemEval-S — scored by the benchmark's <b>own judge</b>, not ours</span>
+          <span class="l">LongMemEval accuracy</span>
           <a class="r" href="/benchmarks/#methodology">Reproduce it yourself →</a>
         </li>
         <li>
-          <span class="n">$0.0004 <span class="u">/ answer</span></span>
-          <span class="l"><b>88.8% accuracy</b> on open weights you can host</span>
-          <a class="r" href="https://github.com/memseekai/memseek">See the eval harness →</a>
+          <span class="n">32× <span class="u">less context</span></span>
+          <span class="l"><b>~3.2k</b> vs. ~101k tokens</span>
+          <a class="r" href="/benchmarks/#cost">How we measure →</a>
         </li>
         <li>
-          <span class="n">32×</span>
-          <span class="l">fewer tokens per question — <b>~3,200</b> vs ~101,000 of raw history</span>
-          <a class="r" href="/benchmarks/#cost">How we measure →</a>
+          <span class="n txt">Runs on open weights</span>
+          <span class="l"><b>88.8%</b> at ~$0.0004/query</span>
+          <a class="r" href="https://github.com/memseekai/memseek">See the eval harness →</a>
         </li>
       </ul>
     </div>
