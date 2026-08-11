@@ -153,7 +153,7 @@
     backdrop-filter: blur(12px);
     border-bottom: 1px solid var(--border);
   }
-  .nav-inner { display: flex; align-items: center; justify-content: space-between; height: 64px; }
+  .nav-inner { display: flex; align-items: center; justify-content: space-between; gap: 1.4rem; height: 64px; }
   .brand { display: flex; align-items: center; gap: .6rem; font-family: var(--mono); font-weight: 700; font-size: 1.15rem; color: var(--text); }
   .brand .dot { width: 12px; height: 12px; border-radius: 50%; background: var(--grad); }
   /* Every item is nowrap: the labels are two and three words now, and a nav
@@ -168,27 +168,55 @@
     padding: .55rem 1rem; border-radius: 8px;
   }
   .nav-cta:hover { text-decoration: none; filter: brightness(1.07); }
+  /* Seven labels was a row that had to hide two of itself to fit. Three
+     labels, two of them menus: the sections group under Product, the reading
+     under Resources, and Benchmarks stays one click because it is the proof. */
+  .nav-menu { position: relative; }
+  .nav-trigger {
+    display: inline-flex; align-items: center; gap: .35rem;
+    background: transparent; border: 0; cursor: pointer;
+    color: var(--muted); font-family: var(--mono); font-size: var(--step--1);
+    white-space: nowrap; padding: 0;
+  }
+  .nav-trigger::after { content: "▾"; font-size: .95em; line-height: 1; opacity: .7; transition: transform .15s; }
+  .nav-trigger:hover, .nav-menu.open .nav-trigger { color: var(--text); }
+  .nav-menu.open .nav-trigger::after { transform: rotate(180deg); }
+  .nav-panel {
+    display: none; position: absolute; top: calc(100% + .7rem); left: -.7rem;
+    min-width: 13.5rem; padding: .4rem;
+    background: var(--surface); border: 1px solid var(--border-strong);
+    border-radius: 11px; box-shadow: var(--shadow);
+  }
+  .nav-menu.open .nav-panel { display: block; }
+  .nav-panel a { display: block; padding: .5rem .65rem; border-radius: 7px; line-height: 1.35; }
+  .nav-panel a:hover { color: var(--text); background: var(--surface-2); }
+  /* Benchmarks is a label of its own while the row can carry it; under 820px it
+     folds into the Product menu instead of leaving the nav altogether. */
+  .nav-panel .narrow-only { display: none; }
+  @media (max-width: 820px) {
+    .nav-links { gap: .95rem; }
+    .nav-bench { display: none; }
+    .nav-panel .narrow-only { display: block; }
+  }
+
   /* The repo, reachable from every surface: nav, hero, quickstart, footer.
-     Icon plus wordmark here; below 620px the label drops and the octicon
-     stands alone, so the source is never the one link a phone can't find. */
-  .nav-gh { display: inline-flex; align-items: center; gap: .45rem; }
+     Here it is the octicon alone, a control beside the theme toggle rather
+     than a fourth label competing with the three that name the page. */
+  .nav-gh { display: inline-flex; align-items: center; color: var(--faint); }
+  .nav-gh:hover { color: var(--text); }
   .nav-gh svg { width: 16px; height: 16px; fill: currentColor; flex: 0 0 auto; }
-  @media (max-width: 700px) { .nav-gh .lbl { display: none; } }
   .theme-toggle {
     background: transparent; border: 1px solid var(--border-strong); color: var(--muted);
     font-family: var(--mono); font-size: .72rem; padding: .35rem .55rem; border-radius: 6px;
     cursor: pointer; letter-spacing: .05em;
   }
   .theme-toggle:hover { color: var(--orange); border-color: var(--orange); }
-  /* Raised from 980px when the section labels grew to two and three words:
-     below this the row no longer fits, and the footer carries every link. */
-  @media (max-width: 1120px) { .nav-links .hide-sm { display: none; } }
-  /* Below ~500px only the theme toggle and the CTA still fit; the footer
-     carries every link, so nothing becomes unreachable. */
+  /* Below ~500px only the octicon, the theme toggle and the CTA still fit; the
+     footer carries every link, so nothing becomes unreachable. */
   @media (max-width: 620px) {
     .nav-inner { gap: .8rem; }
     .nav-links { gap: .85rem; }
-    .nav-links a:not(.nav-cta):not(.nav-gh) { display: none; }
+    .nav-links > a:not(.nav-cta):not(.nav-gh), .nav-menu { display: none; }
     /* The CTA can no longer wrap to two lines, so it gives back the width in
        padding instead — otherwise the row runs flush into the wordmark. */
     .nav-cta { padding-inline: .75rem; }
@@ -197,9 +225,10 @@
   /* Coarse-pointer hit areas. The mono controls are deliberately compact for a
      mouse; on touch they need a 44px target without changing their look. */
   @media (pointer: coarse) {
-    .theme-toggle, .nav-cta { min-height: 44px; display: inline-flex; align-items: center; }
-    .ytab, .code-tabs .t { min-height: 44px; display: inline-flex; align-items: center; }
+    .theme-toggle, .nav-cta, .nav-trigger { min-height: 44px; display: inline-flex; align-items: center; }
+    .ytab, .code-tabs .t, .code-tabs .copy { min-height: 44px; display: inline-flex; align-items: center; }
     .nav-links a { padding-block: .6rem; }
+    .nav-panel a { padding-block: .7rem; }
   }
 
   /* ---------- HERO ---------- */
@@ -215,9 +244,14 @@
   @keyframes drift { to { transform: translate3d(4%, 4%, 0) scale(1.08); } }
   @media (prefers-reduced-motion: reduce) { .hero::before { animation: none; } }
   .hero .wrap { position: relative; z-index: 1; }
-  .hero-top { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); gap: clamp(1.6rem, 4vw, 3.4rem); align-items: end; }
+  /* Headline and the one command that proves it, side by side: the claim on the
+     left, the thing you can run on the right. */
+  .hero-top { display: grid; grid-template-columns: minmax(0, 1.06fr) minmax(0, 1fr); gap: clamp(1.6rem, 4vw, 3.2rem); align-items: center; }
   @media (max-width: 900px) { .hero-top { grid-template-columns: 1fr; align-items: start; } }
-  .hero h1 { font-size: var(--step-3); margin-top: 1.1rem; max-width: 24ch; }
+  /* A longer kicker than the section eyebrows carry, so it gives back some of
+     the tracking to stay on one line above the headline. */
+  .hero .eyebrow { letter-spacing: .12em; }
+  .hero h1 { font-size: var(--step-3); margin-top: 1.1rem; max-width: 20ch; text-wrap: balance; }
   .lede { color: var(--muted); font-size: var(--step-1); max-width: 58ch; margin-top: 1.2rem; line-height: 1.5; }
   .lede b { color: var(--text); font-weight: 600; }
   .hero-cta { display: flex; flex-wrap: wrap; gap: .85rem; margin-top: 1.8rem; align-items: center; }
@@ -231,35 +265,51 @@
   .btn-primary:hover { text-decoration: none; filter: brightness(1.07); transform: translateY(-1px); }
   .btn-ghost { background: transparent; color: var(--text); border-color: var(--border-strong); }
   .btn-ghost:hover { text-decoration: none; border-color: var(--violet); color: var(--violet); }
-  /* Third action, deliberately the quietest of the three: the source is a
-     standing invitation, not a competing call. */
-  .btn-gh { background: transparent; color: var(--muted); border-color: var(--border); }
-  .btn-gh:hover { text-decoration: none; color: var(--text); border-color: var(--border-strong); }
-  .btn-gh svg { width: 16px; height: 16px; fill: currentColor; }
   .cta-note { font-family: var(--mono); font-size: .72rem; color: var(--faint); }
+
+  /* What the two buttons are not asking of you, said once, under them. */
+  .hero-note { margin-top: 1.05rem; max-width: 46ch; font-size: var(--step--1); line-height: 1.55; color: var(--faint); }
+  .hero-note b { color: var(--muted); font-weight: 600; }
 
   /* One command above the fold. The rest of the stack is four, and the
      quickstart says so — here the only claim is that something runs today. */
-  .hero-run { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem .85rem; margin-top: 1.1rem; font-family: var(--mono); font-size: .72rem; color: var(--faint); }
-  .hero-run code { font-size: .8rem; color: var(--text); background: var(--surface-2); border: 1px solid var(--border); border-radius: 7px; padding: .4rem .6rem; white-space: nowrap; }
-  .hero-run span { max-width: 44ch; line-height: 1.5; }
-  .hero-run b { color: var(--muted); font-weight: 600; }
+  .hero-code { box-shadow: var(--shadow); }
+  .hero-code pre { font-size: .72rem; }
+  @media (min-width: 1040px) { .hero-code pre { font-size: .74rem; } }
+  .code-tabs .copy {
+    margin-left: auto; align-self: center;
+    font-family: var(--mono); font-size: .6rem; color: var(--faint);
+    background: transparent; border: 1px solid var(--border); border-radius: 6px;
+    padding: .28rem .5rem; cursor: pointer; transition: color .15s, border-color .15s;
+  }
+  /* fname leads the bar here, so the copy button keeps the right edge to itself */
+  .hero-code .code-tabs .fname { margin-left: .35rem; margin-right: auto; }
+  .code-tabs .copy:hover { color: var(--text); border-color: var(--border-strong); }
 
-  /* proof column */
-  .proof { list-style: none; display: grid; gap: .85rem; }
-  @media (max-width: 900px) { .proof { grid-template-columns: repeat(3, 1fr); margin-top: 2rem; } }
+  /* proof row, under the fold's two halves rather than beside them */
+  .proof { list-style: none; display: grid; gap: .85rem 1.6rem; grid-template-columns: repeat(3, 1fr); margin-top: clamp(2rem, 4vw, 2.9rem); }
   @media (max-width: 520px) { .proof { grid-template-columns: 1fr; } }
-  .proof li { border-left: 1px solid color-mix(in srgb, var(--hue, var(--orange)) 60%, var(--border)); padding-left: .8rem; }
+  /* A column so the three links sit on one line regardless of how many lines
+     each label runs to. */
+  .proof li { border-left: 1px solid color-mix(in srgb, var(--hue, var(--orange)) 60%, var(--border)); padding-left: .8rem; display: flex; flex-direction: column; align-items: flex-start; }
   .proof li:nth-child(1) { --hue: var(--orange); }
   .proof li:nth-child(2) { --hue: var(--cyan); }
   .proof li:nth-child(3) { --hue: var(--green); }
   .proof .n { font-family: var(--mono); font-weight: 700; font-size: 1.5rem; color: var(--hue); line-height: 1.1; font-variant-numeric: tabular-nums; }
+  .proof .n .u { font-size: .95rem; color: var(--muted); font-weight: 700; }
   .proof .l { display: block; font-size: var(--step--2); color: var(--muted); line-height: 1.35; margin-top: .15rem; }
-  .proof .s { display: block; font-family: var(--mono); font-size: .6rem; color: var(--faint); letter-spacing: .04em; }
+  .proof .l b { color: var(--text); font-weight: 600; }
+  /* Every number gets somewhere to check it — in the tile's own hue, so the
+     link reads as part of the stat and not as body copy. */
+  .proof .r {
+    margin-top: auto; padding-top: .5rem;
+    font-family: var(--mono); font-size: .64rem; letter-spacing: .04em;
+    color: var(--hue); border-bottom: 1px solid transparent;
+  }
+  .proof .r:hover { text-decoration: none; border-bottom-color: currentColor; }
 
-  /* ---------- HERO PANE: declare → run → read ---------- */
+  /* ---------- CATALOG PANE: declare → run → read ---------- */
   .pane { background: var(--surface); border: 1px solid var(--border-strong); border-radius: 14px; box-shadow: var(--shadow); overflow: hidden; }
-  .hero-pane { margin-top: clamp(2rem, 4vw, 3rem); }
   .pane-bar { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: .55rem .7rem .55rem .8rem; border-bottom: 1px solid var(--border); background: var(--surface-2); flex-wrap: wrap; }
   .ytabs { display: flex; gap: .3rem; flex-wrap: wrap; }
   .ytab {
@@ -443,9 +493,15 @@
      engine put in on the left, the assembled artifact and its receipt on the
      right. Every number is the CRM example's own manifest. */
   .art { margin-top: clamp(1.7rem, 3.2vw, 2.6rem); }
-  /* The pane bar's one label here names a file rather than switching between
-     two, so it borrows the selected tab's look without being a control. */
-  .ytab.ystatic { cursor: default; color: var(--orange); border-color: color-mix(in srgb, var(--orange) 55%, var(--border)); background: color-mix(in srgb, var(--orange) 10%, transparent); }
+  /* One pane, three files: the two definitions share a body, the artifact is a
+     body of its own. The tab bar swaps which one is mounted, so declaring and
+     the thing declared stay in the same frame instead of two stacked panels. */
+  .merged .art-grid { display: none; }
+  .merged.show-art .pane-grid { display: none; }
+  .merged.show-art .art-grid { display: grid; }
+  .pane-bar .live[data-when="art"] { display: none; }
+  .merged.show-art .live[data-when="yaml"] { display: none; }
+  .merged.show-art .live[data-when="art"] { display: inline-flex; }
   .alt .pane { background: var(--bg); }
   .art-grid { display: grid; grid-template-columns: minmax(0, .86fr) minmax(0, 1.14fr); }
   @media (max-width: 900px) { .art-grid { grid-template-columns: 1fr; } }
@@ -484,6 +540,21 @@
   /* the line that closes a region: one thought, one way onward */
   .sec-foot { margin-top: 1.25rem; font-size: var(--step--1); color: var(--muted); line-height: 1.55; }
   .sec-foot b { color: var(--text); font-weight: 600; }
+
+  /* ---------- THE CATALOG ----------
+     What the format buys you, in the same ✓-and-line shape the comparison
+     band uses, ahead of the pane that shows the files themselves. */
+  .cat-split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: clamp(1.4rem, 3vw, 2.6rem); align-items: start; margin-bottom: clamp(1.7rem, 3.2vw, 2.5rem); }
+  @media (max-width: 900px) { .cat-split { grid-template-columns: 1fr; } }
+  .catlist { list-style: none; display: grid; gap: .75rem; }
+  .catlist li { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: .6rem; align-items: baseline; font-size: var(--step--1); color: var(--muted); line-height: 1.5; }
+  .catlist li .m { font-family: var(--mono); color: var(--green); }
+  .catlist li b { color: var(--text); font-weight: 600; }
+  /* The tree is the argument here — seven lines, no counts, no scrollbar. */
+  .cat-tree .code-tabs { justify-content: flex-start; }
+  .cat-tree .code-tabs .fname { margin-left: .35rem; }
+  .cat-tree pre { font-size: .7rem; line-height: 1.95; }
+  @media (min-width: 1040px) { .cat-tree pre { font-size: .74rem; } }
 
   /* ---------- QUICKSTART ---------- */
   .steps { display: flex; flex-direction: column; gap: 1.1rem; }
@@ -679,6 +750,12 @@
   .bench-ctas { display: flex; flex-wrap: wrap; align-items: center; gap: .8rem; margin-top: 1.5rem; }
   .console-chip { font-family: var(--mono); font-size: .74rem; color: var(--faint); background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: .6rem .9rem; }
   .console-chip .p { color: var(--orange); }
+  /* Closes the section the way the head opened it: the charts are the claim,
+     this is the standing offer to check them. */
+  .repro { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 1.1rem 2rem; margin-top: 1.1rem; }
+  .repro h3 { font-size: var(--step-1); }
+  .repro p { color: var(--muted); font-size: var(--step--1); line-height: 1.55; margin-top: .45rem; max-width: 62ch; }
+  .repro-do { display: flex; flex-wrap: wrap; align-items: center; gap: .75rem; }
   .charts { display: grid; grid-template-columns: 1.05fr 1.3fr; gap: 1.1rem; align-items: start; }
   @media (max-width: 1000px) { .charts { grid-template-columns: 1fr; } }
   /* min-width:0 or the panel is sized by the scatter's 560px floor and overflows
@@ -801,13 +878,28 @@
   <div class="wrap nav-inner">
     <div class="brand"><span class="dot"></span>memseek</div>
     <nav class="nav-links">
-      <a href="/context-engine/" class="hide-sm">Context engine</a>
-      <a href="#how" class="hide-sm">How it works</a>
-      <a href="#designs" class="hide-sm">Memory designs</a>
-      <a href="#benchmarks" class="hide-sm">Benchmarks</a>
-      <a href="/showcase/">Showcases</a>
-      <a href="/blog/">Blog</a>
-      <a href="https://github.com/memseekai/memseek" class="nav-gh" aria-label="Memseek on GitHub"><svg aria-hidden="true"><use href="#gh-mark"/></svg><span class="lbl">GitHub</span></a>
+      <div class="nav-menu">
+        <button class="nav-trigger" type="button" aria-expanded="false" aria-controls="navProduct">Product</button>
+        <div class="nav-panel" id="navProduct">
+          <a href="#how">How it works</a>
+          <a href="#catalog">The catalog</a>
+          <a href="#designs">Memory designs</a>
+          <a href="#quickstart">Run it locally</a>
+          <a href="#compare">Compare</a>
+          <a href="/benchmarks/" class="narrow-only">Benchmarks</a>
+        </div>
+      </div>
+      <a href="/benchmarks/" class="nav-bench">Benchmarks</a>
+      <div class="nav-menu">
+        <button class="nav-trigger" type="button" aria-expanded="false" aria-controls="navLearn">Resources</button>
+        <div class="nav-panel" id="navLearn">
+          <a href="/context-engine/">Context engine</a>
+          <a href="/showcase/">Showcases</a>
+          <a href="/blog/">Blog</a>
+          <a href="#faq">FAQ</a>
+        </div>
+      </div>
+      <a href="https://github.com/memseekai/memseek" class="nav-gh" aria-label="Memseek on GitHub"><svg aria-hidden="true"><use href="#gh-mark"/></svg></a>
       <button class="theme-toggle" id="themeBtn" aria-label="Toggle color theme">THEME</button>
       <a href="#waitlist" class="nav-cta">Join the waitlist</a>
     </nav>
@@ -820,39 +912,208 @@
     <div class="wrap">
       <div class="hero-top">
         <div>
-          <span class="eyebrow">Context engine for AI agents</span>
-          <h1>Agent context you <span class="hot">declare</span>, not build.</h1>
+          <span class="eyebrow">Record everything. Turn records into knowledge.</span>
+          <h1>The <span class="hot">declarative context engine</span> for AI agents.</h1>
           <p class="lede">
-            <b>Record everything. Turn records into knowledge.</b> Search across everything you've
-            recorded — and everything Memseek has learned from it. Every fact is dated, cited, and
-            traceable to its source.
+            Define agent memory in versioned YAML — like <b>Terraform for infrastructure</b>. Memseek
+            learns from everything you record and gives your agents <b>cited, current, budget-cut
+            context</b> from a Postgres you run.
           </p>
           <div class="hero-cta">
             <a href="#waitlist" class="btn btn-primary">Join the waitlist →</a>
             <a href="#quickstart" class="btn btn-ghost">See it run locally</a>
-            <a href="https://github.com/memseekai/memseek" class="btn btn-gh"><svg aria-hidden="true"><use href="#gh-mark"/></svg>memseekai/memseek</a>
           </div>
-          <div class="hero-run">
-            <code><span class="cd">$</span> docker compose up -d --wait</code>
-            <span>Postgres, the API, the worker — and <b>a working agent memory published for
-              you</b>. Then point Claude Code or Codex at it over MCP.</span>
-          </div>
+          <p class="hero-note">
+            <b>No retrieval pipeline. No opaque notebook.</b> Every fact is dated, cited, and
+            traceable.
+          </p>
         </div>
-        <ul class="proof">
-          <li><span class="n">92.6%</span><span class="l">on LongMemEval-S, scored by the benchmark's own judge<span class="s">highest independently graded</span></span></li>
-          <li><span class="n">88.8%</span><span class="l">on open weights you can host<span class="s">$0.0004 per answer</span></span></li>
-          <li><span class="n">32×</span><span class="l">fewer tokens per question<span class="s">~3,200 vs. ~101,000</span></span></li>
-        </ul>
+
+        <div class="code hero-code">
+          <div class="code-tabs">
+            <span class="fname">your terminal</span>
+            <button class="copy" type="button" data-copy="git clone https://github.com/memseekai/memseek &amp;&amp; cd memseek&#10;make up">copy</button>
+          </div>
+<pre><span class="cd">$</span> git clone https://github.com/memseekai/memseek &amp;&amp; <span class="ck">cd</span> memseek
+<span class="cd">$</span> make up
+
+<span class="cm"># postgres → migrate → api + worker → setup:
+#
+#   published agent_memory@0.3.0 — 20 files of YAML, no code
+#   MCP ready — 6 tools at http://127.0.0.1:8000/mcp
+#
+# point Claude Code or Codex at it, and the next session
+# remembers the rules you set weeks ago — with the message
+# each one came from</span></pre>
+        </div>
       </div>
 
-      <!-- declare → run → read, in one panel -->
-      <div class="pane hero-pane">
+      <ul class="proof">
+        <li>
+          <span class="n">92.6%</span>
+          <span class="l">LongMemEval-S — scored by the benchmark's <b>own judge</b>, not ours</span>
+          <a class="r" href="/benchmarks/#methodology">Reproduce it yourself →</a>
+        </li>
+        <li>
+          <span class="n">$0.0004 <span class="u">/ answer</span></span>
+          <span class="l"><b>88.8% accuracy</b> on open weights you can host</span>
+          <a class="r" href="https://github.com/memseekai/memseek">See the eval harness →</a>
+        </li>
+        <li>
+          <span class="n">32×</span>
+          <span class="l">fewer tokens per question — <b>~3,200</b> vs ~101,000 of raw history</span>
+          <a class="r" href="/benchmarks/#cost">How we measure →</a>
+        </li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ============ SOURCE STRIP ============ -->
+  <div class="integ">
+    <div class="wrap integ-inner">
+      <span class="lead">Observe · everything your apps and agents see</span>
+      <span class="chip">CRM &amp; business apps</span>
+      <span class="chip">Calls &amp; transcripts</span>
+      <span class="chip">Email &amp; chat</span>
+      <span class="chip">Documents</span>
+      <span class="chip">Code repos</span>
+      <span class="chip">Agent traces</span>
+    </div>
+  </div>
+
+  <!-- ============ OBSERVE → MAINTAIN → ASSEMBLE → SERVE ============
+       The conceptual model, ahead of the vocabulary. The primitives named in
+       each card's footer are defined in the strip further down the page —
+       here they are a pointer, not the argument. -->
+  <section id="how">
+    <div class="wrap">
+      <div class="sec-head reveal">
+        <span class="eyebrow" style="--hue:var(--cyan)">how memseek works</span>
+        <h2>A catalog is a folder of YAML. Memseek runs it.</h2>
+        <p>One mental model: <b>you declare what your agent should remember, keep true, and
+          see</b> — Memseek does the running. Four stages, all described in files you review like a
+          schema migration.</p>
+      </div>
+
+      <!-- One picture instead of four cards of prose. The argument it has to
+           carry is many-and-growing on the left, one-small-and-cited on the
+           right, and the four stage names in between. Everything is drawn from
+           the theme tokens, so it inverts with the page. -->
+      <div class="flow-scroll reveal">
+        <svg class="flow" viewBox="0 0 972 250" role="img"
+             aria-label="Everything you record — messages, events, documents, tool results — flows into Memseek, which observes, maintains, assembles and serves. What comes out is one small cited context block of about 3,200 tokens, which goes to your agent.">
+          <!-- left: everything you record, many and growing -->
+          <text class="f-lab" x="8" y="30">WHAT YOU RECORD</text>
+          <g class="f-in">
+            <rect x="8"   y="46" width="52" height="26" rx="5"/>
+            <rect x="68"  y="46" width="52" height="26" rx="5"/>
+            <rect x="128" y="46" width="52" height="26" rx="5"/>
+            <rect x="8"   y="80" width="52" height="26" rx="5"/>
+            <rect x="68"  y="80" width="52" height="26" rx="5"/>
+            <rect x="128" y="80" width="52" height="26" rx="5"/>
+            <rect x="8"   y="114" width="52" height="26" rx="5"/>
+            <rect x="68"  y="114" width="52" height="26" rx="5"/>
+            <rect x="128" y="114" width="52" height="26" rx="5"/>
+          </g>
+          <text class="f-cap" x="8" y="166">messages · events · documents</text>
+          <text class="f-cap" x="8" y="182">tool results · agent outcomes</text>
+          <text class="f-dim" x="8" y="206">append-only, and it only grows</text>
+
+          <path class="f-arrow" d="M198 93 H236" marker-end="url(#fa)"/>
+
+          <!-- middle: the engine, and the four stages by name -->
+          <rect class="f-engine" x="250" y="30" width="404" height="150" rx="12"/>
+          <text class="f-eng-lab" x="268" y="56">MEMSEEK</text>
+          <g class="f-stage">
+            <rect x="268" y="70" width="88" height="60" rx="7"/>
+            <rect x="366" y="70" width="88" height="60" rx="7"/>
+            <rect x="464" y="70" width="88" height="60" rx="7"/>
+            <rect x="562" y="70" width="74" height="60" rx="7"/>
+          </g>
+          <text class="f-st" x="312" y="92">OBSERVE</text>
+          <text class="f-sd" x="312" y="112">write it</text>
+          <text class="f-st" x="410" y="92">MAINTAIN</text>
+          <text class="f-sd" x="410" y="112">keep it true</text>
+          <text class="f-st" x="508" y="92">ASSEMBLE</text>
+          <text class="f-sd" x="508" y="112">cut to budget</text>
+          <text class="f-st" x="599" y="92">SERVE</text>
+          <text class="f-sd" x="599" y="112">hand over</text>
+          <text class="f-dim" x="268" y="164">you declare all four in a folder of YAML</text>
+
+          <path class="f-arrow" d="M666 93 H704" marker-end="url(#fa)"/>
+
+          <!-- right: one small, cited block -->
+          <text class="f-lab f-out-lab" x="718" y="30">CONTEXT FOR THIS TASK</text>
+          <rect class="f-out" x="718" y="46" width="214" height="94" rx="7"/>
+          <g class="f-line">
+            <rect x="732" y="60" width="130" height="7" rx="3.5"/>
+            <rect x="732" y="76" width="158" height="7" rx="3.5"/>
+            <rect x="732" y="92" width="112" height="7" rx="3.5"/>
+            <rect x="732" y="108" width="146" height="7" rx="3.5"/>
+          </g>
+          <g class="f-cite">
+            <rect x="872" y="60" width="26" height="7" rx="3.5"/>
+            <rect x="898" y="76" width="20" height="7" rx="3.5"/>
+            <rect x="852" y="92" width="26" height="7" rx="3.5"/>
+            <rect x="886" y="108" width="20" height="7" rx="3.5"/>
+          </g>
+          <text class="f-cap f-out-cap" x="718" y="166">~3,200 tokens · every line cited</text>
+          <text class="f-dim" x="718" y="206">→ your agent</text>
+
+          <defs>
+            <marker id="fa" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path d="M0 0 L10 5 L0 10 z" class="f-arrow-head"/>
+            </marker>
+          </defs>
+        </svg>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ THE CATALOG ============ -->
+  <section id="catalog" class="alt">
+    <div class="wrap">
+      <div class="sec-head reveal">
+        <span class="eyebrow" style="--hue:var(--violet)">the catalog</span>
+        <h2>Versioned YAML you review like a schema migration.</h2>
+      </div>
+
+      <!-- What the format buys you, next to the format itself: seven directories
+           is the whole surface area, so it is shown rather than described. -->
+      <div class="cat-split reveal">
+        <ul class="catlist">
+          <li><span class="m">✓</span><div><b>Every derived fact carries citations</b> back to the message it came from.</div></li>
+          <li><span class="m">✓</span><div><b>Supersession, not string replacement</b> — old claims are retired, never silently overwritten.</div></li>
+          <li><span class="m">✓</span><div><b>Point-in-time replay and recursive erasure</b> built in, not retrofitted.</div></li>
+          <li><span class="m">✓</span><div><b>Your data stays yours</b> — queryable, exportable rows in a Postgres 16 you deploy.</div></li>
+          <li><span class="m">✓</span><div><b>Gated changes land as reviewed drafts.</b> Nothing updates itself without an audit trail.</div></li>
+        </ul>
+
+        <div class="code cat-tree">
+          <div class="code-tabs"><span class="fname">examples/agent_memory_catalog/</span></div>
+<pre><span class="cp">agent_memory_catalog/</span>              <span class="cm"># 20 files, no code</span>
+├── <span class="cs">collections/</span>  <span class="cm">messages · memories · scenes · persona</span>
+├── <span class="cs">conf/</span>         <span class="cm">models · processors · ranking · search</span>
+├── <span class="cs">derivations/</span>  <span class="cm">l1_extract · scene_synthesis · persona</span>
+├── <span class="cs">views/</span>        <span class="cm">recall — one search across all layers</span>
+├── <span class="cs">artifacts/</span>    <span class="cm">agent_context · maintained_procedure</span>
+├── <span class="cs">mcp/</span>          <span class="cm">the 6 tools an agent may see</span>
+└── <span class="cs">packages/</span>     <span class="cm">agent_memory@0.3.0 — what you publish</span></pre>
+        </div>
+      </div>
+
+      <!-- One pane, three files: the two definitions share a body (declare on
+           the left, the worker acting on it on the right); the artifact is the
+           third file and a body of its own. -->
+      <div class="pane art merged reveal">
         <div class="pane-bar">
           <div class="ytabs" id="ytabs" role="tablist" aria-label="Catalog definitions">
             <button class="ytab" role="tab" aria-selected="true" data-y="0">collections/messages.yaml</button>
             <button class="ytab" role="tab" aria-selected="false" data-y="1">derivations/l1_extract.yaml</button>
+            <button class="ytab" role="tab" aria-selected="false" data-y="2" data-body="art" data-rotate="off" aria-controls="y2">artifacts/agent_context.yaml</button>
           </div>
-          <span class="live">live · self-maintaining</span>
+          <span class="live" data-when="yaml">live · self-maintaining</span>
+          <span class="live" data-when="art">assembled on request</span>
         </div>
 
         <div class="pane-grid">
@@ -968,116 +1229,8 @@
             </div>
           </div>
         </div>
-      </div>
-    </div>
-  </section>
 
-  <!-- ============ SOURCE STRIP ============ -->
-  <div class="integ">
-    <div class="wrap integ-inner">
-      <span class="lead">Observe · everything your apps and agents see</span>
-      <span class="chip">CRM &amp; business apps</span>
-      <span class="chip">Calls &amp; transcripts</span>
-      <span class="chip">Email &amp; chat</span>
-      <span class="chip">Documents</span>
-      <span class="chip">Code repos</span>
-      <span class="chip">Agent traces</span>
-    </div>
-  </div>
-
-  <!-- ============ OBSERVE → MAINTAIN → ASSEMBLE → SERVE ============
-       The conceptual model, ahead of the vocabulary. The primitives named in
-       each card's footer are defined in the strip further down the page —
-       here they are a pointer, not the argument. -->
-  <section id="how">
-    <div class="wrap">
-      <div class="sec-head reveal">
-        <span class="eyebrow" style="--hue:var(--cyan)">how memseek works</span>
-        <h2>Observe → Maintain → Assemble → Serve.</h2>
-        <p>You describe all four stages in a <b>catalog</b> — a folder of YAML files. Memseek runs
-          them. There is no pipeline of yours in the middle.</p>
-      </div>
-
-      <!-- One picture instead of four cards of prose. The argument it has to
-           carry is many-and-growing on the left, one-small-and-cited on the
-           right, and the four stage names in between. Everything is drawn from
-           the theme tokens, so it inverts with the page. -->
-      <div class="flow-scroll reveal">
-        <svg class="flow" viewBox="0 0 972 250" role="img"
-             aria-label="Everything you record — messages, events, documents, tool results — flows into Memseek, which observes, maintains, assembles and serves. What comes out is one small cited context block of about 3,200 tokens, which goes to your agent.">
-          <!-- left: everything you record, many and growing -->
-          <text class="f-lab" x="8" y="30">WHAT YOU RECORD</text>
-          <g class="f-in">
-            <rect x="8"   y="46" width="52" height="26" rx="5"/>
-            <rect x="68"  y="46" width="52" height="26" rx="5"/>
-            <rect x="128" y="46" width="52" height="26" rx="5"/>
-            <rect x="8"   y="80" width="52" height="26" rx="5"/>
-            <rect x="68"  y="80" width="52" height="26" rx="5"/>
-            <rect x="128" y="80" width="52" height="26" rx="5"/>
-            <rect x="8"   y="114" width="52" height="26" rx="5"/>
-            <rect x="68"  y="114" width="52" height="26" rx="5"/>
-            <rect x="128" y="114" width="52" height="26" rx="5"/>
-          </g>
-          <text class="f-cap" x="8" y="166">messages · events · documents</text>
-          <text class="f-cap" x="8" y="182">tool results · agent outcomes</text>
-          <text class="f-dim" x="8" y="206">append-only, and it only grows</text>
-
-          <path class="f-arrow" d="M198 93 H236" marker-end="url(#fa)"/>
-
-          <!-- middle: the engine, and the four stages by name -->
-          <rect class="f-engine" x="250" y="30" width="404" height="150" rx="12"/>
-          <text class="f-eng-lab" x="268" y="56">MEMSEEK</text>
-          <g class="f-stage">
-            <rect x="268" y="70" width="88" height="60" rx="7"/>
-            <rect x="366" y="70" width="88" height="60" rx="7"/>
-            <rect x="464" y="70" width="88" height="60" rx="7"/>
-            <rect x="562" y="70" width="74" height="60" rx="7"/>
-          </g>
-          <text class="f-st" x="312" y="92">OBSERVE</text>
-          <text class="f-sd" x="312" y="112">write it</text>
-          <text class="f-st" x="410" y="92">MAINTAIN</text>
-          <text class="f-sd" x="410" y="112">keep it true</text>
-          <text class="f-st" x="508" y="92">ASSEMBLE</text>
-          <text class="f-sd" x="508" y="112">cut to budget</text>
-          <text class="f-st" x="599" y="92">SERVE</text>
-          <text class="f-sd" x="599" y="112">hand over</text>
-          <text class="f-dim" x="268" y="164">you declare all four in a folder of YAML</text>
-
-          <path class="f-arrow" d="M666 93 H704" marker-end="url(#fa)"/>
-
-          <!-- right: one small, cited block -->
-          <text class="f-lab f-out-lab" x="718" y="30">CONTEXT FOR THIS TASK</text>
-          <rect class="f-out" x="718" y="46" width="214" height="94" rx="7"/>
-          <g class="f-line">
-            <rect x="732" y="60" width="130" height="7" rx="3.5"/>
-            <rect x="732" y="76" width="158" height="7" rx="3.5"/>
-            <rect x="732" y="92" width="112" height="7" rx="3.5"/>
-            <rect x="732" y="108" width="146" height="7" rx="3.5"/>
-          </g>
-          <g class="f-cite">
-            <rect x="872" y="60" width="26" height="7" rx="3.5"/>
-            <rect x="898" y="76" width="20" height="7" rx="3.5"/>
-            <rect x="852" y="92" width="26" height="7" rx="3.5"/>
-            <rect x="886" y="108" width="20" height="7" rx="3.5"/>
-          </g>
-          <text class="f-cap f-out-cap" x="718" y="166">~3,200 tokens · every line cited</text>
-          <text class="f-dim" x="718" y="206">→ your agent</text>
-
-          <defs>
-            <marker id="fa" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-              <path d="M0 0 L10 5 L0 10 z" class="f-arrow-head"/>
-            </marker>
-          </defs>
-        </svg>
-      </div>
-
-      <!-- the output as an object: request in, artifact out, receipt attached -->
-      <div class="pane art reveal">
-        <div class="pane-bar">
-          <div class="ytabs"><span class="ytab ystatic">agent_context@1 · context artifact</span></div>
-          <span class="live">assembled on request</span>
-        </div>
-        <div class="art-grid">
+        <div class="art-grid" id="y2" role="tabpanel">
           <div class="art-in">
             <div class="zone-h"><b>what goes in</b> · one task</div>
             <p class="ask">“Can I rewrite billing in Fastify and deploy it tonight?”</p>
@@ -1113,14 +1266,14 @@
         </div>
       </div>
 
-      <p class="sec-foot reveal">That artifact is <b>one file</b> —
-        <code>artifacts/agent_context.yaml</code> — with no assembly code behind it.
-        <a href="#quickstart">Run the example →</a></p>
+      <p class="sec-foot reveal">Three tabs, three files — and the artifact on the last one is
+        <b>a single file</b>, <code>artifacts/agent_context.yaml</code>, with no assembly code
+        behind it. <a href="#quickstart">Run the example →</a></p>
     </div>
   </section>
 
   <!-- ============ QUICKSTART ============ -->
-  <section id="quickstart" class="alt">
+  <section id="quickstart">
     <div class="wrap">
       <div class="sec-head reveal">
         <span class="eyebrow">run it locally</span>
@@ -1381,7 +1534,7 @@ brief[<span class="cs">"manifest"</span>][<span class="cs">"rendered_sha256"</sp
        reader already respects are not integrations here, they are arrangements
        of the same eight primitives. File counts are the proof — measured from
        the repo, not estimated. -->
-  <section id="designs">
+  <section id="designs" class="alt">
     <div class="wrap">
       <div class="sec-head reveal">
         <span class="eyebrow" style="--hue:var(--amber)">not a fork — a folder of yaml</span>
@@ -1526,18 +1679,18 @@ brief[<span class="cs">"manifest"</span>][<span class="cs">"rendered_sha256"</sp
        One dataset (LongMemEval-S, 500 questions), two readings of it: accuracy,
        then accuracy against cost per answer. /benchmarks/ tabulates every number
        shown here — when a score changes, change it in both places. -->
-  <section id="benchmarks" class="alt">
+  <section id="benchmarks">
     <div class="wrap">
       <div class="sec-head reveal" id="benchHead">
         <span class="eyebrow" style="--hue:var(--green)">public benchmarks · official grader</span>
-        <h2><span class="big"><span data-count="92.6" data-dec="1">92.6</span>%</span> on LongMemEval.<br>The highest independently graded memory score.</h2>
-        <p>Everyone else grades their own homework. We're scored by the
-          <strong>benchmark's official judge</strong> — and still top the chart.
-          Every number here <strong>reruns with one command</strong>.</p>
+        <h2><span class="big"><span data-count="92.6" data-dec="1">92.6</span>%</span><br>Highest
+          LongMemEval score — graded by the benchmark, not by us.</h2>
+        <p>Vendor-graded benchmarks are marketing. Ours is scored by <strong>LongMemEval's own
+          judge</strong>, and the harness ships in the repo — <strong>rerun it before you believe
+          it.</strong></p>
         <div class="bench-ctas">
           <a class="btn btn-primary" href="/benchmarks/">Check our work →</a>
           <a class="btn btn-ghost" href="/benchmarks/#methodology">Full methodology</a>
-          <span class="console-chip"><span class="p">$</span> memseek bench longmemeval --official-judge</span>
         </div>
       </div>
 
@@ -1646,11 +1799,25 @@ brief[<span class="cs">"manifest"</span>][<span class="cs">"rendered_sha256"</sp
             <a href="/benchmarks/">Every number, with its source →</a></p>
         </div>
       </div>
+
+      <!-- The claim the two charts cannot make for themselves: that you can run
+           them. The command is the one the methodology page prints. -->
+      <div class="repro panel reveal">
+        <div>
+          <h3>Don't take the chart's word for it.</h3>
+          <p>The full eval harness, prompts, and grading config are in the repo. One command reruns
+            the benchmark against your own deployment.</p>
+        </div>
+        <div class="repro-do">
+          <span class="console-chip"><span class="p">$</span> memseek bench longmemeval --official-judge</span>
+          <a class="btn btn-ghost" href="https://github.com/memseekai/memseek">Reproduce the numbers →</a>
+        </div>
+      </div>
     </div>
   </section>
 
   <!-- ============ NAMED COMPARISONS ============ -->
-  <section id="compare">
+  <section id="compare" class="alt">
     <div class="wrap">
       <div class="sec-head reveal">
         <span class="eyebrow" style="--hue:var(--violet)">how we compare</span>
@@ -1753,7 +1920,7 @@ brief[<span class="cs">"manifest"</span>][<span class="cs">"rendered_sha256"</sp
   </section>
 
   <!-- ============ FAQ ============ -->
-  <section id="faq" class="alt">
+  <section id="faq">
     <div class="wrap">
       <div class="sec-head reveal">
         <span class="eyebrow" style="--hue:var(--pink)">straight answers</span>
@@ -1866,6 +2033,70 @@ if (typeof Tally !== "undefined") {
     });
   }
 
+  /* ===== nav menus =====
+     One open at a time, and the .open class is the only thing that opens a
+     panel — hover included — so a pointer and a click can never disagree about
+     what is showing. Closed panels are display:none, so their links stay out
+     of the tab order until the menu is open. */
+  (function () {
+    var menus = Array.prototype.slice.call(document.querySelectorAll('.nav-menu'));
+    if (!menus.length) return;
+    var hoverable = window.matchMedia && window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+    var shut = null;
+
+    function close(m) {
+      m.classList.remove('open');
+      m.querySelector('.nav-trigger').setAttribute('aria-expanded', 'false');
+    }
+    function closeAll(except) {
+      menus.forEach(function (m) { if (m !== except) close(m); });
+    }
+    function open(m) {
+      closeAll(m);
+      m.classList.add('open');
+      m.querySelector('.nav-trigger').setAttribute('aria-expanded', 'true');
+    }
+
+    menus.forEach(function (m) {
+      var trigger = m.querySelector('.nav-trigger');
+      trigger.addEventListener('click', function () {
+        if (shut) { clearTimeout(shut); shut = null; }
+        m.classList.contains('open') ? close(m) : open(m);
+      });
+      /* Selecting a destination is the end of the menu's job. */
+      m.addEventListener('click', function (e) {
+        if (e.target.closest('.nav-panel a')) close(m);
+      });
+      if (hoverable) {
+        m.addEventListener('mouseenter', function () {
+          if (shut) { clearTimeout(shut); shut = null; }
+          open(m);
+        });
+        /* A moment's grace, so crossing the gap to the panel is not a miss. */
+        m.addEventListener('mouseleave', function () {
+          shut = setTimeout(function () { close(m); shut = null; }, 140);
+        });
+      }
+    });
+
+    document.addEventListener('click', function (e) {
+      if (!e.target.closest('.nav-menu')) closeAll(null);
+    });
+    document.addEventListener('keydown', function (e) {
+      if (e.key !== 'Escape') return;
+      var open_ = document.querySelector('.nav-menu.open');
+      if (!open_) return;
+      close(open_);
+      open_.querySelector('.nav-trigger').focus();
+    });
+    /* Tabbing out of the last item is a close, the same as clicking away. */
+    menus.forEach(function (m) {
+      m.addEventListener('focusout', function (e) {
+        if (!m.contains(e.relatedTarget)) close(m);
+      });
+    });
+  })();
+
   /* ===== reveal on scroll ===== */
   var revs = Array.prototype.slice.call(document.querySelectorAll('.reveal'));
   if (reduce || !('IntersectionObserver' in window)) {
@@ -1887,20 +2118,26 @@ if (typeof Tally !== "undefined") {
     ob.observe(el);
   }
 
-  /* ===== hero: YAML tabs (auto-rotate until the visitor picks one) ===== */
+  /* ===== catalog pane: file tabs (auto-rotate until the visitor picks one) ===== */
   (function () {
     var bar = document.getElementById('ytabs');
     if (!bar) return;
+    var pane = bar.closest ? bar.closest('.pane') : null;
     var tabs = Array.prototype.slice.call(bar.querySelectorAll('.ytab'));
     var panes = tabs.map(function (t) { return document.getElementById('y' + t.getAttribute('data-y')); });
+    /* The artifact tab mounts a different body, and it is the one tab the
+       rotation leaves alone — swapping the whole panel on a timer is a jump,
+       not a hint. */
+    var rotN = tabs.filter(function (t) { return t.getAttribute('data-rotate') !== 'off'; }).length || tabs.length;
     var i = 0, timer = null, manual = false;
 
     function show(n) {
       i = n;
       tabs.forEach(function (t, k) { t.setAttribute('aria-selected', k === n ? 'true' : 'false'); });
       panes.forEach(function (p, k) { if (p) p.classList.toggle('on', k === n); });
+      if (pane) pane.classList.toggle('show-art', tabs[n].getAttribute('data-body') === 'art');
     }
-    function rotate() { show((i + 1) % tabs.length); timer = setTimeout(rotate, 7000); }
+    function rotate() { show((i + 1) % rotN); timer = setTimeout(rotate, 7000); }
 
     tabs.forEach(function (t, k) {
       t.addEventListener('click', function () {
@@ -2147,6 +2384,19 @@ if (typeof Tally !== "undefined") {
         panes.forEach(function (p, i) { p.classList.toggle('on', i === k); });
         /* The filename caption belongs to the panel, not to the box. */
         if (fname && t.getAttribute('data-file')) fname.textContent = t.getAttribute('data-file');
+      });
+    });
+  });
+
+  /* ===== copy-to-clipboard on code panels =====
+     The command is in data-copy, not scraped from the pre, so the panel can
+     keep its prompts and comments while the clipboard gets only the command. */
+  Array.prototype.forEach.call(document.querySelectorAll('.code-tabs .copy'), function (btn) {
+    if (!navigator.clipboard) { btn.hidden = true; return; }
+    btn.addEventListener('click', function () {
+      navigator.clipboard.writeText(btn.getAttribute('data-copy')).then(function () {
+        btn.textContent = 'copied';
+        setTimeout(function () { btn.textContent = 'copy'; }, 1600);
       });
     });
   });
