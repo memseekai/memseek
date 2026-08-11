@@ -556,6 +556,58 @@
   .sec-foot { margin-top: 1.25rem; font-size: var(--step--1); color: var(--muted); line-height: 1.55; }
   .sec-foot b { color: var(--text); font-weight: 600; }
 
+  /* ---------- THE PLAIN VERSION ----------
+     Two lines side by side, because the difference is the whole point: one
+     system finds things that resemble the question, the other keeps an answer
+     that is still true. Stated before any vocabulary arrives to blur it. */
+  /* The headline is the mechanism: what goes in stays plain, what comes out
+     takes the section's own hue. One coloured half, nothing else. */
+  .pv-head { max-width: 62ch; }
+  .pv-head h2 { font-size: var(--step-2); margin-top: .9rem; line-height: 1.15; }
+  .pv-head h2 em { font-style: normal; color: var(--cyan); }
+  :root[data-theme="light"] .pv-head h2 em { color: color-mix(in srgb, var(--cyan) 68%, var(--text)); }
+  .pv-head p { color: var(--muted); font-size: var(--step-1); margin-top: 1.1rem; line-height: 1.5; text-wrap: pretty; }
+  .pv-head p b { color: var(--text); font-weight: 600; }
+  /* The sentence the section exists to leave behind, lifted off the paragraph
+     and marked with the brand rule rather than said louder. */
+  .pv-pull {
+    margin: clamp(1.5rem, 3vw, 2.1rem) 0 clamp(1.6rem, 3.2vw, 2.4rem);
+    padding-left: 1.1rem; border-left: 3px solid transparent;
+    border-image: var(--grad) 1; max-width: 72ch; text-wrap: balance;
+    font-size: var(--step-1); line-height: 1.45; color: var(--muted);
+  }
+  .pv-pull b { color: var(--text); font-weight: 600; }
+
+  .pvs { display: grid; grid-template-columns: 1fr 1fr; border: 1px solid var(--border); border-radius: 14px; overflow: hidden; background: var(--surface); box-shadow: var(--shadow); }
+  @media (max-width: 760px) { .pvs { grid-template-columns: 1fr; } }
+  .alt .pvs { background: var(--bg); }
+  .pv-side { position: relative; padding: clamp(1.2rem, 2.4vw, 1.7rem) clamp(1.3rem, 2.6vw, 1.9rem); min-width: 0; }
+  .pv-side.b { border-left: 1px solid var(--border); background: color-mix(in srgb, var(--green) 6%, transparent); }
+  /* The pivot, sitting on the divider itself rather than beside it. */
+  .pv-side.b::before {
+    content: "vs"; position: absolute; left: 0; top: 50%; transform: translate(-50%, -50%);
+    font-family: var(--mono); font-size: .56rem; letter-spacing: .12em; line-height: 1;
+    color: var(--faint); background: var(--surface); border: 1px solid var(--border);
+    border-radius: 999px; padding: .3rem .45rem;
+  }
+  .alt .pv-side.b::before { background: var(--bg); }
+  @media (max-width: 760px) {
+    .pv-side.b { border-left: 0; border-top: 1px solid var(--border); }
+    .pv-side.b::before { left: 50%; top: 0; }
+  }
+  .pvs .k { display: block; font-family: var(--mono); font-size: .6rem; letter-spacing: .16em; text-transform: uppercase; color: var(--hue, var(--faint)); }
+  .pvs .pv-side p { margin-top: .45rem; font-size: var(--step-1); line-height: 1.35; color: var(--muted); text-wrap: balance; }
+  .pvs .pv-side p b { color: var(--text); font-weight: 600; }
+  /* The caption belongs to the pair, so it rides inside the same object. */
+  .pv-note {
+    grid-column: 1 / -1; border-top: 1px solid var(--border);
+    padding: .85rem clamp(1.3rem, 2.6vw, 1.9rem) .95rem;
+    font-size: var(--step--1); line-height: 1.6; color: var(--faint);
+  }
+  .pv-note b { color: var(--muted); font-weight: 600; }
+  /* the closing card's one action, above the form it sits with */
+  .cta-actions { margin-top: 1.4rem; }
+
   /* ---------- THE CATALOG ----------
      What the format buys you, in the same ✓-and-line shape the comparison
      band uses, ahead of the pane that shows the files themselves. */
@@ -996,11 +1048,38 @@
     </div>
   </div>
 
+  <!-- ============ THE PLAIN VERSION ============
+       Everything below this point is vocabulary — collections, derivations,
+       citations. This section is the one paragraph that has to land without
+       any of it, and the category question answered before it is asked. -->
+  <section id="plainly">
+    <div class="wrap">
+      <div class="pv-head reveal">
+        <span class="eyebrow" style="--hue:var(--cyan)">the short version</span>
+        <h2>History goes in.<br><em>Current context comes out.</em></h2>
+        <p>Your apps and agents produce messages, events, documents, and traces. Memseek turns that
+          history into <b>maintained knowledge</b>, then assembles only the context an agent needs
+          for the task in front of it.</p>
+      </div>
+
+      <p class="pv-pull reveal">You define what “memory” means for your application.
+        <b>Memseek runs it.</b></p>
+
+      <div class="pvs reveal">
+        <div class="pv-side"><span class="k">RAG</span><p>retrieves what <b>looks relevant</b>.</p></div>
+        <div class="pv-side b" style="--hue:var(--green)"><span class="k">Memseek</span><p>maintains what is <b>true now</b>.</p></div>
+        <p class="pv-note">Search is one primitive. Memseek also tracks <b>what changed</b>, <b>what
+          replaced it</b>, <b>where each claim came from</b>, and <b>what belongs in the next
+          prompt</b>.</p>
+      </div>
+    </div>
+  </section>
+
   <!-- ============ OBSERVE → MAINTAIN → ASSEMBLE → SERVE ============
        The conceptual model, ahead of the vocabulary. The primitives named in
        each card's footer are defined in the strip further down the page —
        here they are a pointer, not the argument. -->
-  <section id="how">
+  <section id="how" class="alt">
     <div class="wrap">
       <div class="sec-head reveal">
         <span class="eyebrow" style="--hue:var(--cyan)">how memseek works</span>
@@ -1086,7 +1165,7 @@
   </section>
 
   <!-- ============ THE CATALOG ============ -->
-  <section id="catalog" class="alt">
+  <section id="catalog">
     <div class="wrap">
       <div class="sec-head reveal">
         <span class="eyebrow" style="--hue:var(--violet)">the catalog</span>
@@ -1288,7 +1367,7 @@
   </section>
 
   <!-- ============ QUICKSTART ============ -->
-  <section id="quickstart">
+  <section id="quickstart" class="alt">
     <div class="wrap">
       <div class="sec-head reveal">
         <span class="eyebrow">run it locally</span>
@@ -1340,7 +1419,7 @@
         <div class="step reveal">
           <div class="step-side">
             <span class="step-n">02 · SEE IT WORK</span>
-            <h3>Give your coding agent a memory it can be held to.</h3>
+            <h3>Give your agent memory with receipts.</h3>
             <p>Step 01 published one already: <b>the four-layer agent-memory catalog</b>, 20 files of
               YAML and no code. Attach it and a fresh session <b>knows the rules you set weeks
               ago</b> — and can show you the message each one came from. It sees the six tools the
@@ -1440,7 +1519,7 @@
         <div class="step reveal">
           <div class="step-side">
             <span class="step-n">04 · WRITE</span>
-            <h3>Publish it, then just append what happens.</h3>
+            <h3>Write events. Memseek maintains the memory.</h3>
             <p>Ingest returns immediately. In the background the worker embeds each message and, once a conversation has enough in it, extracts the atomic claims that become scenes and persona. <b>Your application never orchestrates a pipeline.</b></p>
           </div>
           <div class="code">
@@ -1472,7 +1551,7 @@ TEXT = <span class="cs">"Every new Node service goes out on Fastify now. Billing
         <div class="step reveal">
           <div class="step-side">
             <span class="step-n">05 · READ</span>
-            <h3>Four shapes, one layer.</h3>
+            <h3>Read the same memory four ways.</h3>
             <p>Whatever your agent needs: the <b>current profile</b>, a bounded cited <b>answer</b> over everything ever recorded, a <b>context artifact</b> assembled under a token budget, or a small MCP tool surface. <b>Same catalog, no second pipeline.</b></p>
           </div>
           <div class="code" id="readCode" data-tabs>
@@ -1549,11 +1628,11 @@ brief[<span class="cs">"manifest"</span>][<span class="cs">"rendered_sha256"</sp
        reader already respects are not integrations here, they are arrangements
        of the same eight primitives. File counts are the proof — measured from
        the repo, not estimated. -->
-  <section id="designs" class="alt">
+  <section id="designs">
     <div class="wrap">
       <div class="sec-head reveal">
         <span class="eyebrow" style="--hue:var(--amber)">not a fork — a folder of yaml</span>
-        <h2>The memory designs you've read about, as configuration.</h2>
+        <h2>Run entire memory architectures from YAML.</h2>
         <p>gbrain, TencentDB Agent Memory, the Generative Agents paper, Anthropic's Dreams — each is
           a different arrangement of <b>the same eight primitives</b>. There is no plugin to write,
           no service to fork and no pipeline to maintain: you publish a folder of YAML and the design
@@ -1694,7 +1773,7 @@ brief[<span class="cs">"manifest"</span>][<span class="cs">"rendered_sha256"</sp
        One dataset (LongMemEval-S, 500 questions), two readings of it: accuracy,
        then accuracy against cost per answer. /benchmarks/ tabulates every number
        shown here — when a score changes, change it in both places. -->
-  <section id="benchmarks">
+  <section id="benchmarks" class="alt">
     <div class="wrap">
       <div class="sec-head reveal" id="benchHead">
         <span class="eyebrow" style="--hue:var(--green)">public benchmarks · official grader</span>
@@ -1832,13 +1911,17 @@ brief[<span class="cs">"manifest"</span>][<span class="cs">"rendered_sha256"</sp
   </section>
 
   <!-- ============ NAMED COMPARISONS ============ -->
-  <section id="compare" class="alt">
+  <section id="compare">
     <div class="wrap">
       <div class="sec-head reveal">
         <span class="eyebrow" style="--hue:var(--violet)">how we compare</span>
-        <h2>What you're actually weighing us against.</h2>
-        <p>All three are free, and one ships from the model vendor. Each one below opens with the
-          case for <em>not</em> buying us.</p>
+        <h2>You can build retrieval in a weekend. Memory is what comes after.</h2>
+        <p>Postgres + pgvector gets you surprisingly far. The hard part starts when facts change:
+          deciding what still holds, preserving what used to hold, tracing every claim to evidence,
+          rebuilding historical state, and deleting data all the way through derived knowledge.
+          <b>That's the infrastructure Memseek gives you.</b></p>
+        <p class="cta-note">three honest alternatives below · each opens with the case for
+          <em>not</em> buying us</p>
       </div>
 
       <div class="ctabs reveal">
@@ -1935,7 +2018,7 @@ brief[<span class="cs">"manifest"</span>][<span class="cs">"rendered_sha256"</sp
   </section>
 
   <!-- ============ FAQ ============ -->
-  <section id="faq">
+  <section id="faq" class="alt">
     <div class="wrap">
       <div class="sec-head reveal">
         <span class="eyebrow" style="--hue:var(--pink)">straight answers</span>
@@ -1971,9 +2054,9 @@ brief[<span class="cs">"manifest"</span>][<span class="cs">"rendered_sha256"</sp
     <div class="wrap">
       <div class="cta-card reveal">
         <span class="eyebrow" style="--hue:var(--amber)">early access</span>
-        <h2>Give your agents context they can <span class="grad">trust.</span></h2>
-        <p>Run it on your own Postgres today — or join the hosted waitlist and <b>tell us
-          what your agent keeps getting wrong.</b></p>
+        <h2>Your agent already has a model. Give it a memory you can <span class="grad">inspect.</span></h2>
+        <p>Run Memseek on your own Postgres today, or join the hosted early access.</p>
+        <div class="cta-actions"><a class="btn btn-ghost" href="#quickstart">Run locally →</a></div>
         <div class="waitlist-form">
           <iframe
             data-tally-src="https://tally.so/embed/EkrGDN?alignLeft=1&amp;hideTitle=1&amp;transparentBackground=1&amp;dynamicHeight=1"
