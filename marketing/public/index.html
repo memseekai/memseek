@@ -74,6 +74,10 @@
      reads muddy — and --faint is too pale for code comments people must read. */
   :root[data-theme="light"] .nav-cta,
   :root[data-theme="light"] .btn-primary { color: #fff; }
+  /* White on the light gradient is only 3.5:1 at the orange end — under the
+     floor for 13px bold. The bar's one button deepens its own gradient rather
+     than swapping to dark ink, which keeps the look and clears 4.7:1. */
+  :root[data-theme="light"] .nav-cta { background: linear-gradient(120deg, #c2500f, #c01f45); }
   :root[data-theme="light"] .cm,
   :root[data-theme="light"] .yc { color: #6f7a85; }
 
@@ -168,6 +172,10 @@
     padding: .55rem 1rem; border-radius: 8px;
   }
   .nav-cta:hover { text-decoration: none; filter: brightness(1.07); }
+  /* `.nav-links a` out-specifies `.nav-cta`, so the one control on the bar that
+     has to read at a glance was inheriting muted grey onto the gradient. These
+     two win the label back — hover included, which had the same problem. */
+  .nav-links .nav-cta, .nav-links .nav-cta:hover { color: #16090b; }
   /* Seven labels was a row that had to hide two of itself to fit. Three
      labels, two of them menus: the sections group under Product, the reading
      under Resources, and Benchmarks stays one click because it is the proof. */
@@ -901,7 +909,7 @@
       </div>
       <a href="https://github.com/memseekai/memseek" class="nav-gh" aria-label="Memseek on GitHub"><svg aria-hidden="true"><use href="#gh-mark"/></svg></a>
       <button class="theme-toggle" id="themeBtn" aria-label="Toggle color theme">THEME</button>
-      <a href="#waitlist" class="nav-cta">Join the waitlist</a>
+      <a href="#quickstart" class="nav-cta">Run it locally</a>
     </nav>
   </div>
 </header>
@@ -920,8 +928,8 @@
             context</b> from a Postgres you run.
           </p>
           <div class="hero-cta">
-            <a href="#waitlist" class="btn btn-primary">Join the waitlist →</a>
-            <a href="#quickstart" class="btn btn-ghost">See it run locally</a>
+            <a href="#quickstart" class="btn btn-primary">Run it locally →</a>
+            <a href="#waitlist" class="btn btn-ghost">Join the hosted waitlist</a>
           </div>
           <p class="hero-note">
             <b>No retrieval pipeline. No opaque notebook.</b> Every fact is dated, cited, and
@@ -990,7 +998,7 @@
       <div class="sec-head reveal">
         <span class="eyebrow" style="--hue:var(--cyan)">how memseek works</span>
         <h2>A catalog is a folder of YAML. Memseek runs it.</h2>
-        <p>One mental model: <b>you declare what your agent should remember, keep true, and
+        <p>One mental model: <b>you declare what your agent should remember, derive, keep true, and
           see</b> — Memseek does the running. Four stages, all described in files you review like a
           schema migration.</p>
       </div>
@@ -1277,11 +1285,12 @@
     <div class="wrap">
       <div class="sec-head reveal">
         <span class="eyebrow">run it locally</span>
-        <h2>One command, then it's your data.</h2>
-        <p>Everything runs on your machine: an API, a worker, and ordinary Postgres. <b>Docker
-          brings up all three and publishes a working memory for you</b>, so there is something real
-          to query before you have written a line. Then point your coding agent at it, or start
-          writing YAML of your own. No account, no cron to schedule, no queue to own.</p>
+        <h2>One command. Your data stays yours.</h2>
+        <p>Everything runs on your machine: the API, the worker, and plain Postgres.</p>
+        <p>Run Docker once and Memseek brings up the full stack—<b>with a working memory already
+          loaded and ready to query</b>. You can point your coding agent at it immediately, or start
+          defining your own memories in YAML.</p>
+        <p>No account to create. No cron jobs to schedule. No queue infrastructure to manage.</p>
       </div>
 
       <div class="steps">
@@ -1957,7 +1966,8 @@ brief[<span class="cs">"manifest"</span>][<span class="cs">"rendered_sha256"</sp
       <div class="cta-card reveal">
         <span class="eyebrow" style="--hue:var(--amber)">early access</span>
         <h2>Give your agents context they can <span class="grad">trust.</span></h2>
-        <p>Join the waitlist for early access — and tell us what your agent keeps getting wrong.</p>
+        <p>Run it on your own Postgres today — or join the hosted waitlist and <b>tell us
+          what your agent keeps getting wrong.</b></p>
         <div class="waitlist-form">
           <iframe
             data-tally-src="https://tally.so/embed/EkrGDN?alignLeft=1&amp;hideTitle=1&amp;transparentBackground=1&amp;dynamicHeight=1"
@@ -1969,7 +1979,8 @@ brief[<span class="cs">"manifest"</span>][<span class="cs">"rendered_sha256"</sp
             marginwidth="0"
             title="Join the Memseek waitlist"></iframe>
         </div>
-        <span class="cta-note">Early access for agent teams · or start from the source:
+        <span class="cta-note">Early access for agent teams · or don't wait:
+          <a href="#quickstart">run it locally in one command</a> from
           <a href="https://github.com/memseekai/memseek">github.com/memseekai/memseek</a></span>
         <noscript><p class="waitlist-fallback"><a href="https://tally.so/r/EkrGDN">Join the Memseek waitlist</a></p></noscript>
       </div>
@@ -1991,6 +2002,7 @@ brief[<span class="cs">"manifest"</span>][<span class="cs">"rendered_sha256"</sp
       <a href="#faq">FAQ</a>
       <a href="/showcase/">Showcases</a>
       <a href="/blog/">Blog</a>
+      <a href="#waitlist">Waitlist</a>
       <a href="/rss.xml">RSS</a>
     </div>
     <div>Context engine for AI agents</div>
