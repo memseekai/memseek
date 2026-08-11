@@ -418,25 +418,20 @@ query:
       mode: vector
       scope: {collections: [reflections], entities: ["{{entity}}"]}
       k: 15
-      weight: 1.3                  # count these a bit more
+      weight: 1.1                  # tilt toward reflections; see below
   fuse: {kind: rrf, rank_constant: 60}
   k: 24                            # final merged result count
   render: true
 ```
 
-Rules:
+### Rules
 
 - 1 to 8 sources, each with a unique `name`.
 - Each source takes its own `mode`, `scope`, `where`, `order_by`, `rank`,
   `params`, and `k` (1–100) — the same options as a single search — plus a
-  **`weight`** (default `1.0`, at most 100) scaling how much it influences the
-  merged order.
-- You must declare **`fuse`**, which says how the separate result lists are
-  merged. The one method today is `rrf`, *reciprocal rank fusion*: a record
-  ranked highly by several sources beats one ranked highly by only a single
-  source. `rank_constant` (default 60, range 1–1000) tunes how quickly
-  influence falls off down each list; larger values flatten the difference
-  between first place and tenth.
+  **`weight`** (default `1.0`) scaling how much it influences the merged order.
+- You must declare **`fuse`**. The one method today is `rrf`, *reciprocal rank
+  fusion*; `rank_constant` defaults to `60` and must be 1–1000.
 - With `sources` you cannot also set a top-level `mode`, `scope`, `where`,
   `order_by`, or `rank` — everything per-search moves inside the source. A
   top-level `q` is still required if any source uses `vector`, `text`, or
@@ -445,26 +440,125 @@ Rules:
   source must be indexed in the same place.
 - Each source is ranked and cut to its own `k` *before* merging. The top-level
   `k` applies only after the lists have been merged.
-- A record found by several sources appears once and gets one contribution from
-  each list it appeared in. Its merged score is
-
-  ```text
-  RRF(record) = sum(source.weight / (rank_constant + rank_in_source))
-  ```
-
-  where `rank_in_source` counts from 1. A source that did not find the record
-  contributes nothing. With constant 60 and weights 1.0 and 1.3, a record
-  ranked 1st in one list and 4th in the other scores
-  `1/61 + 1.3/64 = 0.036706…`.
 - **`boost`** is an optional expression applied *after* merging. It may use
   stored scores, record age, and constants, but not query-specific signals like
   similarity. The final value is `RRF(record) * max(0, boost(record))`. `boost`
   multiplies; the separate `graph_boost` adds.
 
+### How the merge works
+
+Two searches return two ordered lists whose internal scores mean different
+things — a cosine similarity and a text relevance score are not on the same
+scale, and neither is comparable across queries. So fusion ignores those scores
+entirely and uses only **positions**. That is what reciprocal rank fusion does:
+
+```text
+RRF(record) = sum over sources that found it of
+                  weight / (rank_constant + rank_in_source)
+```
+
+`rank_in_source` counts from 1. A source that did not find the record
+contributes nothing at all. Because every contribution is positive, a record
+several sources agree on beats one that only a single source ranked highly —
+that agreement effect is the whole point of combining searches.
+
+This value is what you get back as `rank_score`; the `score` field is it
+normalized to 0–1 across the merged pool, and `ranking.kind` is `rrf`. See
+[How to read `score`](#how-to-read-score).
+
+### Reading the two constants
+
+Both constants exist because there is no absolute scale here — only the
+*relative* size of contributions decides the order.
+
+**`rank_constant` decides how much position matters.** Every contribution is
+`1/(rank_constant + rank)`, so a large constant compresses the gap between
+first place and last:
+
+| `rank_constant` | rank 1 | rank 10 | rank 30 | 1st vs 30th |
+| --- | --- | --- | --- | --- |
+| `10` | 0.0909 | 0.0500 | 0.0250 | 3.6× |
+| `60` (default) | 0.0164 | 0.0143 | 0.0111 | 1.5× |
+| `200` | 0.00498 | 0.00476 | 0.00435 | 1.1× |
+
+Lower it when you trust the order inside each list and want the top few to
+dominate. Raise it when the lists are noisy and you mainly want *appearing at
+all*, in several sources, to be the signal. The default `60` is deliberately
+flat: at that setting a 30-long list spans only a 1.5× range end to end.
+
+**`weight` is purely relative.** It multiplies one source's contributions, so
+only the *ratio* between weights changes anything — `1.0` and `2.0` merge
+exactly like `10` and `20`, or `0.5` and `1.0`. There is no scale to fill, and a
+big number is not a "stronger" setting in any absolute sense. The accepted range
+is greater than 0 and at most 100; that ceiling is a validation guard against
+runaway values, **not** a scale you are meant to spread your sources across. Ordinary
+tuning lives between about `0.5` and `2.0`.
+
+### Weight is measured against `rank_constant`, not against 1.0
+
+This is the part that surprises people. Because the default `rank_constant`
+flattens each list so much, a weight that *looks* modest can outweigh position
+completely. A hit at rank `r` in a source of weight `w` carries the same
+influence as an unweighted hit at position `(rank_constant + r)/w − rank_constant` —
+where a negative result means "better than anything the other source can
+offer". With `rank_constant: 60`:
+
+| `weight` | its rank 1 acts like… | its rank 15 acts like… |
+| --- | --- | --- |
+| `1.0` | rank 1 | rank 15 |
+| `1.1` | above rank 1 | rank 8 |
+| `1.3` | far above rank 1 | above rank 1 |
+| `2.0` | far above rank 1 | far above rank 1 |
+
+Read the `1.3` row carefully: at that weight, the *worst* of 15 reflections
+(`1.3/75 = 0.01733`) still beats the *best* event found by events alone
+(`1.0/61 = 0.01639`). Nothing is blended — the weighted list sweeps the top of
+the results. That is a legitimate thing to want, but it is not "a bit more".
+
+The general rule: a source **A** sweeps every record that only source **B**
+found once
+
+```text
+weight_A / weight_B  ≥  (rank_constant + k_A) / (rank_constant + 1)
+```
+
+For the example above that threshold is `(60 + 15) / (60 + 1) ≈ 1.23`, so `1.1`
+tilts the merge while `1.3` decides it. Two practical consequences:
+
+- If you want a genuine blend, keep weight ratios *below* that threshold, and
+  recompute it whenever you change a source's `k` or the `rank_constant`.
+- If you want one source to lead outright, do not reach for a huge weight. Just
+  past the threshold is enough to sweep, and going far beyond it costs you the
+  agreement effect: at a ratio like `50:1` the other source's contribution is
+  rounding error, so records *both* sources found are no longer lifted above
+  records only the heavy source found. Prefer a small `k` on the leading source
+  so it leads with a few records rather than burying everything else.
+
+A source's `k` is a weighting lever in its own right: fusion trusts positions,
+not quality, so a source that returns 30 weak results still injects 30 records
+at full strength. Cutting it to `k: 5` is often a cleaner fix than lowering its
+weight.
+
+### Worked example
+
+Take the view above — weights `1.0` (events) and `1.1` (reflections), constant
+`60`. A record ranked 1st by events and 4th by reflections scores
+
+```text
+1.0/(60 + 1) + 1.1/(60 + 4) = 0.016393 + 0.017188 = 0.033581
+```
+
+which comfortably beats a record ranked 1st by events alone (`0.016393`) or 1st
+by reflections alone (`0.018033`). Agreement roughly doubles the score; no
+single weight in the sane range does that.
+
+### Explaining a result
+
 Every merged result includes `source_ranks`: an object mapping each source name
 to the record's position in that source's list. Sources that did not find the
-record are omitted. This explains *where* a result's standing came from; it is
-not itself a score and is not normalized.
+record are omitted. This explains *where* a result's standing came from — and
+lets you check the arithmetic above against a real response — but it is not
+itself a score and is not normalized.
 
 ## Graph views
 
@@ -729,26 +823,54 @@ only when you asked for it.
 
 ### How to read `score`
 
-`score` answers "how does this result compare to the others I just got back?"
-and nothing more. It is calculated by stretching the internal ranking values
-across the full candidate pool onto a 0–1 range. Writing `u` for a result's
-`rank_score`, and `low`/`high` for the smallest and largest values across the
-complete ranked pool *before* `k` shortened the response:
+`score` answers exactly one question: **how does this result compare to the
+others in this same response?** It is a display scale, not a measure of quality,
+confidence, or similarity.
+
+The single most important consequence: **the top hit always scores `1.0`** —
+even when it is a poor match. A response full of irrelevant records still has a
+`1.0` at the top, because the scale is stretched to fit whatever came back. A
+`0.95` means "nearly as good as the best thing this query found", not "95%
+relevant".
+
+**How it is calculated.** Search ranks records with an internal value
+(`rank_score`) whose unit depends on the mode, rank expression, and fusion
+method — cosine-ish similarity, a rank formula's output, an RRF sum. That value
+is then projected onto 0–1 by min–max scaling. Writing `u` for a result's
+`rank_score` and `low`/`high` for the smallest and largest values in the
+**ranked candidate pool**:
 
 ```text
 score = 1                                      if high == low
 score = (u - low) / (high - low)               otherwise
 ```
 
-Because the bounds come from the pool *before* `k` is applied, the last result
-you receive need not score 0. Internal values `[9, 5, 2]` with `k: 2` return
-scores `[1, 3/7]` — the unreturned `2` still sets the lower bound.
+**What "candidate pool" means** — always more than the results you see, which is
+why the last hit rarely scores 0:
 
-This preserves order faithfully, but it is not a probability and not a stable
-unit of measurement. **Do not compare `score` across different query texts,
-scopes, workspaces, views, or configurations.** Use `rank` to order results,
-`score` for display or a threshold *within one response*, and `rank_score`
-only for diagnostics tied to one exact configuration.
+| Situation | The pool the bounds come from |
+| --- | --- |
+| A single search | Every candidate the search ranked, before `k` cut the response — by default at least 100 and at most 1,000, tunable with [`params.candidates`](#advanced-query-knobs). |
+| [Combined searches](#combining-several-searches) | Every record the merge produced, before the top-level `k`. |
+| With `graph_boost` | The same pools, but measured *after* the boost is added. |
+
+Internal values `[9, 5, 2]` with `k: 2` return scores `[1, 3/7]` — the
+unreturned `2` still sets the lower bound. And if every candidate ties, every
+result scores `1.0`, because none of them is worse than any other.
+
+**How to use it.**
+
+| Do | Don't |
+| --- | --- |
+| Use `rank` to order results. | Don't sort by `score` — ties and rounding make it a worse key than `rank`. |
+| Use `score` for display: a bar, a shade, a "top match" badge. | Don't show it as a percentage or a confidence. |
+| Use a `score` threshold to trim a response to the results near its own best (`>= 0.8` means "close to the top hit here"). | Don't use a threshold as a quality gate — it can never return an empty result, since something always scores `1.0`. |
+| Use `rank_score` for diagnostics, pinned to one exact configuration. | Don't compare `score` across query texts, scopes, workspaces, views, or configuration changes. The scale is rebuilt per response. |
+
+If what you actually want is "only show results that are genuinely good", a
+relative scale cannot give it to you. Filter on stored enrichment scores with
+[`where`](#typed-filters-where), or use [model reranking](#model-reranking),
+which judges results rather than positioning them.
 
 Structured mode has no relevance at all, so it returns no scores:
 
