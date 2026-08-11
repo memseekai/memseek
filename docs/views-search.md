@@ -1049,33 +1049,94 @@ which is why a deployment's own numbers may sit on a 0–3 scale instead. Check
 Those ranges are the formula's own scale. They are not the public `score`, which
 is always rescaled to 0–1 per response.
 
-A rank expression is a small typed language, not database SQL. The building
-blocks:
+#### The expression language
 
-| Operator | Exact value |
+A rank expression is a small tree, written in plain YAML or JSON. There is no
+SQL and no arithmetic syntax — every node is a list whose **first item is the
+operator name**:
+
+```yaml
+[operator, argument, ...]
+```
+
+The tree is evaluated once per candidate record and produces one number. Higher
+wins. Two kinds of node:
+
+- **Signals** are the leaves. Each one reads a number off the record.
+- **Shapers** take other nodes and combine or reshape them.
+
+**Signals — what you can read**
+
+| Signal | What it is | Range |
+| --- | --- | --- |
+| `[similarity]` | `1 - cosine_distance(query, record)`, recomputed at read time from canonical data. `vector` and `hybrid` only. | usually -1 to 1 |
+| `[text_match]` | PostgreSQL `ts_rank_cd` over English full-text search. `text` and `hybrid` only. | 0 upward, no fixed ceiling, and query-dependent |
+| `[score, name]` | The number stored in the record's `scores[name]` — an enrichment or client score. | whatever the producer chose |
+| `[age_hours, field]` | Hours since `created_at`, `occurred_at`, or `last_accessed`. A future timestamp counts as 0. | 0 upward, grows forever |
+| `[const, n]` | A fixed number. | — |
+
+**Any missing signal is 0.** No embedding, no stored score, a typo'd scorer
+name at runtime — all evaluate to 0 rather than dropping the record. This is
+usually what you want, but it does mean a record with no `importance` score
+competes as though its importance were the lowest possible.
+
+**Shapers — what you can do with them**
+
+| Shaper | What it does |
 | --- | --- |
-| `[similarity]` | `1 - cosine_distance(query_embedding, record_embedding)`, recomputed at read time. Legal only in vector/hybrid modes. Normally between -1 and 1. A missing signal counts as 0. |
-| `[text_match]` | PostgreSQL `ts_rank_cd` over English full-text search and the record's text. Legal only in text/hybrid modes. Its raw value depends on the query, is never negative, and has no fixed upper bound. |
-| `[score, name]` | The raw number stored in the record's `scores[name]`. Missing, non-numeric, or infinite values count as 0. Ranges are defined by whoever produced the score; search does not rescale this on its own. |
-| `[age_hours, field]` | `max(0, (now - field) / 1 hour)` for `created_at`, `occurred_at`, or `last_accessed`. A future timestamp counts as 0. |
-| `[const, n]` | A fixed number. |
-| `[sum, [expr, ...]]` | Add the child values together. |
-| `[max, [expr, ...]]` | Take the largest child value. |
-| `[product, factor, expr]` | Multiply by a finite constant, which may be negative. |
-| `[normalize, expr]` | Rescale that child to 0–1 across the current pool — normally one search's surviving candidates. The formula is `(x - min) / (max - min)`; if every value is identical, they all become 0. |
-| `[saturate, expr, {midpoint: m, exponent: e}]` | With `x = max(0, expr)`: `x^e / (x^e + m^e)`. Starts at 0, is 0.5 at `x = m`, approaches 1. Use for "more is better, with diminishing returns." |
-| `[decay, expr, {midpoint: m, exponent: e}]` | With `x = max(0, expr)`: `1 / (1 + x^e / m^e)`. Starts at 1, is 0.5 at `x = m`, approaches 0. Use for "fades with age." |
+| `[sum, [a, b, ...]]` | Adds the children. This is how you combine several signals. |
+| `[max, [a, b, ...]]` | Takes the largest child — "whichever of these is stronger". |
+| `[product, factor, a]` | Multiplies by a fixed number. This is how you weight a term; a negative factor makes it a penalty. |
+| `[normalize, a]` | `(x - min) / (max - min)` across the current candidates → 0–1. If every candidate ties, all become **0**. |
+| `[saturate, a, {midpoint: m, exponent: e}]` | `x^e / (x^e + m^e)` → 0 up to 1, passing 0.5 at `x = m`. "More is better, with diminishing returns." |
+| `[decay, a, {midpoint: m, exponent: e}]` | `1 / (1 + x^e / m^e)` → 1 down to 0, passing 0.5 at `x = m`. "Fades as this grows." |
 
-Use `normalize` on any signal with no fixed range — `text_match` and stored
-scores especially — so one runaway value cannot swamp the others. Use `saturate`
-for "more is better, but the tenth is worth less than the first", and `decay`
-for anything that should fade with time.
+`saturate` and `decay` clamp their input at 0 first, and both options are
+required and must be positive.
 
-Expressions are capped at 5 levels deep and 16 nodes, and every score and field
-they reference is checked when your definitions load, so a typo fails at load
-time rather than at query time. `midpoint` and `exponent` must be positive, and
-every result must be finite. `GET /rank/schema` returns the grammar, the active
-defaults and their hash, and what your deployment's search engines support.
+**The recipe.** Raw signals are on incompatible scales — a `text_match` of 0.4
+and an `age_hours` of 400 cannot be meaningfully added. So almost every useful
+formula has the same shape: put each signal on 0–1, weight it, add them up.
+
+```yaml
+[sum, [
+  [product, 1.0, [normalize, [text_match]]],                                  # relevance
+  [product, 0.5, [saturate, [score, importance], {midpoint: 5, exponent: 1}]],# importance, worth half
+  [product, 1.0, [decay, [age_hours, occurred_at], {midpoint: 168, exponent: 1}]],  # freshness, 0.5 at a week
+]]
+```
+
+Read it as: match strength, plus half of a diminishing-returns importance term,
+plus a freshness term worth 1 today and 0.5 for a week-old record. Because each
+term is 0–1, the `product` factors *are* the relative weights — that is the only
+place your intent lives, so keep them readable.
+
+**Choosing between `normalize` and `saturate`/`decay`** — this decides whether a
+term is competitive or absolute:
+
+| | `normalize` | `saturate` / `decay` |
+| --- | --- | --- |
+| Compares against | the other candidates in this query | a fixed midpoint you choose |
+| Same record, different query | different value | same value |
+| All candidates tie | term becomes 0 and stops mattering | term keeps its real value |
+| Use it for | unbounded, query-dependent signals: `text_match`, raw stored scores | anything with a meaning of its own: age, counts, ratings |
+
+Use `normalize` when only the ranking within one result set matters, and
+`saturate`/`decay` when "3 days old" should mean the same thing every time.
+
+**A note on `last_accessed`.** It is updated when a search *returns* a record,
+not when a human reads it. A `decay` on `last_accessed` therefore means "recently
+used by anything", and it is self-reinforcing: returned records stay warm and
+tend to be returned again. That is a good default for an agent's working memory
+and a bad one for an audit view, where `occurred_at` or `created_at` is the
+honest field.
+
+**Limits.** At most 16 nodes and 5 levels deep — the shipped `hybrid` default
+already uses all 5 levels, so deep nesting is not the intended style. Scorer
+names and fields are checked when your definitions load, so a typo fails then
+rather than at query time. Every value produced must be finite.
+`GET /rank/schema` returns the grammar, the active defaults and their hash, and
+what your deployment's search engines support.
 
 #### `normalize` inside a formula is not the public `score`
 
