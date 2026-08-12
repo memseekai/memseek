@@ -88,7 +88,7 @@ and:
 
 > What still looks promising after I investigate the consequences?
 
-The first is cheap intuition. The second is expensive search.
+The first is cheap intuition. The second is expensive search. The familiar **exploration–exploitation tradeoff** lives inside that split: exploit moves the policy already considers promising, but explore enough alternatives to discover when its prior is wrong.
 
 That distinction has proved remarkably durable.
 
@@ -370,7 +370,7 @@ And the architecture contains one more important dynamic: the loop does not only
 
 This may be the deepest lesson in AlphaGo.
 
-Search produces decisions better than the neural network could produce immediately. But running a large tree search forever is expensive. The results of that expensive search can therefore become training signal.
+Search produces decisions better than the neural network could produce immediately. But running a large tree search forever is expensive. The results of that expensive search can therefore become training signal. In reinforcement-learning terms, this is **policy improvement**: search finds behavior better than the current policy can produce alone, and learning distills that behavior back into the policy.
 
 $$
 \text{expensive cognition}
@@ -378,7 +378,7 @@ $$
 \text{cheap cognition}
 $$
 
-Today's agent may need twenty tool calls, twelve errors, three searches, and a simulation to solve a class of problem. If successful trajectories are stored, abstracted, turned into tools, used for retrieval, or incorporated into training, tomorrow's agent may simply recognize the pattern and act.
+An agent's sequence of states, actions, tool results, and corrections is a **trajectory**; imagined continuations through a simulator are **rollouts**. Today's agent may need twenty tool calls, twelve errors, three searches, and a simulation to solve a class of problem. If successful trajectories and useful rollouts are stored, abstracted, turned into tools, used for retrieval, or incorporated into training, tomorrow's agent may simply recognize the pattern and act.
 
 Search has become intuition.
 
@@ -402,9 +402,9 @@ The second loop changes the solver.
 
 The obvious analogy is System 1 and System 2: fast intuition and slow deliberation. It is useful, but too coarse.
 
-Psychology and computational neuroscience distinguish between **model-free** and **model-based** control. Model-free behavior relies more heavily on cached values learned from past experience. It is fast. Model-based control maintains a representation of how states and actions relate, making it possible to evaluate alternative futures. It is flexible, but expensive. Research in humans suggests that both contribute to behavior and interact rather than operating as isolated systems. ([pmc.ncbi.nlm.nih.gov](https://pmc.ncbi.nlm.nih.gov/articles/PMC2895323/))
+Reinforcement learning, psychology, and computational neuroscience use a more precise distinction: **model-free** versus **model-based** control. In RL terms, model-free control relies on cached values or a learned policy rather than simulating the environment. It is fast. Model-based control uses a model of the environment's dynamics to evaluate possible futures. It is flexible, but expensive. Research in humans suggests that both contribute to behavior and interact rather than operating as isolated systems. ([pmc.ncbi.nlm.nih.gov](https://pmc.ncbi.nlm.nih.gov/articles/PMC2895323/))
 
-The engineering analogy is direct: a learned policy gives a fast response; world-model search simulates alternatives.
+The analogy to agents is deliberate, though not exact: a learned policy or model prior supplies the fast response, while world-model search performs the slower planning.
 
 Then there is **metacognition**. Humans do not merely think. We make judgments about our thinking:
 
