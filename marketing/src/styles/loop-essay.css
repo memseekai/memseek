@@ -1,0 +1,342 @@
+/* Dedicated art direction for “The Loop Has Always Been There”.
+   All decoration is CSS/DOM-only so the article remains the source of truth. */
+.post.loop-essay {
+  --loop-cyan: var(--cyan);
+  --loop-violet: var(--violet);
+  --loop-orange: var(--orange);
+}
+
+.post.loop-essay .post-head {
+  position: relative;
+  max-width: 56rem;
+  padding-top: .5rem;
+}
+
+.post.loop-essay .post-head::before {
+  content: "";
+  position: absolute;
+  inset: -6rem auto auto -22rem;
+  width: 36rem;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: radial-gradient(circle, color-mix(in srgb, var(--violet) 10%, transparent), transparent 67%);
+  pointer-events: none;
+}
+
+.post.loop-essay .post-head h1 {
+  max-width: 17ch;
+  font-size: clamp(2.4rem, 1.8rem + 3vw, 4.35rem);
+  line-height: 1.02;
+  letter-spacing: -.055em;
+  margin-top: clamp(1.15rem, 2.5vw, 2rem);
+  background: linear-gradient(108deg, var(--text) 5%, var(--text) 54%, var(--orange) 80%, var(--pink));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.post.loop-essay .post-lede {
+  max-width: 52ch;
+  font-family: var(--mono);
+  font-size: clamp(.98rem, .92rem + .3vw, 1.15rem);
+  line-height: 1.55;
+  color: var(--muted);
+}
+
+.loop-hero {
+  position: relative;
+  margin-top: clamp(1.8rem, 3.5vw, 2.8rem);
+  width: min(100%, 920px);
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background:
+    linear-gradient(150deg, color-mix(in srgb, var(--surface-2) 82%, transparent), transparent 58%),
+    var(--surface);
+  box-shadow: var(--shadow);
+  isolation: isolate;
+}
+
+.loop-field {
+  position: relative;
+  min-height: clamp(10rem, 22vw, 13rem);
+}
+
+.loop-grid {
+  position: absolute;
+  inset: 0;
+  opacity: .42;
+  background-image:
+    linear-gradient(var(--border) 1px, transparent 1px),
+    linear-gradient(90deg, var(--border) 1px, transparent 1px);
+  background-size: 40px 40px;
+  -webkit-mask-image: radial-gradient(ellipse at center, #000, transparent 75%);
+  mask-image: radial-gradient(ellipse at center, #000, transparent 75%);
+}
+
+.loop-field::before,
+.loop-field::after {
+  content: "";
+  position: absolute;
+  inset: 50% auto auto 50%;
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.loop-field::before {
+  width: 16rem;
+  height: 16rem;
+  translate: -50% -50%;
+  background: radial-gradient(circle, color-mix(in srgb, var(--orange) 13%, transparent), transparent 68%);
+  filter: blur(12px);
+}
+
+.loop-field::after {
+  width: 4rem;
+  height: 4rem;
+  translate: -50% -50%;
+  border: 1px solid color-mix(in srgb, var(--orange) 35%, var(--border));
+  box-shadow: 0 0 0 1.5rem color-mix(in srgb, var(--orange) 3%, transparent);
+}
+
+.loop-orbit {
+  position: absolute;
+  inset: 50% auto auto 50%;
+  translate: -50% -50%;
+  border: 1px solid color-mix(in srgb, var(--cyan) 34%, var(--border));
+  border-radius: 50%;
+}
+
+.loop-orbit--outer {
+  width: min(76%, 28rem);
+  aspect-ratio: 2.25 / 1;
+  animation: loop-breathe 7s ease-in-out infinite;
+}
+
+.loop-orbit--inner {
+  width: min(45%, 17rem);
+  aspect-ratio: 1.8 / 1;
+  rotate: -18deg;
+  border-color: color-mix(in srgb, var(--violet) 42%, var(--border));
+  animation: loop-breathe 5s 1.2s ease-in-out infinite reverse;
+}
+
+.loop-orbit i {
+  position: absolute;
+  width: .56rem;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: var(--cyan);
+  border: 2px solid var(--surface);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--cyan) 55%, transparent);
+}
+
+.loop-orbit i:nth-child(1) { left: 8%; top: 16%; }
+.loop-orbit i:nth-child(2) { right: 4%; top: 41%; background: var(--orange); }
+.loop-orbit i:nth-child(3) { left: 28%; bottom: -1%; background: var(--violet); }
+.loop-orbit i:nth-child(4) { left: 53%; top: -2%; background: var(--green); }
+.loop-orbit i:nth-child(5) { left: 2%; bottom: 24%; background: var(--amber); }
+
+.loop-core {
+  position: absolute;
+  z-index: 2;
+  inset: 50% auto auto 50%;
+  translate: -50% -50%;
+  width: 2.4rem;
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--border-strong);
+  border-radius: 50%;
+  background: var(--bg);
+}
+
+.loop-core span {
+  width: .7rem;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: var(--grad);
+  animation: loop-core-pulse 2.2s ease-in-out infinite;
+}
+
+.loop-trace {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  fill: none;
+  stroke-width: 1;
+}
+
+.loop-trace path:first-child {
+  stroke: color-mix(in srgb, var(--orange) 44%, transparent);
+  stroke-dasharray: .08 .035;
+  animation: loop-dash 8s linear infinite;
+}
+
+.loop-trace path:last-child {
+  stroke: color-mix(in srgb, var(--violet) 36%, transparent);
+  stroke-dasharray: .02 .05;
+  animation: loop-dash 12s linear infinite reverse;
+}
+
+.loop-pulse {
+  position: absolute;
+  width: .38rem;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: var(--text);
+  box-shadow: 0 0 0 .35rem color-mix(in srgb, var(--cyan) 8%, transparent);
+  opacity: .62;
+}
+.loop-pulse--one { left: 16%; top: 66%; animation: loop-float 4.8s ease-in-out infinite; }
+.loop-pulse--two { right: 17%; top: 29%; animation: loop-float 5.4s 1s ease-in-out infinite reverse; }
+.loop-pulse--three { right: 33%; bottom: 16%; animation: loop-float 4.2s .6s ease-in-out infinite; }
+
+.reading-rail {
+  position: fixed;
+  z-index: 40;
+  top: 64px;
+  left: 0;
+  width: 3px;
+  height: calc(100vh - 64px);
+  background: color-mix(in srgb, var(--border) 52%, transparent);
+  pointer-events: none;
+}
+.reading-rail span {
+  display: block;
+  width: 100%;
+  height: calc(var(--reading-progress, 0) * 100%);
+  background: linear-gradient(var(--orange), var(--pink) 50%, var(--violet));
+  transition: height .08s linear;
+}
+
+.post.loop-essay .post-body {
+  margin-top: clamp(2.2rem, 4vw, 3.2rem);
+}
+
+.post.loop-essay .prose {
+  max-width: 46rem;
+  font-size: clamp(1rem, .98rem + .12vw, 1.06rem);
+  line-height: 1.68;
+}
+
+.post.loop-essay .prose > * + * { margin-top: .9em; }
+.post.loop-essay .prose p + p { margin-top: .72em; }
+.post.loop-essay .prose p {
+  text-align: justify;
+  text-justify: inter-word;
+  hyphens: auto;
+}
+
+.post.loop-essay .prose h2 {
+  margin-top: 2.35em;
+  padding-top: 0;
+  border: 0;
+  font-size: clamp(1.3rem, 1.18rem + .55vw, 1.65rem);
+  line-height: 1.25;
+}
+
+.post.loop-essay .prose p:has(> strong:only-child) {
+  margin-block: 1.1em;
+  padding: 0;
+  border: 0;
+  background: none;
+}
+
+.post.loop-essay .prose p:has(> strong:only-child) strong {
+  font-family: var(--mono);
+  font-size: .94em;
+  line-height: 1.65;
+}
+
+.post.loop-essay .prose blockquote {
+  border: 0;
+  border-left: 1px solid color-mix(in srgb, var(--violet) 60%, var(--border));
+  border-radius: 0;
+  padding: .05rem 0 .05rem 1.1rem;
+  background: none;
+  color: var(--muted);
+}
+
+.post.loop-essay .prose pre {
+  position: relative;
+  padding: .5rem 0 .5rem 1.05rem;
+  border: 0;
+  border-left: 1px solid color-mix(in srgb, var(--cyan) 52%, var(--border));
+  border-radius: 0;
+  box-shadow: none;
+  font-size: .86rem;
+  line-height: 1.56;
+}
+
+:root:not([data-theme="light"]) .post.loop-essay .prose .astro-code {
+  color: var(--shiki-dark, #e6edf3) !important;
+  background: transparent !important;
+}
+
+:root:not([data-theme="light"]) .post.loop-essay .prose .astro-code span {
+  color: var(--shiki-dark, inherit) !important;
+  background-color: transparent !important;
+}
+
+:root[data-theme="light"] .post.loop-essay .prose .astro-code {
+  color: var(--shiki-light, #24292e) !important;
+  background: transparent !important;
+}
+
+:root[data-theme="light"] .post.loop-essay .prose .astro-code span {
+  color: var(--shiki-light, inherit) !important;
+  background-color: transparent !important;
+}
+
+.post.loop-essay .prose hr {
+  display: none;
+}
+
+.post.loop-essay .prose .katex-display {
+  padding: .55rem 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+}
+
+.post.loop-essay .prose a:not(.head-anchor) {
+  text-decoration-color: color-mix(in srgb, var(--cyan) 45%, transparent);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+
+.post.loop-essay .prose h2:last-of-type ~ ol {
+  font-size: .88em;
+  color: var(--muted);
+}
+
+@keyframes loop-breathe {
+  0%, 100% { scale: 1; opacity: .72; }
+  50% { scale: 1.035; opacity: 1; }
+}
+@keyframes loop-core-pulse {
+  0%, 100% { scale: .82; opacity: .72; }
+  50% { scale: 1.16; opacity: 1; }
+}
+@keyframes loop-dash { to { stroke-dashoffset: -1; } }
+@keyframes loop-float {
+  0%, 100% { translate: 0 0; }
+  50% { translate: 0 -.8rem; }
+}
+@media (max-width: 720px) {
+  .post.loop-essay .post-head h1 { font-size: clamp(2.3rem, 11vw, 3.5rem); }
+  .loop-hero { border-radius: 13px; }
+  .loop-orbit--outer { width: 88%; }
+  .loop-orbit--inner { width: 58%; }
+  .post.loop-essay .prose pre { font-size: .79rem; padding: .45rem 0 .45rem .8rem; }
+  .reading-rail { width: 2px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .loop-orbit,
+  .loop-core span,
+  .loop-trace path,
+  .loop-pulse { animation: none; }
+}

@@ -1,0 +1,40 @@
+<div class="loop-hero" aria-hidden="true">
+  <div class="loop-field">
+    <div class="loop-grid"></div>
+    <div class="loop-orbit loop-orbit--outer">
+      <i></i><i></i><i></i><i></i><i></i>
+    </div>
+    <div class="loop-orbit loop-orbit--inner">
+      <i></i><i></i><i></i>
+    </div>
+    <div class="loop-core">
+      <span></span>
+    </div>
+    <svg class="loop-trace" viewBox="0 0 900 360" preserveAspectRatio="none">
+      <path pathLength="1" d="M36 246 C116 246 119 90 220 90 S326 288 427 288 527 80 631 80 733 246 864 246" />
+      <path pathLength="1" d="M37 246 C136 246 167 210 249 210 S368 132 445 132 563 246 640 246 747 202 864 202" />
+    </svg>
+    <span class="loop-pulse loop-pulse--one"></span>
+    <span class="loop-pulse loop-pulse--two"></span>
+    <span class="loop-pulse loop-pulse--three"></span>
+  </div>
+</div>
+
+<div class="reading-rail" aria-hidden="true"><span></span></div>
+
+<script>
+  const root = document.querySelector('.post.loop-essay');
+
+  if (root) {
+    const updateProgress = () => {
+      const rect = root.getBoundingClientRect();
+      const available = Math.max(1, root.scrollHeight - window.innerHeight);
+      const progress = Math.min(1, Math.max(0, -rect.top / available));
+      root.style.setProperty('--reading-progress', `${progress}`);
+    };
+
+    updateProgress();
+    addEventListener('scroll', updateProgress, { passive: true });
+    addEventListener('resize', updateProgress, { passive: true });
+  }
+</script>

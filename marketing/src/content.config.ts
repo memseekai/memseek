@@ -17,6 +17,8 @@ const blog = defineCollection({
       updated: z.coerce.date().optional(),
       author: z.string().default('Memseek'),
       tags: z.array(z.string()).default([]),
+      /** Optional art direction for essays with a dedicated visual treatment. */
+      presentation: z.enum(['loop-essay']).optional(),
       /** Hidden from listings, RSS and sitemap; still built in `astro dev`. */
       draft: z.boolean().default(false),
       /** Relative path to a colocated image, e.g. ./images/cover.png */
