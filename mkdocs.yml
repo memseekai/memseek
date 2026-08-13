@@ -1,5 +1,8 @@
 site_name: Memseek
 site_description: Declarative, provenance-aware memory for agentic applications.
+site_url: https://memseekai.github.io/memseek/
+repo_url: https://github.com/memseekai/memseek
+repo_name: memseekai/memseek
 docs_dir: docs
 site_dir: site
 use_directory_urls: true
@@ -11,7 +14,9 @@ use_directory_urls: true
 # file from here publishes it — check before you do.
 exclude_docs: |
   agent-memory-l0-l3-plan.md
+  cost-tracking-plan.md
   gbrain-plan.md
+  inngest-execution-review.md
   memseek-vs-cognee.md
   qmd-on-memseek-plan.md
   schema-evolution-plan.md
@@ -20,30 +25,117 @@ exclude_docs: |
   synthesis-and-differentiation.md
 
 theme:
-  name: readthedocs
+  name: material
+  # Overrides render the `eyebrow:` front-matter every page already carries,
+  # and swap the logo for the marketing site's gradient dot. It sits outside
+  # docs_dir on purpose: anything under docs/ that is not a page gets copied
+  # verbatim into the built site, which would publish these raw templates.
+  custom_dir: overrides
+  language: en
+  font:
+    # The marketing site's pair, loaded from the same Google Fonts families:
+    # Inter for prose, JetBrains Mono for headings, code, and UI chrome.
+    text: Inter
+    code: JetBrains Mono
+  icon:
+    repo: fontawesome/brands/github
+  features:
+    - navigation.instant
+    - navigation.instant.progress
+    - navigation.tracking
+    - navigation.top
+    - navigation.indexes
+    - navigation.footer
+    - toc.follow
+    - search.suggest
+    - search.highlight
+    - search.share
+    - content.code.copy
+    - content.code.annotate
+    - content.tabs.link
+    - content.tooltips
+  palette:
+    # Dark first, like the marketing site; the toggle persists the reader's
+    # choice. Both schemes are re-tinted to the site tokens in extra.css —
+    # `slate`/`default` only decide which set of Material variables applies.
+    #
+    # `custom` for primary and accent is Material's opt-out: it stops the theme
+    # emitting any built-in color rules, so extra.css is the only thing setting
+    # brand color. Naming a stock color instead would ship rules like
+    # [data-md-color-scheme=slate][data-md-color-primary=indigo], which
+    # out-specify the overrides and drag Material's indigo back into the links.
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
 
 markdown_extensions:
+  - abbr
   - admonition
   - attr_list
+  - def_list
+  - footnotes
+  - md_in_html
   - meta
   - tables
   - toc:
       permalink: true
-  # Renders ```mermaid blocks as diagrams instead of code.
+      permalink_title: Link to this section
+      # Deep pages here run to h4; without this the right-hand TOC stops at h3
+      # and long references lose their map.
+      toc_depth: 4
+  - pymdownx.betterem
+  - pymdownx.caret
+  - pymdownx.details
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.keys
+  - pymdownx.mark
+  - pymdownx.smartsymbols
+  - pymdownx.tilde
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  # Renders ```mermaid blocks as diagrams instead of code. Material ships its
+  # own mermaid bundle and re-themes diagrams on palette switch, so this uses
+  # the code format it hooks — not a hand-rolled <div> plus a CDN script.
   - pymdownx.superfences:
       custom_fences:
         - name: mermaid
           class: mermaid
-          # div, not code: this emits <div class="mermaid">…</div>, which is
-          # exactly what mermaid's startOnLoad scans for.
-          format: !!python/name:pymdownx.superfences.fence_div_format
+          format: !!python/name:pymdownx.superfences.fence_code_format
+
+plugins:
+  - search
+
+extra:
+  social:
+    - icon: fontawesome/solid/globe
+      link: https://memseek.pages.dev/
+      name: memseek.ai
+    - icon: fontawesome/brands/github
+      link: https://github.com/memseekai/memseek
+      name: Memseek on GitHub
+  generator: false
+
+copyright: Context engine for AI agents
 
 extra_css:
   - stylesheets/extra.css
-
-extra_javascript:
-  - https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js
-  - javascripts/mermaid-init.js
 
 nav:
   - Overview: index.md
@@ -68,6 +160,7 @@ nav:
       - Python SDK: sdk.md
       - HTTP API guide: api-surface.md
       - MCP: mcp.md
+      - Claude Code plugin: claude-code-plugin.md
       - Operations: operations.md
   - Evolve and operate:
       - Changing definitions: changing-definitions.md

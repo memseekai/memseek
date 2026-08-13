@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+
+<!--
+  Every page in docs/ carries an `eyebrow:` front-matter line — a kicker that
+  says what kind of page this is before the title says what it is about. The
+  readthedocs theme dropped it on the floor; here it renders above the H1 in
+  the marketing site's .eyebrow treatment (mono, uppercase, tracked, rule).
+-->
+{% block content %}
+  {% if page.meta and page.meta.eyebrow %}
+    <p class="ms-eyebrow">{{ page.meta.eyebrow }}</p>
+  {% endif %}
+  {{ super() }}
+{% endblock %}

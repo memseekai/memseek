@@ -1,26 +1,66 @@
 ---
 /**
  * Blog-side nav. Mirrors the landing page header, but its section links are
- * absolute (/#why) so they work from a /blog/... URL.
+ * absolute (/#how) so they work from a /blog/... URL.
+ *
+ * Three labels, two of them menus — the same shape index.html settled on. The
+ * flat eight-label row this replaced needed about 1174px inside a container
+ * that never exceeds ~1100px, so the wordmark and the first link touched at
+ * every desktop width, and the rule meant to thin the row only fired below
+ * 1120px, under the container's own max width.
  */
 const { pathname } = Astro.url;
 const onBlog = pathname.startsWith('/blog') || pathname.startsWith('/tags');
 const onShowcase = pathname.startsWith('/showcase');
 const onBenchmarks = pathname.startsWith('/benchmarks');
 const onContextEngine = pathname.startsWith('/context-engine');
+const onClaudeCode = pathname.startsWith('/claude-code');
+
+// A menu names the section the reader is in, since the page's own label is
+// folded inside it and would otherwise be invisible until the panel is opened.
+const inProduct = onClaudeCode;
+const inResources = onContextEngine || onShowcase || onBlog;
 ---
 
 <header class="nav">
   <div class="wrap nav-inner">
     <a href="/" class="brand"><span class="dot"></span>memseek</a>
     <nav class="nav-links">
-      <a href="/context-engine/" class="hide-sm" aria-current={onContextEngine ? 'page' : undefined}>Context engine</a>
-      <a href="/#how" class="hide-sm">How it works</a>
-      <a href="/#designs" class="hide-sm">Memory designs</a>
-      <a href="/benchmarks/" class="hide-sm" aria-current={onBenchmarks ? 'page' : undefined}>Benchmarks</a>
-      <a href="/showcase/" aria-current={onShowcase ? 'page' : undefined}>Showcases</a>
-      <a href="/blog/" aria-current={onBlog ? 'page' : undefined}>Blog</a>
-      <a href="https://github.com/memseekai/memseek" class="nav-gh" aria-label="Memseek on GitHub"><svg aria-hidden="true"><use href="#gh-mark" /></svg><span class="lbl">GitHub</span></a>
+      <div class="nav-menu">
+        <button
+          class="nav-trigger"
+          type="button"
+          aria-expanded="false"
+          aria-controls="navProduct"
+          data-current={inProduct ? '' : undefined}
+        >Product</button>
+        <div class="nav-panel" id="navProduct">
+          <a href="/#how">How it works</a>
+          <a href="/#catalog">The catalog</a>
+          <a href="/#designs">Memory designs</a>
+          <a href="/#quickstart">Run it locally</a>
+          <a href="/claude-code/" aria-current={onClaudeCode ? 'page' : undefined}>Claude Code plugin</a>
+          <a href="/#compare">Compare</a>
+          <a href="/benchmarks/" class="narrow-only" aria-current={onBenchmarks ? 'page' : undefined}>Benchmarks</a>
+        </div>
+      </div>
+      <a href="/benchmarks/" class="nav-bench" aria-current={onBenchmarks ? 'page' : undefined}>Benchmarks</a>
+      <div class="nav-menu">
+        <button
+          class="nav-trigger"
+          type="button"
+          aria-expanded="false"
+          aria-controls="navLearn"
+          data-current={inResources ? '' : undefined}
+        >Resources</button>
+        <div class="nav-panel" id="navLearn">
+          <a href="/context-engine/" aria-current={onContextEngine ? 'page' : undefined}>Context engine</a>
+          <a href="/showcase/" aria-current={onShowcase ? 'page' : undefined}>Showcases</a>
+          <a href="/blog/" aria-current={onBlog ? 'page' : undefined}>Blog</a>
+          <a href="/#faq">FAQ</a>
+        </div>
+      </div>
+      <a href="https://github.com/memseekai/memseek" class="nav-gh" aria-label="Memseek on GitHub"><svg aria-hidden="true"><use href="#gh-mark" /></svg></a>
       <button class="theme-toggle" id="themeBtn" aria-label="Toggle color theme">THEME</button>
       <a href="/#waitlist" class="nav-cta">Join the waitlist</a>
     </nav>

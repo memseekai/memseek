@@ -82,11 +82,72 @@ const ogImageUrl = new URL(ogImage, Astro.site);
       (function () {
         var root = document.documentElement;
         var btn = document.getElementById('themeBtn');
-        if (!btn) return;
-        btn.addEventListener('click', function () {
-          var next = root.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
-          root.setAttribute('data-theme', next);
-          try { localStorage.setItem('ms-theme', next); } catch (e) {}
+        if (btn) {
+          btn.addEventListener('click', function () {
+            var next = root.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+            root.setAttribute('data-theme', next);
+            try { localStorage.setItem('ms-theme', next); } catch (e) {}
+          });
+        }
+
+        /* ===== nav menus — the landing page's behaviour, verbatim =====
+           One open at a time, and the .open class is the only thing that opens
+           a panel — hover included — so a pointer and a click can never
+           disagree about what is showing. Closed panels are display:none, so
+           their links stay out of the tab order until the menu is open. */
+        var menus = Array.prototype.slice.call(document.querySelectorAll('.nav-menu'));
+        if (!menus.length) return;
+        var hoverable = window.matchMedia && window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+        var shut = null;
+
+        function close(m) {
+          m.classList.remove('open');
+          m.querySelector('.nav-trigger').setAttribute('aria-expanded', 'false');
+        }
+        function closeAll(except) {
+          menus.forEach(function (m) { if (m !== except) close(m); });
+        }
+        function open(m) {
+          closeAll(m);
+          m.classList.add('open');
+          m.querySelector('.nav-trigger').setAttribute('aria-expanded', 'true');
+        }
+
+        menus.forEach(function (m) {
+          var trigger = m.querySelector('.nav-trigger');
+          trigger.addEventListener('click', function () {
+            if (shut) { clearTimeout(shut); shut = null; }
+            m.classList.contains('open') ? close(m) : open(m);
+          });
+          /* Selecting a destination is the end of the menu's job. */
+          m.addEventListener('click', function (e) {
+            if (e.target.closest('.nav-panel a')) close(m);
+          });
+          if (hoverable) {
+            m.addEventListener('mouseenter', function () {
+              if (shut) { clearTimeout(shut); shut = null; }
+              open(m);
+            });
+            /* A moment's grace, so crossing the gap to the panel is not a miss. */
+            m.addEventListener('mouseleave', function () {
+              shut = setTimeout(function () { close(m); shut = null; }, 140);
+            });
+          }
+          /* Tabbing out of the last item is a close, the same as clicking away. */
+          m.addEventListener('focusout', function (e) {
+            if (!m.contains(e.relatedTarget)) close(m);
+          });
+        });
+
+        document.addEventListener('click', function (e) {
+          if (!e.target.closest('.nav-menu')) closeAll(null);
+        });
+        document.addEventListener('keydown', function (e) {
+          if (e.key !== 'Escape') return;
+          var open_ = document.querySelector('.nav-menu.open');
+          if (!open_) return;
+          close(open_);
+          open_.querySelector('.nav-trigger').focus();
         });
       })();
     </script>

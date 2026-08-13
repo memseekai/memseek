@@ -28,6 +28,11 @@
   --amber: #ffb14d;
   --accent: var(--orange);
   --grad: linear-gradient(120deg, var(--orange), var(--pink));
+  /* CTAs carry 13px bold text on the gradient and must clear 4.5:1 at BOTH
+     stops, so they get their own gradient and ink. On the dark canvas the
+     display gradient already clears it for near-black (7.4:1 / 5.7:1). */
+  --grad-cta: var(--grad);
+  --cta-ink: #16090b;
   --shadow: 0 1px 0 rgba(255, 255, 255, 0.02) inset, 0 24px 60px -30px rgba(0, 0, 0, 0.8);
   --mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
   --sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -58,11 +63,17 @@
   --faint: #666f78;
   --orange: #e0641c;
   --pink: #e02a54;
-  --cyan: #0e9e90;
+  /* Deepened from #0e9e90, which sat at 3.1:1 on the light canvas. */
+  --cyan: #0b7d72;
   --violet: #6d4ae0;
   --green: #1f9d57;
   --amber: #c07d16;
   --shadow: 0 1px 0 rgba(255, 255, 255, 0.6) inset, 0 20px 50px -30px rgba(20, 30, 45, 0.28);
+  /* Neither ink clears the floor on the light display gradient: near-black is
+     4.3:1 at the pink stop, white is 3.5:1 at the orange stop. CTAs deepen
+     their own gradient and go white — 4.8:1 and 6.0:1. */
+  --grad-cta: linear-gradient(120deg, #c2500f, #c01f45);
+  --cta-ink: #fff;
 }
 
 /* Hue-as-text, light theme only.
@@ -234,8 +245,8 @@ header.nav {
   font-family: var(--mono);
   font-weight: 700;
   font-size: var(--step--1);
-  color: #16090b;
-  background: var(--grad);
+  color: var(--cta-ink);
+  background: var(--grad-cta);
   padding: 0.5rem 1rem;
   border-radius: 8px;
 }
@@ -325,7 +336,7 @@ header.nav {
   gap: 0.5rem;
   transition: transform 0.15s ease, border-color 0.15s ease, color 0.15s ease, filter 0.15s ease;
 }
-.btn-primary { background: var(--grad); color: #16090b; }
+.btn-primary { background: var(--grad-cta); color: var(--cta-ink); }
 .btn-primary:hover { text-decoration: none; filter: brightness(1.07); transform: translateY(-1px); }
 .btn-ghost { background: transparent; color: var(--text); border-color: var(--border-strong); }
 .btn-ghost:hover { text-decoration: none; border-color: var(--violet); color: var(--violet); }

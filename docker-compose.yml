@@ -12,6 +12,12 @@
 #
 # They deliberately use different databases, ports and storage: a test run that
 # wipes its database must never take your local workspace with it.
+#
+# `migrate` and `setup` are one-shot: they run, exit 0, and have nothing left to
+# offer. Compose has no auto-remove for service containers (only `compose run
+# --rm`, which cannot take part in the depends_on graph below), so `make up`
+# deletes both once they have succeeded. Their exited husks are not something you
+# are meant to see in `docker ps -a`. Run raw `docker compose up` and they stay.
 
 services:
   # ---------- the local stack ----------
@@ -32,7 +38,9 @@ services:
       - memseek-data:/var/lib/postgresql/data
 
   # Schema first, as its own container, so a failed migration is a failed
-  # container you can read rather than a crash loop inside the API.
+  # container you can read rather than a crash loop inside the API. A failure is
+  # therefore kept; a success is removed. Deleting it also means the next `make
+  # up` re-runs the migration rather than trusting a stale exited-0 container.
   migrate:
     build: .
     command: ["memseek", "migrate"]
@@ -53,6 +61,16 @@ services:
       # still work and anything model-backed fails loudly.
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       LLM_FAKE: ${LLM_FAKE:-0}
+      # Browser origins allowed to call this API and /mcp with a workspace key.
+      # Exact origins only — wildcards are rejected — written either as one
+      # origin, a comma-separated list, or a JSON array. Empty by default and
+      # read only at startup: an allowed page can send a key the user pasted
+      # into it, so this stays opt-in. To reach the workspace explorer on the
+      # marketing dev server, put this in .env and `docker compose up -d api`:
+      #
+      #   API_CORS_ORIGINS=http://localhost:4321
+      #
+      API_CORS_ORIGINS: ${API_CORS_ORIGINS:-[]}
     ports:
       - "${MEMSEEK_PORT:-8000}:8000"
     healthcheck:
@@ -79,6 +97,8 @@ services:
   # Mints the workspace, writes its key to ./.memseek/api_key, and publishes the
   # agent-memory catalog so there is a tool surface to point an agent at before
   # you have written anything. Idempotent: re-running keeps the existing key.
+  # Everything it produces lands in the ./.memseek bind mount below, so the
+  # container itself holds no state worth keeping once it has exited 0.
   setup:
     build: .
     command: ["python", "scripts/local_setup.py"]

@@ -45,9 +45,3 @@ export function formatDate(date: Date): string {
     timeZone: 'UTC',
   });
 }
-
-/** Rough read time from the raw body — good enough for a byline. */
-export function readingTime(body: string | undefined): string {
-  const words = (body ?? '').trim().split(/\s+/).filter(Boolean).length;
-  return `${Math.max(1, Math.round(words / 200))} min read`;
-}

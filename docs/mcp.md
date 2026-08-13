@@ -31,6 +31,14 @@ The bridge never reads local catalog YAML and never follows an arbitrary URL
 from a client. The authenticated workspace API remains responsible for
 catalog selection, validation, and execution.
 
+!!! tip "Want automatic memory in Claude Code?"
+
+    MCP by itself exposes explicit tools; it does not run at session or prompt
+    lifecycle boundaries. The [Claude Code plugin](claude-code-plugin.md) combines
+    this curated MCP surface with hooks for automatic bounded recall, conversation
+    capture, offline retry, and pre-compaction anchoring. Its page carries the whole
+    procedure, Docker stack included.
+
 ## Protocol support
 
 Memseek uses the official [MCP Python SDK

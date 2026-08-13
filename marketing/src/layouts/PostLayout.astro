@@ -3,7 +3,7 @@ import type { MarkdownHeading } from 'astro';
 import BaseLayout from './BaseLayout.astro';
 import LoopEssayVisual from '../components/LoopEssayVisual.astro';
 import { Image } from 'astro:assets';
-import { formatDate, readingTime, tagSlug, type Post } from '../lib/posts';
+import { formatDate, tagSlug, type Post } from '../lib/posts';
 import '../styles/prose.css';
 import '../styles/loop-essay.css';
 // KaTeX ships @font-face rules only — the browser fetches a font file solely
@@ -46,8 +46,6 @@ const showToc = presentation !== 'loop-essay' && toc.length >= 3;
           <span>{author}</span>
           <span aria-hidden="true">·</span>
           <time datetime={date.toISOString()}>{formatDate(date)}</time>
-          <span aria-hidden="true">·</span>
-          <span>{readingTime(post.body)}</span>
           {updated && (
             <>
               <span aria-hidden="true">·</span>

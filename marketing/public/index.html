@@ -43,6 +43,12 @@
     --sans: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     --maxw: 1180px;
     --grad: linear-gradient(120deg, var(--orange), var(--pink));
+    /* The display gradient is tuned for the brand dot and headline-sized text.
+       A CTA is 13px bold sitting *on* it and has to clear 4.5:1 at BOTH stops,
+       so the buttons get their own gradient and ink. On the dark canvas the
+       display gradient already clears it for near-black (7.4:1 / 5.7:1). */
+    --grad-cta: var(--grad);
+    --cta-ink: #16090b;
     --step--2: clamp(.68rem, .66rem + .08vw, .74rem);
     --step--1: clamp(.78rem, .76rem + .1vw, .84rem);
     --step-0: clamp(.95rem, .92rem + .18vw, 1.05rem);
@@ -64,20 +70,23 @@
     --orange: #e0641c;
     --pink: #e02a54;
     --rose: #b35a63;
-    --cyan: #0e9e90;
+    /* Deepened from #0e9e90, which sat at 3.1:1 on the light canvas — under
+       the floor for links, including the inline "join the waitlist" ones. */
+    --cyan: #0b7d72;
     --violet: #6d4ae0;
     --green: #1f9d57;
     --amber: #c07d16;
     --shadow: 0 1px 0 rgba(255,255,255,.6) inset, 0 20px 50px -30px rgba(20,30,45,.28);
+    /* Neither ink clears the floor on the light display gradient: near-black
+       is 4.3:1 at the pink stop, white is 3.5:1 at the orange stop. So every
+       gradient CTA deepens its own gradient and goes white — 4.8:1 and 6.0:1 —
+       rather than lightening a gradient the eyebrows and markers share. */
+    --grad-cta: linear-gradient(120deg, #c2500f, #c01f45);
+    --cta-ink: #fff;
   }
-  /* On the light canvas the gradient darkens, so near-black label text on it
-     reads muddy — and --faint is too pale for code comments people must read. */
-  :root[data-theme="light"] .nav-cta,
-  :root[data-theme="light"] .btn-primary { color: #fff; }
-  /* White on the light gradient is only 3.5:1 at the orange end — under the
-     floor for 13px bold. The bar's one button deepens its own gradient rather
-     than swapping to dark ink, which keeps the look and clears 4.7:1. */
-  :root[data-theme="light"] .nav-cta { background: linear-gradient(120deg, #c2500f, #c01f45); }
+  /* The light-theme CTA ink and gradient now live on --cta-ink / --grad-cta,
+     so every gradient button gets the treatment the nav bar used to get alone.
+     --faint is still too pale for code comments people must read: */
   :root[data-theme="light"] .cm,
   :root[data-theme="light"] .yc { color: #6f7a85; }
 
@@ -168,14 +177,14 @@
   .nav-links a:hover { color: var(--text); text-decoration: none; }
   .nav-cta {
     font-family: var(--mono); font-weight: 700; font-size: var(--step--1);
-    color: #16090b; background: var(--grad);
+    color: var(--cta-ink); background: var(--grad-cta);
     padding: .55rem 1rem; border-radius: 8px;
   }
   .nav-cta:hover { text-decoration: none; filter: brightness(1.07); }
   /* `.nav-links a` out-specifies `.nav-cta`, so the one control on the bar that
      has to read at a glance was inheriting muted grey onto the gradient. These
      two win the label back — hover included, which had the same problem. */
-  .nav-links .nav-cta, .nav-links .nav-cta:hover { color: #16090b; }
+  .nav-links .nav-cta, .nav-links .nav-cta:hover { color: var(--cta-ink); }
   /* Seven labels was a row that had to hide two of itself to fit. Three
      labels, two of them menus: the sections group under Product, the reading
      under Resources, and Benchmarks stays one click because it is the proof. */
@@ -269,7 +278,7 @@
     cursor: pointer; display: inline-flex; align-items: center; gap: .5rem;
     transition: transform .15s, border-color .15s, color .15s, filter .15s;
   }
-  .btn-primary { background: var(--grad); color: #16090b; }
+  .btn-primary { background: var(--grad-cta); color: var(--cta-ink); }
   .btn-primary:hover { text-decoration: none; filter: brightness(1.07); transform: translateY(-1px); }
   .btn-ghost { background: transparent; color: var(--text); border-color: var(--border-strong); }
   .btn-ghost:hover { text-decoration: none; border-color: var(--violet); color: var(--violet); }
@@ -284,8 +293,9 @@
   .hero-code { box-shadow: var(--shadow); }
   .hero-code pre { font-size: .72rem; }
   @media (min-width: 1040px) { .hero-code pre { font-size: .74rem; } }
+  /* Sits immediately after .fname, which already claims the free space. */
   .code-tabs .copy {
-    margin-left: auto; align-self: center;
+    margin-left: .35rem; align-self: center;
     font-family: var(--mono); font-size: .6rem; color: var(--faint);
     background: transparent; border: 1px solid var(--border); border-radius: 6px;
     padding: .28rem .5rem; cursor: pointer; transition: color .15s, border-color .15s;
@@ -952,6 +962,7 @@
           <a href="#catalog">The catalog</a>
           <a href="#designs">Memory designs</a>
           <a href="#quickstart">Run it locally</a>
+          <a href="/claude-code/">Claude Code plugin</a>
           <a href="#compare">Compare</a>
           <a href="/benchmarks/" class="narrow-only">Benchmarks</a>
         </div>
@@ -999,15 +1010,15 @@
         <div class="code hero-code">
           <div class="code-tabs">
             <span class="fname">your terminal</span>
-            <button class="copy" type="button" data-copy="git clone https://github.com/memseekai/memseek &amp;&amp; cd memseek&#10;make up">copy</button>
+            <button class="copy" type="button" data-copy="git clone https://github.com/memseekai/memseek &amp;&amp; cd memseek&#10;docker compose up -d --build --wait">copy</button>
           </div>
 <pre><span class="cd">$</span> git clone https://github.com/memseekai/memseek &amp;&amp; <span class="ck">cd</span> memseek
-<span class="cd">$</span> make up
+<span class="cd">$</span> docker compose up -d --build --wait
 
 <span class="cm"># postgres → migrate → api + worker → setup:
 #
 #   published agent_memory@0.3.0 — 20 files of YAML, no code
-#   MCP ready — 6 tools at http://127.0.0.1:8000/mcp
+#   MCP ready — 7 tools at http://127.0.0.1:8000/mcp
 #
 # point Claude Code or Codex at it, and the next session
 # remembers the rules you set weeks ago — with the message
@@ -1191,7 +1202,7 @@
 ├── <span class="cs">derivations/</span>  <span class="cm">l1_extract · scene_synthesis · persona</span>
 ├── <span class="cs">views/</span>        <span class="cm">recall — one search across all layers</span>
 ├── <span class="cs">artifacts/</span>    <span class="cm">agent_context · maintained_procedure</span>
-├── <span class="cs">mcp/</span>          <span class="cm">the 6 tools an agent may see</span>
+├── <span class="cs">mcp/</span>          <span class="cm">the 7 tools an agent may see</span>
 └── <span class="cs">packages/</span>     <span class="cm">agent_memory@0.3.0 — what you publish</span></pre>
         </div>
       </div>
@@ -1390,15 +1401,16 @@
               installed.</b></p>
           </div>
           <div class="code">
-            <div class="code-tabs"><button class="t" aria-selected="true" tabindex="-1">console</button><span class="fname">your terminal</span></div>
+            <div class="code-tabs"><button class="t" aria-selected="true" tabindex="-1">console</button><span class="fname">your terminal</span><button class="copy" type="button" data-copy="git clone https://github.com/memseekai/memseek &amp;&amp; cd memseek&#10;printf 'OPENAI_API_KEY=sk-...\n' &gt; .env&#10;docker compose up -d --build --wait">copy</button></div>
 <pre class="p on"><span class="cd">$</span> git clone https://github.com/memseekai/memseek &amp;&amp; <span class="ck">cd</span> memseek
-<span class="cd">$</span> make up
+<span class="cd">$</span> <span class="ck">printf</span> <span class="cs">'OPENAI_API_KEY=sk-...\n'</span> &gt; .env   <span class="cm"># conf/models.yaml names the variable</span>
+<span class="cd">$</span> docker compose up -d --build --wait
 
 <span class="cm"># postgres → migrate → api + worker → setup, in that order:
 #
 #   published agent_memory@0.3.0 (20 files) from examples/agent_memory_catalog
-#   MCP interface ready — 6 tools: context, recall, standing_rules,
-#                                  replay_session, record, answer
+#   MCP interface ready — 7 tools: context, recall, standing_rules,
+#                                  replay_session, remember, record, answer
 #
 #   API   http://127.0.0.1:8000
 #   MCP   http://127.0.0.1:8000/mcp
@@ -1406,11 +1418,13 @@
 
 <span class="cd">$</span> <span class="ck">export</span> MEMSEEK_URL=http://127.0.0.1:8000
 <span class="cd">$</span> <span class="ck">export</span> MEMSEEK_API_KEY=$(cat .memseek/api_key)</pre>
-            <p class="step-note">Raw Docker, without make:
-              <code>docker compose up -d --wait &amp;&amp; docker compose wait setup</code> — the second
-              half matters, because <code>--wait</code> returns while the setup step is still
-              publishing. Prefer to run the processes yourself? <code>make quickstart</code> starts
-              just the database and prints a key; <code>uv run uvicorn memseek.api:app</code> and
+            <p class="step-note"><b>Docker is the whole install</b>, and the key is the only thing
+              you supply: embeddings and the memory passes are real model calls, so put your
+              provider key in <code>.env</code> before bringing the stack up.
+              <code>docker compose logs setup</code> shows what was published,
+              <code>docker compose logs -f worker</code> shows it thinking, and
+              <code>docker compose down -v</code> removes all of it. Prefer to run the processes
+              yourself? <code>uv run uvicorn memseek.api:app</code> and
               <code>uv run memseek worker</code> are <b>the two ordinary processes</b> the containers
               are running for you — the same two you deploy later, unchanged.</p>
           </div>
@@ -1422,37 +1436,52 @@
             <h3>Give your agent memory with receipts.</h3>
             <p>Step 01 published one already: <b>the four-layer agent-memory catalog</b>, 20 files of
               YAML and no code. Attach it and a fresh session <b>knows the rules you set weeks
-              ago</b> — and can show you the message each one came from. It sees the six tools the
+              ago</b> — and can show you the message each one came from. It sees the seven tools the
               catalog declares and nothing else.</p>
+            <p>In Claude Code, install the <b>plugin</b>: it runs on the session lifecycle, so it
+              captures the conversation and hands Claude a bounded memory brief on every turn, with
+              no tool for the model to remember to call. Any other client — Codex, your own agent —
+              connects to the same memory over <b>MCP</b> and asks for it explicitly.</p>
           </div>
           <div class="code" data-tabs>
             <div class="code-tabs" role="tablist" aria-label="Ways to see it work">
-              <button class="t" role="tab" aria-selected="true" data-r="0" data-file="your terminal">claude code</button>
-              <button class="t" role="tab" aria-selected="false" data-r="1" data-file="~/.codex/config.toml">codex</button>
-              <button class="t" role="tab" aria-selected="false" data-r="2" data-file="your terminal">example</button>
+              <button class="t" role="tab" aria-selected="true" data-r="0" data-file="your terminal" data-copy="claude plugin marketplace add ./&#10;claude plugin install memseek-memory@memseek --scope local --config MEMSEEK_URL=http://127.0.0.1:8000 --config MEMSEEK_API_KEY=&quot;$(cat .memseek/api_key)&quot; --config MEMSEEK_CAPTURE_MODE=conversation&#10;claude">claude code plugin</button>
+                            <button class="t" role="tab" aria-selected="false" data-r="1" data-file="~/.codex/config.toml" data-copy="codex mcp add memseek --url &quot;$MEMSEEK_URL/mcp&quot; --bearer-token-env-var MEMSEEK_API_KEY">codex</button>
+              <button class="t" role="tab" aria-selected="false" data-r="2" data-file="your terminal" data-copy="uv run python examples/agent_memory.py">example</button>
               <span class="fname">your terminal</span>
+              <button class="copy" type="button" data-copy="claude plugin marketplace add ./&#10;claude plugin install memseek-memory@memseek --scope local --config MEMSEEK_URL=http://127.0.0.1:8000 --config MEMSEEK_API_KEY=&quot;$(cat .memseek/api_key)&quot; --config MEMSEEK_CAPTURE_MODE=conversation&#10;claude">copy</button>
             </div>
-<pre class="p on" role="tabpanel"><span class="cm"># step 01 published the memory. one command attaches it:</span>
-<span class="cd">$</span> claude mcp add --transport http --scope local \
-    memseek <span class="cs">"$MEMSEEK_URL/mcp"</span> \
-    --header <span class="cs">"Authorization: Bearer $MEMSEEK_API_KEY"</span>
+<pre class="p on" role="tabpanel"><span class="cm"># step 01 published the memory. two commands give claude code a
+# memory that runs on its own — no tool for it to remember to call.
+# the repo you cloned in step 01 is itself the plugin marketplace:</span>
+<span class="cd">$</span> claude plugin marketplace add ./
+<span class="cd">$</span> claude plugin install memseek-memory@memseek --scope local \
+    --config MEMSEEK_URL=http://127.0.0.1:8000 \
+    --config MEMSEEK_API_KEY=<span class="cs">"$(cat .memseek/api_key)"</span> \
+    --config MEMSEEK_CAPTURE_MODE=conversation
 
-<span class="cd">&gt;</span> billing deploys always need my explicit approval — remember that
+<span class="cm"># 5 skills, 5 lifecycle hooks, and the memory MCP server:
+#   ✔ Successfully installed plugin: memseek-memory@memseek (scope: local)</span>
 
-<span class="cf">⏺ memseek · remember</span>  <span class="cm">(write · entity agent.alice)</span>
-  <span class="cm">{"inserted":[{"id":"b704…"}]}</span>
+<span class="cd">$</span> claude          <span class="cm"># a new session: the plugin loads on start</span>
 
-  Noted. I've written it to memory.
+<span class="cm">Memseek connected for project:memseek:2f77b8026b767ade.</span>
 
-<span class="cm"># … a new session, days later, in a different repo:</span>
+<span class="cd">&gt;</span> billing deploys always need my explicit approval
+
+  Understood — I'll ask before any billing deploy.
+
+<span class="cm"># no tool call, and nothing for you to run. a hook captured both
+# messages; the worker turned them into a rule that cites them.
+
+# … a new session, days later, in the same repo:</span>
 
 <span class="cd">&gt;</span> rewrite billing in Fastify and ship it tonight
 
-<span class="cf">⏺ memseek · context</span>  <span class="cm">task: "rewrite billing, ship tonight"</span>
+<span class="cf">⏺ memseek · memory brief</span>  <span class="cm">(supplied before claude answered)</span>
 
   <span class="cn">## Standing rules</span> <span class="cm">(priority ≥ 80)</span>
     Billing needs explicit approval to ship.       <span class="cs">[b704…]</span>
-    Migrations never run automatically on deploy.  <span class="cs">[3a90…]</span>
   <span class="cn">## Relevant claims</span>
     Billing stays on Express for the mobile app.   <span class="cs">[c221…]</span>
 
@@ -1460,8 +1489,10 @@
   deploys need your explicit approval, and mobile still depends on
   the Express response format. Want me to open the PR instead?
 
-<span class="cm"># it never saw that rule in this session. it asked memseek, and every
-# line it got back cites the message you said it in.</span></pre>
+<span class="cd">&gt;</span> /memseek-memory:memseek-explain
+
+<span class="cm"># → the exact message you typed days ago, as the evidence behind
+#   the rule it just applied.</span></pre>
 <pre class="p" role="tabpanel"><span class="cm"># the same endpoint; the key stays in the environment</span>
 [<span class="yk">mcp_servers.memseek</span>]
 <span class="yk">url</span> = <span class="cs">"http://127.0.0.1:8000/mcp"</span>
@@ -1493,7 +1524,10 @@
               appends evidence there and <b>nowhere else</b> — it cannot edit, retract, or aim a
               write at another drawer, and it is annotated as a write so your host can prompt on it.
               Five of the seven are deterministic reads answered straight from Postgres; only
-              <code>answer</code> calls a model.</p>
+              <code>answer</code> calls a model. The plugin adds five slash commands over the same
+              surface — status, search, explain, remember, feedback — and its capture mode is yours
+              to pick: <code>conversation</code>, <code>explicit</code>, or <code>off</code>, all
+              three keeping recall on. <a href="/claude-code/">Test the plugin end to end →</a></p>
           </div>
         </div>
 
@@ -1511,7 +1545,7 @@
 ├── <span class="cs">derivations/</span>   <span class="cm">l1_extract · scene_synthesis · persona · …</span>   4
 ├── <span class="cs">views/</span>         <span class="cm">recall — one search across all four layers</span>    1
 ├── <span class="cs">artifacts/</span>     <span class="cm">agent_context · maintained_procedure</span>         2
-├── <span class="cs">mcp/</span>           <span class="cm">agent_memory — the 6 tools an agent may see</span>   1
+├── <span class="cs">mcp/</span>           <span class="cm">agent_memory — the 7 tools an agent may see</span>   1
 └── <span class="cs">packages/</span>      <span class="cm">agent_memory@0.3.0 — what you publish</span>        1</pre>
           </div>
         </div>
@@ -1604,10 +1638,11 @@ brief[<span class="cs">"manifest"</span>][<span class="cs">"rendered_sha256"</sp
   - {<span class="yk">name</span>: <span class="cs">recall</span>,         <span class="yk">kind</span>: <span class="cs">view</span>,     <span class="yk">view</span>: <span class="cs">memory_recall@1</span>}
   - {<span class="yk">name</span>: <span class="cs">standing_rules</span>, <span class="yk">kind</span>: <span class="cs">view</span>,     <span class="yk">view</span>: <span class="cs">standing_instructions@1</span>}
   - {<span class="yk">name</span>: <span class="cs">replay_session</span>, <span class="yk">kind</span>: <span class="cs">view</span>,     <span class="yk">view</span>: <span class="cs">session_window@1</span>}
+  - {<span class="yk">name</span>: <span class="cs">remember</span>,       <span class="yk">kind</span>: <span class="cs">ingest</span>,   <span class="yk">collection</span>: <span class="cs">messages@1</span>}
   - {<span class="yk">name</span>: <span class="cs">record</span>,         <span class="yk">kind</span>: <span class="cs">record</span>}
   - {<span class="yk">name</span>: <span class="cs">answer</span>,         <span class="yk">kind</span>: <span class="cs">answer</span>}
 
-<span class="cm"># these are the six tools Claude Code and Codex saw in step 02.</span></pre>
+<span class="cm"># these are the seven tools the plugin and any MCP client saw in step 02.</span></pre>
           </div>
         </div>
       </div>
@@ -2083,6 +2118,7 @@ brief[<span class="cs">"manifest"</span>][<span class="cs">"rendered_sha256"</sp
     <div class="fl">
       <a href="https://github.com/memseekai/memseek" class="gh"><svg aria-hidden="true"><use href="#gh-mark"/></svg>GitHub</a>
       <a href="/context-engine/">Context engine</a>
+      <a href="/claude-code/">Claude Code plugin</a>
       <a href="#how">How it works</a>
       <a href="#designs">Memory designs</a>
       <a href="#quickstart">Quickstart</a>
@@ -2485,6 +2521,9 @@ if (typeof Tally !== "undefined") {
         panes.forEach(function (p, i) { p.classList.toggle('on', i === k); });
         /* The filename caption belongs to the panel, not to the box. */
         if (fname && t.getAttribute('data-file')) fname.textContent = t.getAttribute('data-file');
+        /* So does the command the copy button hands over. */
+        var copyBtn = box.querySelector('.code-tabs .copy');
+        if (copyBtn && t.getAttribute('data-copy')) copyBtn.setAttribute('data-copy', t.getAttribute('data-copy'));
       });
     });
   });

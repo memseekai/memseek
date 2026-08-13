@@ -1,0 +1,251 @@
+<figure class="wide reliability-comparison">
+  <div class="comparison-shell">
+    <svg
+      class="comparison comparison--desktop"
+      viewBox="0 0 1000 520"
+      role="img"
+      aria-labelledby="comparison-title comparison-description"
+    >
+      <title id="comparison-title">Pass at k rises while Reliability at k falls</title>
+      <desc id="comparison-description">
+        For a generator that succeeds 40 percent of the time, pass at k rises from 40 percent with
+        one attempt to 64 percent with two, 92.2 percent with five, and 99.4 percent with ten.
+        Reliability at k falls from 40 percent to 16 percent, 1 percent, and 0.01 percent.
+      </desc>
+
+      <g class="grid">
+        <line x1="110" y1="70" x2="785" y2="70" />
+        <line x1="110" y1="152.5" x2="785" y2="152.5" />
+        <line x1="110" y1="235" x2="785" y2="235" />
+        <line x1="110" y1="317.5" x2="785" y2="317.5" />
+        <line x1="110" y1="400" x2="785" y2="400" />
+      </g>
+
+      <g class="axis-labels">
+        <text x="92" y="75">100%</text>
+        <text x="92" y="157.5">75%</text>
+        <text x="92" y="240">50%</text>
+        <text x="92" y="322.5">25%</text>
+        <text x="92" y="405">0%</text>
+        <text x="110" y="435">1</text>
+        <text x="185" y="435">2</text>
+        <text x="410" y="435">5</text>
+        <text x="785" y="435">10</text>
+        <text class="axis-title" x="448" y="478">attempts (k)</text>
+        <text class="axis-title" x="30" y="235" transform="rotate(-90 30 235)">probability</text>
+      </g>
+
+      <path class="series series--pass" d="M110 268 L185 188.8 L410 95.7 L785 72" />
+      <path class="series series--reliability" d="M110 268 L185 347.2 L410 396.7 L785 400" />
+
+      <g class="pass-points">
+        <circle cx="110" cy="268" r="6" />
+        <circle cx="185" cy="188.8" r="6" />
+        <circle cx="410" cy="95.7" r="6" />
+        <circle cx="785" cy="72" r="6" />
+      </g>
+
+      <g class="reliability-points">
+        <rect x="104" y="262" width="12" height="12" />
+        <rect x="179" y="341.2" width="12" height="12" />
+        <rect x="404" y="390.7" width="12" height="12" />
+        <rect x="779" y="394" width="12" height="12" />
+      </g>
+
+      <g class="value-labels">
+        <text class="shared-value" x="126" y="254">40%</text>
+        <text x="185" y="169">64%</text>
+        <text x="410" y="77">92.2%</text>
+        <text x="185" y="375">16%</text>
+        <text x="410" y="378">1.0%</text>
+      </g>
+
+      <g class="direct-label direct-label--pass">
+        <line x1="785" y1="72" x2="820" y2="72" />
+        <text x="832" y="66">pass@k</text>
+        <text class="direct-value" x="832" y="89">99.4% · one works</text>
+      </g>
+
+      <g class="direct-label direct-label--reliability">
+        <line x1="785" y1="400" x2="820" y2="400" />
+        <text x="832" y="394">Reliability@k</text>
+        <text class="direct-value" x="832" y="417">0.01% · all work</text>
+      </g>
+    </svg>
+
+    <svg
+      class="comparison comparison--mobile"
+      viewBox="0 0 640 660"
+      role="img"
+      aria-labelledby="comparison-mobile-title comparison-mobile-description"
+    >
+      <title id="comparison-mobile-title">Pass at k rises while Reliability at k falls</title>
+      <desc id="comparison-mobile-description">
+        For a generator that succeeds 40 percent of the time, pass at k rises from 40 percent with
+        one attempt to 99.4 percent with ten. Reliability at k falls from 40 percent to 0.01 percent.
+      </desc>
+
+      <g class="grid">
+        <line x1="90" y1="75" x2="522" y2="75" />
+        <line x1="90" y1="176.25" x2="522" y2="176.25" />
+        <line x1="90" y1="277.5" x2="522" y2="277.5" />
+        <line x1="90" y1="378.75" x2="522" y2="378.75" />
+        <line x1="90" y1="480" x2="522" y2="480" />
+      </g>
+
+      <g class="axis-labels">
+        <text x="72" y="81">100%</text>
+        <text x="72" y="182.25">75%</text>
+        <text x="72" y="283.5">50%</text>
+        <text x="72" y="384.75">25%</text>
+        <text x="72" y="486">0%</text>
+        <text x="90" y="522">1</text>
+        <text x="138" y="522">2</text>
+        <text x="282" y="522">5</text>
+        <text x="522" y="522">10</text>
+        <text class="axis-title" x="306" y="567">attempts (k)</text>
+      </g>
+
+      <path class="series series--pass" d="M90 318 L138 220.8 L282 106.6 L522 77.4" />
+      <path class="series series--reliability" d="M90 318 L138 415.2 L282 476 L522 480" />
+
+      <g class="pass-points">
+        <circle cx="90" cy="318" r="7" />
+        <circle cx="138" cy="220.8" r="7" />
+        <circle cx="282" cy="106.6" r="7" />
+        <circle cx="522" cy="77.4" r="7" />
+      </g>
+
+      <g class="reliability-points">
+        <rect x="83" y="311" width="14" height="14" />
+        <rect x="131" y="408.2" width="14" height="14" />
+        <rect x="275" y="469" width="14" height="14" />
+        <rect x="515" y="473" width="14" height="14" />
+      </g>
+
+      <g class="value-labels">
+        <text class="shared-value" x="112" y="300">40%</text>
+        <text x="138" y="195">64%</text>
+        <text x="282" y="82">92.2%</text>
+        <text x="138" y="447">16%</text>
+        <text x="282" y="454">1.0%</text>
+      </g>
+
+      <g class="mobile-direct-label">
+        <text x="340" y="42">pass@k → 99.4% · one works</text>
+        <text x="340" y="620">Reliability@k → 0.01% · all work</text>
+      </g>
+    </svg>
+  </div>
+
+  <figcaption>
+    More attempts make finding one success easier—and make every attempt succeeding dramatically
+    less likely.
+  </figcaption>
+</figure>
+
+<style>
+  .reliability-comparison {
+    margin-block: clamp(2rem, 5vw, 3.2rem);
+  }
+
+  .comparison-shell {
+    overflow: hidden;
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    background: var(--surface);
+  }
+
+  .comparison {
+    display: block;
+    width: 100%;
+    height: auto;
+    font-family: var(--mono);
+  }
+
+  .comparison--mobile { display: none; }
+
+  .grid line {
+    stroke: var(--border);
+    stroke-width: 1;
+  }
+
+  .axis-labels text {
+    fill: var(--faint);
+    font-size: 12px;
+    text-anchor: middle;
+  }
+
+  .axis-labels text:first-child,
+  .axis-labels text:nth-child(2),
+  .axis-labels text:nth-child(3),
+  .axis-labels text:nth-child(4),
+  .axis-labels text:nth-child(5) {
+    text-anchor: end;
+  }
+
+  .axis-labels .axis-title {
+    fill: var(--muted);
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: .06em;
+  }
+
+  .series {
+    fill: none;
+    stroke-width: 3;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .series--pass { stroke: var(--violet); }
+  .series--reliability {
+    stroke: var(--orange);
+    stroke-dasharray: 9 7;
+  }
+
+  .pass-points circle { fill: var(--violet); }
+  .reliability-points rect { fill: var(--orange); }
+
+  .value-labels text,
+  .direct-label text,
+  .mobile-direct-label text {
+    fill: var(--text);
+    font-size: 13px;
+    font-weight: 700;
+    text-anchor: middle;
+  }
+
+  .value-labels .shared-value { text-anchor: start; }
+
+  .direct-label line { stroke-width: 3; }
+  .direct-label--pass line { stroke: var(--violet); }
+  .direct-label--reliability line {
+    stroke: var(--orange);
+    stroke-dasharray: 8 6;
+  }
+
+  .direct-label text { text-anchor: start; }
+  .direct-label .direct-value {
+    fill: var(--muted);
+    font-size: 11px;
+    font-weight: 400;
+  }
+
+  figcaption {
+    max-width: 76ch;
+    margin-inline: auto;
+  }
+
+  @media (max-width: 620px) {
+    .comparison-shell { border-radius: 13px; }
+    .comparison--desktop { display: none; }
+    .comparison--mobile { display: block; }
+
+    .axis-labels text { font-size: 16px; }
+    .axis-labels .axis-title { font-size: 17px; }
+    .value-labels text,
+    .mobile-direct-label text { font-size: 16px; }
+    .mobile-direct-label text { text-anchor: middle; }
+  }
+</style>

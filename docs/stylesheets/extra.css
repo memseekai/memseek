@@ -1,74 +1,851 @@
+/* ============================================================
+   Memseek documentation — Material for MkDocs, re-tinted to the
+   marketing site's design tokens.
+
+   The token block below is lifted from marketing/src/styles/site.css
+   so the docs and the website are visibly the same product. If you
+   change a value there, change it here too.
+
+   Everything under the token block maps a Material variable onto a
+   site token, or restyles one Material component to match a piece of
+   the site's chrome. The bias throughout is readability: these are
+   reference pages people read for twenty minutes, not a landing page
+   they scan for twenty seconds. Where the site's styling and legibility
+   disagreed, legibility won — noted at each such spot.
+   ============================================================ */
+
 :root {
-  --memseek-ink: #17202a;
-  --memseek-accent: #0b756e;
-  --memseek-dark: #102d2d;
-}
+  --ms-orange: #ff7a2f;
+  --ms-pink: #ff3d67;
+  --ms-cyan: #2fd4c4;
+  --ms-violet: #9b87ff;
+  --ms-green: #58d68d;
+  --ms-amber: #ffb14d;
+  --ms-grad: linear-gradient(120deg, var(--ms-orange), var(--ms-pink));
 
-body {
-  color: var(--memseek-ink);
-}
+  /* Display face: headings, nav, table headers, buttons — the site's voice.
+     Prose stays on Inter (declared via theme.font.text). */
+  --ms-display: "JetBrains Mono", ui-monospace, "SF Mono", SFMono-Regular, Menlo,
+    Consolas, monospace;
 
-.wy-nav-side {
-  background: var(--memseek-dark);
-}
-
-.wy-side-nav-search {
-  background: #0b756e;
-}
-
-.wy-nav-content {
-  max-width: 1180px;
-}
-
-.wy-nav-content h1,
-.wy-nav-content h2,
-.wy-nav-content h3,
-.wy-nav-content h4 {
-  color: var(--memseek-dark);
-}
-
-.wy-nav-content h1 {
-  letter-spacing: -.035em;
-}
-
-.wy-nav-content a {
-  color: var(--memseek-accent);
-}
-
-.wy-nav-content pre,
-.wy-nav-content code {
-  border-radius: 5px;
-  /* Pin the monospace stack. ASCII schematics align only if every glyph —
-     including box-drawing U+2500–U+257F — comes from one fixed-width font.
-     Left to the browser default, a missing glyph falls back to a proportional
-     face and the diagram's columns collapse. Every font listed here covers
-     the box-drawing range. */
-  font-family: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas,
+  /* Code face — deliberately NOT JetBrains Mono. Thirteen pages here draw
+     ASCII schematics with box-drawing glyphs (U+2500–257F), and Google Fonts
+     serves JetBrains Mono without that range. A missing glyph falls back
+     per-character to another font, the columns stop lining up, and the
+     diagram is destroyed. Every family below covers the range at a single
+     fixed width, so the schematics hold. */
+  --ms-code: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas,
     "DejaVu Sans Mono", "Liberation Mono", monospace;
+
+  /* Reading measure for running prose. Tables, code, and diagrams are exempt
+     and use the full content column — this is the one knob that decides how
+     long a line of text gets. */
+  --ms-measure: 36rem;
+}
+
+/* ---------- dark scheme (site parity: this is the default) ---------- */
+[data-md-color-scheme="slate"] {
+  --ms-bg: #0c0e11;
+  --ms-surface: #12161b;
+  --ms-surface-2: #1a1f27;
+  --ms-border: #232a33;
+  --ms-border-strong: #33404c;
+  --ms-text: #e8eaed;
+  --ms-muted: #9aa1ab;
+  --ms-faint: #7d8794;
+  --ms-code-bg: #0f1318;
+
+  --md-default-bg-color: var(--ms-bg);
+  --md-default-fg-color: var(--ms-text);
+  --md-default-fg-color--light: var(--ms-muted);
+  --md-default-fg-color--lighter: var(--ms-faint);
+  --md-default-fg-color--lightest: #3a434e;
+  --md-typeset-color: var(--ms-text);
+  --md-typeset-a-color: var(--ms-cyan);
+  --md-typeset-mark-color: rgba(255, 177, 77, 0.22);
+
+  /* Header and footer sit on the page background, separated by a hairline —
+     the site's chrome, not Material's colored bar. */
+  --md-primary-fg-color: var(--ms-bg);
+  --md-primary-fg-color--light: var(--ms-surface);
+  --md-primary-fg-color--dark: var(--ms-bg);
+  --md-primary-bg-color: var(--ms-text);
+  --md-primary-bg-color--light: var(--ms-muted);
+  --md-accent-fg-color: var(--ms-orange);
+  --md-accent-fg-color--transparent: rgba(255, 122, 47, 0.1);
+  --md-accent-bg-color: #16090b;
+
+  --md-code-bg-color: var(--ms-code-bg);
+  --md-code-fg-color: var(--ms-text);
+  --md-footer-bg-color: var(--ms-bg);
+  --md-footer-bg-color--dark: var(--ms-bg);
+  --md-footer-fg-color: var(--ms-text);
+  --md-footer-fg-color--light: var(--ms-muted);
+  --md-footer-fg-color--lighter: var(--ms-faint);
+
+  --md-shadow-z1: 0 24px 60px -30px rgba(0, 0, 0, 0.8);
+  --md-shadow-z2: 0 24px 60px -30px rgba(0, 0, 0, 0.85);
+  --md-shadow-z3: 0 28px 70px -30px rgba(0, 0, 0, 0.9);
+}
+
+/* ---------- light scheme ---------- */
+[data-md-color-scheme="default"] {
+  --ms-bg: #f7f7f5;
+  --ms-surface: #ffffff;
+  --ms-surface-2: #f1f2ef;
+  --ms-border: #e3e4df;
+  --ms-border-strong: #cfd1ca;
+  --ms-text: #16191c;
+  --ms-muted: #55606a;
+  --ms-faint: #666f78;
+  --ms-code-bg: #fbfbf9;
+
+  /* The light palette's accents, darkened for contrast on a pale ground —
+     same values the site uses in its light theme. */
+  --ms-orange: #e0641c;
+  --ms-pink: #e02a54;
+  --ms-cyan: #0e9e90;
+  --ms-violet: #6d4ae0;
+  --ms-green: #1f9d57;
+  --ms-amber: #c07d16;
+
+  --md-default-bg-color: var(--ms-bg);
+  --md-default-fg-color: var(--ms-text);
+  --md-default-fg-color--light: var(--ms-muted);
+  --md-default-fg-color--lighter: var(--ms-faint);
+  --md-default-fg-color--lightest: #b8bcb4;
+  --md-typeset-color: var(--ms-text);
+  --md-typeset-a-color: var(--ms-cyan);
+  --md-typeset-mark-color: rgba(192, 125, 22, 0.2);
+
+  --md-primary-fg-color: var(--ms-bg);
+  --md-primary-fg-color--light: var(--ms-surface);
+  --md-primary-fg-color--dark: var(--ms-bg);
+  --md-primary-bg-color: var(--ms-text);
+  --md-primary-bg-color--light: var(--ms-muted);
+  --md-accent-fg-color: var(--ms-orange);
+  --md-accent-fg-color--transparent: rgba(224, 100, 28, 0.1);
+  --md-accent-bg-color: #ffffff;
+
+  --md-code-bg-color: var(--ms-code-bg);
+  --md-code-fg-color: var(--ms-text);
+  --md-footer-bg-color: var(--ms-bg);
+  --md-footer-bg-color--dark: var(--ms-bg);
+  --md-footer-fg-color: var(--ms-text);
+  --md-footer-fg-color--light: var(--ms-muted);
+  --md-footer-fg-color--lighter: var(--ms-faint);
+
+  --md-shadow-z1: 0 20px 50px -30px rgba(20, 30, 45, 0.28);
+  --md-shadow-z2: 0 20px 50px -30px rgba(20, 30, 45, 0.32);
+  --md-shadow-z3: 0 24px 60px -30px rgba(20, 30, 45, 0.36);
+}
+
+/* ---------- syntax highlighting ---------- */
+/* Material's default token colors are a different palette from the site's.
+   These map each token class onto a site accent, so a code block reads as
+   part of the same design in either scheme. */
+[data-md-color-scheme="slate"],
+[data-md-color-scheme="default"] {
+  --md-code-hl-color: rgba(255, 122, 47, 0.16);
+  --md-code-hl-number-color: var(--ms-amber);
+  --md-code-hl-special-color: var(--ms-pink);
+  --md-code-hl-function-color: var(--ms-cyan);
+  --md-code-hl-constant-color: var(--ms-violet);
+  --md-code-hl-keyword-color: var(--ms-violet);
+  --md-code-hl-string-color: var(--ms-green);
+  --md-code-hl-name-color: var(--ms-text);
+  --md-code-hl-operator-color: var(--ms-muted);
+  --md-code-hl-punctuation-color: var(--ms-muted);
+  --md-code-hl-comment-color: var(--ms-faint);
+  --md-code-hl-generic-color: var(--ms-muted);
+  --md-code-hl-variable-color: var(--ms-text);
+}
+
+::selection {
+  background: rgba(255, 122, 47, 0.28);
+}
+
+/* ============================================================
+   Layout
+   ============================================================ */
+
+/* Wider than Material's 61rem default: reference pages here carry wide tables
+   and ASCII schematics that were being scrolled horizontally on a desktop
+   screen. Running text does not get wider with it — see --ms-measure below. */
+.md-grid {
+  max-width: 68rem;
+}
+
+/* ============================================================
+   Typography
+   ============================================================ */
+
+.md-typeset {
+  font-size: 0.82rem;
+  line-height: 1.75;
+}
+
+.md-typeset p,
+.md-typeset ul,
+.md-typeset ol,
+.md-typeset blockquote,
+.md-typeset > .admonition,
+.md-typeset > details,
+.md-typeset h1,
+.md-typeset h2,
+.md-typeset h3,
+.md-typeset h4,
+.md-typeset h5,
+.md-typeset h6 {
+  max-width: var(--ms-measure);
+}
+
+/* Nested lists inherit the cap from their parent; re-applying it here would
+   compound the indent into an ever-narrower column. */
+.md-typeset li ul,
+.md-typeset li ol,
+.md-typeset li p,
+.md-typeset .admonition p,
+.md-typeset .admonition ul,
+.md-typeset .admonition ol,
+.md-typeset details p,
+.md-typeset details ul,
+.md-typeset details ol,
+.md-typeset .tabbed-block p,
+.md-typeset .tabbed-block ul,
+.md-typeset .tabbed-block ol {
+  max-width: none;
+}
+
+/* --- headings: the site's mono display face --- */
+.md-typeset h1,
+.md-typeset h2,
+.md-typeset h3,
+.md-typeset h4,
+.md-typeset h5,
+.md-typeset h6 {
+  font-family: var(--ms-display);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  text-wrap: balance;
+  color: var(--ms-text);
+}
+
+.md-typeset h1 {
+  font-size: 1.75rem;
+  letter-spacing: -0.035em;
+  margin-bottom: 1.2rem;
+}
+
+.md-typeset h2 {
+  font-size: 1.22rem;
+  margin-top: 2.6em;
+}
+
+/* A rule above every h2 — long reference pages need the section breaks to be
+   findable while scrolling, not just while reading. */
+.md-typeset h2::before {
+  content: "";
+  display: block;
+  width: 2.4rem;
+  height: 2px;
+  margin-bottom: 0.9rem;
+  background: var(--ms-grad);
+  opacity: 0.75;
+}
+
+.md-typeset h3 {
+  font-size: 1rem;
+  margin-top: 2em;
+}
+
+.md-typeset h4 {
+  font-size: 0.85rem;
+  margin-top: 1.8em;
+  color: var(--ms-muted);
+}
+
+/* The `¶` permalink is chrome: it stays out of the way until the heading is
+   hovered or the link is focused by keyboard. */
+.md-typeset .headerlink {
+  color: var(--ms-faint);
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.md-typeset :is(h1, h2, h3, h4, h5, h6):hover .headerlink,
+.md-typeset .headerlink:focus-visible {
+  opacity: 1;
+  color: var(--ms-orange);
+}
+
+/* --- the `eyebrow:` front-matter kicker, rendered by overrides/main.html --- */
+.ms-eyebrow {
+  font-family: var(--ms-display);
+  font-size: 0.62rem;
+  font-weight: 500;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--ms-orange);
+  display: flex;
+  align-items: center;
+  gap: 0.7em;
+  margin: 0 0 0.4rem;
+  padding-top: 1.2rem;
+}
+
+.ms-eyebrow::before {
+  content: "";
+  width: 2.4em;
+  height: 2px;
+  background: var(--ms-orange);
+  opacity: 0.7;
+  flex: none;
+}
+
+/* The eyebrow now supplies the top spacing for the page. */
+.ms-eyebrow + .md-content__inner > h1:first-child,
+.ms-eyebrow ~ .md-content__inner .md-typeset h1 {
+  margin-top: 0;
+}
+
+/* --- inline --- */
+.md-typeset a {
+  text-decoration: none;
+}
+
+.md-typeset a:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.md-typeset strong {
+  font-weight: 600;
+  color: var(--ms-text);
+}
+
+.md-typeset em {
+  color: var(--ms-muted);
+}
+
+.md-typeset hr {
+  border-color: var(--ms-border);
+  margin-block: 2.6em;
+}
+
+.md-typeset li::marker {
+  color: var(--ms-orange);
+  font-family: var(--ms-display);
+}
+
+.md-typeset li + li {
+  margin-top: 0.4em;
+}
+
+.md-typeset blockquote {
+  border-left: 2px solid var(--ms-orange);
+  color: var(--ms-muted);
+  padding-left: 1.2em;
+}
+
+/* ============================================================
+   Code
+   ============================================================ */
+
+.md-typeset code,
+.md-typeset pre,
+.md-typeset kbd {
+  font-family: var(--ms-code);
   font-variant-ligatures: none;
 }
 
-/* Mermaid blocks are diagrams, not code: drop the code-block chrome. Before
-   mermaid runs (or if it never loads) this still reads as plain text. */
-.wy-nav-content .mermaid {
-  margin: 1.4em 0;
-  text-align: center;
-  overflow-x: auto;
+.md-typeset :not(pre) > code {
+  background: var(--ms-surface-2);
+  color: var(--ms-text);
+  border: 1px solid var(--ms-border);
+  border-radius: 5px;
+  padding: 0.1em 0.36em;
+  font-size: 0.84em;
 }
 
-.wy-nav-content .mermaid svg {
-  max-width: 100%;
-  height: auto;
+/* Inline code inside a link should read as the link, not fight it. */
+.md-typeset a > code {
+  color: inherit;
+  border-color: color-mix(in srgb, currentColor 35%, var(--ms-border));
 }
 
-/* A diagram must scroll, never reflow: wrapping a schematic destroys it. */
-.wy-nav-content div[class^="highlight"] pre,
-.wy-nav-content pre.literal-block {
+.md-typeset pre > code {
+  font-size: 0.72rem;
+  line-height: 1.6;
+}
+
+.md-typeset .highlight,
+.md-typeset pre {
+  max-width: none;
+}
+
+.md-typeset .highlight > pre,
+.md-typeset pre.literal-block,
+.md-typeset .highlighttable {
+  border: 1px solid var(--ms-border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.md-typeset .highlight > pre > code {
+  border-radius: 10px;
+}
+
+/* A schematic must scroll, never reflow: wrapping one destroys the alignment
+   the box-drawing glyphs exist to carry. */
+.md-typeset div[class^="highlight"] pre,
+.md-typeset pre.literal-block,
+.md-typeset pre > code {
   white-space: pre;
   overflow-x: auto;
   tab-size: 4;
 }
 
-.wy-nav-content table th {
-  background: #eef5f2;
+/* The code-block filename label rendered by ```lang title="..." */
+.md-typeset .highlight span.filename {
+  font-family: var(--ms-display);
+  font-size: 0.62rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ms-faint);
+  background: var(--ms-surface-2);
+  border: 1px solid var(--ms-border);
+  border-bottom: none;
+  border-radius: 10px 10px 0 0;
+}
+
+.md-typeset .highlight span.filename + pre > code {
+  border-radius: 0 0 10px 10px;
+}
+
+.md-clipboard {
+  color: var(--ms-faint);
+}
+
+.md-clipboard:hover {
+  color: var(--ms-orange);
+}
+
+/* ============================================================
+   Tables
+   ============================================================ */
+
+/* Tables are exempt from the reading measure — several here are genuinely
+   wide, and squeezing them into the prose column only forces a scrollbar. */
+.md-typeset .md-typeset__table,
+.md-typeset table:not([class]) {
+  max-width: none;
+}
+
+.md-typeset table:not([class]) {
+  border: 1px solid var(--ms-border);
+  border-radius: 10px;
+  /* The header row is filled; without this it paints square corners over the
+     rounded border. The wrapper, not the table, owns horizontal scrolling, so
+     clipping here costs nothing. */
+  overflow: hidden;
+  font-size: 0.74rem;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.6;
+  box-shadow: none;
+}
+
+.md-typeset table:not([class]) th {
+  font-family: var(--ms-display);
+  font-size: 0.64rem;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ms-faint);
+  background: var(--ms-surface-2);
+  border-bottom: 1px solid var(--ms-border);
+  vertical-align: bottom;
+}
+
+.md-typeset table:not([class]) td {
+  border-top: 1px solid var(--ms-border);
+  vertical-align: top;
+}
+
+.md-typeset table:not([class]) tr:hover {
+  background: color-mix(in srgb, var(--ms-surface-2) 55%, transparent);
+}
+
+/* ============================================================
+   Admonitions, details, tabs
+   ============================================================ */
+
+/* The site's callout: a hairline card with a 2px accent edge and a mono,
+   tracked label — not Material's filled bar in Material's palette.
+
+   Each type only sets --ms-callout; the card, the label, and the icon all read
+   that one value, so a type can never end up half-recolored. The [class]
+   qualifiers exist to match the specificity of Material's own per-type rules
+   (.md-typeset .admonition.warning, 0-3-0) — without them Material's colors
+   win the border and the label keeps its tinted bar. */
+.md-typeset :is(.note, .info, .todo) {
+  --ms-callout: var(--ms-cyan);
+}
+.md-typeset :is(.tip, .success, .check, .done, .abstract, .summary, .tldr) {
+  --ms-callout: var(--ms-green);
+}
+.md-typeset :is(.warning, .caution, .attention) {
+  --ms-callout: var(--ms-amber);
+}
+.md-typeset :is(.danger, .error, .failure, .fail, .missing, .bug) {
+  --ms-callout: var(--ms-pink);
+}
+.md-typeset :is(.example, .question, .help, .faq, .quote, .cite) {
+  --ms-callout: var(--ms-violet);
+}
+
+.md-typeset .admonition[class],
+.md-typeset details[class] {
+  background: var(--ms-surface);
+  border: 1px solid var(--ms-border);
+  border-left: 2px solid var(--ms-callout, var(--ms-cyan));
+  border-radius: 8px;
+  box-shadow: none;
+  font-size: 0.78rem;
+}
+
+.md-typeset .admonition[class] > .admonition-title,
+.md-typeset details[class] > summary {
+  background: transparent;
+  border: none;
+  font-family: var(--ms-display);
+  font-size: 0.64rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ms-callout, var(--ms-cyan));
+}
+
+/* Material draws the type icon as a masked ::before; tint it from the same
+   variable so it can never disagree with the label beside it. */
+.md-typeset .admonition[class] > .admonition-title::before,
+.md-typeset details[class] > summary::before {
+  background-color: var(--ms-callout, var(--ms-cyan));
+}
+
+.md-typeset .admonition > :last-child,
+.md-typeset details > :last-child {
+  margin-bottom: 0.6rem;
+}
+
+/* --- tabbed content --- */
+.md-typeset .tabbed-labels > label {
+  font-family: var(--ms-display);
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: var(--ms-faint);
+}
+
+.md-typeset .tabbed-labels > label:hover,
+.md-typeset .tabbed-set > input:checked + label {
+  color: var(--ms-orange);
+}
+
+/* ============================================================
+   Header
+   ============================================================ */
+
+.md-header {
+  background: color-mix(in srgb, var(--ms-bg) 82%, transparent);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--ms-border);
+  box-shadow: none;
+}
+
+.md-header--shadow {
+  box-shadow: none;
+}
+
+.md-header__title {
+  font-family: var(--ms-display);
+  font-weight: 700;
+  font-size: 1rem;
+  letter-spacing: -0.01em;
+}
+
+/* The gradient dot from overrides/partials/logo.html. Material sizes logos
+   for a monochrome glyph; this one is a filled circle and reads better small. */
+.md-header__button.md-logo {
+  padding: 0.4rem 0.2rem 0.4rem 0.4rem;
+}
+
+.md-header__button.md-logo :is(img, svg) {
+  width: 0.72rem;
+  height: 0.72rem;
+}
+
+.md-header__topic:first-child {
+  font-weight: 700;
+}
+
+.md-header__button:hover {
+  opacity: 1;
+  color: var(--ms-orange);
+}
+
+/* --- search --- */
+.md-search__form {
+  background: var(--ms-surface-2);
+  border: 1px solid var(--ms-border);
+  border-radius: 8px;
+  box-shadow: none;
+}
+
+.md-search__form:hover,
+[data-md-toggle="search"]:checked ~ .md-header .md-search__form {
+  background: var(--ms-surface);
+  border-color: var(--ms-border-strong);
+}
+
+.md-search__input {
+  font-family: var(--ms-display);
+  font-size: 0.7rem;
+}
+
+.md-search__input::placeholder {
+  color: var(--ms-faint);
+}
+
+.md-search__output {
+  border-radius: 8px;
+}
+
+.md-search-result__meta {
+  font-family: var(--ms-display);
+  font-size: 0.6rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ms-faint);
+  background: transparent;
+}
+
+.md-search-result__article .md-search-result__title,
+.md-search-result__link:is(:focus, :hover) .md-search-result__title {
+  font-family: var(--ms-display);
+}
+
+/* ============================================================
+   Navigation
+   ============================================================ */
+
+.md-nav {
+  font-size: 0.68rem;
+}
+
+/* Section headings in the sidebar are labels, not links — set them apart the
+   way the site sets its eyebrows apart. */
+.md-nav__title {
+  font-family: var(--ms-display);
+  font-size: 0.6rem;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ms-faint);
+}
+
+.md-nav__link {
+  color: var(--ms-muted);
+  transition: color 0.12s;
+}
+
+.md-nav__link:is(:hover, :focus) {
+  color: var(--ms-text);
+}
+
+/* The current page: orange text plus a bar in the gutter, so it is findable
+   in a sidebar that runs to forty entries. */
+.md-nav__item .md-nav__link--active,
+.md-nav__item .md-nav__link--active code {
+  color: var(--ms-orange);
+  font-weight: 600;
+}
+
+.md-nav--primary .md-nav__item .md-nav__link--active {
+  position: relative;
+}
+
+.md-nav--primary .md-nav__item .md-nav__link--active::after {
+  content: "";
+  position: absolute;
+  left: -0.75rem;
+  top: 0.25em;
+  bottom: 0.25em;
+  width: 2px;
+  border-radius: 2px;
+  background: var(--ms-grad);
+}
+
+/* Top-level group labels in the sidebar (navigation.sections is off, so these
+   are the expandable section titles). */
+.md-nav--primary > .md-nav__list > .md-nav__item > .md-nav__link {
+  font-family: var(--ms-display);
+  font-size: 0.64rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--ms-text);
+}
+
+/* --- table of contents (right rail) --- */
+.md-nav--secondary .md-nav__title {
+  background: transparent;
+  box-shadow: none;
+}
+
+.md-nav--secondary .md-nav__link--active {
+  color: var(--ms-orange);
+}
+
+.md-sidebar {
+  scrollbar-width: thin;
+}
+
+/* ============================================================
+   Diagrams
+   ============================================================ */
+
+/* Mermaid output is a diagram, not code: Material renders it into an
+   unstyled block, so it just needs centering and a scroll floor. */
+.md-typeset .mermaid {
+  max-width: none;
+  margin: 1.6em 0;
+  text-align: center;
+  overflow-x: auto;
+}
+
+.md-typeset .mermaid svg {
+  max-width: 100%;
+  height: auto;
+}
+
+/* ============================================================
+   Footer
+   ============================================================ */
+
+.md-footer {
+  border-top: 1px solid var(--ms-border);
+}
+
+.md-footer-meta {
+  background: transparent;
+}
+
+.md-copyright,
+.md-footer__link {
+  font-family: var(--ms-display);
+  color: var(--ms-faint);
+}
+
+.md-copyright__highlight {
+  color: var(--ms-muted);
+}
+
+.md-footer__title {
+  font-family: var(--ms-display);
+}
+
+.md-footer__direction {
+  color: var(--ms-faint);
+}
+
+/* Prev/next are cards, matching the site's bordered surfaces. */
+.md-footer__inner {
+  margin: 1.4rem auto;
+  gap: 0.8rem;
+}
+
+.md-footer__link {
+  border: 1px solid var(--ms-border);
+  border-radius: 10px;
+  padding: 0.8rem 1rem;
+  margin: 0;
+  opacity: 1;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.md-footer__link:hover {
+  border-color: var(--ms-border-strong);
+  color: var(--ms-text);
+}
+
+.md-social__link:hover {
+  color: var(--ms-orange);
+}
+
+/* ============================================================
+   Misc
+   ============================================================ */
+
+:focus-visible {
+  outline: 2px solid var(--ms-orange);
+  outline-offset: 3px;
+  border-radius: 2px;
+}
+
+.md-typeset .md-button {
+  font-family: var(--ms-display);
+  font-weight: 700;
+  font-size: 0.68rem;
+  border-radius: 9px;
+  border-color: var(--ms-border-strong);
+  color: var(--ms-text);
+}
+
+.md-typeset .md-button:is(:hover, :focus) {
+  background: transparent;
+  border-color: var(--ms-violet);
+  color: var(--ms-violet);
+}
+
+.md-typeset .md-button--primary {
+  background: var(--ms-grad);
+  border-color: transparent;
+  color: #16090b;
+}
+
+.md-typeset .md-button--primary:is(:hover, :focus) {
+  background: var(--ms-grad);
+  border-color: transparent;
+  color: #16090b;
+  filter: brightness(1.07);
+}
+
+/* The instant-navigation progress bar, in the brand gradient. */
+.md-progress {
+  background: var(--ms-grad);
+}
+
+/* Below the sidebar breakpoint the drawer covers the page — give it the
+   surface color rather than Material's default white. */
+@media screen and (max-width: 76.1875em) {
+  .md-nav--primary .md-nav__title {
+    background: var(--ms-surface);
+    color: var(--ms-text);
+    box-shadow: none;
+    border-bottom: 1px solid var(--ms-border);
+  }
+
+  .md-nav--primary .md-nav__title ~ .md-nav__list {
+    box-shadow: none;
+  }
+
+  [data-md-toggle="drawer"]:checked ~ .md-container .md-sidebar--primary {
+    background: var(--ms-bg);
+  }
+
+  /* On a phone the reading column is the viewport; the measure cap would only
+     leave a stripe of unused width. */
+  .md-typeset :is(p, ul, ol, blockquote, h1, h2, h3, h4, h5, h6) {
+    max-width: none;
+  }
 }

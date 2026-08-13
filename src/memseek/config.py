@@ -2,16 +2,18 @@
 
 from __future__ import annotations
 
+import json
 import os
 import re
 from collections.abc import Mapping
 from functools import cache
 from pathlib import Path
+from typing import Annotated, Any
 from urllib.parse import urlsplit
 
 from dotenv import dotenv_values
 from pydantic import Field, field_validator, model_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
 @cache
@@ -185,7 +187,39 @@ class Settings(BaseSettings):
     # The workspace explorer is a separately hosted browser client. Origins
     # remain opt-in because allowing an arbitrary page to send a bearer token
     # to an API turns a user-controlled credential into ambient authority.
-    api_cors_origins: tuple[str, ...] = ()
+    #
+    # NoDecode: the settings source would otherwise JSON-parse this before any
+    # validator sees it, so a `.env` line a person actually writes — one bare
+    # origin, or two separated by a comma — died at import with a SettingsError
+    # naming no value and no reason. Parsing here means the process either
+    # starts or explains itself.
+    api_cors_origins: Annotated[tuple[str, ...], NoDecode] = ()
+
+    @field_validator("api_cors_origins", mode="before")
+    @classmethod
+    def parse_api_cors_origins(cls, value: Any) -> Any:
+        """Accept a JSON array, one origin, or a separated list of them."""
+
+        if not isinstance(value, str):
+            return value
+        text = value.strip()
+        # A quoted shell export pasted into an env file keeps its quotes, and
+        # the quotes are never part of an origin.
+        if len(text) >= 2 and text[0] == text[-1] and text[0] in {"'", '"'}:
+            text = text[1:-1].strip()
+        if not text:
+            return ()
+        if text.startswith("["):
+            try:
+                decoded = json.loads(text)
+            except ValueError as exc:
+                raise ValueError(
+                    f"API_CORS_ORIGINS is not a valid JSON array: {exc}. "
+                    'Use ["https://console.example.com"], or just '
+                    "https://console.example.com"
+                ) from exc
+            return decoded
+        return tuple(part for part in re.split(r"[,\s]+", text) if part)
 
     @field_validator("api_cors_origins")
     @classmethod

@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "memseek": {
+      "type": "http",
+      "url": "${user_config.MEMSEEK_URL}/mcp",
+      "headers": {
+        "Authorization": "Bearer ${user_config.MEMSEEK_API_KEY}"
+      },
+      "timeout": 180000
+    }
+  }
+}

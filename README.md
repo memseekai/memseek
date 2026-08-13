@@ -43,6 +43,15 @@ guide](docs/mcp.md). It covers the package-owned declaration, authenticated
 the authenticated `/mcp` Streamable HTTP endpoint, and exact remote/local
 Claude Code and Codex configuration.
 
+For durable memory integrated into Claude Code's lifecycle, use the
+[Claude Code plugin](docs/claude-code-plugin.md). It lets Claude remember project
+decisions, rules, work areas, and preferences across terminal sessions while keeping
+links to the original conversation evidence. The guide explains the four-layer memory
+model, customer use cases, installation, and the copy-paste test: `docker compose up` for
+the service, where to get the model API key it needs, the checks that prove the service and
+the key work before Claude is involved, and the cross-session test that ends with a rule
+taught in one session being applied in the next.
+
 To preview the site locally, install the locked development environment with
 `uv sync --frozen --all-groups`, then run `make docs` and open
 <http://127.0.0.1:8001>.

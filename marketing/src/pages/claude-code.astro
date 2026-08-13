@@ -1,0 +1,565 @@
+---
+/**
+ * The Claude Code plugin page, and the one place on the site that is a
+ * procedure rather than an argument.
+ *
+ * It mirrors docs/claude-code-plugin.md step for step, on purpose: a
+ * reader who starts here and finishes in the repo must not meet two different
+ * sets of commands. If a command changes there, change it here.
+ *
+ * Every command on this page was run against the stack in the repo. Docker
+ * only for the service, a real model key, and no fake provider anywhere —
+ * the thing being tested is precisely what a fake provider cannot do.
+ */
+import BaseLayout from '../layouts/BaseLayout.astro';
+
+const DOCS =
+  'https://github.com/memseekai/memseek/blob/main/docs/claude-code-plugin.md';
+
+/** What has to be on the machine before step 1. */
+const needs = [
+  { k: 'Docker + Compose v2', v: 'runs postgres, the API, and the worker', c: 'docker compose version' },
+  { k: 'Claude Code', v: 'the plugin host', c: 'claude --version' },
+  { k: 'python3 3.10+ on the host', v: 'Claude Code hooks are host processes, not containers', c: 'python3 -V' },
+  { k: 'An LLM API key with credit', v: 'embeddings and the memory ladder are real model calls', c: 'step 1' },
+];
+
+const trouble = [
+  ['<code>Marketplace file not found at …/marketplaces/memseekai-memseek/…</code>', 'The plugin is not published to GitHub yet, so there is nothing to clone. Install from your checkout: <code>claude plugin marketplace add ./</code>.'],
+  ['<code>Plugin "memseek-memory" not found in marketplace "memseek"</code>', 'The marketplace entry points at a copy with no plugin — usually a failed remote add. <code>claude plugin marketplace remove memseek</code>, then add <code>./</code> from the repository root.'],
+  ['<code>Invalid marketplace source format</code>', 'A bare <code>.</code> is not accepted. Use <code>./</code> or an absolute path.'],
+  ['Plugin source edits have no effect', 'Install copies the plugin at its declared version. Use <code>claude --plugin-dir ./integrations/claude-code</code> while you are editing it.'],
+  ['Port 8000 already in use', 'Add <code>MEMSEEK_PORT=8100</code> to <code>.env</code>, bring the stack up again, and give the plugin <code>http://127.0.0.1:8100</code>.'],
+  ['Records stay <code>ready: false</code>', 'The embedding call is failing. <code>docker compose logs worker</code> — usually a missing or unfunded key in <code>.env</code>.'],
+  ['Worker logs <code>"status":"error"</code> with a model name', 'Your account cannot call that model. Change the alias targets in <code>examples/agent_memory_catalog/conf/models.yaml</code>, then <code>docker compose run --rm setup &amp;&amp; docker compose restart api worker</code>.'],
+  ['<code>/mcp</code> does not list <code>memseek</code>', 'The URL must be the base — <code>http://127.0.0.1:8000</code>, with no <code>/mcp</code> and no trailing slash.'],
+  ['Search finds the rule, a new session does not', 'Storage and retrieval are fine; the automatic brief is the suspect. Compare the project memory name <code>memseek-status</code> reports in both sessions.'],
+  ['<code>.memseek/api_key</code> is missing', 'A workspace key is disclosed once. <code>docker compose down -v</code> and start over.'],
+];
+---
+
+<BaseLayout
+  title="Test the Claude Code memory plugin — Memseek"
+  description="A copy-paste procedure: one docker compose up, a real model key, and a rule you teach Claude Code today applied in tomorrow's session — with the message it came from. No fake providers, no bash scripts."
+>
+  <section class="head">
+    <div class="wrap">
+      <span class="eyebrow" style="--hue:var(--violet)">claude code plugin</span>
+      <h1>
+        Teach Claude a rule today.<br />
+        <span class="hot">Watch a session next week apply it</span> — and show you
+        the message it came from.
+      </h1>
+      <p class="lede">
+        Nine steps, about <b>10 minutes</b>, and a few cents of model usage. The service runs
+        in <b>Docker</b>; the only thing you install is the plugin.
+      </p>
+      <div class="ctas">
+        <a class="btn btn-primary" href="#s1">Start at step 1 ↓</a>
+        <a class="btn btn-ghost" href={DOCS}>The same steps in the repo</a>
+      </div>
+      <div class="needs">
+        {needs.map((n) => (
+          <div class="need">
+            <b>{n.k}</b>
+            <span>{n.v}</span>
+            <code>{n.c}</code>
+          </div>
+        ))}
+      </div>
+      <p class="warn">
+        <b>No fake providers.</b> The stack has an <code>LLM_FAKE=1</code> mode for CI. It can
+        prove transport and exact message capture, but it cannot build the memory this test
+        checks. Leave it off and use a real key.
+      </p>
+    </div>
+  </section>
+
+  <!-- ============ THE PROCEDURE ============ -->
+  <section id="s1" class="alt">
+    <div class="wrap">
+      <div class="sec-head">
+        <span class="eyebrow" style="--hue:var(--orange)">the service</span>
+        <h2>Steps 1–5 — stand up memory and prove it works</h2>
+        <p>
+          All of this happens before Claude Code is involved. That order is deliberate: when
+          something is wrong here, no plugin, hook, or prompt can fix it.
+        </p>
+      </div>
+
+      <ol class="steps">
+        <li class="step">
+          <span class="sn">step 01</span>
+          <b>Get a model API key and put it in <code>.env</code></b>
+          <p>
+            The shipped design calls OpenAI: a chat model for the memory passes and
+            <code>text-embedding-3-small</code> for every stored record. Create a key at
+            <a href="https://platform.openai.com/api-keys">platform.openai.com/api-keys</a>.
+            Compose reads <code>.env</code> automatically, and it is gitignored.
+          </p>
+          <div class="term">
+            <div class="th"><span class="tf">your terminal</span><button class="cp" type="button">copy</button></div>
+            <pre><span class="cd">$</span> git clone https://github.com/memseekai/memseek &amp;&amp; <span class="ck">cd</span> memseek
+<span class="cd">$</span> <span class="ck">printf</span> <span class="cs">'OPENAI_API_KEY=sk-your-real-key\n'</span> &gt; .env</pre>
+          </div>
+          <p class="alt-note">
+            Another provider? Point <code>examples/agent_memory_catalog/conf/models.yaml</code> at
+            any OpenAI-compatible endpoint that also offers embeddings, name its key variable in
+            <code>api_key_env</code>, and put that variable in <code>.env</code>.
+          </p>
+        </li>
+
+        <li class="step">
+          <span class="sn">step 02</span>
+          <b>Start the stack with one command</b>
+          <p>
+            <code>--wait</code> returns only once the API is healthy and the one-shot steps have
+            exited <code>0</code>. First build: a few minutes. After that: seconds.
+          </p>
+          <div class="term">
+            <div class="th"><span class="tf">your terminal</span><button class="cp" type="button">copy</button></div>
+            <pre><span class="cd">$</span> docker compose up -d --build --wait
+<span class="cd">$</span> docker compose logs setup --no-log-prefix
+
+<span class="cm">workspace 'local' created; key written to /state/api_key
+published agent_memory@0.3.0 (20 files) from examples/agent_memory_catalog
+MCP interface ready — 7 tools: context, recall, standing_rules,
+  replay_session, remember, record, answer</span></pre>
+          </div>
+          <p class="alt-note">
+            <code>migrate</code> and <code>setup</code> are <i>supposed</i> to show as exited in
+            <code>docker compose ps -a</code>: they apply the schema and publish the memory
+            design, then have nothing left to do. If <code>setup</code> still shows as running, it
+            is mid-publish — give it a few seconds.
+          </p>
+        </li>
+
+        <li class="step">
+          <span class="sn">step 03</span>
+          <b>Read the workspace key</b>
+          <p>
+            The setup step writes it to a bind-mounted file instead of printing it into
+            interleaved logs. This is the key the plugin will ask for.
+          </p>
+          <div class="term">
+            <div class="th"><span class="tf">your terminal</span><button class="cp" type="button">copy</button></div>
+            <pre><span class="cd">$</span> <span class="ck">cat</span> .memseek/api_key</pre>
+          </div>
+        </li>
+
+        <li class="step">
+          <span class="sn">step 04</span>
+          <b>Check the service answers</b>
+          <p>
+            Liveness including the database, then the exact tool contract the plugin's MCP
+            connection depends on — checked from inside the container, so Docker stays the only
+            requirement.
+          </p>
+          <div class="term">
+            <div class="th"><span class="tf">your terminal</span><button class="cp" type="button">copy</button></div>
+            <pre><span class="cd">$</span> curl -s http://127.0.0.1:8000/health
+<span class="cm">&lbrace;"ok":true,"db":true&rbrace;</span>
+
+<span class="cd">$</span> docker compose exec \
+    -e MEMSEEK_URL=http://127.0.0.1:8000 \
+    -e MEMSEEK_API_KEY=<span class="cs">"$(cat .memseek/api_key)"</span> \
+    api memseek mcp --check
+
+<span class="cm"># expect: package agent_memory 0.3.0, seven tools, and
+#   "streamable_http": "http://127.0.0.1:8000/mcp"</span></pre>
+          </div>
+        </li>
+
+        <li class="step hi">
+          <span class="sn">step 05</span>
+          <b>Prove your model credentials work — before Claude is involved</b>
+          <p>
+            This is the check that separates <i>“my API key is wrong”</i> from <i>“the plugin is
+            broken”</i>, and it takes 30 seconds. Write one message over HTTP, then watch the
+            worker do the real model work.
+          </p>
+          <div class="term">
+            <div class="th"><span class="tf">your terminal</span><button class="cp" type="button">copy</button></div>
+            <pre><span class="cd">$</span> curl -sS -X POST http://127.0.0.1:8000/records \
+    -H <span class="cs">"Authorization: Bearer $(cat .memseek/api_key)"</span> \
+    -H <span class="cs">'Content-Type: application/json'</span> \
+    -d <span class="cs">'&lbrace;"records":[&lbrace;"collection":"messages","type":"message",
+         "entity":"project:preflight",
+         "text":"Every distributed-cache key must start with orbit:.",
+         "content":&lbrace;"text":"Every distributed-cache key must start with orbit:.",
+                     "role":"user","session_id":"preflight","ordinal":0&rbrace;,
+         "dedupe_key":"preflight:0"&rbrace;]&rbrace;'</span>
+
+<span class="cm">&lbrace;"inserted":[&lbrace;"index":0,"id":"4882d928-…","ready":false&rbrace;],"duplicates":[]&rbrace;</span>
+
+<span class="cd">$</span> docker compose logs -f worker
+
+<span class="cm"># within ~30s, one line per stage:
+"processor":"embedding_v1","provider":"openai","status":"ok"
+"derivation":"l1_extract","status":"ok","output_count":1
+"derivation":"scene_synthesis","status":"ok","output_count":1</span></pre>
+          </div>
+          <p>
+            That is the ladder forming from a single message: evidence embedded, a reusable
+            memory extracted, a topic summary written. <code>ready:false</code> in the first
+            response is expected — the record is stored, its embedding is pending. A
+            <code>"status":"error"</code> line naming authentication or a model is your key or
+            your model name, and it is much cheaper to see it here.
+          </p>
+          <div class="term">
+            <div class="th"><span class="tf">your terminal</span><button class="cp" type="button">copy</button></div>
+            <pre><span class="cm"># is the derived memory retrievable?</span>
+<span class="cd">$</span> curl -sS -X POST http://127.0.0.1:8000/views/memory_recall/query \
+    -H <span class="cs">"Authorization: Bearer $(cat .memseek/api_key)"</span> \
+    -H <span class="cs">'Content-Type: application/json'</span> \
+    -d <span class="cs">'&lbrace;"entity":"project:preflight","task":"distributed cache key prefix"&rbrace;'</span>
+
+<span class="cm"># then delete the throwaway entity so it cannot pollute the real test</span>
+<span class="cd">$</span> curl -sS -X POST http://127.0.0.1:8000/erase \
+    -H <span class="cs">"Authorization: Bearer $(cat .memseek/api_key)"</span> \
+    -H <span class="cs">'Content-Type: application/json'</span> \
+    -d <span class="cs">'&lbrace;"entity":"project:preflight"&rbrace;'</span></pre>
+          </div>
+        </li>
+      </ol>
+    </div>
+  </section>
+
+  <!-- ============ THE PLUGIN ============ -->
+  <section>
+    <div class="wrap">
+      <div class="sec-head">
+        <span class="eyebrow" style="--hue:var(--cyan)">the plugin</span>
+        <h2>Steps 6–7 — install it, then try to catch it forgetting</h2>
+        <p>
+          Step 7 is the actual product test. Everything before it exists so that a failure
+          there means something.
+        </p>
+      </div>
+
+      <ol class="steps" start="6">
+        <li class="step">
+          <span class="sn">step 06</span>
+          <b>Install the plugin from the checkout</b>
+          <p>
+            The plugin is not on a marketplace yet — and it does not need to be. The repository
+            you cloned <i>is</i> one: it carries <code>.claude-plugin/marketplace.json</code>.
+            <code>--config</code> supplies the three values the interactive flow would ask for,
+            so there is nothing to type into a prompt.
+          </p>
+          <div class="term">
+            <div class="th"><span class="tf">in the repo you want Claude to remember</span><button class="cp" type="button">copy</button></div>
+            <pre><span class="cd">$</span> claude plugin marketplace add ./
+<span class="cd">$</span> claude plugin install memseek-memory@memseek --scope local \
+    --config MEMSEEK_URL=http://127.0.0.1:8000 \
+    --config MEMSEEK_API_KEY=<span class="cs">"$(cat .memseek/api_key)"</span> \
+    --config MEMSEEK_CAPTURE_MODE=conversation
+
+<span class="cm">✔ Successfully added marketplace: memseek (declared in user settings)
+✔ Successfully installed plugin: memseek-memory@memseek (scope: local)</span>
+
+<span class="cd">$</span> claude plugin details memseek-memory
+
+<span class="cm">Skills (5)  memseek-explain, memseek-feedback, memseek-remember,
+            memseek-search, memseek-status
+Hooks (5)   SessionStart, UserPromptSubmit, Stop, PreCompact, SessionEnd
+MCP servers (1)  memseek</span></pre>
+          </div>
+          <p>Start a session in that repository. The plugin loads on startup:</p>
+          <div class="term">
+            <div class="th"><span class="tf">your terminal</span><button class="cp" type="button">copy</button></div>
+            <pre><span class="cd">$</span> claude
+
+<span class="cm">Memseek connected for project:memseek:2f77b8026b767ade.</span></pre>
+          </div>
+          <table class="cfg">
+            <thead><tr><th>Value</th><th>What it is</th></tr></thead>
+            <tbody>
+              <tr><td>MEMSEEK_URL</td><td><code>http://127.0.0.1:8000</code> — the base URL, no <code>/mcp</code>, no trailing slash</td></tr>
+              <tr><td>MEMSEEK_API_KEY</td><td>the workspace key from step 3; stored as a sensitive value, not written into <code>settings.json</code></td></tr>
+              <tr><td>MEMSEEK_CAPTURE_MODE</td><td><code>conversation</code>, <code>explicit</code>, or <code>off</code> — all three keep recall on</td></tr>
+            </tbody>
+          </table>
+          <p class="alt-note">
+            <code>./</code>, not <code>.</code> — a bare dot is rejected. <code>--scope local</code>
+            keeps the plugin to this project; <code>--scope user</code> puts it in every project.
+            Installing <i>copies</i> the plugin at its declared version, so if you are editing its
+            hooks or skills, run <code>claude --plugin-dir ./integrations/claude-code</code>
+            instead and it loads your working tree.
+          </p>
+          <p>Then confirm the host side:</p>
+          <div class="term">
+            <div class="th"><span class="tf">claude code</span><button class="cp" type="button">copy</button></div>
+            <pre><span class="cd">&gt;</span> /memseek-memory:memseek-status
+
+<span class="cm">Memseek is ready.
+  Service: http://127.0.0.1:8000
+  Project memory: project:memseek:2f77b8026b767ade
+  Conversation capture: conversation
+  Memory tools: 7/7 available
+  Retry queue: 0 pending, 0 need inspection</span></pre>
+          </div>
+          <p class="alt-note">
+            Note the <b>project memory</b> name. It is derived from the repository, and it is
+            what makes a later session find the same memory instead of a blank one.
+          </p>
+        </li>
+
+        <li class="step hi">
+          <span class="sn">step 07</span>
+          <b>Teach one rule, restart, and ask cold</b>
+          <ol class="mini">
+            <li>
+              <span class="mk">01 · say it</span>
+              <div class="term plain">
+                <pre>For this test project, every distributed-cache key must start with orbit:.
+Treat this as a priority-90 coding rule until I revoke it.</pre>
+              </div>
+            </li>
+            <li>
+              <span class="mk">02 · watch it become memory</span>
+              <div class="term plain">
+                <pre><span class="cd">$</span> docker compose logs -f worker
+<span class="cm"># "derivation":"l1_extract","status":"ok" — from your actual
+# conversation, with no memory tool called</span></pre>
+              </div>
+            </li>
+            <li>
+              <span class="mk">03 · confirm it is retrievable</span>
+              <div class="term plain">
+                <pre><span class="cd">&gt;</span> /memseek-memory:memseek-search distributed-cache key prefix</pre>
+              </div>
+              <span class="mn">
+                Repeat every few seconds until the <code>orbit:</code> rule comes back. Derivation
+                is asynchronous. If it never appears, the worker or the model key is at fault —
+                not the plugin.
+              </span>
+            </li>
+            <li>
+              <span class="mk">04 · quit claude code, reopen it in the same repo, and forbid tools</span>
+              <div class="term plain">
+                <pre>Do not call a memory tool. Based only on context supplied before this
+request, what prefix must distributed-cache keys use here? Cite the
+memory evidence.</pre>
+              </div>
+              <span class="mn">
+                An answer of <code>orbit:</code> with a citation proves the whole chain at once:
+                captured, derived, project identity stable across a restart, relevant memory
+                selected, brief delivered before Claude answered.
+              </span>
+            </li>
+            <li>
+              <span class="mk">05 · ask why it believes that</span>
+              <div class="term plain">
+                <pre><span class="cd">&gt;</span> /memseek-memory:memseek-explain</pre>
+              </div>
+              <span class="mn">
+                Claude should separate the derived rule from the literal message you typed, with
+                record ids. Memory you cannot audit is not the feature.
+              </span>
+            </li>
+          </ol>
+          <p class="verdict">
+            Step 3 passes but step 4 fails → memory is healthy, the automatic brief is the
+            suspect. Step 3 fails → look at the worker first.
+          </p>
+        </li>
+      </ol>
+    </div>
+  </section>
+
+  <!-- ============ DEEPER + CLEANUP ============ -->
+  <section class="alt">
+    <div class="wrap">
+      <div class="sec-head">
+        <span class="eyebrow" style="--hue:var(--green)">steps 8–9</span>
+        <h2>Go deeper, then delete everything</h2>
+      </div>
+
+      <div class="two">
+        <div class="card">
+          <span class="ck2">step 08 · optional checks</span>
+          <ul class="checks">
+            <li><b>Exact capture, in order</b><span><code>GET /timeline?entity=&lt;project memory&gt;</code> returns your message and Claude's reply as separate rows.</span></li>
+            <li><b>Fail-open under outage</b><span><code>docker compose stop api</code>, send a prompt: Claude keeps working and the write waits in a local queue. Start it again and flush.</span></li>
+            <li><b>Retention policy</b><span>Switch capture to <code>explicit</code> or <code>off</code> and confirm ordinary chat stops producing records while recall keeps working.</span></li>
+            <li><b>Feedback lands on a real render</b><span><code>/memseek-memory:memseek-feedback task_success …</code> reports an artifact-use id and zero queued writes.</span></li>
+          </ul>
+        </div>
+        <div class="card">
+          <span class="ck2">step 09 · clean up</span>
+          <div class="term plain">
+            <pre><span class="cm"># stop, keep the memory and the key</span>
+<span class="cd">$</span> docker compose down
+
+<span class="cm"># delete everything this test created</span>
+<span class="cd">$</span> docker compose down -v &amp;&amp; <span class="ck">rm</span> -rf .memseek</pre>
+          </div>
+          <p class="warn tight">
+            <b>A fresh volume means a fresh key.</b> <code>down -v</code> destroys the workspace,
+            so the next <code>up</code> mints a new key and the plugin's stored one stops
+            working. Update it in <code>/plugin</code> → <code>memseek-memory@memseek</code> and
+            start a new session.
+          </p>
+          <div class="term plain">
+            <pre><span class="cm"># and the plugin itself</span>
+<span class="cd">$</span> claude plugin uninstall memseek-memory@memseek --scope local
+<span class="cd">$</span> claude plugin marketplace remove memseek</pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="sec-head trouble-head">
+        <h2>When it does not work</h2>
+      </div>
+      <div class="table-scroll">
+        <table class="tr">
+          <thead><tr><th>Symptom</th><th>What to do</th></tr></thead>
+          <tbody>
+            {trouble.map(([s, f]) => (
+              <tr><td><Fragment set:html={s} /></td><td><Fragment set:html={f} /></td></tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p class="sec-foot">
+        The repo carries the same procedure with every expected output in full, plus the
+        capture-mode matrix and the complete troubleshooting table:
+        <a href={DOCS}>docs/claude-code-plugin.md</a>.
+      </p>
+    </div>
+  </section>
+
+  <!-- ============ CTA ============ -->
+  <section>
+    <div class="wrap end">
+      <h2>What you just tested is not a chat log.</h2>
+      <p>
+        The plugin stores your exact messages as evidence, derives small reusable rules and
+        decisions from them, keeps a summary per area of work, and hands Claude a bounded brief
+        for the task in front of it — with links back to what you actually said. It is one
+        memory design declared in YAML, running on a Postgres you own.
+      </p>
+      <div class="ctas">
+        <a class="btn btn-primary" href="/#quickstart">Run the whole stack →</a>
+        <a class="btn btn-ghost" href="/context-engine/">What a context engine is</a>
+        <a class="btn btn-ghost" href="https://github.com/memseekai/memseek">View on GitHub</a>
+      </div>
+    </div>
+  </section>
+</BaseLayout>
+
+<style>
+  /* Chrome mirrored from public/index.html and /context-engine/ — same tokens,
+     same rhythm, so a procedure page still reads as the same artifact. */
+  section { padding-block: clamp(3rem, 6vw, 5.2rem); }
+  .alt { background: var(--surface); border-block: 1px solid var(--border); }
+  .hot { color: var(--orange); }
+  :root[data-theme='light'] .hot { color: color-mix(in srgb, var(--orange) 85%, var(--text)); }
+
+  h1 { font-size: clamp(1.5rem, .95rem + 2.1vw, 2.55rem); margin-top: .9rem; max-width: 30ch; line-height: 1.22; }
+  .head .lede { color: var(--muted); font-size: var(--step-1); line-height: 1.55; max-width: 56ch; margin-top: 1.3rem; }
+  .head .lede b { color: var(--text); font-weight: 600; }
+  .ctas { display: flex; flex-wrap: wrap; align-items: center; gap: .8rem; margin-top: 1.7rem; }
+
+  .sec-head { max-width: 68ch; margin-bottom: clamp(1.6rem, 3vw, 2.3rem); }
+  .sec-head h2 { font-size: var(--step-2); margin-top: .8rem; }
+  .sec-head p { color: var(--muted); font-size: var(--step-1); margin-top: .9rem; line-height: 1.5; text-wrap: pretty; }
+  .sec-foot { margin-top: 1.4rem; font-size: var(--step--1); color: var(--muted); line-height: 1.6; max-width: 76ch; }
+
+  /* ---------- prerequisites ---------- */
+  .needs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .7rem; margin-top: 2.2rem; }
+  @media (max-width: 950px) { .needs { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (max-width: 560px) { .needs { grid-template-columns: 1fr; } }
+  .need { border: 1px solid var(--border); border-top: 2px solid var(--cyan); border-radius: 0 0 10px 10px; background: var(--surface); padding: .8rem .9rem .85rem; display: grid; gap: .3rem; }
+  .need b { font-family: var(--mono); font-size: .78rem; color: var(--text); line-height: 1.25; }
+  .need span { font-size: var(--step--1); color: var(--muted); line-height: 1.45; }
+  .need code { font-family: var(--mono); font-size: .68rem; color: var(--cyan); }
+
+  .warn { margin-top: 1.6rem; max-width: 76ch; border: 1px solid color-mix(in srgb, var(--amber) 45%, var(--border)); border-left: 3px solid var(--amber); border-radius: 0 10px 10px 0; background: color-mix(in srgb, var(--amber) 7%, transparent); padding: .85rem 1rem; font-size: var(--step--1); color: var(--muted); line-height: 1.6; }
+  .warn b { color: var(--text); font-weight: 600; }
+  .warn.tight { margin-top: 1rem; }
+
+  /* ---------- steps ---------- */
+  .steps { list-style: none; display: grid; gap: 1rem; }
+  .step { border: 1px solid var(--border); border-radius: 13px; background: var(--bg); padding: 1.1rem 1.2rem 1.25rem; display: grid; gap: .7rem; }
+  .step.hi { border-color: color-mix(in srgb, var(--violet) 45%, var(--border)); background: linear-gradient(168deg, color-mix(in srgb, var(--violet) 8%, var(--bg)), var(--bg)); }
+  .sn { font-family: var(--mono); font-size: .58rem; letter-spacing: .16em; text-transform: uppercase; color: var(--orange); }
+  .step.hi .sn { color: var(--violet); }
+  .step > b { font-family: var(--mono); font-size: var(--step-1); color: var(--text); line-height: 1.25; letter-spacing: -.01em; }
+  .step p { color: var(--muted); font-size: var(--step--1); line-height: 1.6; max-width: 82ch; text-wrap: pretty; }
+  .step p i { color: var(--text); font-style: italic; }
+  .alt-note { border-left: 2px solid var(--border-strong); padding-left: .8rem; }
+  .verdict { font-family: var(--mono); font-size: .72rem; color: var(--muted); border-top: 1px dashed var(--border-strong); padding-top: .8rem; }
+  code { font-family: var(--mono); font-size: .9em; color: var(--text); }
+  .step p code, .need code, .warn code, td code, .mn code { background: color-mix(in srgb, var(--text) 6%, transparent); border-radius: 4px; padding: .05rem .3rem; }
+
+  /* ---------- terminal blocks ---------- */
+  .term { border: 1px solid var(--border-strong); border-radius: 11px; background: var(--code-bg); overflow: hidden; }
+  .th { display: flex; align-items: center; justify-content: space-between; gap: .5rem; padding: .45rem .75rem; border-bottom: 1px solid var(--border); background: var(--surface-2); font-family: var(--mono); font-size: .62rem; }
+  .tf { color: var(--faint); }
+  .cp { background: transparent; border: 1px solid var(--border-strong); color: var(--muted); font-family: var(--mono); font-size: .6rem; padding: .15rem .45rem; border-radius: 5px; cursor: pointer; }
+  .cp:hover { color: var(--orange); border-color: var(--orange); }
+  .term pre { padding: .85rem 1rem; overflow-x: auto; font-family: var(--mono); font-size: .69rem; line-height: 1.7; color: var(--text); }
+  .term.plain { border-radius: 9px; }
+  .cd { color: var(--orange); user-select: none; }
+  .ck { color: var(--violet); }
+  .cs { color: var(--cyan); }
+  .cm { color: var(--faint); }
+  :root[data-theme='light'] .cm { color: #6f7a85; }
+
+  /* ---------- the five sub-steps of the real test ---------- */
+  .mini { list-style: none; display: grid; gap: .8rem; }
+  .mini > li { display: grid; gap: .45rem; padding-left: .9rem; border-left: 2px solid color-mix(in srgb, var(--violet) 40%, var(--border)); }
+  .mk { font-family: var(--mono); font-size: .6rem; letter-spacing: .12em; text-transform: uppercase; color: var(--violet); }
+  .mn { font-size: var(--step--1); color: var(--muted); line-height: 1.55; max-width: 80ch; }
+
+  /* ---------- tables ---------- */
+  table { width: 100%; border-collapse: collapse; font-size: var(--step--1); }
+  th, td { text-align: left; padding: .6rem .8rem; border-bottom: 1px solid var(--border); vertical-align: top; color: var(--muted); line-height: 1.55; }
+  th { font-family: var(--mono); font-size: .62rem; letter-spacing: .1em; text-transform: uppercase; color: var(--faint); border-bottom-color: var(--border-strong); }
+  .cfg { border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+  .cfg td:first-child { font-family: var(--mono); font-size: .72rem; color: var(--text); white-space: nowrap; }
+  .tr td:first-child { color: var(--text); }
+  .table-scroll { overflow-x: auto; }
+  .trouble-head { margin-top: clamp(2.2rem, 4vw, 3.2rem); }
+  .trouble-head h2 { font-size: var(--step-1); }
+
+  /* ---------- deeper + cleanup ---------- */
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+  @media (max-width: 900px) { .two { grid-template-columns: 1fr; } }
+  .card { border: 1px solid var(--border); border-radius: 13px; background: var(--bg); padding: 1.1rem 1.2rem 1.25rem; display: grid; gap: .8rem; align-content: start; }
+  .ck2 { font-family: var(--mono); font-size: .58rem; letter-spacing: .16em; text-transform: uppercase; color: var(--green); }
+  .checks { list-style: none; display: grid; gap: .6rem; }
+  .checks li { display: grid; gap: .15rem; }
+  .checks b { font-family: var(--mono); font-size: .74rem; color: var(--text); }
+  .checks span { font-size: var(--step--1); color: var(--muted); line-height: 1.5; }
+
+  /* ---------- closing ---------- */
+  .end { max-width: 64ch; }
+  .end h2 { font-size: var(--step-2); }
+  .end p { color: var(--muted); font-size: var(--step-1); margin-top: 1rem; line-height: 1.55; }
+</style>
+
+<script is:inline>
+  // Copy the commands, not the expected output. Everything printed back by the
+  // machine is in a .cm span, so dropping those nodes leaves exactly the lines
+  // that belong in a shell — minus the prompt character.
+  document.querySelectorAll('.cp').forEach((button) => {
+    button.addEventListener('click', () => {
+      const pre = button.closest('.term')?.querySelector('pre');
+      if (!pre) return;
+      const copy = pre.cloneNode(true);
+      copy.querySelectorAll('.cm').forEach((node) => node.remove());
+      const text = (copy.textContent ?? '')
+        .split('\n')
+        .filter((line) => line.trim() !== '')
+        .map((line) => line.replace(/^\s*[$>]\s?/, ''))
+        .join('\n');
+      navigator.clipboard.writeText(text).then(() => {
+        button.textContent = 'copied';
+        setTimeout(() => { button.textContent = 'copy'; }, 1400);
+      });
+    });
+  });
+</script>

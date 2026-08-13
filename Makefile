@@ -71,6 +71,11 @@ up:
 		$(COMPOSE) logs setup --no-log-prefix | tail -5; \
 		exit 1; \
 	fi; \
+	: "Both one-shot containers have exited 0 and every failure path above has"; \
+	: "already read their logs, so nothing is left to learn from them. Compose"; \
+	: "cannot auto-remove a service container, so do it here: what survives is"; \
+	: "what is actually serving. Cosmetic, hence never fatal."; \
+	$(COMPOSE) rm -fs migrate setup >/dev/null 2>&1 || true; \
 	printf '\n%s\n' "Memseek is up:"; \
 	printf '  %s\n' "API  http://127.0.0.1:$${MEMSEEK_PORT:-8000}"; \
 	printf '  %s\n' "MCP  http://127.0.0.1:$${MEMSEEK_PORT:-8000}/mcp"; \

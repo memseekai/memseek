@@ -1,6 +1,6 @@
 ---
 import { Image } from 'astro:assets';
-import { formatDate, postUrl, readingTime, type Post } from '../lib/posts';
+import { formatDate, postUrl, type Post } from '../lib/posts';
 
 interface Props {
   post: Post;
@@ -22,8 +22,6 @@ const { title, description, date, tags, cover, coverAlt, draft } = post.data;
   <div class="body">
     <div class="meta-line">
       <time datetime={date.toISOString()}>{formatDate(date)}</time>
-      <span aria-hidden="true">·</span>
-      <span>{readingTime(post.body)}</span>
       {draft && <span class="draft">draft</span>}
     </div>
     <h2>{title}</h2>

@@ -44,8 +44,19 @@ dereferences, derivation runs, named views, and artifact renders; it never
 writes records, advances cursors, or queues work.
 
 The browser passes the workspace bearer key directly to the API, so the API
-must explicitly allow the explorer's origin. Set exact origins as a JSON array;
-wildcards are rejected:
+must explicitly allow the explorer's origin. Origins are exact: wildcards are
+rejected. Write one origin, several separated by commas, or a JSON array —
+`https://console.example.com` and `["https://console.example.com"]` are the
+same list.
+
+On the Docker stack, the `api` service reads `API_CORS_ORIGINS` from `.env`:
+
+    # .env, for the explorer served by the local marketing dev server
+    API_CORS_ORIGINS=http://localhost:4321
+
+    docker compose up -d api          # recreates the API with the new list
+
+Running Uvicorn yourself, it is an ordinary export:
 
     # From the repository root, for the local marketing dev server.
     # The database must already be running and migrated.
@@ -57,8 +68,16 @@ wildcards are rejected:
     # Add every production console origin explicitly, for example:
     export API_CORS_ORIGINS='["https://console.example.com","https://memseek.pages.dev"]'
 
-The CORS list is read at API startup: stop and restart Uvicorn after changing
-it. The explorer keeps a supplied key only in browser memory, and its terminal
+Confirm it took effect — an allowed origin is echoed back, and any other origin
+gets no header at all, which is what makes the browser refuse the response:
+
+    curl -si -H 'Origin: http://localhost:4321' \
+      -H "Authorization: Bearer $MEMSEEK_API_KEY" \
+      http://127.0.0.1:8000/tools | grep -i access-control-allow-origin
+    # access-control-allow-origin: http://localhost:4321
+
+The CORS list is read at API startup: restart the API (`docker compose up -d api`,
+or stop and restart Uvicorn) after changing it. The explorer keeps a supplied key only in browser memory, and its terminal
 handoff links include the API URL but never the key.
 
 ## Real providers

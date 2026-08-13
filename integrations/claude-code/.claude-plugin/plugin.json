@@ -1,0 +1,39 @@
+{
+  "name": "memseek-memory",
+  "version": "0.2.0",
+  "description": "Durable, provenance-aware project memory for Claude Code.",
+  "author": {
+    "name": "Memseek"
+  },
+  "homepage": "https://github.com/memseekai/memseek",
+  "repository": "https://github.com/memseekai/memseek",
+  "userConfig": {
+    "MEMSEEK_URL": {
+      "type": "string",
+      "title": "Memseek service URL",
+      "description": "Base URL supplied by your Memseek administrator, without a trailing slash (for example, https://memory.example.com).",
+      "required": true,
+      "default": "http://127.0.0.1:8000"
+    },
+    "MEMSEEK_API_KEY": {
+      "type": "string",
+      "title": "Memseek workspace key",
+      "description": "Workspace key supplied by your Memseek administrator. Claude Code stores this as a sensitive value.",
+      "sensitive": true,
+      "required": true
+    },
+    "MEMSEEK_CAPTURE_MODE": {
+      "type": "string",
+      "title": "Conversation capture",
+      "description": "Controls new writes, not recall. conversation saves exact user and assistant chat messages automatically; explicit saves only when you ask Claude to remember; off tells Claude to make no new writes. Existing memory remains readable in every mode.",
+      "required": true,
+      "default": "conversation"
+    }
+  },
+  "keywords": [
+    "memory",
+    "context",
+    "mcp",
+    "claude-code"
+  ]
+}

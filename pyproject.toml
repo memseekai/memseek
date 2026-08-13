@@ -38,6 +38,7 @@ memseek = "memseek.cli:main"
 [dependency-groups]
 dev = [
     "mkdocs>=1.6.1,<2.0.0",
+    "mkdocs-material>=9.5",
     "pymdown-extensions>=10.9",
     "pytest>=8.4.1",
     "pytest-asyncio>=1.1.0",

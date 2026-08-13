@@ -1,11 +1,16 @@
 ---
-title: "The Loop Has Always Been There"
+title: "The Loop Has Always Been There: What an AI Loop Actually Is"
 description: "Why verifiability, world models, and memory may matter more than the next model"
 date: 2026-08-12
-author: Juan Diego Caballero (jdc@darma.ai)
+author: Juan Diego Caballero - Founder (jdc@darma.ai)
 tags: ["Agent architecture", "Verifiability", "World models", "Memory"]
 presentation: loop-essay
 ---
+
+import ReferenceArchitecture from '../../components/ReferenceArchitecture.astro';
+import ReliabilityComparison from '../../components/ReliabilityComparison.astro';
+
+Everyone talks about agent loops now, usually without explaining what is actually looping. After drowning in marketing copy and AI-influencer diagrams, this essay is my attempt to make the mechanism concrete.
 
 Watch a capable coding agent for long enough and a pattern appears. The impressive part is rarely its first answer. The impressive part is what happens next.
 
@@ -33,11 +38,7 @@ Here is the bottom line:
 
 That frame explains why coding agents work unusually well, why verifiability matters so much, why agents need world models as they leave software, why memory and metacognition become architectural concerns, and how expensive search can eventually become something that looks like intuition.
 
-The surprising part is that the loop is not new.
-
-It has always been there.
-
-We are simply automating more of it.
+The surprising part is that the loop is not new. It has always been there; we are simply automating more of it.
 
 ---
 
@@ -66,21 +67,15 @@ stopping rule   → human
 
 In Yoko Li's *Knowing When to Stop*, this surrounding machinery becomes explicit. Once an agent operates autonomously, convergence can no longer remain an implicit judgment supplied by a person; it has to be engineered into the system. That requires an observable state, a target state, actions that move the system toward it, a way to verify progress, and a rule for deciding when to stop. ([a16z.news](https://www.a16z.news/p/knowing-when-to-stop-the-art-of-making))
 
-Seen this way, AI engineering is partly the process of **moving pieces of cognition out of the human and into the machine**.
-
-The important unit is no longer just the model.
-
-It is the loop.
+Seen this way, AI engineering is partly the process of **moving pieces of cognition out of the human and into the machine**. The important unit is no longer just the model; it is the loop.
 
 ---
 
-## AlphaGo showed the architecture early
+## AlphaGo showed why hard domains demand a loop
 
 AlphaGo is usually remembered as a neural-network breakthrough. But the network alone was not the system.
 
-In AlphaGo Zero, the network supplied useful priors and value estimates. Monte Carlo Tree Search explored the alternatives. Self-play produced outcomes, and those outcomes became training data that improved the network. ([deepmind.google](https://deepmind.google/blog/alphago-zero-starting-from-scratch/))
-
-Two kinds of computation were working together:
+In AlphaGo Zero, the network supplied useful priors and value estimates. Monte Carlo Tree Search explored the alternatives. Self-play produced outcomes, and those outcomes became training data that improved the network. We will return to how those pieces taught one another; for now, notice the two kinds of computation working together. ([deepmind.google](https://deepmind.google/blog/alphago-zero-starting-from-scratch/))
 
 > What looks promising?
 
@@ -124,7 +119,52 @@ Combine all three, however, and the requirement placed on the model becomes much
 
 > **The model does not have to know the answer. It has to generate candidates from a distribution better than blind search while the surrounding system removes the bad ones.**
 
-Weaker requirements tend to produce more general architectures.
+That weaker requirement hides the central asymmetry behind LLM loops.
+
+For a fixed task run $n$ times with $c$ successful attempts, **pass@k** measures the probability that at least one of $k$ sampled attempts succeeds. It captures the chance of finding a usable solution after $k$ tries. **Reliability@k** measures the probability that all $k$ sampled attempts succeed. It captures consistency under repeated execution.
+
+That wording makes the distinction especially clear: **pass@k rewards finding one good run; Reliability@k rewards every run being good.** Agent benchmarks often call this second quantity $\mathrm{pass}^k$. Their unbiased finite-sample estimates point in opposite directions:
+
+$$
+\operatorname{pass@k}
+=
+1 - \frac{\binom{n-c}{k}}{\binom{n}{k}}
+\qquad
+\operatorname{Reliability@k}
+=
+\frac{\binom{c}{k}}{\binom{n}{k}}
+$$
+
+The same asymmetry is easier to see with a simple per-attempt model. If one generation has probability $p$ of succeeding and attempts are independent, then:
+
+$$
+\operatorname{pass@k} = 1-(1-p)^k
+\qquad
+\operatorname{Reliability@k} = p^k
+$$
+
+Suppose a weak generator succeeds only 40% of the time:
+
+| **Attempts ($k$)** | **pass@k: at least one works** | **Reliability@k: all work** |
+| ---: | ---: | ---: |
+| 1 | 40% | 40% |
+| 2 | 64% | 16% |
+| 5 | 92.2% | 1.0% |
+| 10 | 99.4% | 0.01% |
+
+At one attempt, the two measures are identical: both are 40%. As attempts accumulate, they split rapidly. By five tries, the chance that at least one attempt works has risen to 92.2%, while the chance that all five work has fallen to 1%. At ten tries, pass@k reaches 99.4%, but Reliability@k is only 0.01%.
+
+The generator is weak as a one-shot system. Inside a loop that can afford ten attempts, however, it is very likely to produce at least one usable candidate. That is why stochastic generators and loops belong together: search exploits the rising pass@k curve, while a verifier tries to identify the good run and reject the rest. Without a trustworthy verifier, pass@k only says the answer existed somewhere in the pile.
+
+<ReliabilityComparison />
+
+When a human remains in the loop, this distinction is easy to miss. The model proposes; the human compares, checks, remembers, and chooses. The workflow benefits from pass@k because the human supplies the reliability layer around the generator.
+
+As those human functions are automated, the operating requirement moves toward Reliability@k. It is no longer enough that one good answer exists somewhere among ten samples. The system must select it, execute the right actions, update the right state, and do so consistently on repeated runs. Verifiers are the mechanism that tries to preserve the advantage of pass@k while preventing stochastic failures from escaping the loop.
+
+Memory makes that correction cumulative. Once a verifier establishes why an attempt worked, memory can preserve the procedure, its conditions, the rejected alternatives, and the evidence that established success. The next run can begin with a better prior instead of purchasing the same ten samples again. Search raises the chance of discovering a success now; verified memory raises the chance of producing one next time. ([OpenAI](https://arxiv.org/abs/2107.03374), [$\tau$-bench](https://arxiv.org/abs/2406.12045))
+
+This asymmetry is what allows a relatively weak generator to become part of a powerful system—and why weaker model requirements can produce more general architectures.
 
 ---
 
@@ -217,9 +257,7 @@ An agent receiving reliable feedback every five minutes can accumulate far more 
 
 ## The verifier is both the power and the failure mode
 
-The verifier defines the hill the system climbs.
-
-That is the source of the loop's power, and also its central danger.
+The verifier defines the hill the system climbs. That is the source of the loop's power, and also its central danger.
 
 A coding agent can make every visible test pass while still producing the wrong program:
 
@@ -228,6 +266,8 @@ tests pass ≠ software is correct
 ```
 
 An agent may converge according to the observable evaluator while still failing held-out criteria that better represent the intended task.
+
+The asymmetry above makes the verifier more than a scoring component. It is what turns a pool with one possible success into a selected answer, and it becomes more important as the human who once supplied judgment is removed from the loop.
 
 As generators become stronger, the gap between proxy and intent matters more, not less. A weak optimizer may satisfy your proxy by accident. A strong optimizer may discover precisely how the proxy differs from what you meant.
 
@@ -243,9 +283,7 @@ It may instead produce a strong capability for exploiting the verifier.
 
 This reframes an important part of the frontier. We spend enormous effort improving models. For autonomous systems, the harder problem may become constructing feedback that remains trustworthy as the optimizer gets better at exploiting it.
 
-Verification is not merely another module.
-
-It determines what the system learns to become.
+Verification is not merely another module; it determines what the system learns to become.
 
 ---
 
@@ -267,17 +305,13 @@ score(decision)
 
 Reality has delayed outcomes, hidden variables, irreversible actions, adversaries, contradictory objectives, and expensive experiments. The verifier cannot execute the world ten thousand times.
 
-This is where the next component becomes necessary.
-
-The loop needs an imagination.
-
-It needs a **world model**.
+This is where the next component becomes necessary: the loop needs an imagination, a **world model**.
 
 ---
 
 ## A world model lets the loop run before reality does
 
-AlphaZero could plan because Go supplied a perfect simulator. Try a move, explore its consequences, and search deeper. The world was cheap to copy.
+AlphaZero could plan because Go supplied exact rules: a perfect simulator for the game. Try a move, explore its consequences, and search deeper. The world was cheap to copy.
 
 MuZero took a more interesting step. It was not given the environment's complete rules. Instead, it learned an internal representation sufficient to predict the quantities needed for planning, then searched through that learned model. ([deepmind.google](https://deepmind.google/blog/muzero-mastering-go-chess-shogi-and-atari-without-rules/))
 
@@ -307,70 +341,31 @@ Agents operating outside software must evaluate not only candidate actions, but 
 
 ---
 
-## The emerging reference architecture
-
-A general agent begins to look less like a model with tools and more like a collection of cooperating systems:
-
-```text
-                         GOAL
-                          │
-                          ▼
-                 ┌─────────────────┐
-                 │ META-CONTROLLER │
-                 └────────┬────────┘
-                          │
-          ┌───────────────┼────────────────┐
-          │               │                │
-          ▼               ▼                ▼
-     GENERATOR         MEMORY         WORLD MODEL
-   what might work?   what happened?   what happens?
-          │               │                │
-          └───────────────┼────────────────┘
-                          ▼
-                     SEARCH / PLAN
-                          │
-                          ▼
-                        ACTION
-                          │
-                          ▼
-                     ENVIRONMENT
-                          │
-                          ▼
-                       CRITICS
-               tests / rules / humans /
-                metrics / observations
-                          │
-                          ▼
-                        MEMORY
-                          │
-                   ┌──────┴──────┐
-                   ▼             ▼
-                 RETRY         LEARN
-                   │             │
-                   └──────► GENERATOR
-```
-
-Each component has a distinct job.
-
-The **generator** handles the combinatorial explosion of possible ideas. **Search** decides which possibilities deserve more computation. The **world model** investigates futures without always paying the cost of reality. **Critics and verifiers** prevent plausibility from being mistaken for success. **Memory** allows experience to accumulate instead of evaporating at the end of a context window.
-
-The **meta-controller** handles a problem that is easy to ignore when a human is still in charge:
-
-> Cognition itself costs time and money.
-
-Should the system answer now or think for another minute? Retrieve memory or generate alternatives? Run an experiment or simulate one? Ask another agent? Escalate to a human? Stop?
-
-This is not merely reasoning. It is **reasoning about how to reason**.
-
-And the architecture contains one more important dynamic: the loop does not only solve problems. It can change the generator itself.
-
----
-
 ## Search can become intuition
 
-This may be the deepest lesson in AlphaGo.
+Simulation creates possible futures, and search decides which of them deserve computation. This may be the deepest lesson in AlphaGo.
 
-Search produces decisions better than the neural network could produce immediately. But running a large tree search forever is expensive. The results of that expensive search can therefore become training signal. In reinforcement-learning terms, this is **policy improvement**: search finds behavior better than the current policy can produce alone, and learning distills that behavior back into the policy.
+In AlphaGo Zero, the neural network did not simply name a move. It supplied a prior over promising moves and an estimate of who would win from a position. Monte Carlo Tree Search then balanced estimated value with an exploration bonus based on the network prior and visit counts. The resulting visit counts produced a move distribution stronger than the network's first guess.
+
+That interaction made an impossibly large game tree tractable. On the hardware configurations reported in the evaluation, AlphaZero examined about 60,000 chess positions per second versus Stockfish's roughly 60 million. The point is not a clean compute comparison. The learned prior let AlphaZero search far more selectively. It did not eliminate search. It learned where search was worth spending. ([deepmind.google](https://deepmind.google/blog/alphazero-shedding-new-light-on-chess-shogi-and-go/))
+
+The same combination also produced surprise. AlphaGo's human-trained policy network assigned only about a 0.01% probability that a professional would play Move 37 against Lee Sedol in that position. Yet the move proved pivotal to the win. The episode showed that search coupled to learned evaluation could select a move far outside conventional human play. ([deepmind.google](https://deepmind.google/research/alphago/))
+
+Search therefore produces decisions better than the neural network could produce immediately. But running a large tree search forever is expensive. In AlphaGo Zero, the results of that expensive search became training signal: the network learned to predict the search-improved move distribution and the eventual winner, then the stronger network guided the next search. ([deepmind.google](https://deepmind.google/blog/alphago-zero-starting-from-scratch/))
+
+```text
+network proposes priors + values
+              ↓
+search investigates consequences
+              ↓
+search produces a stronger policy
+              ↓
+self-play supplies the outcome
+              ↓
+the updated network guides the next search ↺
+```
+
+In reinforcement-learning terms, this is **policy improvement**: search finds behavior better than the current policy can produce alone, and learning effectively distills that behavior back into the policy.
 
 $$
 \text{expensive cognition}
@@ -380,7 +375,7 @@ $$
 
 An agent's sequence of states, actions, tool results, and corrections is a **trajectory**; imagined continuations through a simulator are **rollouts**. Today's agent may need twenty tool calls, twelve errors, three searches, and a simulation to solve a class of problem. If successful trajectories and useful rollouts are stored, abstracted, turned into tools, used for retrieval, or incorporated into training, tomorrow's agent may simply recognize the pattern and act.
 
-Search has become intuition.
+Some of that search has been compiled into intuition.
 
 A learning agent therefore operates on two timescales:
 
@@ -392,13 +387,48 @@ across tasks:
 experience → learn → change the prior
 ```
 
-The first loop solves the problem.
-
-The second loop changes the solver.
+The first loop solves the problem; the second changes the solver. But the second timescale only exists if experience survives the first.
 
 ---
 
-## Psychology already has a vocabulary for this
+## Memory is how the loop compounds
+
+Search makes one run better. Memory makes the next run start from a better place.
+
+Without memory, an agent can generate, branch, test, recover, and still learn nothing durable. When the context window closes, that evidence stops influencing the next run unless another system preserves and retrieves it. Faced with a similar problem tomorrow, the system pays the same search cost, rediscovers the same constraint, and may repeat the same failure.
+
+```text
+without memory:
+problem → search → verify → forget → same problem
+
+with memory:
+problem → retrieve → search less → verify → update → start ahead
+```
+
+A context window is working space. A transcript is a log. An archive is storage. None of them, by themselves, decides what mattered.
+
+Useful memory is selective, source-linked, revisable, and explicit about what remains current. Facts retain their provenance. Decisions retain their reasons. Failures retain the counterexamples that exposed them. Successful procedures retain the evidence that they worked.
+
+Suppose a coding agent discovers that a deployment failed because a database migration must acquire a lock before the old replicas terminate. Saving the entire forty-thousand-token session is not especially useful. Saving the constraint, the affected service, the conditions under which it applies, and the test that confirmed it is. On the next migration, that memory can change the plan before the first patch is written: the generator proposes a safer order, search prunes a known-bad branch, and the verifier reuses the regression test.
+
+For an agent learning across runs, persistent memory enters at two points:
+
+```text
+before action:   retrieve → change the prior
+after action:    verify → preserve the lesson
+```
+
+That connects memory to every other component. It can give the generator better priors, keep search from revisiting known dead ends, retain regressions and counterexamples for verifiers, preserve prediction errors used to update a world model, and record when confidence or escalation was warranted.
+
+Memory also has its own verifier problem. Bad memory can be worse than amnesia: preserve one plausible but false explanation as a lesson, and a stochastic failure becomes a repeatable policy. What gets written, with what evidence and uncertainty, how contradictions are handled, when a fact stops being current, and how a memory is revalidated matter as much as retrieval itself.
+
+Search spends computation to explore. Verification turns outcomes into evidence. Memory lets that evidence compound.
+
+**Memory is where a successful loop becomes a better system.**
+
+---
+
+## Metacognition
 
 The obvious analogy is System 1 and System 2: fast intuition and slow deliberation. It is useful, but too coarse.
 
@@ -409,6 +439,16 @@ The analogy to agents is deliberate, though not exact: a learned policy or model
 Then there is **metacognition**. Humans do not merely think. We make judgments about our thinking:
 
 > I'm probably right. I should check this. I don't remember, so I'll look it up. This decision matters enough to spend more time on.
+
+Nassim Nicholas Taleb put the asymmetry sharply:
+
+> An expert is someone who knows exactly what not to be wrong about. ([Nassim Nicholas Taleb](https://x.com/nntaleb/status/1660260369481228288))
+
+Expertise is not universal confidence. It is selective doubt: knowing which errors are intolerable, where uncertainty matters, and where verification deserves to be spent.
+
+That control layer is especially important because LLMs are probabilistic generators. As argued earlier, generation is exactly where they are useful. But a system can be excellent at proposing plausible candidates without being reliable enough to serve as its own final authority.
+
+The two curves above capture the tension. More attempts can make pass@k rise sharply when the loop needs only one verified answer, while reliability@k falls when a workflow requires every execution to be correct. Metacognition notices which regime the system is in: whether the chain is long, the stakes are high, confidence is poorly grounded, or a verifier is strong enough to exploit additional search. It then spends retrieval, simulation, verification, or human attention accordingly.
 
 Studies of cognitive offloading show that confidence influences whether people use external aids such as reminders instead of relying on unaided memory. ([pmc.ncbi.nlm.nih.gov](https://pmc.ncbi.nlm.nih.gov/articles/PMC7584199/))
 
@@ -424,6 +464,32 @@ still uncertain        → ask
 ```
 
 Intelligence is not only producing an answer. It includes knowing when not to trust the first answer, and deciding how much cognition a problem deserves.
+
+---
+
+## The emerging reference architecture
+
+Generation, search, verification, world models, memory, and cognitive control now form an architecture rather than a bag of techniques. A general agent begins to look less like a model with tools and more like a collection of cooperating systems:
+
+<ReferenceArchitecture />
+
+Each component has a distinct job. Memory sits at the center deliberately, but it is not the controller: it is the evidence and state plane, while the meta-controller remains the control plane.
+
+The **generator** handles the combinatorial explosion of possible ideas. **Search** decides which possibilities deserve more computation and repeatedly queries the **world model**—an exact simulator derived from supplied game rules in AlphaZero, or learned task-relevant latent dynamics in MuZero—to investigate futures without always paying the cost of reality. **Actions** reach the environment; new observations return to the controller, while outcomes and evidence reach **critics and verifiers**. ([Google DeepMind](https://deepmind.google/blog/muzero-mastering-go-chess-shogi-and-atari-without-rules/))
+
+**Memory** joins both timescales. At task time it supplies current state, retrieved knowledge, constraints, prior attempts, and tests. During and after action it records provenance-bearing traces, search statistics, observations, and measured outcomes; selected lessons graduate into durable memory only after verification. The slower learning loop samples trusted experience to update the generator or policy, the world model's dynamics, and the controller's calibration.
+
+The **meta-controller** handles a problem that is easy to ignore when a human is still in charge:
+
+> Cognition itself costs time and money.
+
+Should the system answer now or think for another minute? Retrieve memory or generate alternatives? Run an experiment or simulate one? Ask another agent? Escalate to a human? Stop? On failure or uncertainty, control returns through the meta-controller to retrieve, replan, regenerate, or escalate rather than blindly rerunning the generator.
+
+This is not merely reasoning. It is **reasoning about how to reason**.
+
+The broad separation is compatible with Google's high-level agent guidance, but the diagram is a synthesis, not a claim that AlphaGo contained every box. Google Cloud uses a reason → act → observe loop, treats orchestration as the operational core, and distinguishes working context, long-term knowledge, and transactional memory. The central memory plane here is conceptual; an implementation should keep those stores and their trust boundaries distinct. AlphaZero and MuZero supply the search → experience → learning loop, while runtime semantic retrieval, heterogeneous critics, and metacognitive budgeting are general-agent extensions. ([Google Cloud](https://cloud.google.com/resources/core-concepts-ai-agents), [Google Cloud Architecture Center](https://docs.cloud.google.com/architecture/choose-agentic-ai-architecture-components))
+
+The architecture therefore contains the dynamic we saw in AlphaGo, now made explicit: the loop does not only solve problems. It can update the systems that shape the next loop.
 
 ---
 
@@ -463,9 +529,7 @@ Again, this is not an empirical formula for intelligence. Its value is diagnosti
 
 If generation is weak, the search space contains nothing interesting. If verification is weak, hallucinations survive. If search is weak, the first plausible answer wins. If the world model is weak, long-horizon planning fails. If memory is weak, experience does not compound. If cognitive control is weak, the agent may spend five hundred iterations polishing something already solved—or stop confidently when it should have checked.
 
-The foundation model matters enormously.
-
-It is simply no longer the whole equation.
+The foundation model matters enormously; it is simply no longer the whole equation.
 
 ---
 
@@ -520,14 +584,29 @@ The most interesting question may be the last one:
 
 **Can the loop teach itself not to need the loop next time?**
 
-A successful trajectory can become memory. Memory can become a reusable skill. A reusable skill can become training data. Training can move yesterday's search into tomorrow's intuition.
+Only if the loop converts an outcome into something the next run can inspect and reuse. A successful trajectory can become memory, memory can become a reusable skill, and a reusable skill can become training data. In that way, training can move yesterday's search into tomorrow's intuition.
+
+But the trajectory should first become an explicit, verified memory—not merely a transcript of everything that happened. The system can distill the decisive observation, the approaches that failed, the reusable procedure, and the evidence that established success.
+
+```text
+trajectory
+    ↓ distill + verify
+memory
+    ↓ reuse + reverify
+skill or tool
+    ↓ repeated evidence
+training signal
+```
+
+Not every lesson should immediately be baked into model weights. Explicit memory is faster to write, easier to inspect, easier to correct, and able to preserve provenance. Lessons that survive repeated reuse can graduate into tools, skills, or training data.
+
+Memory is the bridge between task-local success and lifetime improvement. It lets yesterday's expensive reasoning alter tomorrow's starting point.
 
 ---
 
-
 ## Beyond loops: self-similar systems
 
-It is tempting to say that graphs are the architectural stage after loops. Graphs are useful: they represent branching workflows, parallel workers, debates, supervisors, specialists, dependencies, and multiple feedback paths.
+One final zoom outward: it is tempting to say that graphs are the architectural stage after loops. Graphs are useful because they represent branching workflows, parallel workers, debates, supervisors, specialists, dependencies, and multiple feedback paths.
 
 But a graph is a topology. It does not introduce a new principle of intelligence by itself.
 
@@ -557,21 +636,23 @@ coordination between loops
 self-similar cognitive systems
 ```
 
-At that point, **coordination** becomes a first-class problem.
-
-Who gets which task? Who owns shared state? Which conclusions propagate? Who can overrule whom? What should happen in parallel? When should agents communicate? How do we prevent duplicated work? How do we stop one agent's error from becoming everyone else's premise? How does a collection of individually competent systems become a competent whole?
+At that point, **coordination** becomes a first-class problem. Who gets which task? Who owns shared state? Which conclusions propagate? Who can overrule whom? What should happen in parallel? When should agents communicate? How do we prevent duplicated work? How do we stop one agent's error from becoming everyone else's premise? How does a collection of individually competent systems become a competent whole?
 
 These no longer sound like prompting questions. They sound like problems from distributed systems, operating systems, markets, organizations, biology, control theory, and social systems.
 
-The loop has always been there.
+Memory becomes more important as these systems grow, not less. It lets agents share state without sharing every token, preserves why decisions were made, and reduces duplicated search. With provenance and write-time checks, it can also help stop one agent's unsupported conclusion from silently becoming everyone else's premise.
 
-What comes next may be learning how loops become societies.
+A graph of amnesiac agents is still amnesia—only in parallel.
 
-But that is another article.
+This is why we are building Memseek: we think agent memory is an underbuilt systems problem. A context engine should turn changing evidence into current, cited knowledge and assemble the few things an agent needs now. The objective is not longer transcripts. It is to let verified experience survive, remain current, and re-enter the loop when it can change the next decision.
+
+Models will keep improving. Search will make their outputs stronger, verification more trustworthy, and world models will let them investigate consequences before acting. The model generates possibilities; the loop discovers which survive contact with evidence; memory makes those discoveries cumulative.
+
+Without memory, every run begins closer to zero than it should. How loops become societies is another article, but societies require memory too: if the loop has always been there, it should not have to start over.
 
 ---
 
-## References
+## Selected references
 
 1. Andrej Karpathy, *Verifiability*. ([karpathy.bearblog.dev](https://karpathy.bearblog.dev/verifiability/))
 2. Andrej Karpathy, *autoresearch*. ([github.com](https://github.com/karpathy/autoresearch))
@@ -579,6 +660,13 @@ But that is another article.
 4. DeepMind, *FunSearch: Making New Discoveries in Mathematical Sciences Using Large Language Models*. ([deepmind.google](https://deepmind.google/blog/funsearch-making-new-discoveries-in-mathematical-sciences-using-large-language-models/))
 5. DeepMind, *AlphaEvolve: A Gemini-powered Coding Agent for Designing Advanced Algorithms*. ([deepmind.google](https://deepmind.google/blog/alphaevolve-a-gemini-powered-coding-agent-for-designing-advanced-algorithms/))
 6. DeepMind, *MuZero: Mastering Go, Chess, Shogi and Atari Without Rules*. ([deepmind.google](https://deepmind.google/blog/muzero-mastering-go-chess-shogi-and-atari-without-rules/))
-7. Cheng et al., *Inductive or Deductive? Rethinking the Fundamental Reasoning Abilities of LLMs*.
+7. Cheng et al., *Inductive or Deductive? Rethinking the Fundamental Reasoning Abilities of LLMs*. ([arxiv.org](https://arxiv.org/abs/2408.00114))
 8. Gläscher et al., *States versus Rewards: Dissociable Neural Prediction Error Signals Underlying Model-Based and Model-Free Reinforcement Learning*. ([pmc.ncbi.nlm.nih.gov](https://pmc.ncbi.nlm.nih.gov/articles/PMC2895323/))
 9. Engeler & Gilbert, *The Effect of Metacognitive Training on Confidence and Strategic Reminder Setting*. ([pmc.ncbi.nlm.nih.gov](https://pmc.ncbi.nlm.nih.gov/articles/PMC7584199/))
+10. Google DeepMind, *AlphaZero: Shedding New Light on Chess, Shogi, and Go*. ([deepmind.google](https://deepmind.google/blog/alphazero-shedding-new-light-on-chess-shogi-and-go/))
+11. Google DeepMind, *AlphaGo*. ([deepmind.google](https://deepmind.google/research/alphago/))
+12. Nassim Nicholas Taleb, *An Expert Is Someone Who Knows Exactly What Not to Be Wrong About*. ([x.com](https://x.com/nntaleb/status/1660260369481228288))
+13. Google Cloud, *Core Concepts of AI Agents*. ([cloud.google.com](https://cloud.google.com/resources/core-concepts-ai-agents))
+14. Google Cloud Architecture Center, *Choose Your Agentic AI Architecture Components*. ([cloud.google.com](https://docs.cloud.google.com/architecture/choose-agentic-ai-architecture-components))
+15. Chen et al., *Evaluating Large Language Models Trained on Code*. ([arxiv.org](https://arxiv.org/abs/2107.03374))
+16. Yao et al., *$\tau$-bench: A Benchmark for Tool-Agent-User Interaction in Real-World Domains*. ([arxiv.org](https://arxiv.org/abs/2406.12045))

@@ -73,3 +73,52 @@ def test_cors_origins_are_exact_and_normalized(monkeypatch: pytest.MonkeyPatch) 
     )
     with pytest.raises(ValidationError, match="wildcards"):
         Settings(api_cors_origins=("*",))
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        ('["http://localhost:4321"]', ("http://localhost:4321",)),
+        # A quoted shell export pasted into an env file keeps its quotes.
+        ("'[\"http://localhost:4321\"]'", ("http://localhost:4321",)),
+        # What someone writes when they are not thinking about JSON.
+        ("http://localhost:4321", ("http://localhost:4321",)),
+        (
+            "http://localhost:4321,https://console.example.test",
+            ("http://localhost:4321", "https://console.example.test"),
+        ),
+        (
+            "http://localhost:4321 https://console.example.test",
+            ("http://localhost:4321", "https://console.example.test"),
+        ),
+        ("[]", ()),
+        ("   ", ()),
+    ],
+)
+def test_cors_origins_accept_plain_env_values(
+    monkeypatch: pytest.MonkeyPatch, raw: str, expected: tuple[str, ...]
+) -> None:
+    """A bad origin must fail validation, never abort settings construction.
+
+    The settings source used to JSON-decode this field before any validator
+    ran, so every form here except the first killed the process at import with
+    a SettingsError that named no value and no reason.
+    """
+
+    monkeypatch.setenv("API_CORS_ORIGINS", raw)
+
+    assert Settings().api_cors_origins == expected
+
+
+def test_cors_origins_report_what_is_wrong(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("API_CORS_ORIGINS", "[not json")
+    with pytest.raises(ValidationError, match="not a valid JSON array"):
+        Settings()
+
+    monkeypatch.setenv("API_CORS_ORIGINS", "*")
+    with pytest.raises(ValidationError, match="wildcards"):
+        Settings()
+
+    monkeypatch.setenv("API_CORS_ORIGINS", "ftp://console.example.test")
+    with pytest.raises(ValidationError, match="exact HTTP"):
+        Settings()

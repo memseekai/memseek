@@ -1,0 +1,402 @@
+<figure class="wide reference-architecture">
+  <div class="architecture-shell">
+    <svg
+      class="architecture architecture--desktop"
+      viewBox="0 0 1200 700"
+      role="img"
+      aria-labelledby="architecture-title architecture-description"
+    >
+      <title id="architecture-title">A minimal memory-centered agent architecture</title>
+      <desc id="architecture-description">
+        A goal enters a meta-controller, then a generator proposes candidates and search selects
+        among them with help from a world model. The selected action reaches the environment and a
+        verifier judges the result. Failures return to the controller. Verified lessons enter
+        memory, and memory supplies context to future runs.
+      </desc>
+
+      <defs>
+        <marker id="runtime-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0 0 L10 5 L0 10 z" />
+        </marker>
+        <marker id="model-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0 0 L10 5 L0 10 z" />
+        </marker>
+        <marker id="memory-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0 0 L10 5 L0 10 z" />
+        </marker>
+      </defs>
+
+      <text class="lane-label" x="48" y="42">CURRENT TASK</text>
+
+      <g class="runtime-edges">
+        <path d="M230 125 H280" />
+        <path d="M500 125 H550" />
+        <path d="M770 125 H820" />
+        <path d="M930 170 C930 230 675 220 675 280" />
+        <path d="M580 325 H530" />
+        <path d="M310 325 H260" />
+        <path d="M155 280 V225 H390 V170" />
+      </g>
+
+      <g class="model-edges">
+        <path d="M975 170 C1080 205 1080 245 1035 280" />
+        <path d="M985 280 C925 245 920 210 930 170" />
+      </g>
+
+      <g class="memory-edges">
+        <path d="M155 370 C155 455 300 560 350 560" />
+        <path d="M350 535 C255 535 245 215 330 170" />
+      </g>
+
+      <text class="edge-label" x="255" y="213">retry / replan</text>
+      <text class="edge-label edge-label--model" x="1048" y="235">simulate</text>
+      <text class="edge-label edge-label--memory" x="190" y="465">verified lesson</text>
+      <text class="edge-label edge-label--memory" x="265" y="500" transform="rotate(-90 265 500)">retrieve next run</text>
+
+      <g class="node node--goal">
+        <rect x="50" y="80" width="180" height="90" rx="18" />
+        <text class="node-title" x="140" y="132">GOAL</text>
+      </g>
+
+      <g class="node node--control">
+        <rect x="280" y="80" width="220" height="90" rx="18" />
+        <text class="node-kicker" x="390" y="112">COGNITIVE CONTROL</text>
+        <text class="node-title" x="390" y="142">meta-controller</text>
+      </g>
+
+      <g class="node">
+        <rect x="550" y="80" width="220" height="90" rx="18" />
+        <text class="node-kicker" x="660" y="112">GENERATOR</text>
+        <text class="node-title" x="660" y="142">propose candidates</text>
+      </g>
+
+      <g class="node node--search">
+        <rect x="820" y="80" width="220" height="90" rx="18" />
+        <text class="node-kicker" x="930" y="112">SEARCH / PLAN</text>
+        <text class="node-title" x="930" y="142">compare futures</text>
+      </g>
+
+      <g class="node">
+        <rect x="580" y="280" width="190" height="90" rx="18" />
+        <text class="node-kicker" x="675" y="312">ACTION</text>
+        <text class="node-title" x="675" y="342">execute</text>
+      </g>
+
+      <g class="node">
+        <rect x="310" y="280" width="220" height="90" rx="18" />
+        <text class="node-kicker" x="420" y="312">ENVIRONMENT</text>
+        <text class="node-title" x="420" y="342">observe outcome</text>
+      </g>
+
+      <g class="node">
+        <rect x="50" y="280" width="210" height="90" rx="18" />
+        <text class="node-kicker" x="155" y="312">CRITICS / VERIFIERS</text>
+        <text class="node-title" x="155" y="342">did it work?</text>
+      </g>
+
+      <g class="node node--world">
+        <rect x="900" y="280" width="240" height="90" rx="18" />
+        <text class="node-kicker" x="1020" y="312">WORLD MODEL</text>
+        <text class="node-title" x="1020" y="342">predict consequences</text>
+      </g>
+
+      <g class="node node--memory">
+        <rect class="memory-halo" x="340" y="460" width="520" height="195" rx="30" />
+        <rect x="350" y="470" width="500" height="175" rx="25" />
+        <text class="node-kicker" x="600" y="510">SHARED EVIDENCE + STATE</text>
+        <text class="memory-title" x="600" y="552">MEMORY / LEARNING</text>
+        <text class="memory-copy" x="600" y="590">context · prior attempts · verified lessons</text>
+        <text class="memory-emphasis" x="600" y="620">preserve experience · improve the next run</text>
+      </g>
+    </svg>
+
+    <svg
+      class="architecture architecture--mobile"
+      viewBox="0 0 640 1100"
+      role="img"
+      aria-labelledby="architecture-mobile-title architecture-mobile-description"
+    >
+      <title id="architecture-mobile-title">A minimal memory-centered agent architecture</title>
+      <desc id="architecture-mobile-description">
+        A goal enters a meta-controller. A generator proposes candidates and search selects among
+        them with help from a world model. Action reaches the environment, a verifier judges the
+        outcome, and verified lessons enter memory for future runs.
+      </desc>
+
+      <defs>
+        <marker id="mobile-runtime-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0 0 L10 5 L0 10 z" />
+        </marker>
+        <marker id="mobile-model-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0 0 L10 5 L0 10 z" />
+        </marker>
+        <marker id="mobile-memory-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0 0 L10 5 L0 10 z" />
+        </marker>
+      </defs>
+
+      <text class="lane-label" x="34" y="34">CURRENT TASK</text>
+
+      <g class="mobile-runtime-edges">
+        <path d="M320 120 V160" />
+        <path d="M320 250 V300" />
+        <path d="M300 350 H340" />
+        <path d="M340 350 C315 350 325 500 300 500" />
+        <path d="M185 550 V600" />
+        <path d="M300 650 H340" />
+        <path d="M570 650 C620 650 620 205 570 205" />
+      </g>
+
+      <g class="mobile-model-edges">
+        <path d="M420 400 V450" />
+        <path d="M490 450 V400" />
+      </g>
+
+      <g class="mobile-memory-edges">
+        <path d="M455 700 V840" />
+        <path d="M70 920 C20 920 20 205 70 205" />
+      </g>
+
+      <text class="edge-label" x="586" y="430" transform="rotate(-90 586 430)">retry</text>
+      <text class="edge-label edge-label--model" x="505" y="432">simulate</text>
+      <text class="edge-label edge-label--memory" x="470" y="780">verified lesson</text>
+      <text class="edge-label edge-label--memory" x="36" y="690" transform="rotate(-90 36 690)">retrieve next run</text>
+
+      <g class="node node--goal">
+        <rect x="190" y="50" width="260" height="70" rx="18" />
+        <text class="node-title" x="320" y="93">GOAL</text>
+      </g>
+
+      <g class="node node--control">
+        <rect x="70" y="160" width="500" height="90" rx="20" />
+        <text class="node-kicker" x="320" y="193">COGNITIVE CONTROL</text>
+        <text class="node-title" x="320" y="224">meta-controller</text>
+      </g>
+
+      <g class="node">
+        <rect x="70" y="300" width="230" height="100" rx="19" />
+        <text class="node-kicker" x="185" y="335">GENERATOR</text>
+        <text class="node-title" x="185" y="370">propose</text>
+      </g>
+
+      <g class="node node--search">
+        <rect x="340" y="300" width="230" height="100" rx="19" />
+        <text class="node-kicker" x="455" y="335">SEARCH / PLAN</text>
+        <text class="node-title" x="455" y="370">compare futures</text>
+      </g>
+
+      <g class="node">
+        <rect x="70" y="450" width="230" height="100" rx="19" />
+        <text class="node-kicker" x="185" y="485">ACTION</text>
+        <text class="node-title" x="185" y="520">execute</text>
+      </g>
+
+      <g class="node node--world">
+        <rect x="340" y="450" width="230" height="100" rx="19" />
+        <text class="node-kicker" x="455" y="485">WORLD MODEL</text>
+        <text class="node-title" x="455" y="520">predict</text>
+      </g>
+
+      <g class="node">
+        <rect x="70" y="600" width="230" height="100" rx="19" />
+        <text class="node-kicker" x="185" y="635">ENVIRONMENT</text>
+        <text class="node-title" x="185" y="670">observe</text>
+      </g>
+
+      <g class="node">
+        <rect x="340" y="600" width="230" height="100" rx="19" />
+        <text class="node-kicker" x="455" y="635">CRITICS / VERIFIERS</text>
+        <text class="node-title" x="455" y="670">did it work?</text>
+      </g>
+
+      <g class="node node--memory">
+        <rect class="memory-halo" x="60" y="830" width="520" height="190" rx="30" />
+        <rect x="70" y="840" width="500" height="170" rx="25" />
+        <text class="node-kicker" x="320" y="882">SHARED EVIDENCE + STATE</text>
+        <text class="memory-title" x="320" y="925">MEMORY / LEARNING</text>
+        <text class="memory-copy" x="320" y="963">context · attempts · verified lessons</text>
+        <text class="memory-emphasis" x="320" y="992">preserve experience · improve the next run</text>
+      </g>
+    </svg>
+  </div>
+
+  <figcaption>
+    The controller coordinates generation, search, simulation, action, and verification. Memory
+    preserves verified experience and returns it to the next run.
+  </figcaption>
+</figure>
+
+<style>
+  .reference-architecture {
+    margin-block: clamp(2.2rem, 5vw, 3.5rem);
+  }
+
+  .architecture-shell {
+    overflow: hidden;
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    background:
+      radial-gradient(circle at 50% 76%, color-mix(in srgb, var(--cyan) 8%, transparent), transparent 31%),
+      var(--surface);
+  }
+
+  .architecture {
+    display: block;
+    width: 100%;
+    height: auto;
+    font-family: var(--mono);
+  }
+
+  .architecture--mobile { display: none; }
+
+  .lane-label {
+    fill: var(--faint);
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: .14em;
+  }
+
+  .node rect {
+    fill: color-mix(in srgb, var(--surface-2) 92%, transparent);
+    stroke: var(--border-strong);
+    stroke-width: 1.5;
+  }
+
+  .node--goal rect,
+  .node--control rect {
+    fill: color-mix(in srgb, var(--orange) 7%, var(--surface));
+    stroke: color-mix(in srgb, var(--orange) 58%, var(--border));
+  }
+
+  .node--search rect,
+  .node--world rect {
+    fill: color-mix(in srgb, var(--violet) 7%, var(--surface));
+    stroke: color-mix(in srgb, var(--violet) 52%, var(--border));
+  }
+
+  .node--memory rect:not(.memory-halo) {
+    fill: color-mix(in srgb, var(--cyan) 9%, var(--surface));
+    stroke: color-mix(in srgb, var(--cyan) 72%, var(--border));
+    stroke-width: 2;
+  }
+
+  .node--memory .memory-halo {
+    fill: none;
+    stroke: color-mix(in srgb, var(--cyan) 19%, transparent);
+    stroke-width: 10;
+  }
+
+  .node-kicker {
+    fill: var(--faint);
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: .09em;
+    text-anchor: middle;
+  }
+
+  .node-title {
+    fill: var(--text);
+    font-size: 17px;
+    font-weight: 700;
+    text-anchor: middle;
+  }
+
+  .memory-title {
+    fill: var(--text);
+    font-size: 27px;
+    font-weight: 700;
+    letter-spacing: -.03em;
+    text-anchor: middle;
+  }
+
+  .memory-copy {
+    fill: var(--muted);
+    font-size: 12px;
+    text-anchor: middle;
+  }
+
+  .memory-emphasis {
+    fill: var(--cyan);
+    font-size: 13px;
+    font-weight: 700;
+    text-anchor: middle;
+  }
+
+  .runtime-edges,
+  .mobile-runtime-edges,
+  .model-edges,
+  .mobile-model-edges,
+  .memory-edges,
+  .mobile-memory-edges {
+    fill: none;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-width: 2;
+  }
+
+  .runtime-edges {
+    stroke: color-mix(in srgb, var(--orange) 78%, var(--muted));
+    marker-end: url(#runtime-arrow);
+  }
+
+  .model-edges {
+    stroke: color-mix(in srgb, var(--violet) 82%, var(--muted));
+    marker-end: url(#model-arrow);
+  }
+
+  .memory-edges {
+    stroke: color-mix(in srgb, var(--cyan) 82%, var(--muted));
+    marker-end: url(#memory-arrow);
+  }
+
+  .mobile-runtime-edges {
+    stroke: color-mix(in srgb, var(--orange) 78%, var(--muted));
+    marker-end: url(#mobile-runtime-arrow);
+  }
+
+  .mobile-model-edges {
+    stroke: color-mix(in srgb, var(--violet) 82%, var(--muted));
+    marker-end: url(#mobile-model-arrow);
+  }
+
+  .mobile-memory-edges {
+    stroke: color-mix(in srgb, var(--cyan) 82%, var(--muted));
+    marker-end: url(#mobile-memory-arrow);
+  }
+
+  #runtime-arrow path,
+  #mobile-runtime-arrow path { fill: var(--orange); }
+
+  #model-arrow path,
+  #mobile-model-arrow path { fill: var(--violet); }
+
+  #memory-arrow path,
+  #mobile-memory-arrow path { fill: var(--cyan); }
+
+  .edge-label {
+    fill: var(--faint);
+    font-size: 11px;
+  }
+
+  .edge-label--model { fill: var(--violet); }
+  .edge-label--memory { fill: var(--cyan); }
+
+  figcaption {
+    max-width: 78ch;
+    margin-inline: auto;
+  }
+
+  @media (max-width: 620px) {
+    .architecture-shell { border-radius: 13px; }
+    .architecture--desktop { display: none; }
+    .architecture--mobile { display: block; }
+
+    .lane-label { font-size: 18px; }
+    .node-kicker { font-size: 16px; }
+    .node-title { font-size: 20px; }
+    .memory-title { font-size: 31px; }
+    .memory-copy { font-size: 16px; }
+    .memory-emphasis { font-size: 16px; }
+    .edge-label { font-size: 15px; }
+  }
+</style>

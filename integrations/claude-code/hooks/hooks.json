@@ -1,0 +1,76 @@
+{
+  "description": "Recall Memseek context before each request and record the conversation after it happens.",
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/memseek_hook.py", "session-start"],
+            "timeout": 5,
+            "statusMessage": "Connecting Memseek memory..."
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/memseek_hook.py", "prompt-context"],
+            "timeout": 8,
+            "statusMessage": "Recalling project memory..."
+          },
+          {
+            "type": "command",
+            "command": "python3",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/memseek_hook.py", "capture-user"],
+            "timeout": 8,
+            "async": true
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/memseek_hook.py", "capture-assistant"],
+            "timeout": 8,
+            "async": true
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/memseek_hook.py", "pre-compact"],
+            "timeout": 8,
+            "statusMessage": "Preserving project memory..."
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/memseek_hook.py", "session-end"],
+            "timeout": 3
+          }
+        ]
+      }
+    ]
+  }
+}
