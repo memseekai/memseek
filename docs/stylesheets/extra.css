@@ -39,8 +39,14 @@
 
   /* Reading measure for running prose. Tables, code, and diagrams are exempt
      and use the full content column — this is the one knob that decides how
-     long a line of text gets. */
-  --ms-measure: 36rem;
+     long a line of text gets.
+
+     Sized against the body size below, not picked in the abstract: 30rem is
+     600px, which at 15px Inter lands around 75 characters — the top of the
+     45–75 range typography guidance puts comfortable reading in. It has to
+     move with the font size; leaving it at 36rem while shrinking the text
+     would have pushed lines past 95 characters. */
+  --ms-measure: 30rem;
 }
 
 /* ---------- dark scheme (site parity: this is the default) ---------- */
@@ -180,9 +186,28 @@
    Typography
    ============================================================ */
 
+/* Material's root is 125%, so 1rem is 20px here and 0.75rem is 15px — the
+   size most documentation sites settle on for body text, a step down from
+   the 16.4px this used to run at. Everything below is sized off it, so the
+   hierarchy holds rather than the headings suddenly shouting.
+
+   Line height comes down with it. 1.75 was set for a longer line; at 15px in
+   a ~75-character column, 1.7 keeps the leading generous without letting the
+   lines drift apart and lose the paragraph. */
 .md-typeset {
-  font-size: 0.82rem;
-  line-height: 1.75;
+  font-size: 0.75rem;
+  line-height: 1.7;
+}
+
+/* Phones do not get the step down. 15px is comfortable on a desktop monitor
+   at desk distance; on a handset held further out, at lower effective pixel
+   density for text, the same size is the one people pinch to zoom. 16px is
+   the floor there, and the column is already narrow enough that the measure
+   never gets a say. */
+@media screen and (max-width: 44.9375em) {
+  .md-typeset {
+    font-size: 0.8rem;
+  }
 }
 
 .md-typeset p,
@@ -233,13 +258,13 @@
 }
 
 .md-typeset h1 {
-  font-size: 1.75rem;
+  font-size: 1.6rem;
   letter-spacing: -0.035em;
   margin-bottom: 1.2rem;
 }
 
 .md-typeset h2 {
-  font-size: 1.22rem;
+  font-size: 1.12rem;
   margin-top: 2.6em;
 }
 
@@ -256,12 +281,12 @@
 }
 
 .md-typeset h3 {
-  font-size: 1rem;
+  font-size: 0.92rem;
   margin-top: 2em;
 }
 
 .md-typeset h4 {
-  font-size: 0.85rem;
+  font-size: 0.79rem;
   margin-top: 1.8em;
   color: var(--ms-muted);
 }
@@ -375,8 +400,11 @@
   border-color: color-mix(in srgb, currentColor 35%, var(--ms-border));
 }
 
+/* Held at 0.9× the prose size. Mono faces read larger than Inter at the same
+   nominal size, so matching the two would make the code blocks the loudest
+   thing on the page. */
 .md-typeset pre > code {
-  font-size: 0.72rem;
+  font-size: 0.68rem;
   line-height: 1.6;
 }
 
@@ -450,7 +478,7 @@
      rounded border. The wrapper, not the table, owns horizontal scrolling, so
      clipping here costs nothing. */
   overflow: hidden;
-  font-size: 0.74rem;
+  font-size: 0.7rem;
   font-variant-numeric: tabular-nums;
   line-height: 1.6;
   box-shadow: none;
@@ -512,7 +540,7 @@
   border-left: 2px solid var(--ms-callout, var(--ms-cyan));
   border-radius: 8px;
   box-shadow: none;
-  font-size: 0.78rem;
+  font-size: 0.72rem;
 }
 
 .md-typeset .admonition[class] > .admonition-title,
