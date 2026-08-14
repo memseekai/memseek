@@ -14,6 +14,100 @@
    disagreed, legibility won — noted at each such spot.
    ============================================================ */
 
+/* ============================================================
+   Prose face — Inter v4, self-hosted
+   ============================================================
+
+   docs.cognee.ai asks for four of Inter's legibility character variants.
+   Copying that line alone would have done nothing: Google Fonts serves a cut
+   of Inter with the character variants stripped, and `theme.font.text: Inter`
+   fetches exactly that cut. Checked rather than assumed — the Google file
+   carries only calt, ccmp, dnom, frac, kern, locl, mark, mkmk, numr, pnum,
+   tnum, and a lone wght axis. No cv01-cv14, no opsz. The declaration is dead
+   CSS on cognee's own site for the same reason: their build pulls Inter from
+   Google too, and ships a byte-identical file.
+
+   So the face comes from the upstream v4.1 release instead, subset to the
+   Latin ranges and served from here. That buys the two things the Google cut
+   cannot do:
+
+     cv02  open 4   — the closed default fills in at body size
+     cv03  open 6   ┐ the pair that stops 6/8 and 9/8 from trading places
+     cv04  open 9   ┘ in a version string, a port, or a byte count
+     cv11  single-storey a — resolves against the double-storey g and o
+
+     opsz  optical size — the axis Google drops. Inter v4 redraws itself
+           across 14-32pt: open apertures and looser spacing down at body
+           size, tighter fit up at display size. `font-optical-sizing: auto`
+           is the default, so headings and prose each get the right cut for
+           free once the axis is actually present in the file.
+
+   Latin and Latin-ext are split so a page of English prose pulls 71K, not
+   197K. Google's Inter stays last in the stack as a fallback; because no
+   element resolves to it, its woff2 is never fetched. Licence: OFL-1.1,
+   alongside the files in fonts/. */
+
+@font-face {
+  font-family: "InterVariable";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("fonts/inter-v4-latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6,
+    U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+2074, U+20AC,
+    U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: "InterVariable";
+  font-style: italic;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("fonts/inter-v4-latin-italic.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6,
+    U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+2074, U+20AC,
+    U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: "InterVariable";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("fonts/inter-v4-latin-ext.woff2") format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7,
+    U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F,
+    U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F,
+    U+A720-A7FF;
+}
+
+@font-face {
+  font-family: "InterVariable";
+  font-style: italic;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("fonts/inter-v4-latin-ext-italic.woff2") format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7,
+    U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F,
+    U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F,
+    U+A720-A7FF;
+}
+
+/* Material builds its text stack as var(--md-text-font, _) plus system
+   fallbacks, so redirecting that one variable moves every piece of prose onto
+   the self-hosted face without touching the theme's own rules. */
+:root {
+  --md-text-font: "InterVariable", "Inter";
+}
+
+/* Feature settings inherit, so one declaration at the root reaches prose,
+   tables, and chrome alike. Material resets code, kbd, and pre to "kern" on
+   its own, which is what we want — these are Inter's variants, and the mono
+   faces should keep their defaults. */
+html {
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+}
+
 :root {
   --ms-orange: #ff7a2f;
   --ms-pink: #ff3d67;
@@ -41,12 +135,15 @@
      and use the full content column — this is the one knob that decides how
      long a line of text gets.
 
-     Sized against the body size below, not picked in the abstract: 30rem is
-     600px, which at 15px Inter lands around 75 characters — the top of the
-     45–75 range typography guidance puts comfortable reading in. It has to
-     move with the font size; leaving it at 36rem while shrinking the text
-     would have pushed lines past 95 characters. */
-  --ms-measure: 30rem;
+     Matched to cognee's, in pixels rather than in units: their column is
+     Tailwind's max-w-xl, 36rem against a 16px root, so 576px. Same face at
+     the same size means the same line — about 72 characters, inside the
+     45-75 that typography guidance puts comfortable reading in. Material's
+     root is 125%, so 576px is 28.8rem here, not 36rem.
+
+     This, not the font size, is what was making these pages tiring: the old
+     36rem against a 20px root was 720px, running lines past 95 characters. */
+  --ms-measure: 28.8rem;
 }
 
 /* ---------- dark scheme (site parity: this is the default) ---------- */
@@ -186,28 +283,28 @@
    Typography
    ============================================================ */
 
-/* Material's root is 125%, so 1rem is 20px here and 0.75rem is 15px — the
-   size most documentation sites settle on for body text, a step down from
-   the 16.4px this used to run at. Everything below is sized off it, so the
-   hierarchy holds rather than the headings suddenly shouting.
+/* The reading system here is Mintlify's, the stack docs.cognee.ai runs on,
+   translated out of Tailwind into Material's variables. Their numbers, read
+   off the shipped stylesheet:
 
-   Line height comes down with it. 1.75 was set for a longer line; at 15px in
-   a ~75-character column, 1.7 keeps the leading generous without letting the
-   lines drift apart and lose the paragraph. */
+     body        1rem / 16px, line-height 1.75, letter-spacing -0.0125rem
+     column      max-w-xl, 36rem / 576px  →  about 72 characters
+     h1..h4      2.25 / 1.5 / 1.25 / 1.125em, weight 800/700/600/600
+     code, pre   0.875em, pre at line-height 1.714
+     tables      0.875em, line-height 1.714
+
+   Material's root is 125%, so 1rem is 20px here and their 16px body is our
+   0.8rem. That is a hair under the 16.4px this ran at originally — the size
+   was never what made these pages tiring; the 95-character line was.
+
+   The negative tracking is not decoration. Inter ships loose by default for
+   UI use, and at paragraph sizes a touch of tightening closes the word
+   spacing enough that lines read as lines. It is set in em so it tracks the
+   font size instead of the root. */
 .md-typeset {
-  font-size: 0.75rem;
-  line-height: 1.7;
-}
-
-/* Phones do not get the step down. 15px is comfortable on a desktop monitor
-   at desk distance; on a handset held further out, at lower effective pixel
-   density for text, the same size is the one people pinch to zoom. 16px is
-   the floor there, and the column is already narrow enough that the measure
-   never gets a say. */
-@media screen and (max-width: 44.9375em) {
-  .md-typeset {
-    font-size: 0.8rem;
-  }
+  font-size: 0.8rem;
+  line-height: 1.75;
+  letter-spacing: -0.0125em;
 }
 
 .md-typeset p,
@@ -252,19 +349,35 @@
   font-family: var(--ms-display);
   font-weight: 700;
   letter-spacing: -0.02em;
+  /* Leading loosens as the headings get smaller, following cognee's 1.11 /
+     1.33 / 1.4 / 1.5 ladder. A flat value cannot serve both ends: what stops
+     a 36px display line from drifting apart is the same value that jams two
+     wrapped lines of an 18px h4 together. */
   line-height: 1.2;
   text-wrap: balance;
   color: var(--ms-text);
 }
 
+.md-typeset h3,
+.md-typeset h4,
+.md-typeset h5,
+.md-typeset h6 {
+  line-height: 1.4;
+}
+
+/* cognee's steps are 2.25 / 1.5 / 1.25 / 1.125em off a 16px body — 36, 24,
+   20, 18px. The scale this site already shipped was 35, 24.4, 20, 17px, so
+   the two were the same ladder all along; these are theirs, rounded onto our
+   20px root. Weights descend the way theirs do, except at h1: 800 is drawn
+   for Inter, and JetBrains Mono at that weight closes up its counters. */
 .md-typeset h1 {
-  font-size: 1.6rem;
+  font-size: 1.8rem;
   letter-spacing: -0.035em;
   margin-bottom: 1.2rem;
 }
 
 .md-typeset h2 {
-  font-size: 1.12rem;
+  font-size: 1.2rem;
   margin-top: 2.6em;
 }
 
@@ -281,12 +394,14 @@
 }
 
 .md-typeset h3 {
-  font-size: 0.92rem;
+  font-size: 1rem;
+  font-weight: 600;
   margin-top: 2em;
 }
 
 .md-typeset h4 {
-  font-size: 0.79rem;
+  font-size: 0.9rem;
+  font-weight: 600;
   margin-top: 1.8em;
   color: var(--ms-muted);
 }
@@ -378,11 +493,16 @@
    Code
    ============================================================ */
 
+/* The prose tracking must not reach here. letter-spacing inherits, and adding
+   even a fraction of a pixel between mono characters is what would break the
+   ASCII schematics: the box-drawing runs are aligned by character count, so
+   every extra gap accumulates across a row and pulls the columns apart. */
 .md-typeset code,
 .md-typeset pre,
 .md-typeset kbd {
   font-family: var(--ms-code);
   font-variant-ligatures: none;
+  letter-spacing: normal;
 }
 
 .md-typeset :not(pre) > code {
@@ -391,7 +511,7 @@
   border: 1px solid var(--ms-border);
   border-radius: 5px;
   padding: 0.1em 0.36em;
-  font-size: 0.84em;
+  font-size: 0.875em;
 }
 
 /* Inline code inside a link should read as the link, not fight it. */
@@ -400,12 +520,10 @@
   border-color: color-mix(in srgb, currentColor 35%, var(--ms-border));
 }
 
-/* Held at 0.9× the prose size. Mono faces read larger than Inter at the same
-   nominal size, so matching the two would make the code blocks the loudest
-   thing on the page. */
+/* cognee's 0.875em and 1.714 leading, which is 14px against the 16px body. */
 .md-typeset pre > code {
-  font-size: 0.68rem;
-  line-height: 1.6;
+  font-size: 0.7rem;
+  line-height: 1.714;
 }
 
 .md-typeset .highlight,
@@ -480,7 +598,7 @@
   overflow: hidden;
   font-size: 0.7rem;
   font-variant-numeric: tabular-nums;
-  line-height: 1.6;
+  line-height: 1.714;
   box-shadow: none;
 }
 
@@ -540,7 +658,7 @@
   border-left: 2px solid var(--ms-callout, var(--ms-cyan));
   border-radius: 8px;
   box-shadow: none;
-  font-size: 0.72rem;
+  font-size: 0.75rem;
 }
 
 .md-typeset .admonition[class] > .admonition-title,
