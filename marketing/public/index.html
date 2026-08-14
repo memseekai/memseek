@@ -228,12 +228,54 @@
     cursor: pointer; letter-spacing: .05em;
   }
   .theme-toggle:hover { color: var(--orange); border-color: var(--orange); }
-  /* Below ~500px only the octicon, the theme toggle and the CTA still fit; the
-     footer carries every link, so nothing becomes unreachable. */
+  /* Below ~620px the labelled row cannot hold Product, Benchmarks and
+     Resources. It used to drop them and leave nothing in their place, so on a
+     phone the blog and the showcases were reachable only by scrolling to the
+     footer. They fold into one menu instead. The burger is a .nav-menu like the
+     other two, so the panel script drives it unchanged, and it takes the
+     octicon's place in the row rather than adding to it. */
+  .nav-burger { display: none; }
+  .nav-burger .nav-trigger { color: var(--text); padding-inline: .1rem; }
+  .nav-burger .nav-trigger::after { content: none; }
+  .nav-burger .bars { position: relative; }
+  .nav-burger .bars,
+  .nav-burger .bars::before,
+  .nav-burger .bars::after {
+    display: block; width: 18px; height: 2px; border-radius: 2px;
+    background: currentColor;
+    transition: transform .18s ease, top .18s ease, background-color .18s ease;
+  }
+  .nav-burger .bars::before { content: ""; position: absolute; top: -6px; }
+  .nav-burger .bars::after { content: ""; position: absolute; top: 6px; }
+  .nav-burger.open .bars { background: transparent; }
+  .nav-burger.open .bars::before { top: 0; transform: rotate(45deg); }
+  .nav-burger.open .bars::after { top: 0; transform: rotate(-45deg); }
+  /* Right-anchored: the trigger is the last control on the row, so the shared
+     left-anchored panel would open off the edge of the screen. */
+  .nav-burger .nav-panel {
+    left: auto; right: -.6rem;
+    width: min(15.5rem, calc(100vw - 2rem));
+    max-height: calc(100vh - 5.5rem); overflow-y: auto;
+  }
+  .nav-burger .nav-group {
+    font-family: var(--mono); font-size: .62rem; letter-spacing: .12em;
+    text-transform: uppercase; color: var(--faint);
+    padding: .5rem .65rem .25rem;
+  }
+  .nav-burger .nav-group:not(:first-child) {
+    border-top: 1px solid var(--border); margin-top: .35rem; padding-top: .6rem;
+  }
+  /* The CTA carries its own short label: at 360px the wordmark, the theme
+     toggle and the full label already overrun the row, which is what pushed the
+     burger — the last item — off the right edge. */
+  .nav-cta .cta-narrow { display: none; }
   @media (max-width: 620px) {
     .nav-inner { gap: .8rem; }
     .nav-links { gap: .85rem; }
-    .nav-links > a:not(.nav-cta):not(.nav-gh), .nav-menu { display: none; }
+    .nav-links > a:not(.nav-cta), .nav-menu:not(.nav-burger) { display: none; }
+    .nav-burger { display: block; }
+    .nav-cta .cta-wide { display: none; }
+    .nav-cta .cta-narrow { display: inline; }
     /* The CTA can no longer wrap to two lines, so it gives back the width in
        padding instead — otherwise the row runs flush into the wordmark. */
     .nav-cta { padding-inline: .75rem; }
@@ -979,7 +1021,29 @@
       </div>
       <a href="https://github.com/memseekai/memseek" class="nav-gh" aria-label="Memseek on GitHub"><svg aria-hidden="true"><use href="#gh-mark"/></svg></a>
       <button class="theme-toggle" id="themeBtn" aria-label="Toggle color theme">THEME</button>
-      <a href="#quickstart" class="nav-cta">Run it locally</a>
+      <a href="#quickstart" class="nav-cta"><span class="cta-wide">Run it locally</span><span class="cta-narrow">Run it</span></a>
+      <!-- Phone-width nav: one menu carrying every link the row drops, the
+           octicon included. Hidden above 620px, where the labels are back. -->
+      <div class="nav-menu nav-burger">
+        <button class="nav-trigger" type="button" aria-expanded="false" aria-controls="navAll" aria-label="Menu"><span class="bars" aria-hidden="true"></span></button>
+        <div class="nav-panel" id="navAll">
+          <div class="nav-group">Product</div>
+          <a href="#how">How it works</a>
+          <a href="#catalog">The catalog</a>
+          <a href="#designs">Memory designs</a>
+          <a href="#quickstart">Run it locally</a>
+          <a href="/claude-code/">Claude Code plugin</a>
+          <a href="#compare">Compare</a>
+          <a href="/benchmarks/">Benchmarks</a>
+          <div class="nav-group">Resources</div>
+          <a href="/context-engine/">Context engine</a>
+          <a href="/showcase/">Showcases</a>
+          <a href="/blog/">Blog</a>
+          <a href="#faq">FAQ</a>
+          <div class="nav-group">Project</div>
+          <a href="https://github.com/memseekai/memseek">GitHub</a>
+        </div>
+      </div>
     </nav>
   </div>
 </header>

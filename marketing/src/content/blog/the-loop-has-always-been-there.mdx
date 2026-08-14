@@ -1,16 +1,20 @@
 ---
 title: "The Loop Has Always Been There: What an AI Loop Actually Is"
-description: "Why verifiability, world models, and memory may matter more than the next model"
+description: "Why verifiability, world models, and memory matter—and why agents need a context engine around the model"
 date: 2026-08-12
 author: Juan Diego Caballero - Founder (jdc@darma.ai)
-tags: ["Agent architecture", "Verifiability", "World models", "Memory"]
+tags: ["Agent architecture", "Context engineering", "Verifiability", "World models", "Memory"]
 presentation: loop-essay
 ---
 
 import ReferenceArchitecture from '../../components/ReferenceArchitecture.astro';
 import ReliabilityComparison from '../../components/ReliabilityComparison.astro';
 
-Everyone talks about agent loops now, usually without explaining what is actually looping. After drowning in marketing copy and AI-influencer diagrams, this essay is my attempt to make the mechanism concrete.
+I spend a lot of time following agent architecture, but with all the buzz around “agent loops,” I still felt like I was missing something. I suspect I wasn't the only one. The familiar act-observe-repeat diagram hides the real machinery: how failure is recognized, what changes before the next attempt, what survives the run, and when the system should stop. Those questions reveal more than a retry mechanism: verification, search, world models, maintained memory, and cognitive control form a larger architecture for taking on the judgment humans still supply. In our own product work, we had already been building pieces of it—gathering changing state, applying constraints, selecting what matters now, and preserving evidence for the next run—without calling it a loop.
+
+A calendar dump is not a daily briefing. A useful briefing had to combine current events, unresolved conflicts, reminders, and prior commitments, then compress them into the few things worth seeing on one particular morning. An empty slot is not a meeting recommendation. A useful recommender had to combine live availability with personal preferences, patterns from similar past meetings, adjacent calendar events, attendee time zones, and hard constraints—then reject slots that were technically free but still wrong for this meeting or this person. In both cases, generation was the final visible step; context determined whether the result was useful.
+
+At first, we treated these as separate features. But each needed the same layer: keep track of changing state, retrieve the right evidence, and decide what the next run should see. That broader job—not just storing memory—is what we call a context engine, and it is the problem we are working on with Memseek. Software is the clearest place to see the idea in action.
 
 Watch a capable coding agent for long enough and a pattern appears. The impressive part is rarely its first answer. The impressive part is what happens next.
 
@@ -170,11 +174,9 @@ This asymmetry is what allows a relatively weak generator to become part of a po
 
 ## LLMs may be best at the fuzzy part
 
-The pattern becomes clearer if we separate induction from deduction.
+The pattern becomes clearer if we separate two jobs. **Induction** means looking at examples and guessing the rule behind them. **Deduction** means applying that rule correctly to a new case.
 
-Induction moves from observations toward a possible rule. Deduction applies a rule to derive a consequence.
-
-The paper *Inductive or Deductive? Rethinking the Fundamental Reasoning Abilities of LLMs* tries to pull those operations apart experimentally. Its SolverLearner architecture gives an LLM examples and asks it to infer the underlying function. Instead of asking the model to execute that function reliably too, the proposed function is handed to an external interpreter:
+The paper *Inductive or Deductive? Rethinking the Fundamental Reasoning Abilities of LLMs* tests those jobs separately. Its SolverLearner system gives an LLM a set of input-output examples and asks it to write a small program that could have produced them. Once the model proposes that program, its job is done. Python runs the program on new inputs, so the probabilistic model does not also have to perform every exact step reliably:
 
 ```text
 examples
@@ -186,11 +188,11 @@ Python executes the rule
 result
 ```
 
-In the authors' experiments, this separation exposed a meaningful difference: SolverLearner showed strong inductive performance, while pure deductive execution was weaker, especially on counterfactual variants.
+The deductive comparison reversed the setup. Instead of hiding the rule and providing examples, the researchers stated the rule directly and asked the LLM to apply it to new cases. In the pure zero-shot condition, it received no worked examples. For arithmetic, for instance, the prompt specified the numerical base—8, 9, 10, 11, or 16—and the model had to perform the addition itself.
 
-The result has important limits. The examples must constrain the possible function sufficiently. The hypothesis space cannot be arbitrarily open. Performance also depends heavily on the underlying foundation model. This is not evidence that “LLMs solve induction.”
+The non-base-10 versions were called **counterfactual** because they preserved the reasoning task while changing the familiar default encountered most often during training. Models performed much better on conventional versions such as base-10 arithmetic than on these altered versions. The gap suggests an execution problem: the model could often infer the underlying rule from examples and express it as a program, yet still fail to follow that same kind of explicitly stated rule consistently when it departed from familiar patterns. SolverLearner isolates that difference by giving execution to Python.
 
-It does support a useful architectural stance:
+This does not mean that LLMs can infer any rule. The examples still need to narrow the possibilities, and performance depends on the underlying model. But it supports a useful engineering principle:
 
 **Use the LLM for fuzzy induction and candidate generation. Delegate exact operations whenever another mechanism can perform them better.**
 
@@ -204,7 +206,7 @@ Tool use, from this perspective, is not an accessory attached to an LLM. It is a
 
 Andrej Karpathy's framing of **verifiability** helps explain why these loops work brilliantly in some domains and poorly in others.
 
-Software 1.0 is strongest where we can specify a procedure directly. AI increasingly lets us automate tasks where the procedure is difficult to specify but the result is easier to judge. For autonomous iteration to work, the environment should ideally be repeatable, efficient, and automatically rewardable. ([karpathy.bearblog.dev](https://karpathy.bearblog.dev/verifiability/))
+Software 1.0 is strongest where we can specify a procedure directly: an algorithm. AI increasingly lets us automate tasks where the procedure is difficult to specify but the result is easier to judge. For autonomous iteration to work, the environment should ideally be repeatable, efficient, and automatically rewardable. ([karpathy.bearblog.dev](https://karpathy.bearblog.dev/verifiability/))
 
 Code has exactly this asymmetry:
 
@@ -229,7 +231,9 @@ $$
 \text{cost of verification}
 $$
 
-When that inequality holds, an imperfect generator can become surprisingly powerful.
+When that inequality holds, the generator does not need to be right every time. It only needs to produce a valid candidate often enough. The system can generate several possibilities, use the cheaper verifier to discard the failures, and keep searching until one survives.
+
+That advantage depends on three conditions: attempts must be affordable, the generator must be better than blind search, and the verifier must reject bad candidates reliably. When all three hold, the loop converts occasional success into a dependable result. The generator supplies possibilities; cheap verification supplies selection.
 
 Karpathy's `autoresearch` is a particularly clean demonstration. The agent may modify a constrained part of a training setup. It runs an experiment for a fixed budget, receives a metric, keeps useful changes, discards bad ones, and repeats. ([github.com](https://github.com/karpathy/autoresearch))
 
@@ -428,42 +432,82 @@ Search spends computation to explore. Verification turns outcomes into evidence.
 
 ---
 
-## Metacognition
+## Metacognition: deciding how to think
 
-The obvious analogy is System 1 and System 2: fast intuition and slow deliberation. It is useful, but too coarse.
+System 1 and System 2 are useful names for two modes of cognition, not two literal pieces of the brain. **System 1** produces a response automatically from perception, association, and learned experience. It is fast because it does not explicitly enumerate and compare many possible futures. **System 2** is deliberate, sequential, and expensive: it holds intermediate state, follows rules, compares alternatives, and can revise the first response. System 2 is not automatically correct. It is simply cognition to which attention and additional steps have been allocated. ([Daniel Kahneman](https://www.scientificamerican.com/article/kahneman-excerpt-thinking-fast-and-slow/))
 
-Reinforcement learning, psychology, and computational neuroscience use a more precise distinction: **model-free** versus **model-based** control. In RL terms, model-free control relies on cached values or a learned policy rather than simulating the environment. It is fast. Model-based control uses a model of the environment's dynamics to evaluate possible futures. It is flexible, but expensive. Research in humans suggests that both contribute to behavior and interact rather than operating as isolated systems. ([pmc.ncbi.nlm.nih.gov](https://pmc.ncbi.nlm.nih.gov/articles/PMC2895323/))
+For an agent, the closest engineering analogy is:
 
-The analogy to agents is deliberate, though not exact: a learned policy or model prior supplies the fast response, while world-model search performs the slower planning.
+```text
+System 1: model or learned policy → immediate candidate
+System 2: candidate → search / retrieve / simulate / verify / revise → decision
+```
 
-Then there is **metacognition**. Humans do not merely think. We make judgments about our thinking:
+The System 2 path is a loop, not merely a larger model. A single forward pass can produce a strong initial answer; deliberate cognition begins when the system spends additional computation testing that answer against alternatives or evidence.
 
-> I'm probably right. I should check this. I don't remember, so I'll look it up. This decision matters enough to spend more time on.
+Reinforcement learning provides a related, more computational distinction. **Model-free control** maps a situation directly to learned values or actions. **Model-based control** uses a representation of how the environment changes to evaluate possible consequences before acting. These distinctions are not identical to System 1 and System 2—a cached expert skill can be sophisticated, and deliberate reasoning need not use a world model—but they explain how expensive planning can coexist with fast learned behavior. In one human decision experiment, researchers found evidence that people use both strategies: learned responses shaped by past rewards and forward planning based on what they expect to happen next. Different patterns of brain activity tracked the two strategies, but behavior drew on both. The point is not that we have two separate minds; we combine fast learned responses with slower planning. ([Gläscher et al.](https://pmc.ncbi.nlm.nih.gov/articles/PMC2895323/))
+
+**Metacognition is the control layer above both modes.** It monitors the current cognition—How uncertain is the answer? Is progress real? Is evidence missing?—and then controls what happens next: answer immediately, retrieve information, search another branch, run a simulation, invoke a verifier, ask a person, or stop. In short:
+
+```text
+cognition:      solve the problem
+metacognition:  decide how to solve it, how much effort to spend, and when to stop
+```
 
 Nassim Nicholas Taleb put the asymmetry sharply:
 
 > An expert is someone who knows exactly what not to be wrong about. ([Nassim Nicholas Taleb](https://x.com/nntaleb/status/1660260369481228288))
 
-Expertise is not universal confidence. It is selective doubt: knowing which errors are intolerable, where uncertainty matters, and where verification deserves to be spent.
+That is a metacognitive claim. Expertise is not maximum confidence about everything; it is allocating doubt according to the cost of error. A reversible, low-stakes choice may deserve the fast answer. An irreversible action with a weak verifier may deserve search, independent evidence, or human authority even when the model sounds confident.
 
-That control layer is especially important because LLMs are probabilistic generators. As argued earlier, generation is exactly where they are useful. But a system can be excellent at proposing plausible candidates without being reliable enough to serve as its own final authority.
+This matters because confidence is itself an imperfect control signal. Engeler and Gilbert studied whether people rely on unaided memory or offload the task to external reminders. Participants who were underconfident set too many reminders. Training improved the accuracy of their confidence judgments, but it did not eliminate excessive reminder use, suggesting that avoiding cognitive effort also influenced the decision. For agents, the lesson is precise: calibration matters, but a controller cannot route work from confidence alone. It must also learn the actual cost and value of retrieval, tools, verification, and delay. ([Engeler & Gilbert](https://pmc.ncbi.nlm.nih.gov/articles/PMC7584199/))
 
-The two curves above capture the tension. More attempts can make pass@k rise sharply when the loop needs only one verified answer, while reliability@k falls when a workflow requires every execution to be correct. Metacognition notices which regime the system is in: whether the chain is long, the stakes are high, confidence is poorly grounded, or a verifier is strong enough to exploit additional search. It then spends retrieval, simulation, verification, or human attention accordingly.
-
-Studies of cognitive offloading show that confidence influences whether people use external aids such as reminders instead of relying on unaided memory. ([pmc.ncbi.nlm.nih.gov](https://pmc.ncbi.nlm.nih.gov/articles/PMC7584199/))
-
-An agent needs the same kind of control policy:
+The pass@k and Reliability@k curves make the same point at system scale. More samples are valuable when the objective is to find one good candidate and a strong verifier can identify it. More steps are dangerous when every step can introduce an error, the verifier covers only part of the result, or the action is irreversible. Metacognition decides which regime applies before it spends more inference.
 
 ```text
-confident              → act
-uncertain              → think
-missing information    → retrieve
-uncertain consequence  → simulate
-high stakes            → verify
-still uncertain        → ask
+familiar + low stakes        → use the fast policy
+uncertain but answerable     → search or reason
+missing evidence             → retrieve or measure
+uncertain consequences       → simulate
+high stakes                  → verify independently
+insufficient authority       → escalate
+enough computation           → stop
 ```
 
-Intelligence is not only producing an answer. It includes knowing when not to trust the first answer, and deciding how much cognition a problem deserves.
+Stopping does not have to mean giving every problem the same number of reasoning steps. A system can learn when another step is worth taking. At each step $n$, it produces both a candidate answer and a number $\lambda_n$ between 0 and 1. That number answers a simple question: **if the system has reached this step, how likely is it to stop now?** Easy problems can receive a high value early; harder ones can keep going.
+
+PonderNet expresses the idea with this equation:
+
+$$
+p_n = \lambda_n \prod_{j=1}^{n-1}(1-\lambda_j)
+$$
+
+The product is the probability that the system chose to continue at every earlier step. Suppose it has a 20% chance of stopping at step 1 and, if it continues, a 50% chance of stopping at step 2. The chance that the run ends at step 2 is $0.5 \times (1-0.2)=0.4$, or 40%. Instead of imposing one fixed reasoning depth, the system learns a distribution over possible stopping points. ([Banino, Balaguer & Blundell](https://arxiv.org/html/2107.05407))
+
+For a system designer, the tradeoff can be written as a simplified training objective:
+
+$$
+\text{expected loss}
+=
+\sum_n p_n\,\text{error}_n
++
+c\sum_n n p_n
+$$
+
+The first term rewards correct answers wherever the system stops. The second charges for expected computation. The constant $c$ is a design choice: increasing it favors faster answers; decreasing it allows more reasoning when quality matters more than latency or cost.
+
+That leads directly to several design rules:
+
+- **Produce a usable answer at every step.** If the system may stop at step $n$, the answer available at that step must be trained and evaluated—not treated as unfinished internal work.
+- **Tune the cost of thought explicitly.** Different tasks should use different values of $c$ rather than sharing one reasoning budget.
+- **Base stopping on evidence, not confidence alone.** The stop signal should reflect test results, new information, measured progress, remaining budget, and the cost of being wrong—not merely whether the model sounds certain.
+- **Keep a hard limit.** A maximum step count guarantees termination even when the learned policy is mistaken.
+
+Adaptive Computation Time, the Universal Transformer, Learning to Stop While Learning to Predict, and PonderNet implement different versions of this idea. The shared engineering lesson is simple: train answer quality and computation allocation together, so easy cases exit early and difficult cases receive more work. ([Graves](https://arxiv.org/abs/1603.08983), [Google Research](https://research.google/pubs/universal-transformers/), [Chen et al.](https://research.google/pubs/learning-to-stop-while-learning-to-predict/))
+
+Learned stopping is still not a safety mechanism. It decides whether more internal computation is likely to help; it does not decide whether the resulting action is allowed. Hard budgets, external verifiers, safety gates, and human escalation must remain outside the learned policy.
+
+The practical goal is not to make an agent think for as long as possible. It is to spend the next unit of computation only when it is likely to improve the decision.
 
 ---
 
@@ -486,10 +530,6 @@ The **meta-controller** handles a problem that is easy to ignore when a human is
 Should the system answer now or think for another minute? Retrieve memory or generate alternatives? Run an experiment or simulate one? Ask another agent? Escalate to a human? Stop? On failure or uncertainty, control returns through the meta-controller to retrieve, replan, regenerate, or escalate rather than blindly rerunning the generator.
 
 This is not merely reasoning. It is **reasoning about how to reason**.
-
-The broad separation is compatible with Google's high-level agent guidance, but the diagram is a synthesis, not a claim that AlphaGo contained every box. Google Cloud uses a reason → act → observe loop, treats orchestration as the operational core, and distinguishes working context, long-term knowledge, and transactional memory. The central memory plane here is conceptual; an implementation should keep those stores and their trust boundaries distinct. AlphaZero and MuZero supply the search → experience → learning loop, while runtime semantic retrieval, heterogeneous critics, and metacognitive budgeting are general-agent extensions. ([Google Cloud](https://cloud.google.com/resources/core-concepts-ai-agents), [Google Cloud Architecture Center](https://docs.cloud.google.com/architecture/choose-agentic-ai-architecture-components))
-
-The architecture therefore contains the dynamic we saw in AlphaGo, now made explicit: the loop does not only solve problems. It can update the systems that shape the next loop.
 
 ---
 
@@ -535,7 +575,7 @@ The foundation model matters enormously; it is simply no longer the whole equati
 
 ## A different roadmap for building agents
 
-This perspective changes the roadmap. Progress is not just a sequence of better models. It is a stack of overlapping layers:
+This perspective changes the roadmap. The future of agents is not just a sequence of better models. It is an expanding stack in which each layer turns a capability that a human once supplied implicitly into explicit machinery:
 
 ```text
 prompt engineering
@@ -555,36 +595,41 @@ memory + learning
 cognitive architecture
 ```
 
-These are not historical eras. They are layers of leverage, and we are building several of them at once.
+These are not historical eras. A capable system will contain several of them at once. Each layer enlarges the unit being engineered—from one response, to one action, to a trajectory, to a system that improves across trajectories.
 
-For practitioners, the frame produces a more useful set of questions.
+| **Layer** | **What gets engineered** | **What it unlocks** |
+| --- | --- | --- |
+| Prompt engineering | A single generation | Better candidates |
+| Tool engineering | Actions and observations | Grounding in real state and exact operations |
+| Agent engineering | A stateful trajectory | Multi-step task completion |
+| Loop engineering | Search, retries, and stopping | Recovery instead of one-shot failure |
+| Verifier / environment engineering | The feedback signal | Selection, convergence, and dependable autonomy |
+| World-model engineering | Predicted consequences | Planning when real experiments are slow, costly, or dangerous |
+| Memory + learning | Priors carried across runs | Experience that compounds instead of expiring with the context window |
+| Cognitive architecture | The allocation of computation and authority | Knowing when to act, retrieve, simulate, verify, ask, or stop |
 
-**What should the model generate?** Give it work where induction, synthesis, pattern recognition, ambiguity, or creativity are useful.
+Seen this way, the practical roadmap is not “wait for the next model.” It is to progressively engineer the structure around the model.
 
-**What can be removed from the model and verified externally?** Tests, types, compilers, query engines, formal solvers, simulators, physical sensors, and benchmarks. Before adding another LLM-as-judge prompt, ask whether you can build an actual test.
+First, **make the task observable**. Represent the state, the target, and the outcome so progress can be measured. Many apparent reasoning failures are representation failures: the system cannot improve what it cannot inspect or compare.
 
-**Can the representation change?** Sometimes the hardest part is not reasoning over an artifact, but turning it into state that can be observed, edited, compared, and scored. Better representations create better loops.
+Then, **push exactness out of the generator**. Give arithmetic to code, state to databases, constraints to types, and correctness to tests, solvers, sensors, and benchmarks. The model should spend its capacity on induction, synthesis, ambiguity, and proposing useful possibilities—not on impersonating machinery we already know how to build.
 
-**Where should search happen?** Generate ten independent ideas or refine one? Branch or backtrack? Spend another dollar of inference?
-
-**What deserves memory?** Not the entire transcript. Preserve failures that changed the strategy, successful abstractions, reusable tools, and facts likely to matter again.
-
-**Where is reality too expensive?** That is where a world model or simulator earns its place.
-
-**Who controls the budget?** A loop is not merely:
+Next, **turn generation into bounded search**. Let the system branch, retry, and backtrack, but give it budgets, progress estimates, escalation paths, and a stopping rule. A loop is not merely:
 
 ```python
 while not done:
     call_llm()
 ```
 
-A useful loop needs progress estimates, uncertainty, budgets, escalation paths, and stopping rules.
+A useful loop spends computation deliberately and can explain why it continued or stopped.
 
-The most interesting question may be the last one:
+Where contact with reality is expensive, **insert a world model**. Use simulation to eliminate bad futures before acting, while keeping reality as the final authority. Then **close the across-task loop**: turn verified outcomes into maintained memory that changes the next run's starting point. Finally, add **cognitive control** so the system can decide which of these capabilities a particular decision deserves.
 
-**Can the loop teach itself not to need the loop next time?**
+The end state is not a more eloquent chatbot. It is a system that can propose, act, measure, revise, remember, and allocate its own reasoning—while remaining bounded by evidence, budgets, and authority.
 
-Only if the loop converts an outcome into something the next run can inspect and reuse. A successful trajectory can become memory, memory can become a reusable skill, and a reusable skill can become training data. In that way, training can move yesterday's search into tomorrow's intuition.
+Context is the connective tissue of that stack. Tools produce evidence. Verifiers qualify it. Memory preserves selected lessons. The controller asks for the relevant slice at the moment of action. Without a context layer, every capability grows its own partial memory, retrieval logic, and private version of the truth.
+
+The decisive transition comes when improvement crosses the task boundary. A loop that retries can execute better; a loop that preserves verified lessons can become a better system. A successful trajectory can become memory, memory can become a reusable skill, and a reusable skill can become training data. In that way, yesterday's search becomes tomorrow's intuition.
 
 But the trajectory should first become an explicit, verified memory—not merely a transcript of everything that happened. The system can distill the decisive observation, the approaches that failed, the reusable procedure, and the evidence that established success.
 
@@ -644,11 +689,33 @@ Memory becomes more important as these systems grow, not less. It lets agents sh
 
 A graph of amnesiac agents is still amnesia—only in parallel.
 
-This is why we are building Memseek: we think agent memory is an underbuilt systems problem. A context engine should turn changing evidence into current, cited knowledge and assemble the few things an agent needs now. The objective is not longer transcripts. It is to let verified experience survive, remain current, and re-enter the loop when it can change the next decision.
+---
+
+## Why we are building Memseek
+
+We are building Memseek as an **opensource context engine for AI agents**, not as a larger transcript or another vector-memory wrapper. A memory store answers, “What have we seen before?” A context engine has to answer a harder question:
+
+> **What should this agent know now, for this task—and why should we trust it?**
+
+At Memseek, we believe:
+
+- **Context should be maintained, not merely stored.** New evidence should be able to revise what is current without erasing what was previously believed.
+- **Evidence and interpretation should remain separate.** What happened is immutable; what the system concludes from it is revisable, and every conclusion should point back to its sources.
+- **More context is not the objective.** The objective is the smallest sufficient context for the decision in front of the agent, assembled under an explicit budget.
+- **Serving context is part of the system, not prompt glue.** The sources, selection rules, versions, and exact material served to an agent should be inspectable and reproducible.
+- **Learning should not mean silent self-rewriting.** Outcomes worth learning from should return as evidence, produce an explicit proposal, and pass through verification or review before they change future behavior.
+
+Those beliefs define the direction of the project. We want a team to declare, once, how its application observes events, maintains current knowledge, retrieves supporting evidence, assembles task-specific context, and routes meaningful outcomes back into revision. That design should be typed, versioned, reviewable, and independent of whichever foundation model happens to be strongest this month.
+
+The daily briefing and the meeting-time recommender from the beginning are not two unrelated memory problems. They are two context artifacts assembled from overlapping evidence and maintained state. The next feature will need another view of that state, and the feature after that will need another. Memseek's job is to provide the common machinery so each new agent capability does not require another private tangle of prompts, caches, retrieval code, and half-remembered user state.
+
+We are starting with durable memory because it is where the loop begins to compound. But memory is one capability inside the larger engine. The destination is a context layer between changing application state and any agent that needs to act on it: one that can observe, maintain, assemble, serve, and learn without becoming opaque.
+
+This blog will follow that work. We will make the pieces concrete: what “current” means, why provenance changes the architecture, how context should be selected and budgeted, how outcomes become learning signals, and where verification belongs when reality does not provide a test suite.
 
 Models will keep improving. Search will make their outputs stronger, verification more trustworthy, and world models will let them investigate consequences before acting. The model generates possibilities; the loop discovers which survive contact with evidence; memory makes those discoveries cumulative.
 
-Without memory, every run begins closer to zero than it should. How loops become societies is another article, but societies require memory too: if the loop has always been there, it should not have to start over.
+That is why we care about this project. If the loop has always been there, it should not have to start over.
 
 ---
 
@@ -666,7 +733,10 @@ Without memory, every run begins closer to zero than it should. How loops become
 10. Google DeepMind, *AlphaZero: Shedding New Light on Chess, Shogi, and Go*. ([deepmind.google](https://deepmind.google/blog/alphazero-shedding-new-light-on-chess-shogi-and-go/))
 11. Google DeepMind, *AlphaGo*. ([deepmind.google](https://deepmind.google/research/alphago/))
 12. Nassim Nicholas Taleb, *An Expert Is Someone Who Knows Exactly What Not to Be Wrong About*. ([x.com](https://x.com/nntaleb/status/1660260369481228288))
-13. Google Cloud, *Core Concepts of AI Agents*. ([cloud.google.com](https://cloud.google.com/resources/core-concepts-ai-agents))
-14. Google Cloud Architecture Center, *Choose Your Agentic AI Architecture Components*. ([cloud.google.com](https://docs.cloud.google.com/architecture/choose-agentic-ai-architecture-components))
-15. Chen et al., *Evaluating Large Language Models Trained on Code*. ([arxiv.org](https://arxiv.org/abs/2107.03374))
-16. Yao et al., *$\tau$-bench: A Benchmark for Tool-Agent-User Interaction in Real-World Domains*. ([arxiv.org](https://arxiv.org/abs/2406.12045))
+13. Chen et al., *Evaluating Large Language Models Trained on Code*. ([arxiv.org](https://arxiv.org/abs/2107.03374))
+14. Yao et al., *$\tau$-bench: A Benchmark for Tool-Agent-User Interaction in Real-World Domains*. ([arxiv.org](https://arxiv.org/abs/2406.12045))
+15. Daniel Kahneman, *Of 2 Minds: How Fast and Slow Thinking Shape Perception and Choice*. ([scientificamerican.com](https://www.scientificamerican.com/article/kahneman-excerpt-thinking-fast-and-slow/))
+16. Alex Graves, *Adaptive Computation Time for Recurrent Neural Networks*. ([arxiv.org](https://arxiv.org/abs/1603.08983))
+17. Dehghani et al., *Universal Transformers*. ([research.google](https://research.google/pubs/universal-transformers/))
+18. Chen et al., *Learning to Stop While Learning to Predict*. ([research.google](https://research.google/pubs/learning-to-stop-while-learning-to-predict/))
+19. Banino, Balaguer & Blundell, *PonderNet: Learning to Ponder*. ([arxiv.org](https://arxiv.org/abs/2107.05407))

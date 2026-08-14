@@ -62,7 +62,35 @@ const inResources = onContextEngine || onShowcase || onBlog;
       </div>
       <a href="https://github.com/memseekai/memseek" class="nav-gh" aria-label="Memseek on GitHub"><svg aria-hidden="true"><use href="#gh-mark" /></svg></a>
       <button class="theme-toggle" id="themeBtn" aria-label="Toggle color theme">THEME</button>
-      <a href="/#waitlist" class="nav-cta">Join the waitlist</a>
+      <a href="/#waitlist" class="nav-cta"><span class="cta-wide">Join the waitlist</span><span class="cta-narrow">Join</span></a>
+      {/* Phone-width nav: one menu carrying every link the row drops, the
+          octicon included. Hidden above 620px, where the labels are back. */}
+      <div class="nav-menu nav-burger">
+        <button
+          class="nav-trigger"
+          type="button"
+          aria-expanded="false"
+          aria-controls="navAll"
+          aria-label="Menu"
+        ><span class="bars" aria-hidden="true"></span></button>
+        <div class="nav-panel" id="navAll">
+          <div class="nav-group">Product</div>
+          <a href="/#how">How it works</a>
+          <a href="/#catalog">The catalog</a>
+          <a href="/#designs">Memory designs</a>
+          <a href="/#quickstart">Run it locally</a>
+          <a href="/claude-code/" aria-current={onClaudeCode ? 'page' : undefined}>Claude Code plugin</a>
+          <a href="/#compare">Compare</a>
+          <a href="/benchmarks/" aria-current={onBenchmarks ? 'page' : undefined}>Benchmarks</a>
+          <div class="nav-group">Resources</div>
+          <a href="/context-engine/" aria-current={onContextEngine ? 'page' : undefined}>Context engine</a>
+          <a href="/showcase/" aria-current={onShowcase ? 'page' : undefined}>Showcases</a>
+          <a href="/blog/" aria-current={onBlog ? 'page' : undefined}>Blog</a>
+          <a href="/#faq">FAQ</a>
+          <div class="nav-group">Project</div>
+          <a href="https://github.com/memseekai/memseek">GitHub</a>
+        </div>
+      </div>
     </nav>
   </div>
 </header>
