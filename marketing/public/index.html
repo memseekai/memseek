@@ -860,12 +860,9 @@
   .vs-card.good li b { color: var(--text); font-weight: 600; }
 
   /* ---------- BENCHMARKS ----------
-     Two panels over one dataset: answer accuracy as bars, then that same
-     accuracy against cost per answer. Every coordinate is derived from the
-     table on /benchmarks/, which is the source of truth for these numbers:
-       bar:     --w = score / 1.076        (92.6% reads 86, leaving headroom)
-       point:   bottom% = (accuracy - 55) / 45 * 100
-                left%   = (log10(cost) + 3.75) / 3.45 * 100   — three decades  */
+     Two compact readings of LongMemEval-S. The frozen recipes and protocol
+     labels on /benchmarks/ are the source of truth for our numbers:
+       bar: --w = score / 1.076 (92.6% reads 86, leaving headroom). */
   .bench-ctas { display: flex; flex-wrap: wrap; align-items: center; gap: .8rem; margin-top: 1.5rem; }
   .console-chip { font-family: var(--mono); font-size: .74rem; color: var(--faint); background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: .6rem .9rem; }
   .console-chip .p { color: var(--orange); }
@@ -983,6 +980,9 @@
   .foot .gh { display: inline-flex; align-items: center; gap: .4rem; color: var(--text); }
   .foot .gh svg { width: 15px; height: 15px; fill: currentColor; }
 </style>
+<!-- Cloudflare Web Analytics -->
+<script type="module" src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon='{"token": "67a2850480074a469b3c209693e68b60"}'></script>
+<!-- End Cloudflare Web Analytics -->
 </head>
 <body>
 <script>document.documentElement.className += ' js';</script>
@@ -1014,6 +1014,7 @@
         <button class="nav-trigger" type="button" aria-expanded="false" aria-controls="navLearn">Resources</button>
         <div class="nav-panel" id="navLearn">
           <a href="/context-engine/">Context engine</a>
+          <a href="/membukkit/">MemBukkit</a>
           <a href="/showcase/">Showcases</a>
           <a href="/blog/">Blog</a>
           <a href="#faq">FAQ</a>
@@ -1037,6 +1038,7 @@
           <a href="/benchmarks/">Benchmarks</a>
           <div class="nav-group">Resources</div>
           <a href="/context-engine/">Context engine</a>
+          <a href="/membukkit/">MemBukkit</a>
           <a href="/showcase/">Showcases</a>
           <a href="/blog/">Blog</a>
           <a href="#faq">FAQ</a>
@@ -1093,18 +1095,18 @@
       <ul class="proof">
         <li>
           <span class="n">92.6%</span>
-          <span class="l">LongMemEval accuracy</span>
-          <a class="r" href="/benchmarks/#methodology">Reproduce it yourself →</a>
+          <span class="l">MemBukkit · LongMemEval accuracy</span>
+          <a class="r" href="/benchmarks/#reproduce">Reproduce it yourself →</a>
         </li>
         <li>
-          <span class="n">32× <span class="u">less context</span></span>
-          <span class="l"><b>~3.2k</b> vs. ~101k tokens</span>
-          <a class="r" href="/benchmarks/#cost">How we measure →</a>
+          <span class="n">7 <span class="u">frozen recipes</span></span>
+          <span class="l">LongMemEval · LoCoMo · BEAM</span>
+          <a class="r" href="/benchmarks/#results">See every result →</a>
         </li>
         <li>
           <span class="n txt">Runs on open weights</span>
-          <span class="l"><b>88.8%</b> at ~$0.0004/query</span>
-          <a class="r" href="https://github.com/memseekai/memseek">See the eval harness →</a>
+          <span class="l"><b>88.8%</b> in the MemBukkit showcase</span>
+          <a class="r" href="https://github.com/memseekai/membukkit">See the eval harness →</a>
         </li>
       </ul>
     </div>
@@ -1869,127 +1871,73 @@ brief[<span class="cs">"manifest"</span>][<span class="cs">"rendered_sha256"</sp
   </section>
 
   <!-- ============ BENCHMARKS ============
-       One dataset (LongMemEval-S, 500 questions), two readings of it: accuracy,
-       then accuracy against cost per answer. /benchmarks/ tabulates every number
-       shown here — when a score changes, change it in both places. -->
+       MemBukkit is the open agent-memory showcase and benchmark harness.
+       Memseek is the context engine that offers the demonstrated search method. -->
   <section id="benchmarks" class="alt">
     <div class="wrap">
       <div class="sec-head reveal" id="benchHead">
-        <span class="eyebrow" style="--hue:var(--green)">public benchmarks · official grader</span>
+        <span class="eyebrow" style="--hue:var(--green)">MemBukkit · open agent-memory benchmark</span>
         <h2><span class="big"><span data-count="92.6" data-dec="1">92.6</span>%</span><br>Highest
-          LongMemEval score — graded by the benchmark, not by us.</h2>
-        <p>Vendor-graded benchmarks are marketing. Ours is scored by <strong>LongMemEval's own
-          judge</strong>, and the harness ships in the repo — <strong>rerun it before you believe
-          it.</strong></p>
+          LongMemEval score in our open showcase.</h2>
+        <p><strong>Memseek is the context engine. MemBukkit is the open agent-memory showcase</strong>
+          where the method, benchmark harness, and frozen reproduction recipes live. The headline
+          run is scored by <strong>LongMemEval's official judge</strong>.</p>
         <div class="bench-ctas">
-          <a class="btn btn-primary" href="/benchmarks/">Check our work →</a>
-          <a class="btn btn-ghost" href="/benchmarks/#methodology">Full methodology</a>
+          <a class="btn btn-primary" href="/membukkit/">Meet MemBukkit →</a>
+          <a class="btn btn-ghost" href="/benchmarks/">Results + reproduction</a>
         </div>
       </div>
 
       <div class="charts">
-        <!-- accuracy, every vendor at its best published configuration -->
+        <!-- LongMemEval agent-memory accuracy: three frozen MemBukkit recipes,
+             all scored with the benchmark's official judge. -->
         <div class="panel reveal" id="benchScores">
           <div class="th">
-            <h3>Answer accuracy</h3>
-            <span class="mult">every vendor's best claim</span>
-          </div>
-          <div class="trow selfg">
-            <span class="lab">Mem0 Cloud + GPT-5<span class="sub">graded its own answers</span></span>
-            <div class="tbar selfg"><i data-w="87.8" style="--w:87.8"></i><span class="v">94.4%</span></div>
+            <h3>LongMemEval-S answer accuracy</h3>
+            <span class="mult">official judge · frozen recipes</span>
           </div>
           <div class="trow us">
-            <span class="lab">Memseek + gpt-5.4<span class="sub">official grader</span></span>
+            <span class="lab">gpt-5.4<span class="sub">reader + distiller</span></span>
             <div class="tbar mem"><i data-w="86" style="--w:86"></i><span class="v" style="--w:86">92.6%</span></div>
           </div>
-          <div class="trow selfg">
-            <span class="lab">Hindsight + Gemini-3 Pro<span class="sub">graded its own answers</span></span>
-            <div class="tbar selfg"><i data-w="85" style="--w:85"></i><span class="v">91.4%</span></div>
+          <div class="trow us">
+            <span class="lab">Gemma 4 26B<span class="sub">open-weight reader + distiller</span></span>
+            <div class="tbar mem"><i data-w="82.5" style="--w:82.5"></i><span class="v" style="--w:82.5">88.8%</span></div>
           </div>
-          <div class="trow selfg">
-            <span class="lab">Zep + gpt-5.4<span class="sub">graded its own answers</span></span>
-            <div class="tbar selfg"><i data-w="83.9" style="--w:83.9"></i><span class="v">90.2%</span></div>
+          <div class="trow us">
+            <span class="lab">gpt-4o-mini<span class="sub">budget recipe · fine-tuned encoder</span></span>
+            <div class="tbar mem"><i data-w="76.2" style="--w:76.2"></i><span class="v" style="--w:76.2">82.0%</span></div>
           </div>
-          <div class="trow">
-            <span class="lab">Supermemory + Gemini-3 Pro<span class="sub">official grader · markets a “95%” on a different metric</span></span>
-            <div class="tbar other"><i data-w="79.2" style="--w:79.2"></i><span class="v">85.2%</span></div>
-          </div>
-          <div class="trow">
-            <span class="lab">Zep + GPT-4o<span class="sub">official grader</span></span>
-            <div class="tbar other"><i data-w="66.2" style="--w:66.2"></i><span class="v">71.2%</span></div>
-          </div>
-          <div class="trow">
-            <span class="lab">whole history into GPT-4o<span class="sub">no memory system</span></span>
-            <div class="tbar full"><i data-w="56" style="--w:56"></i><span class="v">60.2%</span></div>
-          </div>
-          <p class="bench-foot">500-question public memory test (LongMemEval-S); scores are answer
-            accuracy at each vendor's best published configuration. Striped bars: answers scored by
-            the vendor's own AI, not the benchmark's official grader. Memseek is the highest score
-            under the official grader.</p>
+          <p class="bench-foot">MemBukkit · 500-question LongMemEval-S memory test. Each named
+            recipe pins the reader, distiller, judge, encoder, routing flags, and output directory.
+            Reproductions pass within a ±1 percentage-point tolerance band.</p>
         </div>
 
-        <!-- the same scores against what each answer costs to produce -->
-        <div class="panel reveal" id="benchCost">
+        <!-- Different protocols remain visibly separate from LongMemEval. -->
+        <div class="panel reveal" id="benchOther">
           <div class="th">
-            <h3>Accuracy vs. cost per answer</h3>
-            <span class="mult">better and cheaper ↓</span>
+            <h3>Other benchmark scales</h3>
+            <span class="mult">protocols stay separate</span>
           </div>
-
-          <div class="scatter-scroll">
-            <div class="scatter" role="img" aria-label="Accuracy against cost per answer on LongMemEval-S. Memseek reaches 92.6% at $0.015 per answer with gpt-5.4, and 88.8% at $0.0004 per answer on open-weight Gemma 26B. Reading the whole history into GPT-4o scores 60.2% at $0.29 per answer.">
-              <div class="gridline-y" style="bottom:11.1%"><span class="tag">60%</span></div>
-              <div class="gridline-y" style="bottom:33.3%"><span class="tag">70%</span></div>
-              <div class="gridline-y" style="bottom:55.6%"><span class="tag">80%</span></div>
-              <div class="gridline-y" style="bottom:77.8%"><span class="tag">90%</span></div>
-              <div class="gridline-y" style="bottom:100%"><span class="tag">100%</span></div>
-              <div class="gridline-x" style="left:21.7%"><span class="tag2">$1k / 1M answers</span><span class="tag">$0.001</span></div>
-              <div class="gridline-x" style="left:50.7%"><span class="tag2">$10k / 1M</span><span class="tag">$0.01</span></div>
-              <div class="gridline-x" style="left:79.7%"><span class="tag2">$100k / 1M</span><span class="tag">$0.10</span></div>
-
-              <div class="pt us" style="left:8.5%; bottom:75.1%"></div>
-              <div class="ptlab us" style="left:5%; bottom:83%">Memseek + Gemma 26B (open weights)<br><span class="score">88.8%</span> · $0.0004</div>
-
-              <div class="pt us" style="left:13.6%; bottom:60%"></div>
-              <div class="ptlab us" style="left:10%; bottom:47%">Memseek + gpt-4o-mini<br><span class="score">82.0%</span> · $0.0005</div>
-
-              <div class="pt us" style="left:55.7%; bottom:83.6%"></div>
-              <div class="ptlab us" style="left:59%; bottom:84.5%">Memseek + gpt-5.4<br><span class="score">92.6%</span> · $0.015</div>
-
-              <div class="pt other" style="left:42%; bottom:67.1%"></div>
-              <div class="ptlab" style="left:29%; bottom:55.5%">Supermemory + Gemini-3 Pro<br><span class="score">85.2%</span></div>
-
-              <div class="pt other" style="left:46.2%; bottom:36%"></div>
-              <div class="ptlab" style="left:41%; bottom:26%">Zep + GPT-4o<br><span class="score">71.2%</span></div>
-
-              <div class="pt other" style="left:93.1%; bottom:11.6%"></div>
-              <div class="ptlab r" style="right:.5%; bottom:16%">whole history into GPT-4o<br><span class="score">60.2%</span> · $0.29</div>
-
-              <div class="pt other" style="left:85.4%; bottom:76%"></div>
-              <div class="ptlab r" style="right:.5%; bottom:58%">Gemini 2.5 Pro alone,<br>re-reads all 123k tokens<br><span class="score">89.2%</span> · $0.16</div>
-
-              <div class="pt selfg" style="left:52.6%; bottom:87.6%"></div>
-              <div class="ptlab selfg" style="left:30%; bottom:92%">Mem0 Cloud + GPT-5<br>(self-graded) <span class="score">94.4%</span></div>
-
-              <div class="pt selfg" style="left:56.2%; bottom:78.2%"></div>
-              <div class="ptlab selfg" style="left:36%; bottom:76.5%">Zep + gpt-5.4<br>(self-graded) <span class="score">90.2%</span></div>
-
-              <div class="pt selfg" style="left:60.1%; bottom:80.9%"></div>
-              <div class="ptlab selfg" style="left:63.5%; bottom:72%">Hindsight + Gemini-3 Pro<br>(self-graded) <span class="score">91.4%</span></div>
-            </div>
+          <div class="trow us">
+            <span class="lab">LoCoMo<span class="sub">Mem0 reader + judge protocol</span></span>
+            <div class="tbar mem"><i data-w="81.3" style="--w:81.3"></i><span class="v" style="--w:81.3">87.5%</span></div>
           </div>
-
-          <div class="legend">
-            <span><span class="sw" style="background:var(--green)"></span>Memseek, official grading</span>
-            <span><span class="sw" style="background:var(--border-strong)"></span>others, official grading</span>
-            <span><span class="sw" style="background:transparent;border:2px dashed var(--rose)"></span>graded their own answers</span>
+          <div class="trow">
+            <span class="lab">BEAM 100K<span class="sub">official BEAM average · Gemma</span></span>
+            <div class="tbar other"><i data-w="53.5" style="--w:53.5"></i><span class="v">0.535</span></div>
           </div>
-
-          <p class="bench-foot">One point per system at its best published score (LongMemEval-S,
-            500 questions). Hollow = answers scored by the vendor's own AI, not the benchmark's
-            official grader. Cost = model list prices on measured context; frontier models bill
-            hidden reasoning tokens above the floor. Gemini 2.5 Pro full-context: independent
-            academic measurement (arXiv:2601.14287), 122.9k tokens re-read per question.
-            <a href="/benchmarks/">Every number, with its source →</a></p>
+          <div class="trow">
+            <span class="lab">BEAM 1M<span class="sub">official BEAM average · Gemma</span></span>
+            <div class="tbar other"><i data-w="49.8" style="--w:49.8"></i><span class="v">0.498</span></div>
+          </div>
+          <div class="trow">
+            <span class="lab">BEAM 10M<span class="sub">official BEAM average · Gemma</span></span>
+            <div class="tbar other"><i data-w="44.7" style="--w:44.7"></i><span class="v">0.447</span></div>
+          </div>
+          <p class="bench-foot">LoCoMo reports answer accuracy under the Mem0 protocol. BEAM
+            reports its official nine-category average. Those metrics are not LongMemEval accuracy
+            and are not combined into one ranking. <a href="/benchmarks/">See protocols and recipes →</a></p>
         </div>
       </div>
 
@@ -1998,12 +1946,12 @@ brief[<span class="cs">"manifest"</span>][<span class="cs">"rendered_sha256"</sp
       <div class="repro panel reveal">
         <div>
           <h3>Don't take the chart's word for it.</h3>
-          <p>The full eval harness, prompts, and grading config are in the repo. One command reruns
-            the benchmark against your own deployment.</p>
+          <p>The MemBukkit repo contains the full eval harness and frozen recipe. Run the exact
+            agent-memory configuration behind the published result.</p>
         </div>
         <div class="repro-do">
-          <span class="console-chip"><span class="p">$</span> memseek bench longmemeval --official-judge</span>
-          <a class="btn btn-ghost" href="https://github.com/memseekai/memseek">Reproduce the numbers →</a>
+          <span class="console-chip"><span class="p">$</span> membukkit bench --repro longmemeval-gpt54</span>
+          <a class="btn btn-ghost" href="https://github.com/memseekai/membukkit/blob/main/docs/guide/benchmarks.md">Reproduce the numbers →</a>
         </div>
       </div>
     </div>
@@ -2125,12 +2073,12 @@ brief[<span class="cs">"manifest"</span>][<span class="cs">"rendered_sha256"</sp
       </div>
       <div class="faq reveal">
         <details open>
-          <summary>Is this a memory system or a context engine?<span class="pm">+</span></summary>
-          <div class="ans">A context engine — and long-term agent memory is <b>one capability inside it</b>. A memory system stores and recalls information. A context engine decides what belongs in <em>this</em> prompt: what is currently true, what it replaced, and the evidence behind both. If you came looking for agent memory, all of it is here. It just isn't the whole product.</div>
+          <summary>How do Memseek and MemBukkit relate?<span class="pm">+</span></summary>
+          <div class="ans"><b>Memseek is the context engine.</b> It provides search, maintained state, provenance, policies, and prompt-time context for production agents. <b><a href="/membukkit/">MemBukkit</a> is our open agent-memory showcase</b>: a focused library, CLI, GUI, and reproducible benchmark harness. The SOTA-performing search method demonstrated in MemBukkit is available in Memseek; MemBukkit is not a second context-engine product.</div>
         </details>
         <details open>
           <summary>What does it cost to run?<span class="pm">+</span></summary>
-          <div class="ans">A PostgreSQL instance, plus the model calls you declare — and you declare their ceiling per job: <code>max_llm_calls</code>, <code>max_total_tokens</code>, <code>max_wall_s</code>. Reading is the cheap part: roughly <b>3,200 tokens</b> of assembled context per question instead of ~101,000 for raw history. Several adapters run at <code>max_llm_calls: 0</code> and cost nothing but Postgres, and the open-weight configuration scores <b>88.8% at $0.0004 per answer</b>.</div>
+          <div class="ans">A PostgreSQL instance, plus the model calls you declare — and you declare their ceiling per job: <code>max_llm_calls</code>, <code>max_total_tokens</code>, <code>max_wall_s</code>. Reading is the cheap part: roughly <b>3,200 tokens</b> of assembled context per question instead of ~101,000 for raw history. Several adapters run at <code>max_llm_calls: 0</code> and cost nothing but Postgres. Separately, the MemBukkit open-weight benchmark recipe scores <b>88.8%</b> on LongMemEval-S.</div>
         </details>
         <details>
           <summary>Where does my data live?<span class="pm">+</span></summary>
@@ -2182,6 +2130,7 @@ brief[<span class="cs">"manifest"</span>][<span class="cs">"rendered_sha256"</sp
     <div class="fl">
       <a href="https://github.com/memseekai/memseek" class="gh"><svg aria-hidden="true"><use href="#gh-mark"/></svg>GitHub</a>
       <a href="/context-engine/">Context engine</a>
+      <a href="/membukkit/">MemBukkit</a>
       <a href="/claude-code/">Claude Code plugin</a>
       <a href="#how">How it works</a>
       <a href="#designs">Memory designs</a>

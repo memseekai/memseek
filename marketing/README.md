@@ -6,6 +6,8 @@ MDX, deployed to Cloudflare as a Worker with static assets.
 | URL | Source | Notes |
 | --- | --- | --- |
 | `/` | [public/index.html](public/index.html) | Hand-written single file. Astro copies it verbatim and never parses it. |
+| `/membukkit/` | [src/pages/membukkit.astro](src/pages/membukkit.astro) | MemBukkit minisite and Memseek/MemBukkit product distinction. |
+| `/benchmarks/` | [src/pages/benchmarks.astro](src/pages/benchmarks.astro) | Frozen MemBukkit results, protocols, and reproduction commands. |
 | `/blog/`, `/blog/<slug>/` | [src/content/blog/](src/content/blog/) | One `.md`/`.mdx` file per post. |
 | `/tags/<tag>/` | generated | One page per tag used by a published post. |
 | `/showcase/` | [src/pages/showcase/index.astro](src/pages/showcase/index.astro) | Hub listing the showcases. |

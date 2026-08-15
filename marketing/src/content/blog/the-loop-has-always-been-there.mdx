@@ -1,5 +1,5 @@
 ---
-title: "The Loop Has Always Been There: What an AI Loop Actually Is"
+title: "The Agent Loop Has Always Been There"
 description: "Why verifiability, world models, and memory matter—and why agents need a context engine around the model"
 date: 2026-08-12
 author: Juan Diego Caballero - Founder (jdc@darma.ai)
@@ -10,64 +10,28 @@ presentation: loop-essay
 import ReferenceArchitecture from '../../components/ReferenceArchitecture.astro';
 import ReliabilityComparison from '../../components/ReliabilityComparison.astro';
 
-I spend a lot of time following agent architecture, but with all the buzz around “agent loops,” I still felt like I was missing something. I suspect I wasn't the only one. The familiar act-observe-repeat diagram hides the real machinery: how failure is recognized, what changes before the next attempt, what survives the run, and when the system should stop. Those questions reveal more than a retry mechanism: verification, search, world models, maintained memory, and cognitive control form a larger architecture for taking on the judgment humans still supply. In our own product work, we had already been building pieces of it—gathering changing state, applying constraints, selecting what matters now, and preserving evidence for the next run—without calling it a loop.
 
-A calendar dump is not a daily briefing. A useful briefing had to combine current events, unresolved conflicts, reminders, and prior commitments, then compress them into the few things worth seeing on one particular morning. An empty slot is not a meeting recommendation. A useful recommender had to combine live availability with personal preferences, patterns from similar past meetings, adjacent calendar events, attendee time zones, and hard constraints—then reject slots that were technically free but still wrong for this meeting or this person. In both cases, generation was the final visible step; context determined whether the result was useful.
+Watch a capable coding agent work for a few minutes and something strange becomes obvious. The impressive part is rarely the first answer. It writes a patch, runs the tests, sees what failed, changes the patch, runs the tests again, and keeps going. The intelligence seems to come not from any single generation, but from what happens between generations.
 
-At first, we treated these as separate features. But each needed the same layer: keep track of changing state, retrieve the right evidence, and decide what the next run should see. That broader job—not just storing memory—is what we call a context engine, and it is the problem we are working on with Memseek. Software is the clearest place to see the idea in action.
+This looks like a new way of using AI, but the loop itself is not new. A few years ago, almost every interaction with an LLM worked the same way: the model produced an answer, a human inspected it, noticed what was wrong, added missing context, changed the prompt, and tried again. We called that prompting. Architecturally, it was already a feedback loop.
 
-Watch a capable coding agent for long enough and a pattern appears. The impressive part is rarely its first answer. The impressive part is what happens next.
+The model was doing the generation, but the human was doing almost everything else. We were the verifier deciding whether an answer was correct. We were the memory carrying lessons from one attempt into the next. We were the planner deciding what to try, the world model predicting what might happen, and the stopping rule deciding when the result was finally good enough.
 
-It writes a patch. The tests fail. It reads the failure, changes the patch, runs the tests again, and keeps going until the result works.
+What we now call an agent is, in large part, an attempt to move those functions out of the human and into software. Tests can replace some human verification. Search can explore alternatives automatically. Memory can preserve what previous attempts discovered. A world model can estimate consequences before the system acts, while a controller can decide whether to retrieve more information, search another branch, ask for help, or stop.
 
-The same pattern appears in systems that seem, on the surface, to have little in common:
+Once you see agents this way, systems that look unrelated start to share the same shape. AlphaGo generated promising moves and searched their consequences. FunSearch generated programs and executed them to find which survived. Coding agents generate patches and let compilers and tests reject the bad ones. Karpathy’s `autoresearch` generates experiments, runs them, observes the result, and decides what to try next. The domain changes, but the architecture keeps returning: generate, evaluate, update, repeat.
 
-```text
-generate → evaluate → select → update → repeat
-```
+That shifts the interesting question. For the last few years, we have mostly asked how intelligent the model is: how much it knows, how well it reasons, and how often it can produce the right answer on the first try. But an agent does not necessarily need a model that knows the right answer immediately. It needs a generator that can produce promising candidates and a surrounding system capable of discovering which candidates are actually good.
 
-AlphaGo used it to choose moves. FunSearch used it to discover programs. Coding agents use it to repair software. Karpathy's `autoresearch` uses it to run experiments.
+This is why coding agents are such an important example. Writing the correct implementation can be difficult, while compiling it is cheap. Finding a bug can be difficult, while running a test is cheap. If generation is expensive or uncertain but verification is cheap and reliable, the system can afford to be wrong, learn something from being wrong, and try again. A mediocre first attempt can become surprisingly useful when failure produces trustworthy information about what to do next.
 
-This suggests a shift in what we should be paying attention to. The question is no longer only:
+And that leads to the larger claim of this essay. The foundation model is increasingly only one component of the intelligence we observe. Search determines what possibilities get explored. Verification determines what survives. World models let the system reason about consequences. Memory lets yesterday’s search change tomorrow’s behavior. Cognitive control determines how much computation a problem deserves and when the system should stop. The model is not the system anymore. The loop around the model is the system.
 
-> How intelligent is the model?
-
-It is increasingly:
-
-> **What happens when a sufficiently good generator is placed inside a sufficiently good feedback loop?**
-
-Here is the bottom line:
-
-**The model is not the system anymore. The loop around the model is the system.**
-
-That frame explains why coding agents work unusually well, why verifiability matters so much, why agents need world models as they leave software, why memory and metacognition become architectural concerns, and how expensive search can eventually become something that looks like intuition.
-
-The surprising part is that the loop is not new. It has always been there; we are simply automating more of it.
+The surprising part is that we did not suddenly invent this architecture when we started building agents. The loop was already there. We were the loop. What is happening now is that, piece by piece, we are engineering the machinery that used to exist inside the person sitting in front of the model.
 
 ---
 
-## We used to be the loop
-
-A few years ago, the ordinary LLM workflow looked like this:
-
-```text
-human → model → human judges → human changes prompt → model
-```
-
-We called it prompting. Architecturally, it was already a feedback loop.
-
-The model generated candidates. The human inspected them, compared them with an internal model of the task, supplied missing information, rejected bad answers, remembered previous failures, chose the next attempt, and decided when the result was good enough.
-
-The division of labor was roughly:
-
-```text
-generator       → model
-verifier        → human
-memory          → human
-planner         → human
-world model     → human
-stopping rule   → human
-```
+## Autonomy means engineering the missing human
 
 In Yoko Li's *Knowing When to Stop*, this surrounding machinery becomes explicit. Once an agent operates autonomously, convergence can no longer remain an implicit judgment supplied by a person; it has to be engineered into the system. That requires an observable state, a target state, actions that move the system toward it, a way to verify progress, and a rule for deciding when to stop. ([a16z.news](https://www.a16z.news/p/knowing-when-to-stop-the-art-of-making))
 
@@ -156,19 +120,15 @@ Suppose a weak generator succeeds only 40% of the time:
 | 5 | 92.2% | 1.0% |
 | 10 | 99.4% | 0.01% |
 
-At one attempt, the two measures are identical: both are 40%. As attempts accumulate, they split rapidly. By five tries, the chance that at least one attempt works has risen to 92.2%, while the chance that all five work has fallen to 1%. At ten tries, pass@k reaches 99.4%, but Reliability@k is only 0.01%.
+This deliberately simplified independent-attempt case exposes the two regimes rather than modeling an actual loop: samples may share failure modes, while feedback can improve the next attempt.
 
-The generator is weak as a one-shot system. Inside a loop that can afford ten attempts, however, it is very likely to produce at least one usable candidate. That is why stochastic generators and loops belong together: search exploits the rising pass@k curve, while a verifier tries to identify the good run and reject the rest. Without a trustworthy verifier, pass@k only says the answer existed somewhere in the pile.
+The two curves reveal an axis for inference-time scaling. With a 40% generator, increasing $k$ from one to ten pushes pass@k from 40% to 99.4%. Reliability@k moves the other way, falling from 40% to 0.01%. More attempts don't make the generator reliable; they make a good verifier increasingly valuable.
 
 <ReliabilityComparison />
 
-When a human remains in the loop, this distinction is easy to miss. The model proposes; the human compares, checks, remembers, and chooses. The workflow benefits from pass@k because the human supplies the reliability layer around the generator.
+So a mediocre generator can become extremely useful **if the system can reliably identify the successful attempt**. That is the critical asymmetry. More inference can dramatically improve search while exposing more opportunities for failure. Scaling attempts only helps if verification scales with them; otherwise, pass@k merely says that a good answer existed somewhere in the pile.
 
-As those human functions are automated, the operating requirement moves toward Reliability@k. It is no longer enough that one good answer exists somewhere among ten samples. The system must select it, execute the right actions, update the right state, and do so consistently on repeated runs. Verifiers are the mechanism that tries to preserve the advantage of pass@k while preventing stochastic failures from escaping the loop.
-
-Memory makes that correction cumulative. Once a verifier establishes why an attempt worked, memory can preserve the procedure, its conditions, the rejected alternatives, and the evidence that established success. The next run can begin with a better prior instead of purchasing the same ten samples again. Search raises the chance of discovering a success now; verified memory raises the chance of producing one next time. ([OpenAI](https://arxiv.org/abs/2107.03374), [$\tau$-bench](https://arxiv.org/abs/2406.12045))
-
-This asymmetry is what allows a relatively weak generator to become part of a powerful system—and why weaker model requirements can produce more general architectures.
+When a human remains in the loop, the human supplies that judgment by comparing, checking, and choosing. Under autonomy, judgment has to be engineered: the system must select the right candidate and remain reliable across runs. Memory then makes the gain cumulative. Search discovers a success now; verification establishes why it worked; memory changes the next run's prior so the system need not buy the same search again. ([OpenAI](https://arxiv.org/abs/2107.03374), [$\tau$-bench](https://arxiv.org/abs/2406.12045))
 
 ---
 
@@ -241,11 +201,11 @@ Karpathy's `autoresearch` is a particularly clean demonstration. The agent may m
 hypothesis → code change → experiment → metric → keep or discard ↺
 ```
 
-The clever part is not simply that the agent is autonomous. The research problem has been transformed into a shape that autonomy can exploit.
+The clever part is not merely autonomy. The research problem has been reshaped into something autonomy can exploit: **the environment has been engineered for feedback.**
 
-**The environment has been engineered for feedback.**
+AI progress may increasingly depend on making more domains machine-verifiable. In biology, for example, the question is not only, “How do we make the model smarter?” It is also, “How do we build faster simulators, assays, benchmarks, experimental environments, and validators?” Better feedback infrastructure can unlock more useful search without changing the generator.
 
-That gives us another useful mnemonic:
+That is a major inversion. We spent the last few years building better brains. The next wave may be about building better gyms: environments where models can try, fail, and receive trustworthy feedback. Engineering the feedback environment can unlock new capabilities without improving the generator itself.
 
 $$
 \text{Rate of improvement}
@@ -255,11 +215,11 @@ $$
 \text{affordable attempts}
 $$
 
-An agent receiving reliable feedback every five minutes can accumulate far more useful search than one whose actions can only be judged six months later. That can matter as much as the raw capability of the underlying model.
+Reliable feedback every five minutes permits far more learning than feedback available six months later. Making a domain easier to measure can matter as much as improving the model.
 
 ---
 
-## The verifier is both the power and the failure mode
+## Judgment becomes the bottleneck—and the failure mode
 
 The verifier defines the hill the system climbs. That is the source of the loop's power, and also its central danger.
 
@@ -269,11 +229,9 @@ A coding agent can make every visible test pass while still producing the wrong 
 tests pass ≠ software is correct
 ```
 
-An agent may converge according to the observable evaluator while still failing held-out criteria that better represent the intended task.
+This is Goodhart's law in agent form: once a proxy becomes the target of a capable optimizer, its gaps become opportunities. A weak generator may find a loophole by accident; a stronger one can actively search for it.
 
-The asymmetry above makes the verifier more than a scoring component. It is what turns a pool with one possible success into a selected answer, and it becomes more important as the human who once supplied judgment is removed from the loop.
-
-As generators become stronger, the gap between proxy and intent matters more, not less. A weak optimizer may satisfy your proxy by accident. A strong optimizer may discover precisely how the proxy differs from what you meant.
+The same asymmetry that powers pass@k therefore makes judgment the bottleneck to autonomy. The question shifts from “Can the model propose a good action?” to “Can the system know that the action is good?”
 
 $$
 \text{strong generator}
@@ -283,11 +241,13 @@ $$
 \text{strong system}
 $$
 
-It may instead produce a strong capability for exploiting the verifier.
+It may instead produce a strong optimizer of mistakes in our specification.
 
-This reframes an important part of the frontier. We spend enormous effort improving models. For autonomous systems, the harder problem may become constructing feedback that remains trustworthy as the optimizer gets better at exploiting it.
+The AI industry has spent years scaling generation. The next battle may be scaling judgment: evaluators, tests, simulations, reward signals, uncertainty estimates, provenance, and human escalation. These mechanisms must remain trustworthy as the optimizer becomes more capable.
 
-Verification is not merely another module; it determines what the system learns to become.
+In many knowledge workflows, the economics are inverting. Before generative AI, producing a candidate was expensive and evaluating it was relatively cheap. As generative AI drives the marginal cost of producing candidates toward zero, trustworthy evaluation becomes the scarce and expensive part.
+
+The frontier may move from machines that propose increasingly intelligent actions to systems capable of judging increasingly intelligent actions. Verification is not merely another module; it determines what the system learns to become.
 
 ---
 
@@ -371,6 +331,8 @@ the updated network guides the next search ↺
 
 In reinforcement-learning terms, this is **policy improvement**: search finds behavior better than the current policy can produce alone, and learning effectively distills that behavior back into the policy.
 
+This is also absorption: a capability first supplied by an explicit scaffold can be distilled into the model. The same migration can happen in LLM systems—a reasoning scaffold orchestrated in prompts, a tool-use policy, or a retrieval step can be partly learned into the model, while longer context can subsume some retrieval. Some of today’s architecture is therefore temporary. The durable claim is about functions, not fixed components: generation, search, verification, memory, world modeling, and control must happen somewhere, but their implementation and boundaries can move.
+
 $$
 \text{expensive cognition}
 \xrightarrow{\text{learning}}
@@ -397,17 +359,17 @@ The first loop solves the problem; the second changes the solver. But the second
 
 ## Memory is how the loop compounds
 
-Search makes one run better. Memory makes the next run start from a better place.
+Search makes one run better. Memory makes the next run start with a different prior:
+
+$$
+P(a \mid s)
+\longrightarrow
+P(a \mid s, \text{verified history})
+$$
+
+In plain English, memory should change what the agent is likely to do before search begins. That is stronger than recall: it is externalized learning. A memory system has succeeded not when the agent can recall the past, but when the past changes its future behavior.
 
 Without memory, an agent can generate, branch, test, recover, and still learn nothing durable. When the context window closes, that evidence stops influencing the next run unless another system preserves and retrieves it. Faced with a similar problem tomorrow, the system pays the same search cost, rediscovers the same constraint, and may repeat the same failure.
-
-```text
-without memory:
-problem → search → verify → forget → same problem
-
-with memory:
-problem → retrieve → search less → verify → update → start ahead
-```
 
 A context window is working space. A transcript is a log. An archive is storage. None of them, by themselves, decides what mattered.
 
@@ -415,20 +377,11 @@ Useful memory is selective, source-linked, revisable, and explicit about what re
 
 Suppose a coding agent discovers that a deployment failed because a database migration must acquire a lock before the old replicas terminate. Saving the entire forty-thousand-token session is not especially useful. Saving the constraint, the affected service, the conditions under which it applies, and the test that confirmed it is. On the next migration, that memory can change the plan before the first patch is written: the generator proposes a safer order, search prunes a known-bad branch, and the verifier reuses the regression test.
 
-For an agent learning across runs, persistent memory enters at two points:
-
-```text
-before action:   retrieve → change the prior
-after action:    verify → preserve the lesson
-```
-
-That connects memory to every other component. It can give the generator better priors, keep search from revisiting known dead ends, retain regressions and counterexamples for verifiers, preserve prediction errors used to update a world model, and record when confidence or escalation was warranted.
+Retrieval applies verified lessons before action; verification decides which new lessons survive afterward. That connects memory to every other component. It keeps search from revisiting known dead ends, retains regressions and counterexamples for verifiers, preserves prediction errors used to update a world model, and records when confidence or escalation was warranted.
 
 Memory also has its own verifier problem. Bad memory can be worse than amnesia: preserve one plausible but false explanation as a lesson, and a stochastic failure becomes a repeatable policy. What gets written, with what evidence and uncertainty, how contradictions are handled, when a fact stops being current, and how a memory is revalidated matter as much as retrieval itself.
 
-Search spends computation to explore. Verification turns outcomes into evidence. Memory lets that evidence compound.
-
-**Memory is where a successful loop becomes a better system.**
+**Memory is where a successful loop becomes a better system**
 
 ---
 
@@ -565,17 +518,17 @@ M = memory / learning
 C = cognitive control
 ```
 
-Again, this is not an empirical formula for intelligence. Its value is diagnostic.
+Again, this is not an empirical formula or a taxonomy of separable modules. It is a mnemonic for functions that interact and can share an implementation. A better generator changes the effective search; an LLM can generate and judge; memory supplied as context changes what the generator produces.
 
 If generation is weak, the search space contains nothing interesting. If verification is weak, hallucinations survive. If search is weak, the first plausible answer wins. If the world model is weak, long-horizon planning fails. If memory is weak, experience does not compound. If cognitive control is weak, the agent may spend five hundred iterations polishing something already solved—or stop confidently when it should have checked.
 
-The foundation model matters enormously; it is simply no longer the whole equation.
+The foundation model matters enormously, but model intelligence and system intelligence can diverge. A model that ranks higher on reasoning benchmarks may still power a worse agent if another system has better state, tools, search, verification, memory, and control. Model rankings need not become agent-system rankings.
 
 ---
 
 ## A different roadmap for building agents
 
-This perspective changes the roadmap. The future of agents is not just a sequence of better models. It is an expanding stack in which each layer turns a capability that a human once supplied implicitly into explicit machinery:
+This perspective changes the roadmap. The future of agents is not just a sequence of better models. It is an expanding set of functions in which capabilities that a human once supplied implicitly become engineered somewhere in the system:
 
 ```text
 prompt engineering
@@ -595,7 +548,7 @@ memory + learning
 cognitive architecture
 ```
 
-These are not historical eras. A capable system will contain several of them at once. Each layer enlarges the unit being engineered—from one response, to one action, to a trajectory, to a system that improves across trajectories.
+These are not historical eras or necessarily permanent layers. A capable system will perform several of these functions at once, but improvements may move them between prompts, context, tools, explicit services, and model weights. What persists is the function, not its current implementation.
 
 | **Layer** | **What gets engineered** | **What it unlocks** |
 | --- | --- | --- |
@@ -610,7 +563,7 @@ These are not historical eras. A capable system will contain several of them at 
 
 Seen this way, the practical roadmap is not “wait for the next model.” It is to progressively engineer the structure around the model.
 
-First, **make the task observable**. Represent the state, the target, and the outcome so progress can be measured. Many apparent reasoning failures are representation failures: the system cannot improve what it cannot inspect or compare.
+First, **make the task observable**. Represent the state, target, and outcome so progress can be measured. Many apparent reasoning failures are representation failures. A well-instrumented environment can make a weaker model behave like a much stronger system; a poorly instrumented one can make a frontier model look stupid.
 
 Then, **push exactness out of the generator**. Give arithmetic to code, state to databases, constraints to types, and correctness to tests, solvers, sensors, and benchmarks. The model should spend its capacity on induction, synthesis, ambiguity, and proposing useful possibilities—not on impersonating machinery we already know how to build.
 
@@ -645,7 +598,15 @@ training signal
 
 Not every lesson should immediately be baked into model weights. Explicit memory is faster to write, easier to inspect, easier to correct, and able to preserve provenance. Lessons that survive repeated reuse can graduate into tools, skills, or training data.
 
-Memory is the bridge between task-local success and lifetime improvement. It lets yesterday's expensive reasoning alter tomorrow's starting point.
+Memory is the bridge between task-local success and lifetime improvement: it lets yesterday's expensive reasoning alter tomorrow's starting point. One business implication—still a hypothesis—is that feedback environments may become a durable moat:
+
+Today: **“We have the smartest model.”**
+
+Tomorrow: **“We have five years of verified trajectories showing what actually works.”**
+
+Who accumulates that history matters. Model providers may see more aggregate usage, but the enterprise owns the domain-specific outcomes, constraints, and judgments that make those trajectories valuable. Keeping that verified history under enterprise control is what preserves the moat.
+
+The valuable asset would not be raw text alone but accumulated judgment: action → outcome → verification, backed by domain simulators, evaluators, test suites, outcome histories, and trusted review. A competitor can call the same model; it cannot instantly reproduce that history. The system that knows what “good” means may beat one with a slightly smarter generator. It's in the math !.
 
 ---
 
@@ -693,23 +654,20 @@ A graph of amnesiac agents is still amnesia—only in parallel.
 
 ## Why we are building Memseek
 
-We are building Memseek as an **opensource context engine for AI agents**, not as a larger transcript or another vector-memory wrapper. A memory store answers, “What have we seen before?” A context engine has to answer a harder question:
+We are building Memseek as an **open-source context engine for AI agents**. A vector database asks, “What text looks similar?” Memory asks, “What happened before?” A context engine asks:
 
-> **What should this agent know now, for this task—and why should we trust it?**
+> **What should this agent currently believe and use for this decision—and why should we trust it?**
+
+That is closer to an **epistemic-state engine** than a retrieval layer. For each claim, it must maintain the source, supporting evidence, confidence, valid time, contradictions, and the decisions that depend on it.
 
 At Memseek, we believe:
 
-- **Context should be maintained, not merely stored.** New evidence should be able to revise what is current without erasing what was previously believed.
-- **Evidence and interpretation should remain separate.** What happened is immutable; what the system concludes from it is revisable, and every conclusion should point back to its sources.
+- **Claims should be maintained, not merely stored.** Evidence stays immutable and source-linked; interpretations remain revisable as new evidence changes what is current.
 - **More context is not the objective.** The objective is the smallest sufficient context for the decision in front of the agent, assembled under an explicit budget.
 - **Serving context is part of the system, not prompt glue.** The sources, selection rules, versions, and exact material served to an agent should be inspectable and reproducible.
 - **Learning should not mean silent self-rewriting.** Outcomes worth learning from should return as evidence, produce an explicit proposal, and pass through verification or review before they change future behavior.
 
-Those beliefs define the direction of the project. We want a team to declare, once, how its application observes events, maintains current knowledge, retrieves supporting evidence, assembles task-specific context, and routes meaningful outcomes back into revision. That design should be typed, versioned, reviewable, and independent of whichever foundation model happens to be strongest this month.
-
-The daily briefing and the meeting-time recommender from the beginning are not two unrelated memory problems. They are two context artifacts assembled from overlapping evidence and maintained state. The next feature will need another view of that state, and the feature after that will need another. Memseek's job is to provide the common machinery so each new agent capability does not require another private tangle of prompts, caches, retrieval code, and half-remembered user state.
-
-We are starting with durable memory because it is where the loop begins to compound. But memory is one capability inside the larger engine. The destination is a context layer between changing application state and any agent that needs to act on it: one that can observe, maintain, assemble, serve, and learn without becoming opaque.
+Memseek is our attempt to make those rules typed, versioned, and reviewable instead of scattering them across prompts, caches, and feature-specific code. The daily briefing and meeting-time recommender from the beginning are not separate memory problems; they are different views over overlapping evidence and maintained state. We are starting with durable memory because it lets verified experience compound, but the larger goal is a context layer that can observe, maintain, assemble, serve, and learn without becoming opaque.
 
 This blog will follow that work. We will make the pieces concrete: what “current” means, why provenance changes the architecture, how context should be selected and budgeted, how outcomes become learning signals, and where verification belongs when reality does not provide a test suite.
 

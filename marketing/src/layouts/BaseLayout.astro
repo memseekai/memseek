@@ -64,6 +64,16 @@ const ogImageUrl = new URL(ogImage, Astro.site);
       } catch (e) {}
     </script>
     <slot name="head" />
+
+    {/* Cloudflare Web Analytics. Cookieless, so no consent banner. The token is
+        public by design — it identifies the site, not the account. The hand-written
+        pages under public/ carry the same tag verbatim; keep them in sync. */}
+    <script
+      is:inline
+      type="module"
+      src="https://static.cloudflareinsights.com/beacon.min.js"
+      data-cf-beacon='{"token": "67a2850480074a469b3c209693e68b60"}'
+    ></script>
   </head>
 
   <body>

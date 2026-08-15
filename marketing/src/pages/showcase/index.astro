@@ -15,6 +15,14 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
  */
 const showcases = [
   {
+    href: '/membukkit/',
+    slug: 'membukkit',
+    kind: 'open agent-memory showcase',
+    title: 'MemBukkit',
+    blurb: 'Explore the library, GUI, SOTA search method, and reproducible memory benchmarks.',
+    accent: 'var(--orange)',
+  },
+  {
     slug: 'workspace-explorer',
     kind: 'workspace surface',
     title: 'The workspace explorer',
@@ -100,7 +108,7 @@ const showcases = [
     <div class="wrap grid">
       {showcases.map((s) => (
         <article class="card" style={`--hue: ${s.accent}`}>
-          <a href={`/showcase/${s.slug}/`} class="hit" aria-label={s.title}></a>
+          <a href={s.href ?? `/showcase/${s.slug}/`} class="hit" aria-label={s.title}></a>
           <div class="body">
             <span class="kind">{s.kind}</span>
             <h2>{s.title}</h2>

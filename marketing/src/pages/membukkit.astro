@@ -1,0 +1,328 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+
+const repo = 'https://github.com/memseekai/membukkit';
+const docs = `${repo}/tree/main/docs`;
+const benchmarks = `${repo}/blob/main/docs/guide/benchmarks.md`;
+
+const capabilities = [
+  {
+    n: '01',
+    title: 'Dated facts',
+    body: 'Turn conversations and documents into atomic facts with dates and source references.',
+    hue: 'var(--orange)',
+  },
+  {
+    n: '02',
+    title: 'As-of answers',
+    body: 'Ask what was true on a particular date instead of flattening old and new facts together.',
+    hue: 'var(--cyan)',
+  },
+  {
+    n: '03',
+    title: 'Supersession',
+    body: 'Mark what changed without silently deleting the history needed to explain the answer.',
+    hue: 'var(--violet)',
+  },
+  {
+    n: '04',
+    title: 'Receipts',
+    body: 'See the scan budget, buckets opened, evidence used, and source turn behind a result.',
+    hue: 'var(--green)',
+  },
+];
+---
+
+<BaseLayout
+  title="MemBukkit — the open agent-memory showcase from Memseek"
+  description="MemBukkit is Memseek's open agent-memory showcase: a library, CLI, explainability GUI, and reproducible benchmark harness for dated facts, supersession, budgeted search, and answers with receipts."
+>
+  <section class="hero">
+    <div class="wrap hero-grid">
+      <div class="hero-copy">
+        <span class="eyebrow" style="--hue:var(--green)">open agent-memory showcase · by Memseek</span>
+        <div class="name"><span class="bucket-mark" aria-hidden="true">MB</span><h1>MemBukkit</h1></div>
+        <p class="tagline">Open long-term memory you can trust.</p>
+        <p class="lede">
+          A small, inspectable library + CLI + GUI for <b>dated facts, as-of answers,
+          supersession, budgeted search, and clickable receipts.</b> It is where we demonstrate the
+          agent-memory method and publish the recipes behind our SOTA results.
+        </p>
+        <div class="ctas">
+          <a class="btn btn-primary" href={repo}>Open MemBukkit on GitHub →</a>
+          <a class="btn btn-ghost" href="#quickstart">Run a demo</a>
+        </div>
+        <p class="license">Apache-2.0 · Python 3.10+ · runs locally</p>
+      </div>
+
+      <div class="memory-card" aria-label="A memory answer with current and superseded evidence">
+        <div class="memory-top"><span>personal-assistant / ask</span><i>trace on</i></div>
+        <p class="question">How much is my rent?</p>
+        <div class="answer">
+          <span class="answer-label">answer · as of 2024-06-01</span>
+          <b>€950 per month.</b>
+        </div>
+        <div class="evidence current">
+          <span>current</span>
+          <p>Landlord raised rent to €950 from June.</p>
+          <code>2024-04-02 · turn 18</code>
+        </div>
+        <div class="evidence old">
+          <span>superseded</span>
+          <p>Monthly rent is €800.</p>
+          <code>2024-01-08 · turn 4</code>
+        </div>
+        <div class="receipt"><span>3 buckets opened</span><span>30% scan budget</span><span>2 citations</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="identity-section">
+    <div class="wrap">
+      <div class="identity-head">
+        <span class="eyebrow">how they fit together</span>
+        <h2>MemBukkit demonstrates the memory. Memseek delivers the context engine.</h2>
+      </div>
+      <div class="identity-grid">
+        <article class="identity-card product">
+          <span class="kind">context engine</span>
+          <h3>Memseek</h3>
+          <p>
+            The broader context engine for production agents: search, maintained state,
+            provenance, policies, connectors, and prompt-time context assembly.
+          </p>
+          <a href="/context-engine/">What a context engine is →</a>
+        </article>
+        <div class="shared">
+          <span>shared method</span>
+          <b>SOTA search</b>
+          <small>available in Memseek<br />demonstrated in MemBukkit</small>
+        </div>
+        <article class="identity-card showcase">
+          <span class="kind">open showcase</span>
+          <h3>MemBukkit</h3>
+          <p>
+            The focused agent-memory project: a library, CLI, explainability GUI, demos, and the
+            public benchmark harness you can run yourself.
+          </p>
+          <a href={docs}>Read the MemBukkit docs →</a>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section id="how">
+    <div class="wrap">
+      <div class="sec-head">
+        <span class="eyebrow" style="--hue:var(--cyan)">what the showcase proves</span>
+        <h2>Memory should explain itself.</h2>
+        <p>
+          A vector match is not enough when facts change. MemBukkit keeps both the current answer
+          and the history required to verify it.
+        </p>
+      </div>
+
+      <div class="cap-grid">
+        {capabilities.map((item) => (
+          <article class="cap" style={`--hue:${item.hue}`}>
+            <span>{item.n}</span>
+            <h3>{item.title}</h3>
+            <p>{item.body}</p>
+          </article>
+        ))}
+      </div>
+
+      <div class="method-strip">
+        <div>
+          <span class="mini-label">search path</span>
+          <h3>Topic buckets → scan budget → hybrid ranking → evidence</h3>
+        </div>
+        <p>
+          The method partitions memory, routes each question into the most useful region, and
+          ranks within that bounded scan. MemBukkit makes each step inspectable; Memseek offers
+          this search inside the full context engine.
+        </p>
+        <a href="/benchmarks/#search">See the method and eval →</a>
+      </div>
+    </div>
+  </section>
+
+  <section id="benchmarks" class="bench-section">
+    <div class="wrap bench-grid">
+      <div>
+        <span class="eyebrow" style="--hue:var(--green)">public evidence</span>
+        <h2><span>92.6%</span> LongMemEval-S</h2>
+        <p>
+          The headline MemBukkit recipe uses the benchmark’s official gpt-4o judge. Frozen recipes
+          also cover an open-weight Gemma configuration, gpt-4o-mini, LoCoMo, and BEAM at 100K,
+          1M, and 10M tokens.
+        </p>
+        <div class="ctas">
+          <a class="btn btn-primary" href="/benchmarks/">See every result →</a>
+          <a class="btn btn-ghost" href={benchmarks}>Reproduction guide ↗</a>
+        </div>
+      </div>
+      <div class="score-grid">
+        <div class="score-card main"><span>LongMemEval-S</span><b>92.6%</b><small>gpt-5.4 · official judge</small></div>
+        <div class="score-card"><span>LongMemEval-S</span><b>88.8%</b><small>Gemma 4 26B · official judge</small></div>
+        <div class="score-card"><span>LoCoMo</span><b>87.5%</b><small>Mem0 protocol</small></div>
+        <div class="score-card"><span>BEAM 10M</span><b>0.447</b><small>official BEAM average</small></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="quickstart">
+    <div class="wrap quick-grid">
+      <div class="sec-head">
+        <span class="eyebrow" style="--hue:var(--amber)">try the showcase</span>
+        <h2>See the distinction in one demo.</h2>
+        <p>
+          Run the personal-assistant demo, ask about rent in May and June, and inspect why the
+          answer changes. The same local store powers the CLI and GUI.
+        </p>
+        <p class="first-run">
+          First use needs an API key (or a local LLM), downloads model weights, and distills the
+          bundled demo once. Later opens reuse the local store.
+        </p>
+      </div>
+      <div class="terminal">
+        <div class="terminal-head"><span></span><span></span><span></span><b>terminal</b></div>
+        <pre><code><span class="comment"># clone and install</span>
+<span class="prompt">$</span> git clone https://github.com/memseekai/membukkit
+<span class="prompt">$</span> cd membukkit
+<span class="prompt">$</span> pip install -e ".[all]"
+<span class="prompt">$</span> export OPENAI_API_KEY=sk-...
+
+<span class="comment"># open the explainability GUI with a bundled story</span>
+<span class="prompt">$</span> membukkit ui --demo personal-assistant
+
+<span class="comment"># or reproduce a low-cost benchmark smoke test</span>
+<span class="prompt">$</span> membukkit bench --repro longmemeval-gpt4o-mini --lite</code></pre>
+      </div>
+    </div>
+  </section>
+
+  <section class="choose">
+    <div class="wrap choose-inner">
+      <div>
+        <span class="eyebrow">where to go next</span>
+        <h2>Explore with MemBukkit. Ship with Memseek.</h2>
+        <p>
+          Want to inspect agent memory, run a demo, or verify the benchmarks? Start with
+          MemBukkit. Want the search method inside a governed context layer? Start with Memseek.
+        </p>
+      </div>
+      <div class="choose-actions">
+        <a class="btn btn-primary" href={repo}>Explore MemBukkit ↗</a>
+        <a class="btn btn-ghost" href="/#quickstart">Run Memseek locally →</a>
+      </div>
+    </div>
+  </section>
+</BaseLayout>
+
+<style>
+  section { padding-block: clamp(3.2rem, 7vw, 6rem); }
+  .hero { position: relative; overflow: hidden; }
+  .hero::before { content: ""; position: absolute; width: 50rem; height: 34rem; left: -18rem; top: -18rem; background: radial-gradient(circle, color-mix(in srgb, var(--green) 16%, transparent), transparent 70%); pointer-events: none; }
+  .hero-grid { position: relative; display: grid; grid-template-columns: 1fr .9fr; gap: clamp(2rem, 7vw, 6rem); align-items: center; }
+  .name { display: flex; align-items: center; gap: 1rem; margin-top: 1.1rem; }
+  .bucket-mark { display: grid; place-items: center; width: 3.4rem; height: 3.4rem; flex: none; border: 2px solid var(--green); border-radius: 13px 13px 19px 19px; color: var(--green); font-family: var(--mono); font-size: .75rem; font-weight: 700; box-shadow: inset 0 -8px 0 color-mix(in srgb, var(--green) 12%, transparent); transform: rotate(-2deg); }
+  h1 { font-size: var(--step-3); }
+  .tagline { margin-top: .65rem; color: var(--green); font-family: var(--mono); font-size: var(--step-1); font-weight: 700; }
+  .lede { color: var(--muted); font-size: var(--step-1); line-height: 1.58; max-width: 60ch; margin-top: 1.15rem; }
+  .lede b { color: var(--text); }
+  .ctas { display: flex; flex-wrap: wrap; align-items: center; gap: .8rem; margin-top: 1.6rem; }
+  .license { margin-top: 1.1rem; color: var(--faint); font-family: var(--mono); font-size: .68rem; }
+
+  .memory-card { background: var(--surface); border: 1px solid var(--border-strong); border-radius: 16px; padding: 1rem; box-shadow: var(--shadow); transform: rotate(.6deg); }
+  .memory-top { display: flex; justify-content: space-between; gap: 1rem; color: var(--faint); font-family: var(--mono); font-size: .62rem; padding-bottom: .8rem; border-bottom: 1px solid var(--border); }
+  .memory-top i { color: var(--green); font-style: normal; }
+  .question { margin: 1rem 0 .75rem; font-family: var(--mono); font-size: .78rem; color: var(--muted); }
+  .answer { border-left: 2px solid var(--orange); padding: .75rem 1rem; background: var(--bg); border-radius: 0 8px 8px 0; }
+  .answer-label { display: block; color: var(--faint); font-family: var(--mono); font-size: .56rem; text-transform: uppercase; letter-spacing: .08em; }
+  .answer b { display: block; margin-top: .25rem; font-family: var(--mono); font-size: 1.05rem; }
+  .evidence { margin-top: .65rem; border: 1px solid var(--border); border-radius: 9px; padding: .7rem .8rem; }
+  .evidence > span { font-family: var(--mono); font-size: .56rem; text-transform: uppercase; letter-spacing: .08em; }
+  .evidence.current > span { color: var(--green); }
+  .evidence.old > span { color: var(--amber); }
+  .evidence p { font-size: .78rem; margin-top: .2rem; color: var(--text); }
+  .evidence code { display: block; font-family: var(--mono); font-size: .58rem; color: var(--faint); margin-top: .25rem; }
+  .evidence.old p { color: var(--muted); text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--amber) 65%, transparent); }
+  .receipt { display: flex; flex-wrap: wrap; gap: .45rem; margin-top: .8rem; }
+  .receipt span { border: 1px solid var(--border); border-radius: 99px; padding: .2rem .5rem; color: var(--faint); font-family: var(--mono); font-size: .55rem; }
+
+  .identity-section { background: var(--surface); border-block: 1px solid var(--border); }
+  .identity-head { max-width: 48rem; margin-bottom: 2rem; }
+  .identity-head h2 { font-size: var(--step-2); margin-top: .8rem; }
+  .identity-grid { display: grid; grid-template-columns: 1fr 10rem 1fr; gap: 1rem; align-items: stretch; }
+  .identity-card { border: 1px solid var(--border); border-radius: 14px; padding: 1.4rem; background: var(--bg); }
+  .identity-card.product { border-top: 2px solid var(--orange); }
+  .identity-card.showcase { border-top: 2px solid var(--green); }
+  .identity-card .kind { font-family: var(--mono); font-size: .62rem; text-transform: uppercase; letter-spacing: .12em; color: var(--faint); }
+  .identity-card h3 { font-size: var(--step-1); margin-top: .45rem; }
+  .identity-card p { color: var(--muted); font-size: var(--step--1); line-height: 1.55; margin-top: .65rem; }
+  .identity-card a { display: inline-block; margin-top: .9rem; font-family: var(--mono); font-size: .72rem; }
+  .shared { align-self: center; text-align: center; border: 1px dashed var(--cyan); border-radius: 50%; aspect-ratio: 1; display: grid; place-content: center; padding: .8rem; background: color-mix(in srgb, var(--cyan) 6%, var(--bg)); }
+  .shared span, .shared small { color: var(--faint); font-family: var(--mono); font-size: .55rem; line-height: 1.35; }
+  .shared b { color: var(--cyan); font-family: var(--mono); font-size: .78rem; margin-block: .25rem; }
+
+  .sec-head { max-width: 64ch; margin-bottom: 2.2rem; }
+  .sec-head h2 { font-size: var(--step-2); margin-top: .8rem; }
+  .sec-head p { color: var(--muted); font-size: var(--step-1); line-height: 1.55; margin-top: .85rem; }
+  .cap-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: .8rem; }
+  .cap { border: 1px solid var(--border); border-top: 2px solid var(--hue); border-radius: 12px; padding: 1.15rem; background: var(--surface); }
+  .cap > span { color: var(--hue); font-family: var(--mono); font-size: .62rem; }
+  .cap h3 { font-size: .92rem; margin-top: .7rem; }
+  .cap p { color: var(--muted); font-size: .8rem; line-height: 1.5; margin-top: .45rem; }
+  .method-strip { margin-top: 1.2rem; display: grid; grid-template-columns: 1fr 1fr auto; gap: 1.4rem; align-items: center; padding: 1.2rem; border: 1px solid color-mix(in srgb, var(--cyan) 42%, var(--border)); border-radius: 12px; background: color-mix(in srgb, var(--cyan) 5%, var(--surface)); }
+  .mini-label { color: var(--cyan); font-family: var(--mono); font-size: .58rem; text-transform: uppercase; letter-spacing: .1em; }
+  .method-strip h3 { font-size: .86rem; margin-top: .3rem; }
+  .method-strip p { color: var(--muted); font-size: .76rem; line-height: 1.5; }
+  .method-strip a { font-family: var(--mono); font-size: .68rem; white-space: nowrap; }
+
+  .bench-section { background: linear-gradient(140deg, color-mix(in srgb, var(--green) 7%, var(--surface)), var(--surface)); border-block: 1px solid var(--border); }
+  .bench-grid { display: grid; grid-template-columns: .85fr 1.15fr; gap: clamp(2rem, 7vw, 6rem); align-items: center; }
+  .bench-grid h2 { font-size: var(--step-2); margin-top: .8rem; }
+  .bench-grid h2 span { color: var(--green); }
+  .bench-grid > div > p { color: var(--muted); font-size: var(--step-1); line-height: 1.55; margin-top: .9rem; }
+  .score-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; }
+  .score-card { border: 1px solid var(--border); border-radius: 11px; padding: 1rem; background: var(--bg); }
+  .score-card.main { border-color: color-mix(in srgb, var(--green) 55%, var(--border)); }
+  .score-card span, .score-card small { display: block; color: var(--faint); font-family: var(--mono); font-size: .6rem; }
+  .score-card b { display: block; color: var(--text); font-family: var(--mono); font-size: 1.6rem; margin-block: .18rem; }
+  .score-card.main b { color: var(--green); }
+
+  .quick-grid { display: grid; grid-template-columns: .7fr 1.3fr; gap: clamp(2rem, 7vw, 6rem); align-items: center; }
+  .first-run { font-family: var(--mono); font-size: .68rem !important; color: var(--faint) !important; }
+  .terminal { min-width: 0; background: var(--surface); border: 1px solid var(--border-strong); border-radius: 14px; overflow: hidden; box-shadow: var(--shadow); }
+  .terminal-head { display: flex; align-items: center; gap: .35rem; height: 2.3rem; padding-inline: .8rem; border-bottom: 1px solid var(--border); background: var(--surface-2); }
+  .terminal-head > span { width: .55rem; height: .55rem; border-radius: 50%; background: var(--border-strong); }
+  .terminal-head b { margin-left: auto; color: var(--faint); font-family: var(--mono); font-size: .6rem; font-weight: 500; }
+  .terminal pre { padding: 1.2rem; overflow-x: auto; }
+  .terminal code { font-family: var(--mono); color: var(--text); font-size: .7rem; line-height: 1.8; }
+  .terminal .comment { color: var(--faint); }
+  .terminal .prompt { color: var(--orange); }
+
+  .choose { background: var(--surface); border-top: 1px solid var(--border); }
+  .choose-inner { display: flex; justify-content: space-between; gap: 2rem; align-items: end; }
+  .choose h2 { font-size: var(--step-2); margin-top: .8rem; }
+  .choose p { color: var(--muted); max-width: 62ch; margin-top: .8rem; }
+  .choose-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: .7rem; flex: none; }
+
+  @media (max-width: 920px) {
+    .hero-grid, .bench-grid, .quick-grid { grid-template-columns: 1fr; }
+    .identity-grid { grid-template-columns: 1fr; }
+    .shared { width: 9rem; justify-self: center; }
+    .method-strip { grid-template-columns: 1fr; }
+    .method-strip a { white-space: normal; }
+    .choose-inner { align-items: flex-start; flex-direction: column; }
+    .choose-actions { justify-content: flex-start; }
+  }
+  @media (max-width: 720px) {
+    .cap-grid, .score-grid { grid-template-columns: 1fr 1fr; }
+    .memory-card { transform: none; }
+  }
+  @media (max-width: 480px) {
+    .cap-grid, .score-grid { grid-template-columns: 1fr; }
+  }
+</style>

@@ -1,422 +1,353 @@
 ---
 /**
- * The canonical benchmark page: every number any other surface quotes lives
- * here, with its grader and its cost basis next to it. The landing page's
- * #benchmarks section is a two-panel summary of this table — if a score
- * changes, change it in both places (public/index.html holds the other copy).
+ * Public benchmark source of truth.
+ *
+ * The measured implementation and frozen reproduction recipes live in the
+ * MemBukkit repository. Memseek is the context engine that exposes the search
+ * method in the product. Keep that product/research distinction explicit here.
  */
 import BaseLayout from '../layouts/BaseLayout.astro';
 
-/** LongMemEval-S, 500 questions. One row per system at its best published score.
- *  grader: 'official' = the benchmark's own judge · 'self' = the vendor's own AI
- *  cost:   null where the vendor publishes no per-answer figure. */
-const rows = [
-  { sys: 'Mem0 Cloud',        model: 'GPT-5',        acc: 94.4, grader: 'self',     cost: null,     us: false },
-  { sys: 'Memseek',           model: 'gpt-5.4',      acc: 92.6, grader: 'official', cost: '$0.015', us: true },
-  { sys: 'Hindsight',         model: 'Gemini-3 Pro', acc: 91.4, grader: 'self',     cost: null,     us: false },
-  { sys: 'Zep',               model: 'gpt-5.4',      acc: 90.2, grader: 'self',     cost: null,     us: false },
-  { sys: 'Gemini 2.5 Pro alone', model: 'no memory system, re-reads 122.9k tokens per question', acc: 89.2, grader: 'independent', cost: '$0.16', us: false },
-  { sys: 'Memseek',           model: 'Gemma 26B (open weights)', acc: 88.8, grader: 'official', cost: '$0.0004', us: true },
-  { sys: 'Supermemory',       model: 'Gemini-3 Pro', acc: 85.2, grader: 'official', cost: null,     us: false, note: 1 },
-  { sys: 'Memseek',           model: 'gpt-4o-mini',  acc: 82.0, grader: 'official', cost: '$0.0005', us: true },
-  { sys: 'Zep',               model: 'GPT-4o',       acc: 71.2, grader: 'official', cost: null,     us: false },
-  { sys: 'whole history into GPT-4o', model: 'no memory system', acc: 60.2, grader: 'official', cost: '$0.29', us: false },
+const repo = 'https://github.com/memseekai/membukkit';
+const repro = `${repo}/blob/main/docs/guide/benchmarks.md`;
+const method = `${repo}/blob/main/docs/METHOD.md`;
+const rag = `${repo}/blob/main/docs/RAG.md`;
+
+const memoryRows = [
+  {
+    benchmark: 'LongMemEval-S',
+    recipe: 'longmemeval-gpt54',
+    stack: 'gpt-5.4 reader + distiller',
+    protocol: 'official gpt-4o judge',
+    result: '92.6%',
+    tone: 'headline',
+  },
+  {
+    benchmark: 'LongMemEval-S',
+    recipe: 'longmemeval-gemma',
+    stack: 'Gemma 4 26B reader + distiller',
+    protocol: 'official gpt-4o judge',
+    result: '88.8%',
+    tone: 'open',
+  },
+  {
+    benchmark: 'LongMemEval-S',
+    recipe: 'longmemeval-gpt4o-mini',
+    stack: 'gpt-4o-mini + fine-tuned encoder',
+    protocol: 'official gpt-4o judge',
+    result: '82.0%',
+    tone: 'budget',
+  },
+  {
+    benchmark: 'LoCoMo',
+    recipe: 'locomo-mem0',
+    stack: 'gpt-4o-mini + fine-tuned encoder',
+    protocol: 'Mem0 reader + judge protocol',
+    result: '87.5%',
+    tone: 'neutral',
+  },
 ];
 
-const graderLabel = {
-  official: "benchmark's official judge",
-  self: 'the vendor’s own AI',
-  independent: 'independent academic measurement',
-};
+const beamRows = [
+  { scale: '100K', recipe: 'beam-100k-gemma', result: '0.535' },
+  { scale: '1M', recipe: 'beam-1m-gemma', result: '0.498' },
+  { scale: '10M', recipe: 'beam-10m-gemma', result: '0.447' },
+];
 ---
 
 <BaseLayout
-  title="Benchmarks — Memseek"
-  description="92.6% on LongMemEval-S under the benchmark's official judge, with every score, grader and cost per answer in one table."
+  title="MemBukkit benchmarks — Memseek"
+  description="Reproduce MemBukkit's agent-memory benchmarks, including 92.6% on LongMemEval-S, and see how its SOTA search method is available in the Memseek context engine."
 >
-  <section class="head">
-    <div class="wrap">
-      <span class="eyebrow" style="--hue:var(--green)">public benchmarks · official grader</span>
-      <h1><span class="big">92.6%</span> on LongMemEval-S.<br>Graded by the benchmark, not by us.</h1>
-      <p class="lede">Most published memory scores are produced by asking a model to mark its own
-        answers. This page keeps that distinction in every row: <b>who ran it, which model, who
-        graded it, and what one answer cost</b>. Under the official judge, Memseek is the highest
-        score on the board — and the open-weight configuration is within four points of it at
-        roughly a fortieth of the price.</p>
-      <div class="ctas">
-        <a class="btn btn-primary" href="#results">The whole table ↓</a>
-        <a class="btn btn-ghost" href="#methodology">Methodology</a>
-        <span class="console-chip"><span class="p">$</span> memseek bench longmemeval --official-judge</span>
+  <section class="hero">
+    <div class="wrap hero-grid">
+      <div>
+        <span class="eyebrow" style="--hue:var(--green)">MemBukkit benchmark lab · open reproduction</span>
+        <h1><span class="score">92.6%</span> on LongMemEval-S.<br />The proof lives in MemBukkit.</h1>
+        <p class="lede">
+          <b>Memseek is our context engine.</b> <b>MemBukkit is our open agent-memory
+          showcase and benchmark harness.</b> The SOTA-performing search method demonstrated there
+          is available as a search method in Memseek.
+        </p>
+        <div class="ctas">
+          <a class="btn btn-primary" href={repro}>Reproduce the result →</a>
+          <a class="btn btn-ghost" href="/membukkit/">Meet MemBukkit</a>
+        </div>
+        <p class="provenance">LongMemEval-S · 500 questions · frozen recipe · official benchmark judge</p>
       </div>
-      <p class="prov">LongMemEval-S · 500 questions · answer accuracy · page last updated 31 July 2026</p>
+
+      <aside class="identity" aria-label="How Memseek, MemBukkit, and the search method relate">
+        <div class="identity-row product">
+          <span class="tag">product</span>
+          <div><b>Memseek</b><small>Context engine for production agents</small></div>
+        </div>
+        <span class="connector" aria-hidden="true">includes</span>
+        <div class="identity-row method">
+          <span class="tag">capability</span>
+          <div><b>SOTA search method</b><small>Bucketed, budgeted, hybrid retrieval</small></div>
+        </div>
+        <span class="connector" aria-hidden="true">demonstrated by</span>
+        <div class="identity-row project">
+          <span class="tag">open showcase</span>
+          <div><b>MemBukkit</b><small>Library, CLI, GUI, eval harness</small></div>
+        </div>
+      </aside>
     </div>
   </section>
 
-  <!-- ============ THE TABLE ============
-       Deliberately first, and deliberately plain: the charts below are two
-       readings of exactly these rows and nothing else. -->
   <section id="results" class="alt">
     <div class="wrap">
       <div class="sec-head">
-        <span class="eyebrow">every score, one table</span>
-        <h2>Answer accuracy on LongMemEval-S.</h2>
-        <p>Each system at its <b>best published configuration</b>. Rows marked
-          <i class="selfg-k">self-graded</i> were scored by the vendor's own model rather than by
-          the benchmark's judge, which is not the same measurement and is not comparable to one.</p>
+        <span class="eyebrow">frozen, named recipes</span>
+        <h2>Agent-memory results you can rerun.</h2>
+        <p>
+          These are the claims registered in MemBukkit. Each recipe pins the reader, distiller,
+          judge, encoder, routing flags, and output directory. Different protocols are labeled;
+          they should not be blended into one ranking.
+        </p>
       </div>
 
-      <div class="rt-scroll">
-        <table class="rt">
+      <div class="table-scroll">
+        <table>
           <thead>
             <tr>
-              <th>System</th>
-              <th>Model</th>
-              <th class="num">Accuracy</th>
-              <th>Graded by</th>
-              <th class="num">Cost / answer</th>
+              <th>Benchmark</th>
+              <th>Frozen recipe</th>
+              <th>Reader / distiller</th>
+              <th>Scoring protocol</th>
+              <th class="num">Expected</th>
             </tr>
           </thead>
           <tbody>
-            {rows.map((r) => (
-              <tr class={[r.us ? 'us' : '', r.grader === 'self' ? 'selfg' : ''].join(' ').trim()}>
-                <th scope="row">{r.sys}{r.note === 1 && <sup>1</sup>}</th>
-                <td class="model">{r.model}</td>
-                <td class="num score">{r.acc.toFixed(1)}%</td>
-                <td class="grader">{graderLabel[r.grader]}</td>
-                <td class="num cost">{r.cost ?? <span class="none">not published</span>}</td>
+            {memoryRows.map((row) => (
+              <tr class={row.tone}>
+                <th scope="row">{row.benchmark}</th>
+                <td><code>{row.recipe}</code></td>
+                <td>{row.stack}</td>
+                <td>{row.protocol}</td>
+                <td class="num result">{row.result}</td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
 
-      <ol class="fnotes">
-        <li>Supermemory markets a “95%” figure computed on a different metric; the number here is
-          answer accuracy under the official judge, the same measurement as every other row.</li>
+      <p class="table-note">
+        LongMemEval and LoCoMo report answer accuracy. Reproductions pass within ±1 percentage
+        point because LLM readers and judges are nondeterministic. “Official judge” applies to the
+        three LongMemEval rows; LoCoMo deliberately follows the separate Mem0 protocol.
+      </p>
+
+      <div class="beam">
+        <div class="beam-copy">
+          <span class="eyebrow" style="--hue:var(--violet)">long-horizon scale</span>
+          <h3>BEAM, from 100K to 10M tokens.</h3>
+          <p>
+            The Gemma recipes use BEAM’s vendored official judge and report its average across
+            nine ability categories. That metric is not LongMemEval accuracy.
+          </p>
+        </div>
+        <div class="beam-scores">
+          {beamRows.map((row) => (
+            <div class="beam-score">
+              <span>{row.scale}</span>
+              <b>{row.result}</b>
+              <code>{row.recipe}</code>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="search">
+    <div class="wrap search-grid">
+      <div class="sec-head">
+        <span class="eyebrow" style="--hue:var(--cyan)">the search method</span>
+        <h2>Search is the shared capability—not the product name.</h2>
+        <p>
+          MemBukkit exposes the method in a small, inspectable agent-memory system. Memseek makes
+          that search available inside a broader context engine that also maintains state,
+          provenance, policies, and prompt-time context.
+        </p>
+        <a href={method}>Read the implementation walkthrough →</a>
+      </div>
+
+      <ol class="pipeline">
+        <li><span>01</span><div><b>Partition</b><small>Organize evidence into topic buckets.</small></div></li>
+        <li><span>02</span><div><b>Route</b><small>Open the best buckets under a scan budget.</small></div></li>
+        <li><span>03</span><div><b>Rank</b><small>Fuse semantic and relevance signals.</small></div></li>
+        <li><span>04</span><div><b>Answer</b><small>Read the selected evidence with receipts.</small></div></li>
       </ol>
     </div>
+
+    <div class="wrap rag-panel">
+      <div>
+        <span class="mini-label">separate multi-hop search evaluation</span>
+        <h3>MuSiQue · 2WikiMultiHopQA · HotpotQA</h3>
+        <p>
+          MemBukkit also ships the research evaluator for the SOTA search path: shared public
+          splits, HippoRAG-compatible EM/F1 and Recall@k scoring, and zero LLM calls at index time.
+          This evaluator is separate from the frozen agent-memory recipes above.
+        </p>
+      </div>
+      <pre><code><span>$</span> membukkit rag-eval \
+  --datasets musique,2wiki,hotpot \
+  --methods dense,coremem \
+  --embedder nvidia/NV-Embed-v2 \
+  --coremem-encoder nvidia/NV-Embed-v2 \
+  --coremem-decompose</code></pre>
+      <a href={rag}>Open the RAG evaluation guide →</a>
+    </div>
   </section>
 
-  <!-- ============ COST ============ -->
-  <section id="cost">
-    <div class="wrap">
+  <section id="reproduce" class="alt">
+    <div class="wrap repro-grid">
       <div class="sec-head">
-        <span class="eyebrow" style="--hue:var(--cyan)">the axis nobody plots</span>
-        <h2>Accuracy against what an answer costs.</h2>
-        <p>A memory system earns its place by being <b>both</b> more accurate and cheaper than
-          shoving the transcript back through a frontier model. Three decades of cost, log scale.</p>
+        <span class="eyebrow" style="--hue:var(--amber)">reproduce it</span>
+        <h2>Start cheap. Then run the full recipe.</h2>
+        <p>
+          The lite run validates keys, dataset download, and model weights on a small subset. It
+          is a smoke test, not a comparable score. Drop <code>--lite</code> for the published run,
+          then use <code>--check</code> against the frozen tolerance band.
+        </p>
       </div>
 
-      <div class="panel">
-        <div class="scatter-scroll">
-          <div
-            class="scatter"
-            role="img"
-            aria-label="Accuracy against cost per answer on LongMemEval-S. Memseek reaches 92.6% at $0.015 per answer with gpt-5.4, 88.8% at $0.0004 on open-weight Gemma 26B, and 82.0% at $0.0005 on gpt-4o-mini. Reading the whole history into GPT-4o scores 60.2% at $0.29 per answer; Gemini 2.5 Pro re-reading 123k tokens scores 89.2% at $0.16."
-          >
-            <div class="gridline-y" style="bottom:11.1%"><span class="tag">60%</span></div>
-            <div class="gridline-y" style="bottom:33.3%"><span class="tag">70%</span></div>
-            <div class="gridline-y" style="bottom:55.6%"><span class="tag">80%</span></div>
-            <div class="gridline-y" style="bottom:77.8%"><span class="tag">90%</span></div>
-            <div class="gridline-y" style="bottom:100%"><span class="tag">100%</span></div>
-            <div class="gridline-x" style="left:21.7%"><span class="tag2">$1k / 1M answers</span><span class="tag">$0.001</span></div>
-            <div class="gridline-x" style="left:50.7%"><span class="tag2">$10k / 1M</span><span class="tag">$0.01</span></div>
-            <div class="gridline-x" style="left:79.7%"><span class="tag2">$100k / 1M</span><span class="tag">$0.10</span></div>
+      <div class="terminal">
+        <div class="terminal-head"><span></span><span></span><span></span><b>terminal</b></div>
+        <pre><code><span class="comment"># install the open showcase</span>
+<span class="prompt">$</span> git clone https://github.com/memseekai/membukkit
+<span class="prompt">$</span> cd membukkit
+<span class="prompt">$</span> pip install -e ".[all]"
+<span class="prompt">$</span> export OPENAI_API_KEY=sk-...
 
-            <div class="pt us" style="left:8.5%; bottom:75.1%"></div>
-            <div class="ptlab us" style="left:5%; bottom:83%">Memseek + Gemma 26B (open weights)<br><span class="score">88.8%</span> · $0.0004</div>
+<span class="comment"># inspect every frozen recipe</span>
+<span class="prompt">$</span> membukkit bench --list
 
-            <div class="pt us" style="left:13.6%; bottom:60%"></div>
-            <div class="ptlab us" style="left:10%; bottom:47%">Memseek + gpt-4o-mini<br><span class="score">82.0%</span> · $0.0005</div>
+<span class="comment"># low-cost smoke test</span>
+<span class="prompt">$</span> membukkit bench --repro longmemeval-gpt4o-mini --lite
 
-            <div class="pt us" style="left:55.7%; bottom:83.6%"></div>
-            <div class="ptlab us" style="left:59%; bottom:84.5%">Memseek + gpt-5.4<br><span class="score">92.6%</span> · $0.015</div>
-
-            <div class="pt other" style="left:42%; bottom:67.1%"></div>
-            <div class="ptlab" style="left:29%; bottom:55.5%">Supermemory + Gemini-3 Pro<br><span class="score">85.2%</span></div>
-
-            <div class="pt other" style="left:46.2%; bottom:36%"></div>
-            <div class="ptlab" style="left:41%; bottom:26%">Zep + GPT-4o<br><span class="score">71.2%</span></div>
-
-            <div class="pt other" style="left:93.1%; bottom:11.6%"></div>
-            <div class="ptlab r" style="right:.5%; bottom:16%">whole history into GPT-4o<br><span class="score">60.2%</span> · $0.29</div>
-
-            <div class="pt other" style="left:85.4%; bottom:76%"></div>
-            <div class="ptlab r" style="right:.5%; bottom:58%">Gemini 2.5 Pro alone,<br>re-reads all 123k tokens<br><span class="score">89.2%</span> · $0.16</div>
-
-            <div class="pt selfg" style="left:52.6%; bottom:87.6%"></div>
-            <div class="ptlab selfg" style="left:30%; bottom:92%">Mem0 Cloud + GPT-5<br>(self-graded) <span class="score">94.4%</span></div>
-
-            <div class="pt selfg" style="left:56.2%; bottom:78.2%"></div>
-            <div class="ptlab selfg" style="left:36%; bottom:76.5%">Zep + gpt-5.4<br>(self-graded) <span class="score">90.2%</span></div>
-
-            <div class="pt selfg" style="left:60.1%; bottom:80.9%"></div>
-            <div class="ptlab selfg" style="left:63.5%; bottom:72%">Hindsight + Gemini-3 Pro<br>(self-graded) <span class="score">91.4%</span></div>
-          </div>
-        </div>
-
-        <div class="legend">
-          <span><span class="sw" style="background:var(--green)"></span>Memseek, official grading</span>
-          <span><span class="sw" style="background:var(--border-strong)"></span>others, official grading</span>
-          <span><span class="sw" style="background:transparent;border:2px dashed var(--rose)"></span>graded their own answers</span>
-        </div>
-
-        <p class="bench-foot">Cost = model list prices on measured context; frontier models bill
-          hidden reasoning tokens above that floor, so treat every point as a lower bound. Points
-          without a cost in the table are positioned from list prices on their published
-          configuration. Gemini 2.5 Pro full-context: independent academic measurement
-          (arXiv:2601.14287), 122.9k tokens re-read per question.</p>
+<span class="comment"># published 92.6% recipe, then verify</span>
+<span class="prompt">$</span> membukkit bench --repro longmemeval-gpt54
+<span class="prompt">$</span> membukkit bench --repro longmemeval-gpt54 --check</code></pre>
       </div>
     </div>
   </section>
 
-  <!-- ============ BEYOND LONGMEMEVAL ============ -->
-  <section id="more" class="alt">
+  <section class="closer">
     <div class="wrap">
-      <div class="sec-head">
-        <span class="eyebrow" style="--hue:var(--violet)">the other datasets</span>
-        <h2>Multi-hop QA, updated facts, and context size.</h2>
-        <p>LongMemEval is one question shape. These are the three others that decide whether a
-          context engine is doing anything a vector index wasn't already doing.</p>
-      </div>
-
-      <div class="grid3">
-        <div class="stat">
-          <div class="n">+7.5<small> pts</small></div>
-          <div class="metric">exact match vs. standard dense retrieval</div>
-          <div class="src">MuSiQue · multi-hop QA</div>
-        </div>
-        <div class="stat">
-          <div class="n">+10.8<small> pts</small></div>
-          <div class="metric">exact match vs. standard dense retrieval</div>
-          <div class="src">2WikiMultiHopQA · multi-hop QA</div>
-        </div>
-        <div class="stat">
-          <div class="n">91%</div>
-          <div class="metric">picks the latest valid fact</div>
-          <div class="src">LongMemEval-S · knowledge-update questions</div>
-        </div>
-      </div>
-
-      <div class="panel tokens">
-        <div class="th">
-          <h3>Context assembled per question</h3>
-          <span class="mult">≈ 32× fewer tokens</span>
-        </div>
-        <div class="trow">
-          <span class="lab">Full history<span class="sub">every message, re-read</span></span>
-          <div class="tbar full"><i style="--w:100"></i><span class="v">~101,000</span></div>
-        </div>
-        <div class="trow us">
-          <span class="lab">Memseek<span class="sub">assembled, cited, budgeted</span></span>
-          <div class="tbar mem"><i style="--w:3.2"></i><span class="v" style="--w:3.2">~3,200</span></div>
-        </div>
-        <p class="bench-foot">This is the number that compounds: it is paid on every call your
-          agent makes, for the life of the product, and it is why the cheap configurations above are
-          cheap. Each assembled context ships with a hashed manifest of what went into it.</p>
-      </div>
-    </div>
-  </section>
-
-  <!-- ============ METHODOLOGY ============ -->
-  <section id="methodology">
-    <div class="wrap">
-      <div class="sec-head">
-        <span class="eyebrow" style="--hue:var(--amber)">methodology</span>
-        <h2>What was measured, and what wasn't.</h2>
-      </div>
-
-      <div class="mgrid">
-        <div class="m">
-          <h3>The dataset</h3>
-          <p><b>LongMemEval-S</b>, 500 questions over long multi-session chat histories. It tests the
-            three things agents actually get wrong: finding one fact in a long history, tracking a
-            fact that changed, and joining evidence that never appeared in the same session.</p>
-        </div>
-        <div class="m">
-          <h3>The grader</h3>
-          <p>The benchmark's <b>own judge</b>, unmodified, on every Memseek row. Where a vendor
-            published only a score their own model produced, the row says so — a self-graded number
-            and an officially graded number are different measurements, and averaging them or
-            ranking across them is meaningless.</p>
-        </div>
-        <div class="m">
-          <h3>The system under test</h3>
-          <p>The shipped catalog on <b>PostgreSQL 16 + pgvector</b>, retrieval over
-            <code>text-embedding-3-small</code>, with declared per-derivation ceilings
-            (<code>max_llm_calls</code>, <code>max_total_tokens</code>, <code>max_wall_s</code>).
-            The three Memseek rows differ only in which model the aliases point at —
-            <code>gpt-5.4</code>, open-weight <b>Gemma 26B</b>, or <code>gpt-4o-mini</code>. No
-            per-dataset tuning, no benchmark-only definitions.</p>
-        </div>
-        <div class="m">
-          <h3>The cost basis</h3>
-          <p>Provider <b>list prices</b> applied to measured context: tokens assembled into the
-            prompt plus tokens generated, per answered question. Frontier models bill reasoning
-            tokens you cannot see, so every figure is a floor rather than an invoice. Postgres,
-            embeddings and storage are excluded — they do not vary between the rows.</p>
-        </div>
-        <div class="m">
-          <h3>What this does not show</h3>
-          <p>A public benchmark is a <b>lower bound on a proxy</b>. It says nothing about your
-            domain, your write volume, or your latency budget, and nothing about the properties
-            that made us build this — supersession, citation enforcement, point-in-time replay,
-            recursive erase. Those are correctness guarantees, not scores.</p>
-        </div>
-        <div class="m">
-          <h3>Reproduce it</h3>
-          <p>One command against the same API you would call in production, with the answers handed
-            to the benchmark's judge rather than to a model of ours:</p>
-          <pre><code><span class="p">$</span> make quickstart
-<span class="p">$</span> memseek bench longmemeval --official-judge</code></pre>
-          <p>Every derivation in the run leaves an <b>audited run record</b> — trigger, model,
-            inputs, outputs, tokens — so the score is reconstructible from your own database rather
-            than from our screenshot.</p>
-        </div>
-      </div>
-
-      <p class="sec-foot">Numbers here are the ones quoted everywhere else on this site. If you find
-        a disagreement between this page and any other page, this page is correct and the other one
-        is a bug — <a href="https://github.com/memseekai/memseek">open an issue</a>.</p>
-    </div>
-  </section>
-
-  <section class="alt closer">
-    <div class="wrap">
-      <h2>Run it against your own history.</h2>
-      <p>The interesting number is not ours — it is what your agent stops getting wrong.
-        <code>make quickstart</code> gets you a local instance with Postgres, the schema and a
-        workspace key; <code>LLM_FAKE=1</code> runs the whole loop before you spend a token.</p>
+      <span class="eyebrow">pick the right door</span>
+      <h2>Inspect the memory system. Build with the context engine.</h2>
+      <p>
+        Use MemBukkit to explore the method, run demos, and reproduce the evidence. Use Memseek
+        when you need that search inside a governed context layer for your agents.
+      </p>
       <div class="ctas">
-        <a class="btn btn-primary" href="/#waitlist">Join the waitlist →</a>
-        <a class="btn btn-ghost" href="https://github.com/memseekai/memseek">Start from the source</a>
+        <a class="btn btn-primary" href="/membukkit/">Explore MemBukkit →</a>
+        <a class="btn btn-ghost" href="/#quickstart">Build with Memseek</a>
+        <a class="text-link" href={repo}>MemBukkit on GitHub ↗</a>
       </div>
     </div>
   </section>
 </BaseLayout>
 
 <style>
-  /* Chart chrome is mirrored from public/index.html's #benchmarks section —
-     same tokens, same geometry, so the summary and this page read as one
-     artifact. Positions:
-       bar:   --w = value on its own scale (score / 1.076, or % of full history)
-       point: bottom% = (accuracy - 55) / 45 * 100
-              left%   = (log10(cost) + 3.75) / 3.45 * 100   — three decades */
-  section { padding-block: clamp(3rem, 6vw, 5.2rem); }
+  section { padding-block: clamp(3.2rem, 7vw, 6rem); }
   .alt { background: var(--surface); border-block: 1px solid var(--border); }
-  h1 { font-size: var(--step-3); margin-top: .8rem; }
-  h1 .big { color: var(--orange); font-variant-numeric: tabular-nums; }
-  .head .lede { color: var(--muted); font-size: var(--step-1); line-height: 1.55; max-width: 68ch; margin-top: 1.1rem; }
-  .head .lede b { color: var(--text); font-weight: 600; }
-  .prov { margin-top: 1.4rem; font-family: var(--mono); font-size: .72rem; color: var(--faint); }
-  .ctas { display: flex; flex-wrap: wrap; align-items: center; gap: .8rem; margin-top: 1.6rem; }
-  .console-chip { font-family: var(--mono); font-size: .74rem; color: var(--faint); background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: .6rem .9rem; }
-  .alt .console-chip { background: var(--bg); }
-  .console-chip .p { color: var(--orange); }
+  .hero { overflow: hidden; position: relative; }
+  .hero::before { content: ""; position: absolute; width: 48rem; height: 32rem; right: -14rem; top: -14rem; background: radial-gradient(circle, color-mix(in srgb, var(--green) 18%, transparent), transparent 68%); pointer-events: none; }
+  .hero-grid { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(18rem, .75fr); gap: clamp(2rem, 7vw, 6rem); align-items: center; position: relative; }
+  h1 { font-size: var(--step-3); margin-top: 1rem; max-width: 17ch; }
+  h1 .score { color: var(--green); }
+  .lede { color: var(--muted); font-size: var(--step-1); line-height: 1.6; max-width: 65ch; margin-top: 1.2rem; }
+  .lede b { color: var(--text); }
+  .ctas { display: flex; flex-wrap: wrap; align-items: center; gap: .85rem; margin-top: 1.7rem; }
+  .provenance { margin-top: 1.3rem; color: var(--faint); font-family: var(--mono); font-size: .7rem; }
 
-  .sec-head { max-width: 64ch; margin-bottom: clamp(1.8rem, 3.5vw, 2.6rem); }
-  .sec-head h2 { font-size: var(--step-2); margin-top: .8rem; }
-  .sec-head p { color: var(--muted); font-size: var(--step-1); margin-top: .9rem; line-height: 1.5; text-wrap: pretty; }
-  .sec-head p b { color: var(--text); font-weight: 600; }
-  .sec-foot { margin-top: 1.6rem; font-size: var(--step--1); color: var(--muted); line-height: 1.55; max-width: 72ch; }
-  .selfg-k { font-style: italic; color: color-mix(in srgb, var(--rose) 80%, var(--muted)); }
+  .identity { border: 1px solid var(--border-strong); border-radius: 16px; padding: 1rem; background: color-mix(in srgb, var(--surface) 94%, transparent); box-shadow: var(--shadow); }
+  .identity-row { border: 1px solid var(--border); border-radius: 11px; padding: 1rem; display: grid; grid-template-columns: 5.4rem 1fr; gap: .8rem; align-items: center; }
+  .identity-row.product { border-color: color-mix(in srgb, var(--orange) 55%, var(--border)); }
+  .identity-row.method { border-color: color-mix(in srgb, var(--cyan) 55%, var(--border)); }
+  .identity-row.project { border-color: color-mix(in srgb, var(--green) 55%, var(--border)); }
+  .identity-row .tag { font-family: var(--mono); font-size: .58rem; text-transform: uppercase; letter-spacing: .11em; color: var(--faint); }
+  .identity-row b { display: block; font-family: var(--mono); font-size: .86rem; }
+  .identity-row small { display: block; color: var(--muted); font-size: .76rem; margin-top: .15rem; line-height: 1.35; }
+  .connector { display: block; width: max-content; margin: .35rem auto; font-family: var(--mono); font-size: .58rem; color: var(--faint); text-transform: uppercase; letter-spacing: .08em; }
+  .connector::before, .connector::after { content: "↓"; color: var(--border-strong); margin-inline: .5rem; }
 
-  /* ---------- results table ---------- */
-  .rt-scroll { overflow-x: auto; border: 1px solid var(--border); border-radius: 13px; background: var(--bg); }
-  .rt { width: 100%; border-collapse: collapse; font-size: var(--step--1); min-width: 640px; }
-  .rt th, .rt td { text-align: left; padding: .85rem 1.1rem; border-bottom: 1px solid var(--border); }
-  .rt thead th { font-family: var(--mono); font-size: .68rem; letter-spacing: .12em; text-transform: uppercase; color: var(--faint); font-weight: 500; }
-  .rt tbody tr:last-child th, .rt tbody tr:last-child td { border-bottom: 0; }
-  .rt tbody th { font-weight: 600; color: var(--text); font-size: var(--step--1); }
-  .rt .num { text-align: right; font-family: var(--mono); font-variant-numeric: tabular-nums; }
-  .rt .model, .rt .grader { color: var(--muted); }
-  .rt .model { font-family: var(--mono); font-size: .72rem; }
-  .rt .score { color: var(--text); font-weight: 700; }
-  .rt .cost { color: var(--muted); }
-  .rt .none { font-family: var(--sans); font-size: .72rem; color: var(--faint); }
-  /* our rows carry the accent; self-graded rows carry the caveat */
-  .rt tr.us { background: color-mix(in srgb, var(--green) 7%, transparent); }
-  .rt tr.us th { box-shadow: inset 3px 0 0 var(--green); }
-  .rt tr.us .score { color: var(--green); }
-  .rt tr.selfg th, .rt tr.selfg .grader { font-style: italic; color: color-mix(in srgb, var(--rose) 78%, var(--muted)); }
-  .rt sup { color: var(--faint); font-size: .7em; }
-  .fnotes { margin: 1.1rem 0 0 1.2rem; color: var(--faint); font-size: .74rem; line-height: 1.55; max-width: 80ch; }
+  .sec-head { max-width: 66ch; margin-bottom: clamp(1.8rem, 4vw, 2.8rem); }
+  .sec-head h2 { font-size: var(--step-2); margin-top: .85rem; }
+  .sec-head p { color: var(--muted); font-size: var(--step-1); line-height: 1.55; margin-top: .9rem; }
+  .sec-head code { font-family: var(--mono); font-size: .88em; color: var(--text); }
+  .sec-head > a { display: inline-block; margin-top: 1rem; font-family: var(--mono); font-size: var(--step--1); }
 
-  /* ---------- panels shared with the landing page ---------- */
-  .panel { border: 1px solid var(--border); border-radius: 13px; background: var(--surface); padding: 1.5rem 1.6rem; }
-  .alt .panel { background: var(--bg); }
-  .panel .th { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: .5rem; margin-bottom: 1.4rem; }
-  .panel .th h3 { font-size: var(--step-1); }
-  .panel .th .mult { font-family: var(--mono); color: var(--green); font-weight: 700; font-size: var(--step--1); }
-  .bench-foot { margin-top: 1.05rem; padding-top: .85rem; border-top: 1px solid var(--border); color: var(--faint); font-size: .72rem; font-family: var(--mono); line-height: 1.55; }
+  .table-scroll { overflow-x: auto; border: 1px solid var(--border); border-radius: 14px; background: var(--bg); }
+  table { border-collapse: collapse; width: 100%; min-width: 780px; font-size: var(--step--1); }
+  th, td { padding: .9rem 1rem; text-align: left; border-bottom: 1px solid var(--border); }
+  thead th { font-family: var(--mono); color: var(--faint); font-size: .63rem; font-weight: 500; text-transform: uppercase; letter-spacing: .1em; }
+  tbody tr:last-child th, tbody tr:last-child td { border-bottom: 0; }
+  tbody th { color: var(--text); }
+  tbody td { color: var(--muted); }
+  tbody code { font-family: var(--mono); font-size: .72rem; color: var(--text); }
+  .num { text-align: right; font-family: var(--mono); font-variant-numeric: tabular-nums; }
+  .result { font-size: 1rem; font-weight: 700; color: var(--text); }
+  tr.headline { background: color-mix(in srgb, var(--green) 8%, transparent); }
+  tr.headline th { box-shadow: inset 3px 0 0 var(--green); }
+  tr.headline .result { color: var(--green); }
+  tr.open .result { color: var(--violet); }
+  tr.budget .result { color: var(--cyan); }
+  .table-note { color: var(--faint); font-family: var(--mono); font-size: .7rem; line-height: 1.55; max-width: 92ch; margin-top: 1rem; }
 
-  .tokens { margin-top: 1.2rem; }
-  .trow { display: grid; grid-template-columns: 11.5rem 1fr; gap: .85rem; align-items: center; margin-bottom: 1rem; }
-  @media (max-width: 560px) { .trow { grid-template-columns: 1fr; gap: .25rem; } }
-  .trow .lab { font-family: var(--mono); font-size: .72rem; color: var(--muted); line-height: 1.35; }
-  .trow.us .lab { color: var(--text); font-weight: 700; }
-  .trow .lab .sub { display: block; font-size: .62rem; font-weight: 400; color: var(--faint); }
-  .tbar { height: 22px; border-radius: 5px; background: var(--surface-2); overflow: hidden; position: relative; }
-  .tbar > i { position: absolute; inset: 0; border-radius: 5px; clip-path: inset(0 calc(100% - var(--w) * 1%) 0 0 round 5px); }
-  .tbar.mem > i { background: linear-gradient(90deg, var(--green), var(--cyan)); }
-  .tbar.full > i { background: linear-gradient(90deg, color-mix(in srgb, var(--rose) 45%, var(--surface-2)), var(--rose)); }
-  .tbar .v { position: absolute; right: .5rem; top: 50%; transform: translateY(-50%); font-family: var(--mono); font-size: .68rem; color: var(--muted); }
-  /* 3.2% of the track is too narrow to sit a label inside, so this one rides
-     just outside the fill rather than on it */
-  .tbar.mem .v { left: calc(var(--w) * 1% + .55rem); right: auto; color: var(--green); font-weight: 700; }
+  .beam { display: grid; grid-template-columns: .8fr 1.2fr; gap: 2rem; margin-top: 2.5rem; padding: 1.4rem; border: 1px solid var(--border); border-radius: 14px; background: var(--bg); }
+  .beam h3 { font-size: var(--step-1); margin-top: .7rem; }
+  .beam p { color: var(--muted); font-size: var(--step--1); line-height: 1.55; margin-top: .7rem; }
+  .beam-scores { display: grid; grid-template-columns: repeat(3, 1fr); gap: .7rem; }
+  .beam-score { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: .9rem; }
+  .beam-score span { display: block; color: var(--faint); font-family: var(--mono); font-size: .65rem; }
+  .beam-score b { display: block; color: var(--violet); font-family: var(--mono); font-size: 1.55rem; margin-block: .15rem .3rem; }
+  .beam-score code { color: var(--muted); font-family: var(--mono); font-size: .61rem; overflow-wrap: anywhere; }
 
-  /* ---------- accuracy vs. cost ---------- */
-  .scatter-scroll { overflow: visible; }
-  .scatter { position: relative; height: 500px; margin: 1.9rem 1rem 2.6rem 3rem; }
-  @media (max-width: 700px) {
-    .scatter-scroll { overflow-x: auto; overflow-y: hidden; }
-    .scatter { min-width: 560px; height: 420px; }
-  }
-  .gridline-y { position: absolute; left: 0; right: 0; height: 1px; background: var(--border); }
-  .gridline-y .tag { position: absolute; left: -2.5rem; top: -.5em; font-family: var(--mono); font-size: .66rem; color: var(--faint); }
-  .gridline-x { position: absolute; top: 0; bottom: -1.6rem; width: 1px; background: var(--border); }
-  .gridline-x .tag { position: absolute; bottom: 0; left: 50%; transform: translateX(-50%); font-family: var(--mono); font-size: .66rem; color: var(--faint); white-space: nowrap; }
-  .gridline-x .tag2 { position: absolute; top: -1.5rem; left: 50%; transform: translateX(-50%); font-family: var(--mono); font-size: .62rem; color: var(--faint); opacity: .75; white-space: nowrap; }
-  .pt { position: absolute; width: 13px; height: 13px; border-radius: 50%; transform: translate(-50%, 50%); }
-  .pt.us { width: 16px; height: 16px; background: var(--green); box-shadow: 0 0 0 3px color-mix(in srgb, var(--green) 25%, transparent); }
-  .pt.other { background: var(--border-strong); }
-  .pt.selfg { background: transparent; border: 2px dashed var(--rose); }
-  .ptlab { position: absolute; font-family: var(--mono); font-size: .68rem; line-height: 1.35; color: var(--muted); white-space: nowrap; }
-  .ptlab.r { text-align: right; }
-  .ptlab .score { color: var(--text); font-weight: 700; }
-  .ptlab.us { color: var(--green); }
-  .ptlab.us .score { color: var(--green); font-size: .84rem; }
-  .ptlab.selfg { color: color-mix(in srgb, var(--rose) 80%, var(--muted)); font-style: italic; }
-  .ptlab.selfg .score { color: var(--rose); }
-  .legend { display: flex; flex-wrap: wrap; gap: .8rem 1.6rem; font-family: var(--mono); font-size: .68rem; color: var(--muted); }
-  .legend .sw { display: inline-block; width: 11px; height: 11px; border-radius: 50%; margin-right: .45em; vertical-align: -1px; }
+  .search-grid { display: grid; grid-template-columns: .8fr 1.2fr; gap: clamp(2rem, 7vw, 6rem); align-items: start; }
+  .pipeline { list-style: none; display: grid; grid-template-columns: 1fr 1fr; gap: .8rem; }
+  .pipeline li { border: 1px solid var(--border); border-radius: 12px; padding: 1.1rem; background: var(--surface); display: flex; gap: .8rem; min-height: 7rem; }
+  .pipeline li > span { color: var(--cyan); font-family: var(--mono); font-size: .65rem; }
+  .pipeline b { display: block; font-family: var(--mono); font-size: .9rem; }
+  .pipeline small { display: block; color: var(--muted); line-height: 1.45; margin-top: .35rem; }
+  .rag-panel { margin-top: 2.6rem; display: grid; grid-template-columns: 1fr minmax(21rem, .9fr); gap: 1.2rem 2rem; align-items: center; border: 1px solid color-mix(in srgb, var(--cyan) 40%, var(--border)); border-radius: 14px; padding-block: 1.5rem; background: linear-gradient(135deg, color-mix(in srgb, var(--cyan) 6%, var(--surface)), var(--surface)); }
+  .mini-label { font-family: var(--mono); font-size: .62rem; color: var(--cyan); text-transform: uppercase; letter-spacing: .12em; }
+  .rag-panel h3 { font-size: var(--step-1); margin-top: .55rem; }
+  .rag-panel p { color: var(--muted); font-size: var(--step--1); line-height: 1.55; margin-top: .65rem; }
+  .rag-panel pre { background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 1rem; overflow-x: auto; }
+  .rag-panel code { font-family: var(--mono); font-size: .68rem; line-height: 1.75; color: var(--text); }
+  .rag-panel code span { color: var(--cyan); }
+  .rag-panel > a { font-family: var(--mono); font-size: var(--step--1); }
 
-  /* ---------- the other datasets ---------- */
-  .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--border); border: 1px solid var(--border); border-radius: 13px; overflow: hidden; }
-  @media (max-width: 780px) { .grid3 { grid-template-columns: 1fr; } }
-  .stat { background: var(--bg); padding: 1.35rem 1.25rem; border-top: 2px solid var(--hue); }
-  .stat:nth-child(1) { --hue: var(--violet); }
-  .stat:nth-child(2) { --hue: var(--cyan); }
-  .stat:nth-child(3) { --hue: var(--orange); }
-  .stat .n { font-family: var(--mono); color: var(--hue); font-size: 2.2rem; letter-spacing: -.03em; line-height: 1; font-variant-numeric: tabular-nums; }
-  .stat .n small { font-size: .45em; }
-  .stat .metric { margin-top: .5rem; color: var(--text); font-size: var(--step--1); font-weight: 600; }
-  .stat .src { margin-top: .28rem; color: var(--muted); font-size: .76rem; line-height: 1.4; font-family: var(--mono); }
-
-  /* ---------- methodology ---------- */
-  .mgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1px; background: var(--border); border: 1px solid var(--border); border-radius: 13px; overflow: hidden; }
-  .m { background: var(--surface); padding: 1.5rem 1.6rem; }
-  .m h3 { font-size: var(--step-0); color: var(--text); }
-  .m p { margin-top: .7rem; color: var(--muted); font-size: var(--step--1); line-height: 1.6; }
-  .m p b { color: var(--text); font-weight: 600; }
-  .m code { font-family: var(--mono); font-size: .9em; color: var(--text); }
-  .m pre { margin-top: .9rem; background: var(--bg); border: 1px solid var(--border); border-radius: 9px; padding: .8rem .9rem; overflow-x: auto; }
-  .m pre code { font-size: .72rem; line-height: 1.8; color: var(--text); }
-  .m pre .p { color: var(--orange); }
+  .repro-grid { display: grid; grid-template-columns: .7fr 1.3fr; gap: clamp(2rem, 7vw, 6rem); align-items: center; }
+  .terminal { min-width: 0; background: var(--bg); border: 1px solid var(--border-strong); border-radius: 14px; overflow: hidden; box-shadow: var(--shadow); }
+  .terminal-head { display: flex; align-items: center; gap: .35rem; height: 2.3rem; padding-inline: .8rem; border-bottom: 1px solid var(--border); background: var(--surface-2); }
+  .terminal-head > span { width: .55rem; height: .55rem; border-radius: 50%; background: var(--border-strong); }
+  .terminal-head b { margin-left: auto; color: var(--faint); font-family: var(--mono); font-size: .6rem; font-weight: 500; }
+  .terminal pre { padding: 1.2rem; overflow-x: auto; }
+  .terminal code { font-family: var(--mono); color: var(--text); font-size: .7rem; line-height: 1.8; }
+  .terminal .comment { color: var(--faint); }
+  .terminal .prompt { color: var(--orange); }
 
   .closer { text-align: center; }
-  .closer h2 { font-size: var(--step-2); }
-  .closer p { color: var(--muted); max-width: 62ch; margin: 1rem auto 0; }
-  .closer code { font-family: var(--mono); font-size: .9em; color: var(--text); }
+  .closer h2 { font-size: var(--step-2); margin-top: .8rem; }
+  .closer p { color: var(--muted); max-width: 65ch; margin: 1rem auto 0; }
   .closer .ctas { justify-content: center; }
+  .text-link { font-family: var(--mono); font-size: var(--step--1); padding: .75rem; }
+
+  @media (max-width: 880px) {
+    .hero-grid, .search-grid, .repro-grid, .beam { grid-template-columns: 1fr; }
+    .hero-grid { gap: 2.5rem; }
+    .identity { max-width: 38rem; }
+    .rag-panel { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 620px) {
+    .pipeline, .beam-scores { grid-template-columns: 1fr; }
+    .pipeline li { min-height: auto; }
+    .identity-row { grid-template-columns: 1fr; gap: .3rem; }
+    .rag-panel { margin-inline: 1rem; width: calc(100% - 2rem); }
+  }
 </style>
