@@ -12,7 +12,7 @@ maintained state, and prompt assembly in one self-hosted system.
 > agent at its MCP endpoint, and trace every memory back to the evidence that
 > produced it.
 
-[Try it locally](#try-it-locally) · [Read the docs](https://memseekai.github.io/memseek/) · [Explore the agent-memory example](docs/agent-memory-example.md) · [Visit memseek.ai](https://memseek.ai)
+[Try it locally](#try-it-locally) · [Read the docs](https://memseekai.github.io/memseek/) · [Explore the agent-memory example](https://memseekai.github.io/memseek/agent-memory-example/) · [Visit memseek.ai](https://memseek.ai)
 
 ## Why Memseek?
 
@@ -77,8 +77,9 @@ The key concepts are intentionally small:
 | **Artifact** | A deterministic, task-specific context render under a token budget. |
 | **Package** | The versioned YAML catalog that ties the design together. |
 
-Read [Core concepts](docs/concepts.md) for the full model and
-[the glossary](docs/glossary.md) for the vocabulary.
+Read [Core concepts](https://memseekai.github.io/memseek/concepts/) for the full
+model and [the glossary](https://memseekai.github.io/memseek/glossary/) for the
+vocabulary.
 
 ## Try it locally
 
@@ -88,7 +89,7 @@ catalog. Docker is the only runtime requirement; the example catalog uses a
 real OpenAI-compatible model for embeddings and memory derivations.
 
 **You need:** Docker with Compose and an `OPENAI_API_KEY` with access to the
-models named in [`examples/agent_memory_catalog/conf/models.yaml`](examples/agent_memory_catalog/conf/models.yaml).
+models named in `examples/agent_memory_catalog/conf/models.yaml`.
 
 ```console
 git clone https://github.com/memseekai/memseek.git
@@ -117,7 +118,8 @@ keeping the local data, run `make down`; use `make down CLEAN=1` only when you
 want to remove the local database volume and workspace key.
 
 For the guided, end-to-end first run—including a real record, derived memory,
-retrieval, and a rendered briefing—follow [Getting started](docs/getting-started.md).
+retrieval, and a rendered briefing—follow
+[Getting started](https://memseekai.github.io/memseek/getting-started/).
 
 ## Connect an agent
 
@@ -138,8 +140,8 @@ codex mcp add memseek \
 
 For remote deployment, serve the endpoint over HTTPS and keep the workspace key
 in an environment variable rather than in configuration files. See the
-[MCP guide](docs/mcp.md) for client configuration, transport details, and
-production proxy requirements.
+[MCP guide](https://memseekai.github.io/memseek/mcp/) for client configuration,
+transport details, and production proxy requirements.
 
 ### Claude Code
 
@@ -148,8 +150,9 @@ supplies a bounded memory brief automatically. It is a good place to experience
 the intended loop: state a project rule today, start a new session later, and
 ask Claude to show the source that supports the remembered rule.
 
-Follow the [Claude Code plugin guide](docs/claude-code-plugin.md) for the
-installation and verification steps.
+Follow the
+[Claude Code plugin guide](https://memseekai.github.io/memseek/claude-code-plugin/)
+for the installation and verification steps.
 
 ## Build your own memory design
 
@@ -171,10 +174,12 @@ Publish a package atomically to a workspace. Every request then resolves against
 that exact catalog, so schemas, processing rules, retrieval contracts, and the
 agent tool surface move together.
 
-Start with [Authoring a workspace catalog](docs/authoring-definitions.md), then
-use the [CRM profile quickstart](docs/sdk-user-profile-quickstart.md) or
-[Generative Agents example](docs/generative-agents-example.md) as working
-patterns.
+Start with
+[Authoring a workspace catalog](https://memseekai.github.io/memseek/authoring-definitions/),
+then use the
+[CRM profile quickstart](https://memseekai.github.io/memseek/sdk-user-profile-quickstart/)
+or [Generative Agents example](https://memseekai.github.io/memseek/generative-agents-example/)
+as working patterns.
 
 ## Use it from your application
 
@@ -218,8 +223,9 @@ They are stored immediately, but they do not enter search or trigger derivations
 until the worker has completed the declared processing. This prevents an agent
 from acting on half-processed memory.
 
-See the [Python SDK guide](docs/sdk.md) and [HTTP API guide](docs/api-surface.md)
-for complete request and response examples.
+See the [Python SDK guide](https://memseekai.github.io/memseek/sdk/) and
+[HTTP API guide](https://memseekai.github.io/memseek/api-surface/) for complete
+request and response examples.
 
 ## Trust, review, and operations
 
@@ -236,22 +242,23 @@ Memseek is designed for agents whose context should be inspectable:
 - Workspace bearer keys are secrets. Keep them out of source control and use
   TLS for any Internet-facing API or MCP endpoint.
 
-Read [Operations](docs/operations.md), [Changing definitions](docs/changing-definitions.md),
-and [Artifact uses & feedback](docs/artifact-uses.md) before operating a
-long-lived or Internet-facing deployment.
+Read [Operations](https://memseekai.github.io/memseek/operations/),
+[Changing definitions](https://memseekai.github.io/memseek/changing-definitions/),
+and [Artifact uses & feedback](https://memseekai.github.io/memseek/artifact-uses/)
+before operating a long-lived or Internet-facing deployment.
 
 ## Documentation map
 
 | If you want to… | Start here |
 | --- | --- |
-| Run a local example | [Getting started](docs/getting-started.md) |
-| Understand the data model | [Core concepts](docs/concepts.md) |
-| Define collections and derivations | [Authoring definitions](docs/authoring-definitions.md) |
-| Add retrieval and prompt context | [Views & search](docs/views-search.md) and [Artifacts](docs/artifacts.md) |
-| Connect an agent through MCP | [MCP](docs/mcp.md) |
-| Give Claude Code project memory | [Claude Code plugin](docs/claude-code-plugin.md) |
-| Use the SDK or HTTP API | [SDK](docs/sdk.md) and [API surface](docs/api-surface.md) |
-| Operate and evolve a catalog | [Operations](docs/operations.md) and [Changing definitions](docs/changing-definitions.md) |
+| Run a local example | [Getting started](https://memseekai.github.io/memseek/getting-started/) |
+| Understand the data model | [Core concepts](https://memseekai.github.io/memseek/concepts/) |
+| Define collections and derivations | [Authoring definitions](https://memseekai.github.io/memseek/authoring-definitions/) |
+| Add retrieval and prompt context | [Views & search](https://memseekai.github.io/memseek/views-search/) and [Artifacts](https://memseekai.github.io/memseek/artifacts/) |
+| Connect an agent through MCP | [MCP](https://memseekai.github.io/memseek/mcp/) |
+| Give Claude Code project memory | [Claude Code plugin](https://memseekai.github.io/memseek/claude-code-plugin/) |
+| Use the SDK or HTTP API | [SDK](https://memseekai.github.io/memseek/sdk/) and [API surface](https://memseekai.github.io/memseek/api-surface/) |
+| Operate and evolve a catalog | [Operations](https://memseekai.github.io/memseek/operations/) and [Changing definitions](https://memseekai.github.io/memseek/changing-definitions/) |
 
 The complete documentation site is available at
 [memseekai.github.io/memseek](https://memseekai.github.io/memseek/). To preview
