@@ -1,0 +1,374 @@
+---
+title: "Everyone Is Building the Same Context Engine"
+description: "gbrain, TencentDB Agent Memory, Generative Agents, and Anthropic Dreams look like different systems. Underneath, they rearrange the same eight operations. We open-sourced the shared layer as Memseek."
+date: 2026-08-15
+author: Juan Diego Caballero - Founder
+tags: ["Context engineering", "Agent architecture", "Open source", "Agent memory"]
+cover: ./images/context-engine-cover.png
+coverAlt: "A memory stream, a four-level hierarchy, a knowledge graph, and a reflection loop connect to the same eight-module context-engine backbone."
+presentation: context-flow
+draft: false
+---
+
+import ContextEngineFlow from '../../components/ContextEngineFlow.astro';
+
+Every agent-memory project looks new until you draw the boxes.
+
+The [Generative Agents paper](https://arxiv.org/abs/2304.03442) calls it a
+memory stream and reflection. [TencentDB Agent Memory](https://github.com/Tencent/TencentDB-Agent-Memory)
+organizes it into four levels, from conversations to a persona. [gbrain](https://github.com/garrytan/gbrain)
+builds a knowledge graph and runs a dream cycle over it. [Anthropic's
+Dreams](https://platform.claude.com/docs/en/managed-agents/dreams) reorganizes
+an agent's accumulated experience in the background.
+
+These are genuinely different projects with different goals. But strip away
+the names and the same eight moves keep appearing: **collect records, enrich
+them, derive new state, trigger work, retrieve what matters, assemble context,
+evaluate the result, and feed the outcome back**. Each architecture is a
+different arrangement of those moves.
+
+We did not arrive at that conclusion by surveying the market. We arrived at it
+after accidentally rebuilding the same machinery inside three features of a
+scheduling assistant.
+
+The daily digest was supposed to be one of the simpler features. Fetch
+tomorrow's calendar, find the active scheduling conversations, and turn them
+into a briefing someone could read over coffee.
+
+But even that small feature needed a surprising amount of machinery. Calendar
+records had to stay searchable. Events and negotiations had to be selected for
+one user, in one timezone, for one morning. The result had to be assembled into
+a bounded prompt and rendered differently for email and WhatsApp. None of that
+was the impressive model call. It was the work required to make the model call
+useful.
+
+Then we built calendar enrichment. A source calendar tells you that a meeting
+starts at 2:00 PM; it does not tell you whether the user needs twenty minutes
+to travel there, whether the event requires preparation, or whether it belongs
+to a recurring pattern. Those values had to be computed, attached to the event,
+and recomputed when the relevant source fields changed. A title edit might
+matter. An attendee accepting the invitation might not. Reprocessing everything
+on every read would be slow, expensive, and difficult to reason about.
+
+Then came the meeting-time recommender. It searched for similar meetings,
+combined them with the user's scheduling profile, free slots, surrounding
+events, attendee timezones, and the current conversation, and proposed a few
+times. Evaluators rejected slots with conflicts, insufficient duration, or bad
+buffers. Their rejection reasons went back into the next attempt so the system
+would not make the same suggestion twice.
+
+These looked like three product features. In the code, they kept becoming the
+same system.
+
+## Three features, one hidden system
+
+The digest retrieved records and assembled an output. Event enrichment turned
+raw records into more useful records. The recommender retrieved history,
+combined it with maintained state, produced an artifact, evaluated the result,
+and fed the outcome into another pass.
+
+As the product grew, we found versions of the same machinery behind more and
+more features:
+
+<ContextEngineFlow />
+
+The records changed. They could be calendar events, conversations, contacts,
+preferences, recommendations, or rejected time slots. The derived state
+changed too: a scheduling profile, an active negotiation, a reflection, a set
+of commitments. But the lifecycle was remarkably stable.
+
+Our first response was what most product teams do: implement the pattern inside
+each feature. One feature got a search service. Another got an enrichment job.
+A third got a prompt builder and a feedback table. This is reasonable at the
+beginning because the duplication is not yet visible. By the third or fourth
+feature, however, the model call is often the smallest part of the system. The
+real application is becoming a data pipeline whose final consumer happens to
+be an agent.
+
+That is not an insult. Databases, queues, indexes, schemas, and build systems
+are some of the most valuable abstractions in software precisely because they
+turn repeated application work into dependable infrastructure. We began to
+wonder whether context needed the same treatment.
+
+## Search was only one stage
+
+It is tempting to call this a retrieval problem. Put the events and messages in
+a vector database, search them before each model call, and you have memory.
+That works until the application needs to know what remains true.
+
+Suppose a user once preferred breakfast meetings and later changed jobs and
+stopped taking calls before 10:00 AM. Both statements are semantically similar
+to a query about scheduling preferences. Retrieval can find them; it cannot, by
+itself, tell you which one should govern tomorrow's recommendation. That
+requires a maintained interpretation of changing evidence.
+
+Even a correct set of records is not yet a prompt. A daily briefing needs a
+chronological slice of tomorrow's calendar. A recommender needs similar past
+meetings, the current scheduling profile, hard availability constraints, and
+nearby events. A support agent may need the same customer history assembled in
+an entirely different shape. Selection, ordering, token budgets, and formatting
+are part of the behavior of the application, not incidental string handling.
+
+A vector database asks which records look similar. A memory system preserves
+what happened before. A **context engine** answers a larger question:
+
+> What should this agent know for this task, right now, and what evidence made
+> it so?
+
+That question includes retrieval, but also current state, provenance,
+derivation, assembly, and learning from outcomes. Once we could name the whole
+problem, the repeated machinery stopped looking like several narrow memory
+features. It looked like one missing layer.
+
+[Memseek](https://github.com/memseekai/memseek) is our attempt to build that
+layer as an open-source, declarative context engine. Your application writes
+down what happens. Memseek enriches
+those records, maintains useful conclusions, retrieves the relevant evidence,
+and assembles task-specific context for agents. When an outcome is worth
+learning from, it returns through the same system as new evidence rather than
+silently rewriting a prompt.
+
+## Eight moves, four things to define
+
+Eight runtime moves do not require eight new concepts in application code. The
+abstraction became clearer when we stopped naming components after product
+features and grouped the machinery into four things programmers define:
+**collections, derivations, views, and artifacts**. Enrichment and triggers
+belong to the lifecycle of collections and derivations; evaluation and
+feedback return through records and artifact uses.
+
+A **collection** is the typed home for one kind of record. It defines what a
+valid calendar event, observation, profile fact, or learning signal looks like;
+which fields can be filtered; and which enrichment such as embeddings or
+importance scores should run. It is closer to a table plus an indexing policy
+than to a folder of text.
+
+A **derivation** is a bounded computation that turns records into new, cited
+records. New conversations might update a current profile. Important memories
+might produce a reflection. Evaluator failures might draft a better procedure.
+The output returns to ordinary storage with links to the evidence that produced
+it, so a conclusion can be inspected, superseded, or withdrawn later.
+
+A **view** is a named, parameterized retrieval plan. One view can mean “all
+events between these dates, ordered by start time.” Another can combine keyword
+and vector search over memories, plans, and reflections. The application calls
+the name and supplies parameters instead of rebuilding retrieval logic in every
+feature.
+
+An **artifact** assembles views and maintained records into the exact context a
+consumer needs. It can build a daily briefing, a meeting-recommendation prompt,
+or a compact agent dossier, with a separate token budget for each block and a
+manifest of what was included. An artifact is not the model's answer. It is the
+versioned input that makes the answer possible.
+
+For a scheduling assistant, the design might read roughly like this. The
+production definitions live in separate files; this is compressed to show the
+shape rather than serve as a copy-paste configuration:
+
+```yaml
+# collections/calendar.yaml
+collections:
+  - name: calendar_events
+    mode: event
+    schema: {required: [title, starts_at, ends_at]}
+    optional_processors: [embedding, importance]
+
+# derivations/profile.yaml
+name: scheduling_profile
+sources:
+  new_events: {kind: changes, collections: [calendar_events]}
+  current: {kind: current, collections: [profiles]}
+tasks:
+  - {id: update, use: llm}
+emit: {from: "{{update.records}}", collection: profiles, type: fact}
+
+# views/tomorrow.yaml
+views:
+  - name: upcoming_calendar
+    parameters: {entity: string, start: datetime, end: datetime}
+    query:
+      mode: structured
+      scope: {collections: [calendar_events]}
+      where: {starts_at: {gte: "{{start}}", lt: "{{end}}"}}
+      order_by: [{field: starts_at, direction: asc}]
+
+# artifacts/daily_briefing.yaml
+artifacts:
+  - name: daily_briefing
+    blocks:
+      profile: {collections: [profiles], max_tokens: 1500}
+      calendar: {view: upcoming_calendar, max_tokens: 3000}
+    template: |
+      CURRENT PROFILE:
+      {{profile}}
+      TOMORROW'S CALENDAR:
+      {{calendar}}
+```
+
+The value is not that YAML can express a prompt. The value is that the sources,
+enrichment, retrieval, budgets, and exact assembly are explicit. They can be
+validated together before they reach production.
+
+## Declarative does not mean no code
+
+“Put it in YAML” is not an architecture. A bad declarative system merely moves
+programming into a worse language. Memseek keeps a deliberate boundary: common
+context behavior is declared, while specialized computation remains code.
+
+The declaration answers operational questions. What records may this process
+read? What causes it to run? How many records and tokens may it consume? Which
+model alias may it call? What schema must the output satisfy? Where will that
+output be stored? Does it become active immediately or wait for review?
+
+Code still implements a deterministic contact merger, a domain-specific
+scorer, or a calendar conflict checker. Those functions are registered as
+tasks and invoked by derivations under declared limits. The same split already
+works elsewhere in software: SQL is declarative even though database operators
+are implemented in code; CI files are declarative even though build tools are
+programs.
+
+This separation matters more when models are involved. A conventional function
+usually fails the same way on the same input. A probabilistic transformation
+can vary, consume an unexpected amount of budget, or produce a plausible value
+that should not become live state. The runtime therefore needs boundaries
+around the model call: schemas, citations, concurrency checks, budgets, and
+review. Those controls should not have to be rediscovered in every feature.
+
+Context engineering is becoming backend engineering. The prompts still matter,
+but so do migrations, data ownership, retries, observability, provenance, and
+rollback. Treating the entire problem as prompt composition is like treating a
+web application as HTML generation.
+
+## Different architectures, the same eight moves
+
+It is easy to extract an internal framework from one product and give it a
+grander name. The useful test was whether Memseek could express architectures
+created by other teams for different reasons.
+
+This is where the claim becomes falsifiable. If these systems really share a
+substrate, we should be able to describe each one without inventing a new kind
+of infrastructure for it:
+
+| System | Its distinctive shape | The corresponding Memseek shape |
+| --- | --- | --- |
+| [Generative Agents](https://arxiv.org/abs/2304.03442) | A memory stream scored by recency, importance, and relevance; accumulated experience produces reflections used for planning | Event collections, score processors, accumulator-triggered derivations, cited reflections, and prompt artifacts |
+| [Anthropic Dreams](https://platform.claude.com/docs/en/managed-agents/dreams) | An existing memory store plus past sessions produces a separate, reorganized store for review | A snapshot source plus a window of transcript changes, processed by a bounded derivation into a complete reviewed candidate |
+| [TencentDB Agent Memory](https://github.com/Tencent/TencentDB-Agent-Memory) | L0 conversations become L1 atoms, L2 scenes, and an L3 persona | A cascade of collections and derivations in which each maintained layer cites the layer beneath it |
+| [qmd](https://github.com/tobi/qmd) | Markdown documents and chunks feed BM25 and vector retrieval, reciprocal-rank fusion, and model reranking | Document and chunk collections, enrichment processors, and a multi-source named view |
+| [gbrain](https://github.com/garrytan/gbrain) | Pages wire themselves into a graph and a dream cycle distills facts, patterns, concepts, and consolidated takes | Keyed page and edge collections, graph views, write-triggered derivations, and a bounded context artifact |
+
+Their centers of gravity are different. Generative Agents emphasizes
+reflection and behavior. Dreams emphasizes periodic reorganization. TencentDB
+Agent Memory emphasizes progressive abstraction. qmd is primarily a local
+retrieval engine. gbrain combines a maintained knowledge graph with background
+consolidation.
+
+But none requires a ninth move. They collect different records, enrich them
+with different signals, derive different state, and trigger that work on
+different schedules. Their views rank differently, their artifacts serve
+different consumers, and their outcomes return on different timescales. The
+architecture changes because the declarations change—not because each project
+needs a new species of database.
+
+The runnable examples use the same Memseek runtime. There is no “gbrain mode”
+or Generative Agents subsystem hiding underneath. The distinctive behavior
+lives in the definitions: which records exist, when derivations run, how views
+rank, and what context an artifact assembles.
+
+We have tried to keep the evidence honest. Memseek ships runnable examples of
+the Generative Agents reflection pattern, TencentDB's L0–L3 progression, and
+gbrain's distinctive graph and dream-cycle capabilities. The qmd work is
+currently a detailed design mapping with known gaps, not a completed clone.
+The Dreams showcase demonstrates how the contract maps onto Memseek primitives;
+it is not an implementation of Anthropic's managed API.
+
+That distinction is important. “This can be expressed” is not the same claim
+as “this product has been reproduced,” just as implementing relational tables
+does not reproduce every application built on PostgreSQL. What the experiments
+suggest is narrower and, to us, more useful: much of the current explosion in
+agent memory is many teams independently discovering the same missing layer.
+
+## YAML is not the point. Reviewability is.
+
+The most consequential part of a declarative context engine is not fewer lines
+of Python. It is making agent behavior inspectable before the agent runs.
+
+If a pull request changes a scheduling profile derivation, a reviewer should be
+able to see that it now reads rejected recommendations, uses a different model,
+and may update three profile keys instead of one. If a context artifact doubles
+the token budget allocated to reflections, that should appear as an ordinary
+diff. If a new definition references a collection that does not exist, it
+should fail at deployment rather than after a user receives a strange answer.
+
+Definitions also need versions because context changes meaning over time. A
+record created under one schema should not be silently reinterpreted when a new
+schema ships. A conclusion should retain the exact derivation version and
+evidence that produced it. A rendered artifact should be reproducible so an
+unexpected model response can be traced back to the context the model actually
+saw, not the context we think it probably saw.
+
+This is why Memseek stores evidence immutably and represents correction through
+supersession rather than in-place edits. It is why derived claims cite their
+inputs, and why reviewed derivations can stage drafts instead of activating
+their own conclusions. The system does not make model reasoning deterministic.
+It makes the surrounding behavior legible.
+
+Learning needs the same discipline. When a recommendation fails, Memseek can
+bind that outcome to the artifact that produced it and record a learning
+signal. A derivation may then propose a changed profile or procedure. But an
+agent quietly rewriting its own production instructions is usually not
+learning; it is an unreviewed deployment. The proposal should be explicit, and
+the application should decide what evidence or approval is required before it
+becomes current.
+
+## The context layer is where the agent becomes your product
+
+Models will continue to improve, and applications will switch between them.
+The part that makes a scheduling agent understand one person's working life is
+not stored in the base model. It is the current calendar, the history of
+decisions, the user's maintained preferences, the procedures that survived
+real outcomes, and the rules deciding which of those things matter for the
+next request.
+
+Raw transcripts are not the durable asset either. They are evidence. The more
+valuable layer is the maintained interpretation that remains connected to that
+evidence: what is current, what was contradicted, which procedure worked, which
+conditions made it work, and which source supports the conclusion. Two products
+can call the same model and index the same documents while behaving very
+differently because their context systems have accumulated different judgment.
+
+That is also why we believe the context layer should be open and application
+owned. It sits too close to product behavior and user data to become an opaque
+vendor-side prompt cache. Teams should be able to inspect the definitions,
+choose where records live, change model providers, export the evidence, and
+understand why an agent was shown something.
+
+The category is broader than memory. Memory asks how experience survives.
+Context asks how evidence becomes useful state for a particular decision.
+Search, profiles, reflections, knowledge graphs, prompt assembly, and feedback
+are not separate islands once they all operate over the same records and
+provenance.
+
+## We open-sourced the layer we wanted
+
+Memseek is not an agent framework. It does not decide which tool an agent calls
+next, and it does not require an application to adopt a particular model SDK or
+workflow graph. It is not a new vector database either; PostgreSQL and pgvector
+remain very good at storing and retrieving data.
+
+Memseek owns the boundary between changing evidence and the context an
+application serves. It provides typed records, enrichment, cited derivations,
+named views, artifact assembly, versioned definitions, and the path from
+outcomes back to reviewable improvements. Applications use those capabilities
+over HTTP, an SDK, or a deliberately exposed MCP surface.
+
+We extracted it because we did not want the next feature to create another
+private search index, another profile updater, another prompt builder, and
+another feedback loop. Since then, the architectures we have mapped onto it
+have made the original intuition stronger: many teams building agents are
+independently assembling a context engine without having a name for it.
+
+If your agent already has a retrieval service, a profile updater, a prompt
+builder, and a table of outcomes, you may be building one too. We would like to
+know whether Memseek can express yours—and, more importantly, where the
+abstraction breaks.

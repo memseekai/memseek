@@ -1,0 +1,344 @@
+<figure class="context-engine-flow">
+  <div class="flow-shell">
+    <svg
+      class="flow flow--desktop"
+      viewBox="0 0 1100 520"
+      role="img"
+      aria-labelledby="context-flow-title context-flow-description"
+    >
+      <title id="context-flow-title">The declarative context engine pipeline</title>
+      <desc id="context-flow-description">
+        Typed records enter collections, receive enrichment, drive cited derivations, are retrieved
+        through named views, and are assembled into bounded artifacts for an application. Outcomes
+        worth learning from return as new records.
+      </desc>
+
+      <defs>
+        <marker id="context-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M 0 0 L 10 5 L 0 10 z" />
+        </marker>
+        <marker id="context-feedback-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M 0 0 L 10 5 L 0 10 z" />
+        </marker>
+      </defs>
+
+      <text class="kicker" x="32" y="50">CHANGING EVIDENCE</text>
+      <text class="kicker kicker--right" x="1068" y="50">TASK-READY CONTEXT</text>
+
+      <g class="connectors">
+        <line x1="191" y1="194" x2="211" y2="194" />
+        <line x1="369" y1="194" x2="389" y2="194" />
+        <line x1="547" y1="194" x2="567" y2="194" />
+        <line x1="725" y1="194" x2="745" y2="194" />
+        <line x1="903" y1="194" x2="923" y2="194" />
+      </g>
+
+      <g class="node node--collection" transform="translate(25 100)">
+        <rect width="166" height="188" rx="14" />
+        <rect class="accent" x="0" y="0" width="6" height="188" rx="3" />
+        <text class="step" x="22" y="32">01</text>
+        <text class="title" x="22" y="66">COLLECTIONS</text>
+        <text class="copy" x="22" y="103">typed records</text>
+        <text class="copy" x="22" y="127">schema + provenance</text>
+        <text class="copy" x="22" y="151">raw and derived</text>
+        <g class="records" transform="translate(22 166)">
+          <rect x="0" y="0" width="28" height="5" rx="2" />
+          <rect x="35" y="0" width="52" height="5" rx="2" />
+          <rect x="94" y="0" width="26" height="5" rx="2" />
+        </g>
+      </g>
+
+      <g class="node node--enrichment" transform="translate(203 100)">
+        <rect width="166" height="188" rx="14" />
+        <rect class="accent" x="0" y="0" width="6" height="188" rx="3" />
+        <text class="step" x="22" y="32">02</text>
+        <text class="title" x="22" y="66">ENRICHMENT</text>
+        <text class="copy" x="22" y="103">embed</text>
+        <text class="copy" x="22" y="127">score</text>
+        <text class="copy" x="22" y="151">classify</text>
+        <g class="signals" transform="translate(22 166)">
+          <circle cx="4" cy="3" r="4" />
+          <circle cx="21" cy="3" r="4" />
+          <circle cx="38" cy="3" r="4" />
+        </g>
+      </g>
+
+      <g class="node node--derivation" transform="translate(381 100)">
+        <rect width="166" height="188" rx="14" />
+        <rect class="accent" x="0" y="0" width="6" height="188" rx="3" />
+        <text class="step" x="22" y="32">03</text>
+        <text class="title" x="22" y="66">DERIVATIONS</text>
+        <text class="copy" x="22" y="103">maintain state</text>
+        <text class="copy" x="22" y="127">cite evidence</text>
+        <text class="copy" x="22" y="151">emit records ↺</text>
+        <path class="mini-loop" d="M22 170 H92 C106 170 106 158 92 158 H74" />
+      </g>
+
+      <g class="node node--view" transform="translate(559 100)">
+        <rect width="166" height="188" rx="14" />
+        <rect class="accent" x="0" y="0" width="6" height="188" rx="3" />
+        <text class="step" x="22" y="32">04</text>
+        <text class="title" x="22" y="66">VIEWS</text>
+        <text class="copy" x="22" y="103">named retrieval</text>
+        <text class="copy" x="22" y="127">parameters + scope</text>
+        <text class="copy" x="22" y="151">bounded results</text>
+        <g class="rank" transform="translate(22 163)">
+          <rect x="0" y="0" width="78" height="5" rx="2" />
+          <rect x="0" y="10" width="54" height="5" rx="2" />
+        </g>
+      </g>
+
+      <g class="node node--artifact" transform="translate(737 100)">
+        <rect width="166" height="188" rx="14" />
+        <rect class="accent" x="0" y="0" width="6" height="188" rx="3" />
+        <text class="step" x="22" y="32">05</text>
+        <text class="title" x="22" y="66">ARTIFACTS</text>
+        <text class="copy" x="22" y="103">assemble blocks</text>
+        <text class="copy" x="22" y="127">apply token budgets</text>
+        <text class="copy" x="22" y="151">record a manifest</text>
+        <g class="blocks" transform="translate(22 163)">
+          <rect x="0" y="0" width="36" height="14" rx="3" />
+          <rect x="43" y="0" width="36" height="14" rx="3" />
+          <rect x="86" y="0" width="36" height="14" rx="3" />
+        </g>
+      </g>
+
+      <g class="node node--application" transform="translate(915 100)">
+        <rect width="160" height="188" rx="14" />
+        <rect class="accent" x="0" y="0" width="6" height="188" rx="3" />
+        <text class="step" x="22" y="32">06</text>
+        <text class="title" x="22" y="66">APPLICATION</text>
+        <text class="copy" x="22" y="103">agent prompt</text>
+        <text class="copy" x="22" y="127">daily briefing</text>
+        <text class="copy" x="22" y="151">recommendation</text>
+        <circle class="status" cx="133" cy="31" r="5" />
+      </g>
+
+      <path class="feedback" d="M995 288 V398 Q995 424 969 424 H108 Q82 424 82 398 V294" />
+      <text class="feedback-label" x="540" y="408">OUTCOMES WORTH LEARNING FROM BECOME RECORDS</text>
+    </svg>
+
+    <svg
+      class="flow flow--mobile"
+      viewBox="0 0 640 1420"
+      role="img"
+      aria-labelledby="context-flow-mobile-title context-flow-mobile-description"
+    >
+      <title id="context-flow-mobile-title">The declarative context engine pipeline</title>
+      <desc id="context-flow-mobile-description">
+        Typed records move through collections, enrichment, cited derivations, views, artifacts,
+        and an application. Outcomes worth learning from return as new records.
+      </desc>
+
+      <defs>
+        <marker id="context-arrow-mobile" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M 0 0 L 10 5 L 0 10 z" />
+        </marker>
+        <marker id="context-feedback-arrow-mobile" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M 0 0 L 10 5 L 0 10 z" />
+        </marker>
+      </defs>
+
+      <text class="kicker" x="320" y="52">CHANGING EVIDENCE → TASK-READY CONTEXT</text>
+
+      <g class="mobile-connectors">
+        <line x1="320" y1="247" x2="320" y2="277" />
+        <line x1="320" y1="467" x2="320" y2="497" />
+        <line x1="320" y1="687" x2="320" y2="717" />
+        <line x1="320" y1="907" x2="320" y2="937" />
+        <line x1="320" y1="1127" x2="320" y2="1157" />
+      </g>
+
+      <g class="node node--collection" transform="translate(120 77)">
+        <rect width="400" height="170" rx="16" />
+        <rect class="accent" x="0" y="0" width="7" height="170" rx="3" />
+        <text class="step" x="28" y="40">01</text>
+        <text class="title" x="28" y="80">COLLECTIONS</text>
+        <text class="copy" x="28" y="119">typed records · schema + provenance</text>
+        <text class="copy" x="28" y="146">raw and derived</text>
+      </g>
+
+      <g class="node node--enrichment" transform="translate(120 297)">
+        <rect width="400" height="170" rx="16" />
+        <rect class="accent" x="0" y="0" width="7" height="170" rx="3" />
+        <text class="step" x="28" y="40">02</text>
+        <text class="title" x="28" y="80">ENRICHMENT</text>
+        <text class="copy" x="28" y="123">embed · score · classify</text>
+      </g>
+
+      <g class="node node--derivation" transform="translate(120 517)">
+        <rect width="400" height="170" rx="16" />
+        <rect class="accent" x="0" y="0" width="7" height="170" rx="3" />
+        <text class="step" x="28" y="40">03</text>
+        <text class="title" x="28" y="80">DERIVATIONS</text>
+        <text class="copy" x="28" y="119">maintain state · cite evidence</text>
+        <text class="copy" x="28" y="146">emit ordinary records back into collections</text>
+      </g>
+
+      <g class="node node--view" transform="translate(120 737)">
+        <rect width="400" height="170" rx="16" />
+        <rect class="accent" x="0" y="0" width="7" height="170" rx="3" />
+        <text class="step" x="28" y="40">04</text>
+        <text class="title" x="28" y="80">VIEWS</text>
+        <text class="copy" x="28" y="119">named retrieval · parameters + scope</text>
+        <text class="copy" x="28" y="146">bounded results</text>
+      </g>
+
+      <g class="node node--artifact" transform="translate(120 957)">
+        <rect width="400" height="170" rx="16" />
+        <rect class="accent" x="0" y="0" width="7" height="170" rx="3" />
+        <text class="step" x="28" y="40">05</text>
+        <text class="title" x="28" y="80">ARTIFACTS</text>
+        <text class="copy" x="28" y="119">assemble blocks · apply token budgets</text>
+        <text class="copy" x="28" y="146">record exactly what was included</text>
+      </g>
+
+      <g class="node node--application" transform="translate(120 1177)">
+        <rect width="400" height="170" rx="16" />
+        <rect class="accent" x="0" y="0" width="7" height="170" rx="3" />
+        <text class="step" x="28" y="40">06</text>
+        <text class="title" x="28" y="80">APPLICATION</text>
+        <text class="copy" x="28" y="119">agent prompt · briefing · recommendation</text>
+        <circle class="status" cx="363" cy="38" r="6" />
+      </g>
+
+      <path class="feedback feedback--mobile" d="M120 1262 H65 Q40 1262 40 1237 V175 Q40 150 65 150 H112" />
+      <text class="feedback-label feedback-label--mobile" x="18" y="710" transform="rotate(-90 18 710)">OUTCOMES RETURN AS RECORDS</text>
+    </svg>
+  </div>
+
+  <figcaption>
+    Records become useful context through a declared pipeline. Derivations write cited state back
+    into collections, while real outcomes can change what the next run sees.
+  </figcaption>
+</figure>
+
+<style>
+  .context-engine-flow {
+    width: min(100vw - 2rem, 800px);
+    margin-inline: calc(50% - min(50vw - 1rem, 400px));
+    margin-block: clamp(2.2rem, 5vw, 3.5rem);
+  }
+
+  .flow-shell {
+    overflow: hidden;
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    background:
+      radial-gradient(circle at 48% 38%, color-mix(in srgb, var(--violet) 6%, transparent), transparent 28%),
+      var(--surface);
+  }
+
+  .flow {
+    display: block;
+    width: 100%;
+    height: auto;
+    font-family: var(--mono);
+  }
+
+  .flow--mobile { display: none; }
+
+  .kicker {
+    fill: var(--faint);
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: .14em;
+  }
+
+  .kicker--right { text-anchor: end; }
+
+  .node > rect:first-child {
+    fill: color-mix(in srgb, var(--surface-2) 94%, transparent);
+    stroke: var(--border-strong);
+    stroke-width: 1;
+  }
+
+  .node .step {
+    fill: var(--faint);
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: .12em;
+  }
+
+  .node .title {
+    fill: var(--text);
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: .035em;
+  }
+
+  .node .copy {
+    fill: var(--muted);
+    font-family: var(--sans);
+    font-size: 15px;
+  }
+
+  .node--collection .accent,
+  .node--collection .records rect { fill: var(--cyan); }
+  .node--enrichment .accent,
+  .node--enrichment .signals circle { fill: var(--green); }
+  .node--derivation .accent { fill: var(--violet); }
+  .node--view .accent,
+  .node--view .rank rect { fill: var(--cyan); }
+  .node--artifact .accent,
+  .node--artifact .blocks rect { fill: var(--amber); }
+  .node--application .accent { fill: var(--orange); }
+  .node--application .status { fill: var(--green); }
+
+  .mini-loop {
+    fill: none;
+    stroke: var(--violet);
+    stroke-width: 2;
+    stroke-linecap: round;
+  }
+
+  .connectors line,
+  .mobile-connectors line {
+    stroke: var(--border-strong);
+    stroke-width: 2;
+    marker-end: url(#context-arrow);
+  }
+
+  .mobile-connectors line { marker-end: url(#context-arrow-mobile); }
+
+  #context-arrow path,
+  #context-arrow-mobile path { fill: var(--border-strong); }
+
+  .feedback {
+    fill: none;
+    stroke: var(--orange);
+    stroke-width: 2;
+    stroke-dasharray: 8 7;
+    marker-end: url(#context-feedback-arrow);
+  }
+
+  #context-feedback-arrow path { fill: var(--orange); }
+
+  .feedback--mobile { marker-end: url(#context-feedback-arrow-mobile); }
+  #context-feedback-arrow-mobile path { fill: var(--orange); }
+
+  .feedback-label {
+    fill: var(--amber);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .1em;
+    text-anchor: middle;
+  }
+
+  figcaption {
+    max-width: 76ch;
+    margin-inline: auto;
+  }
+
+  @media (max-width: 680px) {
+    .flow-shell { border-radius: 13px; }
+    .flow--desktop { display: none; }
+    .flow--mobile { display: block; }
+
+    .kicker { font-size: 14px; text-anchor: middle; }
+    .node .step { font-size: 15px; }
+    .node .title { font-size: 23px; }
+    .node .copy { font-size: 18px; }
+    .feedback-label--mobile { font-size: 13px; }
+  }
+</style>

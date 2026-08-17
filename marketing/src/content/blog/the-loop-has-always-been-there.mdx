@@ -122,13 +122,21 @@ Suppose a weak generator succeeds only 40% of the time:
 
 This deliberately simplified independent-attempt case exposes the two regimes rather than modeling an actual loop: samples may share failure modes, while feedback can improve the next attempt.
 
+This distinction is visible in current agent evaluations, not merely in a toy model. Princeton's Holistic Agent Leaderboard reliability study evaluated 15 agents across GAIA and $\tau$-bench on consistency, predictability, robustness, and safety. Its central result was that recent gains in task accuracy have produced only small gains in reliability: an agent can become more capable of solving a task without becoming much more dependable at solving it repeatedly, under small perturbations, or with a predictable failure mode. ([Rabanser et al., *Towards a Science of AI Agent Reliability*](https://arxiv.org/abs/2602.16666))
+
+That is the practical difference between "a good run exists" and "the system can be trusted to act." Capability enlarges the set of problems for which search may find a solution. Reliability determines whether the same system can be deployed without requiring someone to discover, after the fact, which run was the good one.
+
+Task length creates the same problem in another direction. METR finds that agents succeed on short tasks far more often than long ones: even if an agent can perform the individual steps, it may fail somewhere before a longer task is complete. ([METR](https://metr.org/blog/2025-03-19-measuring-ai-ability-to-complete-long-tasks/))
+
+More samples can make it likely that one trajectory succeeds; they cannot by themselves make a long trajectory dependable. That still requires a verifier able to recognize success, plus checkpoints, recovery, and escalation throughout the task.
+
 The two curves reveal an axis for inference-time scaling. With a 40% generator, increasing $k$ from one to ten pushes pass@k from 40% to 99.4%. Reliability@k moves the other way, falling from 40% to 0.01%. More attempts don't make the generator reliable; they make a good verifier increasingly valuable.
 
 <ReliabilityComparison />
 
 So a mediocre generator can become extremely useful **if the system can reliably identify the successful attempt**. That is the critical asymmetry. More inference can dramatically improve search while exposing more opportunities for failure. Scaling attempts only helps if verification scales with them; otherwise, pass@k merely says that a good answer existed somewhere in the pile.
 
-When a human remains in the loop, the human supplies that judgment by comparing, checking, and choosing. Under autonomy, judgment has to be engineered: the system must select the right candidate and remain reliable across runs. Memory then makes the gain cumulative. Search discovers a success now; verification establishes why it worked; memory changes the next run's prior so the system need not buy the same search again. ([OpenAI](https://arxiv.org/abs/2107.03374), [$\tau$-bench](https://arxiv.org/abs/2406.12045))
+When a human remains in the loop, the human supplies that judgment by comparing, checking, and choosing. This makes capability useful even when reliability is moderate: the system can augment a reviewer. Under autonomy, however, judgment has to be engineered: the system must select the right candidate and remain reliable across runs. The reliability study makes the deployment consequence explicit: occasional unpredictable failures may be tolerable in augmentation, but are a hard blocker for automated systems that can charge, modify records, or take other consequential actions. ([HAL Reliability Dashboard](https://hal.cs.princeton.edu/reliability/#findings)) Memory then makes the gain cumulative. Search discovers a success now; verification establishes why it worked; memory changes the next run's prior so the system need not buy the same search again. ([OpenAI](https://arxiv.org/abs/2107.03374), [$\tau$-bench](https://arxiv.org/abs/2406.12045))
 
 ---
 
@@ -159,6 +167,10 @@ This does not mean that LLMs can infer any rule. The examples still need to narr
 Let the LLM hypothesize. Let Python execute. Let Lean prove. Let the compiler reject. Let the database retrieve. Let the simulator predict. Let the environment answer. Let reality decide.
 
 Tool use, from this perspective, is not an accessory attached to an LLM. It is a division of cognitive labor.
+
+That division changes what is economically practical. An LLM can propose and inspect far more candidates than a person or team could: security risks across a codebase, facts across a document corpus, or opportunities across a customer base. The opportunity is not simply to replace a person doing one task. It is to apply bounded intelligence to work that was valuable but too broad, repetitive, or expensive to do comprehensively before. ([Aaron Levie](https://x.com/levie/status/2089209131391729763))
+
+But more compute alone creates only more possibilities. It creates dependable value when the system can check those possibilities—through tests, constraints, evidence, or review—and turn the useful ones into action.
 
 ---
 
@@ -414,6 +426,8 @@ Nassim Nicholas Taleb put the asymmetry sharply:
 That is a metacognitive claim. Expertise is not maximum confidence about everything; it is allocating doubt according to the cost of error. A reversible, low-stakes choice may deserve the fast answer. An irreversible action with a weak verifier may deserve search, independent evidence, or human authority even when the model sounds confident.
 
 This matters because confidence is itself an imperfect control signal. Engeler and Gilbert studied whether people rely on unaided memory or offload the task to external reminders. Participants who were underconfident set too many reminders. Training improved the accuracy of their confidence judgments, but it did not eliminate excessive reminder use, suggesting that avoiding cognitive effort also influenced the decision. For agents, the lesson is precise: calibration matters, but a controller cannot route work from confidence alone. It must also learn the actual cost and value of retrieval, tools, verification, and delay. ([Engeler & Gilbert](https://pmc.ncbi.nlm.nih.gov/articles/PMC7584199/))
+
+This also means that confidence is not enough to bridge the gap. The HAL study finds that calibration has improved in some frontier models, while their ability to distinguish tasks they will solve from tasks they will fail can stagnate or worsen. A system needs evidence-producing checks, not merely a better-sounding estimate of its own correctness. ([HAL Reliability Dashboard](https://hal.cs.princeton.edu/reliability/#findings))
 
 The pass@k and Reliability@k curves make the same point at system scale. More samples are valuable when the objective is to find one good candidate and a strong verifier can identify it. More steps are dangerous when every step can introduce an error, the verifier covers only part of the result, or the action is irreversible. Metacognition decides which regime applies before it spends more inference.
 

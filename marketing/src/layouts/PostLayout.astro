@@ -1,6 +1,7 @@
 ---
 import type { MarkdownHeading } from 'astro';
 import BaseLayout from './BaseLayout.astro';
+import AbstractContextFlow from '../components/AbstractContextFlow.astro';
 import LoopEssayVisual from '../components/LoopEssayVisual.astro';
 import { Image } from 'astro:assets';
 import { formatDate, tagSlug, type Post } from '../lib/posts';
@@ -63,8 +64,9 @@ const showToc = presentation !== 'loop-essay' && toc.length >= 3;
       </header>
 
       {presentation === 'loop-essay' && <LoopEssayVisual />}
+      {presentation === 'context-flow' && <AbstractContextFlow />}
 
-      {cover && (
+      {cover && presentation !== 'context-flow' && (
         <figure class="cover">
           <Image src={cover} alt={coverAlt ?? ''} widths={[640, 960, 1280]} sizes="(max-width: 820px) 100vw, 820px" loading="eager" />
         </figure>

@@ -1,0 +1,297 @@
+<figure class="context-flow-cover">
+  <svg
+    viewBox="0 0 1200 675"
+    role="img"
+    aria-labelledby="abstract-flow-title abstract-flow-description"
+  >
+    <title id="abstract-flow-title">Different context flows sharing one foundation</title>
+    <desc id="abstract-flow-description">
+      Four abstract streams converge on eight shared modules, fan back into several outputs, and
+      return through a feedback loop. Colored signals continuously travel through the system.
+    </desc>
+
+    <defs>
+      <pattern id="flow-grid" width="48" height="48" patternUnits="userSpaceOnUse">
+        <path d="M48 0H0V48" fill="none" stroke="currentColor" stroke-width="1" />
+      </pattern>
+      <radialGradient id="flow-halo" cx="50%" cy="48%" r="58%">
+        <stop offset="0" stop-color="var(--flow-orange)" stop-opacity=".12" />
+        <stop offset=".48" stop-color="var(--flow-violet)" stop-opacity=".045" />
+        <stop offset="1" stop-color="var(--flow-bg)" stop-opacity="0" />
+      </radialGradient>
+      <linearGradient id="flow-input-a" x1="0" y1="0" x2="1" y2="0">
+        <stop offset="0" stop-color="var(--flow-cyan)" stop-opacity=".2" />
+        <stop offset="1" stop-color="var(--flow-orange)" />
+      </linearGradient>
+      <linearGradient id="flow-input-b" x1="0" y1="0" x2="1" y2="0">
+        <stop offset="0" stop-color="var(--flow-violet)" stop-opacity=".2" />
+        <stop offset="1" stop-color="var(--flow-orange)" />
+      </linearGradient>
+      <linearGradient id="flow-input-c" x1="0" y1="0" x2="1" y2="0">
+        <stop offset="0" stop-color="var(--flow-green)" stop-opacity=".2" />
+        <stop offset="1" stop-color="var(--flow-orange)" />
+      </linearGradient>
+      <linearGradient id="flow-input-d" x1="0" y1="0" x2="1" y2="0">
+        <stop offset="0" stop-color="var(--flow-amber)" stop-opacity=".2" />
+        <stop offset="1" stop-color="var(--flow-orange)" />
+      </linearGradient>
+      <linearGradient id="flow-shared" x1="0" y1="0" x2="1" y2="0">
+        <stop offset="0" stop-color="var(--flow-orange)" />
+        <stop offset=".5" stop-color="var(--flow-pink)" />
+        <stop offset="1" stop-color="var(--flow-amber)" />
+      </linearGradient>
+      <linearGradient id="flow-output" x1="0" y1="0" x2="1" y2="0">
+        <stop offset="0" stop-color="var(--flow-amber)" />
+        <stop offset="1" stop-color="var(--flow-cyan)" stop-opacity=".22" />
+      </linearGradient>
+      <filter id="flow-glow" x="-80%" y="-80%" width="260%" height="260%">
+        <feGaussianBlur stdDeviation="5" result="blur" />
+        <feMerge>
+          <feMergeNode in="blur" />
+          <feMergeNode in="SourceGraphic" />
+        </feMerge>
+      </filter>
+      <filter id="flow-soft-glow" x="-40%" y="-40%" width="180%" height="180%">
+        <feGaussianBlur stdDeviation="12" />
+      </filter>
+    </defs>
+
+    <rect class="backdrop" width="1200" height="675" rx="22" />
+    <rect class="grid" width="1200" height="675" rx="22" fill="url(#flow-grid)" />
+    <rect width="1200" height="675" rx="22" fill="url(#flow-halo)" />
+    <ellipse class="substrate-glow" cx="637" cy="341" rx="308" ry="112" />
+
+    <g class="source source--a" transform="translate(72 145)">
+      <circle class="source-ring" r="38" />
+      <circle class="source-ring source-ring--inner" r="21" />
+      <path class="source-mark" d="M-11-7H8M-4 0H14M-13 7H5" />
+    </g>
+    <g class="source source--b" transform="translate(72 273)">
+      <rect class="source-ring source-square" x="-29" y="-29" width="58" height="58" rx="14" />
+      <rect class="source-ring source-square source-ring--inner" x="-15" y="-15" width="30" height="30" rx="7" />
+      <path class="source-mark" d="M-9-9L9 9M9-9L-9 9" />
+    </g>
+    <g class="source source--c" transform="translate(72 401)">
+      <circle class="source-ring" r="36" />
+      <path class="source-ring" d="M-31 18L0-36L31 18Z" />
+      <circle class="source-core" r="7" />
+    </g>
+    <g class="source source--d" transform="translate(72 529)">
+      <circle class="source-ring" r="38" />
+      <circle class="source-node" cx="-14" cy="9" r="5" />
+      <circle class="source-node" cx="0" cy="-13" r="5" />
+      <circle class="source-node" cx="16" cy="9" r="5" />
+      <path class="source-mark" d="M-10 6L-2-8M4-9L13 6M-9 9H11" />
+    </g>
+
+    <g class="input-flow">
+      <path class="stream-base" d="M110 145C219 145 249 191 316 274C354 321 383 337 426 337" />
+      <path class="stream signal signal--a" pathLength="100" d="M110 145C219 145 249 191 316 274C354 321 383 337 426 337" />
+
+      <path class="stream-base" d="M110 273C208 273 260 293 327 319C366 334 391 338 426 337" />
+      <path class="stream signal signal--b" pathLength="100" d="M110 273C208 273 260 293 327 319C366 334 391 338 426 337" />
+
+      <path class="stream-base" d="M110 401C208 401 260 380 327 355C366 341 391 337 426 337" />
+      <path class="stream signal signal--c" pathLength="100" d="M110 401C208 401 260 380 327 355C366 341 391 337 426 337" />
+
+      <path class="stream-base" d="M110 529C219 529 249 483 316 400C354 353 383 337 426 337" />
+      <path class="stream signal signal--d" pathLength="100" d="M110 529C219 529 249 483 316 400C354 353 383 337 426 337" />
+    </g>
+
+    <g class="shared-flow">
+      <path class="shared-base" d="M426 337C470 285 516 285 558 337S646 389 690 337S778 285 822 337S878 372 910 337" />
+      <path class="shared-signal" pathLength="100" d="M426 337C470 285 516 285 558 337S646 389 690 337S778 285 822 337S878 372 910 337" />
+    </g>
+
+    <g class="modules">
+      <g class="module" style="--i:0" transform="translate(445 320)">
+        <circle class="module-ring" r="24" /><circle class="module-core" r="7" />
+      </g>
+      <g class="module" style="--i:1" transform="translate(497 304)">
+        <circle class="module-ring" r="24" /><rect class="module-core module-square" x="-6" y="-6" width="12" height="12" rx="2" />
+      </g>
+      <g class="module" style="--i:2" transform="translate(550 328)">
+        <circle class="module-ring" r="24" /><circle class="module-core" r="7" />
+      </g>
+      <g class="module" style="--i:3" transform="translate(608 360)">
+        <circle class="module-ring" r="24" /><path class="module-core module-diamond" d="M0-8L8 0L0 8L-8 0Z" />
+      </g>
+      <g class="module" style="--i:4" transform="translate(674 354)">
+        <circle class="module-ring" r="24" /><circle class="module-core" r="7" />
+      </g>
+      <g class="module" style="--i:5" transform="translate(734 309)">
+        <circle class="module-ring" r="24" /><rect class="module-core module-square" x="-6" y="-6" width="12" height="12" rx="2" />
+      </g>
+      <g class="module" style="--i:6" transform="translate(793 318)">
+        <circle class="module-ring" r="24" /><path class="module-core module-diamond" d="M0-8L8 0L0 8L-8 0Z" />
+      </g>
+      <g class="module" style="--i:7" transform="translate(854 354)">
+        <circle class="module-ring" r="24" /><circle class="module-core" r="7" />
+      </g>
+    </g>
+
+    <g class="output-flow">
+      <path class="stream-base" d="M910 337C970 337 986 177 1081 177" />
+      <path class="stream signal signal--out signal--out-a" pathLength="100" d="M910 337C970 337 986 177 1081 177" />
+      <path class="stream-base" d="M910 337C980 337 1000 284 1081 284" />
+      <path class="stream signal signal--out signal--out-b" pathLength="100" d="M910 337C980 337 1000 284 1081 284" />
+      <path class="stream-base" d="M910 337C980 337 1000 391 1081 391" />
+      <path class="stream signal signal--out signal--out-c" pathLength="100" d="M910 337C980 337 1000 391 1081 391" />
+      <path class="stream-base" d="M910 337C970 337 986 498 1081 498" />
+      <path class="stream signal signal--out signal--out-d" pathLength="100" d="M910 337C970 337 986 498 1081 498" />
+    </g>
+
+    <g class="outputs">
+      <g transform="translate(1111 177)"><circle class="output-ring" r="28" /><path class="output-mark" d="M-10 0H10M0-10V10" /></g>
+      <g transform="translate(1111 284)"><rect class="output-ring output-square" x="-24" y="-24" width="48" height="48" rx="12" /><circle class="output-core" r="7" /></g>
+      <g transform="translate(1111 391)"><circle class="output-ring" r="28" /><path class="output-mark" d="M-10-7H10M-10 0H5M-10 7H8" /></g>
+      <g transform="translate(1111 498)"><rect class="output-ring output-square" x="-24" y="-24" width="48" height="48" rx="12" /><path class="output-mark" d="M-9 8L0-9L9 8Z" /></g>
+    </g>
+
+    <g class="feedback-flow">
+      <path class="feedback-base" d="M1111 527C1107 614 912 625 744 604C559 581 420 635 226 609C126 596 72 569 72 568" />
+      <path class="feedback-signal" pathLength="100" d="M1111 527C1107 614 912 625 744 604C559 581 420 635 226 609C126 596 72 569 72 568" />
+      <circle class="feedback-node" cx="72" cy="568" r="5" />
+    </g>
+  </svg>
+</figure>
+
+<style>
+  .context-flow-cover {
+    --flow-bg: #0b0d10;
+    --flow-panel: #15191f;
+    --flow-line: #64707d;
+    --flow-cyan: #39d9ef;
+    --flow-violet: #9c7cff;
+    --flow-green: #7fd58b;
+    --flow-amber: #f7bd57;
+    --flow-orange: #ff7a45;
+    --flow-pink: #ff5f91;
+    margin-top: 2.5rem;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    border-radius: 15px;
+    background: var(--flow-bg);
+    box-shadow: var(--shadow);
+  }
+
+  svg { display: block; width: 100%; height: auto; }
+  .backdrop { fill: var(--flow-bg); }
+  .grid { color: #303740; opacity: .23; }
+  .substrate-glow { fill: var(--flow-orange); opacity: .09; filter: url(#flow-soft-glow); }
+
+  .source-ring,
+  .source-mark,
+  .source-node,
+  .output-ring,
+  .output-mark {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.7;
+    vector-effect: non-scaling-stroke;
+  }
+  .source-ring { opacity: .4; }
+  .source-ring--inner { opacity: .72; }
+  .source-mark, .output-mark { opacity: .88; stroke-linecap: round; }
+  .source-core, .output-core { fill: currentColor; filter: url(#flow-glow); }
+  .source--a { color: var(--flow-cyan); }
+  .source--b { color: var(--flow-violet); }
+  .source--c { color: var(--flow-green); }
+  .source--d { color: var(--flow-amber); }
+  .source { animation: source-breathe 5s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
+  .source--b { animation-delay: -1.1s; }
+  .source--c { animation-delay: -2.2s; }
+  .source--d { animation-delay: -3.3s; }
+
+  .stream-base,
+  .shared-base,
+  .feedback-base {
+    fill: none;
+    stroke: var(--flow-line);
+    stroke-width: 1.4;
+    opacity: .25;
+    vector-effect: non-scaling-stroke;
+  }
+  .shared-base { stroke: var(--flow-orange); stroke-width: 3; opacity: .26; }
+  .feedback-base { opacity: .17; }
+
+  .stream,
+  .shared-signal,
+  .feedback-signal {
+    fill: none;
+    stroke-linecap: round;
+    vector-effect: non-scaling-stroke;
+    filter: url(#flow-glow);
+    stroke-dasharray: .7 7;
+    animation: signal-forward 5.2s linear infinite;
+  }
+  .signal { stroke-width: 3.2; }
+  .signal--a { stroke: url(#flow-input-a); animation-duration: 4.7s; }
+  .signal--b { stroke: url(#flow-input-b); animation-duration: 5.4s; animation-delay: -2.1s; }
+  .signal--c { stroke: url(#flow-input-c); animation-duration: 5s; animation-delay: -3.4s; }
+  .signal--d { stroke: url(#flow-input-d); animation-duration: 5.8s; animation-delay: -1.6s; }
+  .shared-signal { stroke: url(#flow-shared); stroke-width: 4.2; animation-duration: 3.6s; }
+  .signal--out { stroke: url(#flow-output); stroke-width: 3; animation-duration: 5s; }
+  .signal--out-b { animation-delay: -1.2s; }
+  .signal--out-c { animation-delay: -2.4s; }
+  .signal--out-d { animation-delay: -3.6s; }
+  .feedback-signal {
+    stroke: var(--flow-pink);
+    stroke-width: 2.4;
+    opacity: .62;
+    animation-name: signal-return;
+    animation-duration: 7s;
+  }
+
+  .module-ring {
+    fill: color-mix(in srgb, var(--flow-panel) 88%, transparent);
+    stroke: var(--flow-orange);
+    stroke-width: 1.5;
+    opacity: .82;
+  }
+  .module-core {
+    fill: var(--flow-orange);
+    color: var(--flow-orange);
+    stroke: none;
+    filter: url(#flow-glow);
+    animation: module-pulse 3.6s ease-in-out infinite;
+    animation-delay: calc(var(--i) * -.32s);
+    transform-box: fill-box;
+    transform-origin: center;
+  }
+  .module-square, .module-diamond { fill: var(--flow-amber); }
+
+  .outputs { color: var(--flow-cyan); }
+  .output-ring { opacity: .48; }
+  .output-core { opacity: .9; }
+  .feedback-node { fill: var(--flow-pink); opacity: .8; filter: url(#flow-glow); }
+
+  @keyframes signal-forward {
+    from { stroke-dashoffset: 0; }
+    to { stroke-dashoffset: -100; }
+  }
+  @keyframes signal-return {
+    from { stroke-dashoffset: -100; }
+    to { stroke-dashoffset: 0; }
+  }
+  @keyframes module-pulse {
+    0%, 68%, 100% { opacity: .42; transform: scale(.72); }
+    78% { opacity: 1; transform: scale(1.2); }
+  }
+  @keyframes source-breathe {
+    0%, 100% { opacity: .7; }
+    50% { opacity: 1; }
+  }
+
+  @media (prefers-color-scheme: light) {
+    .context-flow-cover {
+      --flow-bg: #11151a;
+      --flow-panel: #1b2128;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .context-flow-cover * { animation-play-state: paused !important; }
+    .stream, .shared-signal, .feedback-signal { stroke-dasharray: 1 8; }
+  }
+</style>
