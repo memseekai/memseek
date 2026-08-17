@@ -860,8 +860,9 @@
   .vs-card.good li b { color: var(--text); font-weight: 600; }
 
   /* ---------- BENCHMARKS ----------
-     Two compact readings of LongMemEval-S. The frozen recipes and protocol
-     labels on /benchmarks/ are the source of truth for our numbers:
+     Two readings of LongMemEval-S: the published field by judge protocol,
+     then selected systems against query-time cost. The frozen MemBukkit
+     recipes and protocol labels on /benchmarks/ are the source of truth:
        bar: --w = score / 1.076 (92.6% reads 86, leaving headroom). */
   .bench-ctas { display: flex; flex-wrap: wrap; align-items: center; gap: .8rem; margin-top: 1.5rem; }
   .console-chip { font-family: var(--mono); font-size: .74rem; color: var(--faint); background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: .6rem .9rem; }
@@ -884,16 +885,16 @@
   .panel .th .mult { font-family: var(--mono); color: var(--green); font-weight: 700; font-size: var(--step--1); }
   .sec-head h2 .big { font-size: 1.5em; color: var(--orange); font-variant-numeric: tabular-nums; }
 
-  /* one system per row. Striped bars are the vendors who graded themselves —
-     the distinction the whole section exists to make, so it is carried by
-     pattern, hue and an italic label rather than by a footnote alone. */
+  /* One system per row. Striped bars use a judge other than LongMemEval's
+     official gpt-4o judge. The distinction is carried by pattern, hue and an
+     italic label rather than by a footnote alone. */
   .trow { display: grid; grid-template-columns: 11.5rem 1fr; gap: .85rem; align-items: center; margin-bottom: 1rem; }
   @media (max-width: 560px) { .trow { grid-template-columns: 1fr; gap: .25rem; } }
   .trow .lab { font-family: var(--mono); font-size: .72rem; color: var(--muted); line-height: 1.35; }
   .trow.us .lab { color: var(--text); font-weight: 700; }
-  .trow.selfg .lab { color: color-mix(in srgb, var(--rose) 78%, var(--muted)); font-style: italic; }
+  .trow.altg .lab { color: color-mix(in srgb, var(--rose) 78%, var(--muted)); font-style: italic; }
   .trow .lab .sub { display: block; font-size: .62rem; font-weight: 400; font-style: normal; color: var(--faint); }
-  .trow.selfg .lab .sub { color: color-mix(in srgb, var(--rose) 50%, var(--faint)); }
+  .trow.altg .lab .sub { color: color-mix(in srgb, var(--rose) 50%, var(--faint)); }
   .tbar { height: 22px; border-radius: 5px; background: var(--surface-2); overflow: hidden; position: relative; }
   /* Reveals by clipping, not by animating width: no layout work per frame, and
      `round` keeps the bar's corners while the right edge travels. */
@@ -902,9 +903,9 @@
   .tbar.mem > i { background: linear-gradient(90deg, var(--green), var(--cyan)); }
   .tbar.other > i { background: var(--border-strong); }
   .tbar.full > i { background: linear-gradient(90deg, color-mix(in srgb, var(--rose) 45%, var(--surface-2)), var(--rose)); }
-  .tbar.selfg > i { background: repeating-linear-gradient(45deg, color-mix(in srgb, var(--rose) 30%, var(--surface-2)) 0 5px, var(--surface-2) 5px 11px); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--rose) 45%, transparent); }
+  .tbar.altg > i { background: repeating-linear-gradient(45deg, color-mix(in srgb, var(--rose) 30%, var(--surface-2)) 0 5px, var(--surface-2) 5px 11px); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--rose) 45%, transparent); }
   .tbar .v { position: absolute; right: .5rem; top: 50%; transform: translateY(-50%); font-family: var(--mono); font-size: .68rem; color: var(--muted); }
-  .tbar.selfg .v { color: color-mix(in srgb, var(--rose) 80%, var(--muted)); font-style: italic; }
+  .tbar.altg .v { color: color-mix(in srgb, var(--rose) 80%, var(--muted)); font-style: italic; }
   /* Our own number rides inside its own bar. It fades in with the fill, so it
      is never dark-on-dark over an empty track mid-animation. */
   .tbar.mem .v { right: calc(100% - var(--w) * 1% + .55rem); color: #0a1510; font-weight: 700; }
@@ -929,14 +930,14 @@
   .pt { position: absolute; width: 13px; height: 13px; border-radius: 50%; transform: translate(-50%, 50%); }
   .pt.us { width: 16px; height: 16px; background: var(--green); box-shadow: 0 0 0 3px color-mix(in srgb, var(--green) 25%, transparent); }
   .pt.other { background: var(--border-strong); }
-  .pt.selfg { background: transparent; border: 2px dashed var(--rose); }
+  .pt.altg { background: transparent; border: 2px dashed var(--rose); }
   .ptlab { position: absolute; font-family: var(--mono); font-size: .68rem; line-height: 1.35; color: var(--muted); white-space: nowrap; }
   .ptlab.r { text-align: right; }
   .ptlab .score { color: var(--text); font-weight: 700; }
   .ptlab.us { color: var(--green); }
   .ptlab.us .score { color: var(--green); font-size: .84rem; }
-  .ptlab.selfg { color: color-mix(in srgb, var(--rose) 80%, var(--muted)); font-style: italic; }
-  .ptlab.selfg .score { color: var(--rose); }
+  .ptlab.altg { color: color-mix(in srgb, var(--rose) 80%, var(--muted)); font-style: italic; }
+  .ptlab.altg .score { color: var(--rose); }
   .legend { display: flex; flex-wrap: wrap; gap: .8rem 1.6rem; font-family: var(--mono); font-size: .68rem; color: var(--muted); }
   .legend .sw { display: inline-block; width: 11px; height: 11px; border-radius: 50%; margin-right: .45em; vertical-align: -1px; }
   .bench-foot { margin-top: 1.05rem; padding-top: .85rem; border-top: 1px solid var(--border); color: var(--faint); font-size: .72rem; font-family: var(--mono); line-height: 1.55; }
@@ -1871,73 +1872,124 @@ brief[<span class="cs">"manifest"</span>][<span class="cs">"rendered_sha256"</sp
   </section>
 
   <!-- ============ BENCHMARKS ============
-       MemBukkit is the open agent-memory showcase and benchmark harness.
-       Memseek is the context engine that offers the demonstrated search method. -->
+       One dataset (LongMemEval-S, 500 questions), two readings: the published
+       field by judge protocol, then selected systems against query-time cost.
+       MemBukkit's current benchmark guide is the source for scores and labels. -->
   <section id="benchmarks" class="alt">
     <div class="wrap">
       <div class="sec-head reveal" id="benchHead">
-        <span class="eyebrow" style="--hue:var(--green)">MemBukkit · open agent-memory benchmark</span>
-        <h2><span class="big"><span data-count="92.6" data-dec="1">92.6</span>%</span><br>Highest
-          LongMemEval score in our open showcase.</h2>
-        <p><strong>Memseek is the context engine. MemBukkit is the open agent-memory showcase</strong>
-          where the method, benchmark harness, and frozen reproduction recipes live. The headline
-          run is scored by <strong>LongMemEval's official judge</strong>.</p>
+        <span class="eyebrow" style="--hue:var(--green)">public benchmark · official judge</span>
+        <h2><span class="big"><span data-count="92.6" data-dec="1">92.6</span>%</span> on LongMemEval-S.<br>
+          Highest score under the benchmark's official judge.</h2>
+        <p>Some higher reported numbers use a different judge. <strong>MemBukkit is scored by
+          LongMemEval's official gpt-4o judge</strong>, and its frozen recipe ships in the open —
+          rerun it before you believe the chart.</p>
         <div class="bench-ctas">
-          <a class="btn btn-primary" href="/membukkit/">Meet MemBukkit →</a>
-          <a class="btn btn-ghost" href="/benchmarks/">Results + reproduction</a>
+          <a class="btn btn-primary" href="/benchmarks/">Check our work →</a>
+          <a class="btn btn-ghost" href="/membukkit/">Meet MemBukkit</a>
         </div>
       </div>
 
       <div class="charts">
-        <!-- LongMemEval agent-memory accuracy: three frozen MemBukkit recipes,
-             all scored with the benchmark's official judge. -->
+        <!-- LongMemEval agent-memory accuracy, updated from MemBukkit's
+             published "Who judges what" table. -->
         <div class="panel reveal" id="benchScores">
           <div class="th">
-            <h3>LongMemEval-S answer accuracy</h3>
-            <span class="mult">official judge · frozen recipes</span>
+            <h3>Answer accuracy</h3>
+            <span class="mult">published best claims</span>
+          </div>
+          <div class="trow altg">
+            <span class="lab">OMEGA + GPT-4.1<span class="sub">same model answers + grades</span></span>
+            <div class="tbar altg"><i data-w="88.7" style="--w:88.7"></i><span class="v">95.4%</span></div>
+          </div>
+          <div class="trow altg">
+            <span class="lab">Mem0 Cloud + GPT-5<span class="sub">author's GPT-5 judge</span></span>
+            <div class="tbar altg"><i data-w="87.7" style="--w:87.7"></i><span class="v">94.4%</span></div>
           </div>
           <div class="trow us">
-            <span class="lab">gpt-5.4<span class="sub">reader + distiller</span></span>
+            <span class="lab">MemBukkit + gpt-5.4<span class="sub">official gpt-4o judge</span></span>
             <div class="tbar mem"><i data-w="86" style="--w:86"></i><span class="v" style="--w:86">92.6%</span></div>
           </div>
-          <div class="trow us">
-            <span class="lab">Gemma 4 26B<span class="sub">open-weight reader + distiller</span></span>
-            <div class="tbar mem"><i data-w="82.5" style="--w:82.5"></i><span class="v" style="--w:82.5">88.8%</span></div>
+          <div class="trow altg">
+            <span class="lab">Hindsight<span class="sub">official prompts · judge model swapped</span></span>
+            <div class="tbar altg"><i data-w="84.9" style="--w:84.9"></i><span class="v">91.4%</span></div>
           </div>
-          <div class="trow us">
-            <span class="lab">gpt-4o-mini<span class="sub">budget recipe · fine-tuned encoder</span></span>
-            <div class="tbar mem"><i data-w="76.2" style="--w:76.2"></i><span class="v" style="--w:76.2">82.0%</span></div>
+          <div class="trow altg">
+            <span class="lab">Mem0 OSS<span class="sub">author's GPT-5 judge</span></span>
+            <div class="tbar altg"><i data-w="84.6" style="--w:84.6"></i><span class="v">91.0%</span></div>
           </div>
-          <p class="bench-foot">MemBukkit · 500-question LongMemEval-S memory test. Each named
-            recipe pins the reader, distiller, judge, encoder, routing flags, and output directory.
-            Reproductions pass within a ±1 percentage-point tolerance band.</p>
+          <div class="trow">
+            <span class="lab">Supermemory<span class="sub">official gpt-4o judge</span></span>
+            <div class="tbar other"><i data-w="79.2" style="--w:79.2"></i><span class="v">85.2%</span></div>
+          </div>
+          <div class="trow">
+            <span class="lab">Zep<span class="sub">official gpt-4o judge</span></span>
+            <div class="tbar other"><i data-w="66.2" style="--w:66.2"></i><span class="v">71.2%</span></div>
+          </div>
+          <div class="trow">
+            <span class="lab">full-context GPT-4o<span class="sub">no memory system · official judge</span></span>
+            <div class="tbar full"><i data-w="56" style="--w:56"></i><span class="v">60.2%</span></div>
+          </div>
+          <p class="bench-foot">LongMemEval-S · 500 questions. Solid bars use the benchmark's
+            official gpt-4o judge. Patterned bars use another judge and are shown for context, not
+            as like-for-like rankings. <a href="https://github.com/memseekai/membukkit/blob/main/docs/guide/benchmarks.md#who-judges-what">See who judged what ↗</a></p>
         </div>
 
-        <!-- Different protocols remain visibly separate from LongMemEval. -->
-        <div class="panel reveal" id="benchOther">
+        <!-- Selected systems against query-time inference cost. -->
+        <div class="panel reveal" id="benchCost">
           <div class="th">
-            <h3>Other benchmark scales</h3>
-            <span class="mult">protocols stay separate</span>
+            <h3>Accuracy vs. cost per answer</h3>
+            <span class="mult">better and cheaper ↖</span>
           </div>
-          <div class="trow us">
-            <span class="lab">LoCoMo<span class="sub">Mem0 reader + judge protocol</span></span>
-            <div class="tbar mem"><i data-w="81.3" style="--w:81.3"></i><span class="v" style="--w:81.3">87.5%</span></div>
+          <div class="scatter-scroll">
+            <div class="scatter" role="img" aria-label="Accuracy against estimated query-time cost per answer on LongMemEval-S. MemBukkit reaches 92.6% at a $0.015 floor with gpt-5.4, 88.8% at $0.0004 with open-weight Gemma 4 26B, and 82.0% at $0.0005 with gpt-4o-mini. Full-context GPT-4o scores 60.2% at $0.29 per answer.">
+              <div class="gridline-y" style="bottom:11.1%"><span class="tag">60%</span></div>
+              <div class="gridline-y" style="bottom:33.3%"><span class="tag">70%</span></div>
+              <div class="gridline-y" style="bottom:55.6%"><span class="tag">80%</span></div>
+              <div class="gridline-y" style="bottom:77.8%"><span class="tag">90%</span></div>
+              <div class="gridline-y" style="bottom:100%"><span class="tag">100%</span></div>
+              <div class="gridline-x" style="left:21.7%"><span class="tag2">$1k / 1M answers</span><span class="tag">$0.001</span></div>
+              <div class="gridline-x" style="left:50.7%"><span class="tag2">$10k / 1M</span><span class="tag">$0.01</span></div>
+              <div class="gridline-x" style="left:79.7%"><span class="tag2">$100k / 1M</span><span class="tag">$0.10</span></div>
+
+              <div class="pt us" style="left:8.5%; bottom:75.1%"></div>
+              <div class="ptlab us" style="left:5%; bottom:83%">MemBukkit + Gemma 4 26B<br><span class="score">88.8%</span> · $0.0004</div>
+
+              <div class="pt us" style="left:13.6%; bottom:60%"></div>
+              <div class="ptlab us" style="left:10%; bottom:47%">MemBukkit + gpt-4o-mini<br><span class="score">82.0%</span> · $0.0005</div>
+
+              <div class="pt us" style="left:55.7%; bottom:83.6%"></div>
+              <div class="ptlab us" style="left:59%; bottom:84.5%">MemBukkit + gpt-5.4<br><span class="score">92.6%</span> · $0.015</div>
+
+              <div class="pt other" style="left:42%; bottom:67.1%"></div>
+              <div class="ptlab" style="left:29%; bottom:55.5%">Supermemory<br><span class="score">85.2%</span></div>
+
+              <div class="pt other" style="left:46.2%; bottom:36%"></div>
+              <div class="ptlab" style="left:41%; bottom:26%">Zep<br><span class="score">71.2%</span></div>
+
+              <div class="pt other" style="left:93.1%; bottom:11.6%"></div>
+              <div class="ptlab r" style="right:.5%; bottom:16%">full-context GPT-4o<br><span class="score">60.2%</span> · $0.29</div>
+
+              <div class="pt other" style="left:85.4%; bottom:76%"></div>
+              <div class="ptlab r" style="right:.5%; bottom:58%">Gemini 2.5 Pro full context<br><span class="score">89.2%</span> · $0.16</div>
+
+              <div class="pt altg" style="left:52.6%; bottom:87.6%"></div>
+              <div class="ptlab altg" style="left:30%; bottom:92%">Mem0 Cloud + GPT-5<br><span class="score">94.4%</span> · alternate judge</div>
+
+              <div class="pt altg" style="left:60.1%; bottom:80.9%"></div>
+              <div class="ptlab altg" style="left:63.5%; bottom:72%">Hindsight<br><span class="score">91.4%</span> · alternate judge</div>
+            </div>
           </div>
-          <div class="trow">
-            <span class="lab">BEAM 100K<span class="sub">official BEAM average · Gemma</span></span>
-            <div class="tbar other"><i data-w="53.5" style="--w:53.5"></i><span class="v">0.535</span></div>
+          <div class="legend">
+            <span><span class="sw" style="background:var(--green)"></span>MemBukkit · official judge</span>
+            <span><span class="sw" style="background:var(--border-strong)"></span>others · official judge</span>
+            <span><span class="sw" style="background:transparent;border:2px dashed var(--rose)"></span>alternate judge</span>
           </div>
-          <div class="trow">
-            <span class="lab">BEAM 1M<span class="sub">official BEAM average · Gemma</span></span>
-            <div class="tbar other"><i data-w="49.8" style="--w:49.8"></i><span class="v">0.498</span></div>
-          </div>
-          <div class="trow">
-            <span class="lab">BEAM 10M<span class="sub">official BEAM average · Gemma</span></span>
-            <div class="tbar other"><i data-w="44.7" style="--w:44.7"></i><span class="v">0.447</span></div>
-          </div>
-          <p class="bench-foot">LoCoMo reports answer accuracy under the Mem0 protocol. BEAM
-            reports its official nine-category average. Those metrics are not LongMemEval accuracy
-            and are not combined into one ranking. <a href="/benchmarks/">See protocols and recipes →</a></p>
+          <p class="bench-foot">Query-time model list-price floors on measured answer context;
+            write-time distillation and hidden reasoning tokens are excluded. Unpriced comparison
+            points are positioned from their published model configuration. Gemini full-context is
+            the independent 122.9k-token measurement cited in the methodology.
+            <a href="/benchmarks/">Sources and protocol →</a></p>
         </div>
       </div>
 
@@ -1947,7 +1999,7 @@ brief[<span class="cs">"manifest"</span>][<span class="cs">"rendered_sha256"</sp
         <div>
           <h3>Don't take the chart's word for it.</h3>
           <p>The MemBukkit repo contains the full eval harness and frozen recipe. Run the exact
-            agent-memory configuration behind the published result.</p>
+            agent-memory configuration behind the official-judge result.</p>
         </div>
         <div class="repro-do">
           <span class="console-chip"><span class="p">$</span> membukkit bench --repro longmemeval-gpt54</span>

@@ -7,9 +7,11 @@
  * method in the product. Keep that product/research distinction explicit here.
  */
 import BaseLayout from '../layouts/BaseLayout.astro';
+import { longMemEvalFieldRows, pairedFindings } from '../lib/benchmark-data';
 
 const repo = 'https://github.com/memseekai/membukkit';
 const repro = `${repo}/blob/main/docs/guide/benchmarks.md`;
+const judges = `${repro}#who-judges-what`;
 const method = `${repo}/blob/main/docs/METHOD.md`;
 const rag = `${repo}/blob/main/docs/RAG.md`;
 
@@ -133,10 +135,68 @@ const beamRows = [
       </div>
 
       <p class="table-note">
-        LongMemEval and LoCoMo report answer accuracy. Reproductions pass within ±1 percentage
-        point because LLM readers and judges are nondeterministic. “Official judge” applies to the
+        LongMemEval and LoCoMo report answer accuracy. Reproductions pass within ±3 percentage
+        points because LLM readers and judges are nondeterministic. “Official judge” applies to the
         three LongMemEval rows; LoCoMo deliberately follows the separate Mem0 protocol.
       </p>
+
+      <div class="field-comparison">
+        <div class="field-head">
+          <span class="eyebrow" style="--hue:var(--green)">LongMemEval-S · who judges what</span>
+          <h3>Published scores are only comparable when the judge is.</h3>
+          <p>
+            Higher reported scores exist, but they do not all use LongMemEval’s official gpt-4o
+            judge. The pattern and protocol columns keep that distinction visible instead of
+            flattening every number into one leaderboard.
+          </p>
+          <a href={judges}>Open the current MemBukkit comparison ↗</a>
+        </div>
+
+        <div class="table-scroll">
+          <table class="rank-table">
+            <thead>
+              <tr>
+                <th>System</th>
+                <th>Reported accuracy</th>
+                <th>Judge protocol</th>
+              </tr>
+            </thead>
+            <tbody>
+              {longMemEvalFieldRows.map((row) => (
+                <tr class={`${row.tone} ${row.protocol}`}>
+                  <th scope="row">{row.name}</th>
+                  <td class="score-cell">
+                    <div class={`rank-bar ${row.tone}`} style={`--w:${row.width}`}>
+                      <i></i><b>{row.score}</b>
+                    </div>
+                  </td>
+                  <td class="judge-cell">
+                    <span class={`protocol-badge ${row.protocol}`}>
+                      {row.protocol === 'official' ? 'official judge' : 'alternate judge'}
+                    </span>
+                    <small>{row.judge}</small>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <p class="table-note">
+          Restricted to systems scored by the official gpt-4o judge, MemBukkit’s 92.6% is the
+          highest published result in the current field. Patterned rows use another judge and are
+          included as context, not as like-for-like rankings.
+        </p>
+
+        <div class="paired-findings" aria-label="What MemBukkit's paired LongMemEval runs show">
+          {pairedFindings.map((finding) => (
+            <article>
+              <b>{finding.value}</b>
+              <span>{finding.label}</span>
+              <p>{finding.detail}</p>
+            </article>
+          ))}
+        </div>
+      </div>
 
       <div class="beam">
         <div class="beam-copy">
@@ -298,6 +358,41 @@ const beamRows = [
   tr.budget .result { color: var(--cyan); }
   .table-note { color: var(--faint); font-family: var(--mono); font-size: .7rem; line-height: 1.55; max-width: 92ch; margin-top: 1rem; }
 
+  .field-comparison { margin-top: clamp(3rem, 7vw, 5rem); padding-top: clamp(2.5rem, 5vw, 3.8rem); border-top: 1px solid var(--border); }
+  .field-head { max-width: 68ch; margin-bottom: 1.7rem; }
+  .field-head h3 { margin-top: .8rem; font-size: var(--step-2); }
+  .field-head p { margin-top: .85rem; color: var(--muted); font-size: var(--step-1); line-height: 1.55; }
+  .field-head > a { display: inline-block; margin-top: .9rem; font-family: var(--mono); font-size: var(--step--1); }
+  .rank-table { min-width: 820px; }
+  .rank-table th:first-child { width: 24%; }
+  .rank-table .score-cell { width: 38%; }
+  .rank-table .judge-cell { width: 38%; }
+  .rank-table tr.us { background: color-mix(in srgb, var(--green) 8%, transparent); }
+  .rank-table tr.us th { box-shadow: inset 3px 0 0 var(--green); }
+  .rank-table tr.altg { background: color-mix(in srgb, var(--rose) 5%, transparent); }
+  .rank-bar { position: relative; height: 24px; overflow: hidden; border-radius: 5px; background: var(--surface-2); }
+  .rank-bar > i { position: absolute; inset: 0; width: 100%; border-radius: 5px; clip-path: inset(0 calc(100% - var(--w) * 1%) 0 0 round 5px); }
+  .rank-bar.us > i { background: linear-gradient(90deg, var(--green), var(--cyan)); }
+  .rank-bar.other > i { background: var(--border-strong); }
+  .rank-bar.full > i { background: linear-gradient(90deg, color-mix(in srgb, var(--rose) 45%, var(--surface-2)), var(--rose)); }
+  .rank-bar.altg > i { background: repeating-linear-gradient(45deg, color-mix(in srgb, var(--rose) 30%, var(--surface-2)) 0 5px, var(--surface-2) 5px 11px); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--rose) 45%, transparent); }
+  .rank-bar b { position: absolute; right: .55rem; top: 50%; transform: translateY(-50%); color: var(--muted); font-family: var(--mono); font-size: .7rem; }
+  .rank-bar.us b { right: calc(100% - var(--w) * 1% + .55rem); color: #0a1510; }
+  .rank-bar.altg b { color: color-mix(in srgb, var(--rose) 80%, var(--muted)); font-style: italic; }
+  .judge-cell small { display: block; margin-top: .3rem; color: var(--faint); font-family: var(--mono); font-size: .64rem; }
+  .protocol-badge { display: inline-flex; align-items: center; gap: .4rem; border: 1px solid var(--border-strong); border-radius: 999px; padding: .18rem .5rem; color: var(--muted); font-family: var(--mono); font-size: .6rem; text-transform: uppercase; letter-spacing: .06em; }
+  .protocol-badge::before { content: ""; width: .48rem; height: .48rem; border-radius: 50%; background: var(--border-strong); }
+  .protocol-badge.official { color: var(--green); border-color: color-mix(in srgb, var(--green) 45%, var(--border)); }
+  .protocol-badge.official::before { background: var(--green); }
+  .protocol-badge.alternate { color: var(--rose); border-style: dashed; border-color: color-mix(in srgb, var(--rose) 55%, var(--border)); }
+  .protocol-badge.alternate::before { background: transparent; border: 1px dashed var(--rose); }
+  .paired-findings { display: grid; grid-template-columns: repeat(3, 1fr); gap: .8rem; margin-top: 1.2rem; }
+  .paired-findings article { padding: 1.1rem; border: 1px solid var(--border); border-top: 2px solid var(--green); border-radius: 11px; background: var(--bg); }
+  .paired-findings b, .paired-findings span { display: block; font-family: var(--mono); }
+  .paired-findings b { color: var(--green); font-size: 1.3rem; }
+  .paired-findings span { margin-top: .15rem; color: var(--text); font-size: .7rem; font-weight: 700; }
+  .paired-findings p { margin-top: .55rem; color: var(--muted); font-size: .76rem; line-height: 1.5; }
+
   .beam { display: grid; grid-template-columns: .8fr 1.2fr; gap: 2rem; margin-top: 2.5rem; padding: 1.4rem; border: 1px solid var(--border); border-radius: 14px; background: var(--bg); }
   .beam h3 { font-size: var(--step-1); margin-top: .7rem; }
   .beam p { color: var(--muted); font-size: var(--step--1); line-height: 1.55; margin-top: .7rem; }
@@ -345,7 +440,7 @@ const beamRows = [
     .rag-panel { grid-template-columns: 1fr; }
   }
   @media (max-width: 620px) {
-    .pipeline, .beam-scores { grid-template-columns: 1fr; }
+    .pipeline, .beam-scores, .paired-findings { grid-template-columns: 1fr; }
     .pipeline li { min-height: auto; }
     .identity-row { grid-template-columns: 1fr; gap: .3rem; }
     .rag-panel { margin-inline: 1rem; width: calc(100% - 2rem); }

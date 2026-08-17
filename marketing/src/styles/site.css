@@ -17,7 +17,7 @@
   --orange: #ff7a2f;
   --pink: #ff3d67;
   /* the caution red: says "read this differently" without the alarm --pink
-     carries. Used for the self-graded rows on /benchmarks/. */
+     carries. Used when a benchmark row does not use the official judge. */
   --rose: #d97b83;
   --cyan: #2fd4c4;
   --violet: #9b87ff;

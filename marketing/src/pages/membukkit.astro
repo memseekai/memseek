@@ -1,9 +1,11 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
+import { longMemEvalFieldRows as comparisonRows, pairedFindings } from '../lib/benchmark-data';
 
 const repo = 'https://github.com/memseekai/membukkit';
 const docs = `${repo}/tree/main/docs`;
 const benchmarks = `${repo}/blob/main/docs/guide/benchmarks.md`;
+const judges = `${benchmarks}#who-judges-what`;
 
 const capabilities = [
   {
@@ -31,6 +33,7 @@ const capabilities = [
     hue: 'var(--green)',
   },
 ];
+
 ---
 
 <BaseLayout
@@ -148,25 +151,106 @@ const capabilities = [
   </section>
 
   <section id="benchmarks" class="bench-section">
-    <div class="wrap bench-grid">
-      <div>
-        <span class="eyebrow" style="--hue:var(--green)">public evidence</span>
-        <h2><span>92.6%</span> LongMemEval-S</h2>
+    <div class="wrap">
+      <div class="bench-head">
+        <span class="eyebrow" style="--hue:var(--green)">public benchmark · official judge</span>
+        <h2><span>92.6%</span> on LongMemEval-S.<br />Highest score under the official judge.</h2>
         <p>
-          The headline MemBukkit recipe uses the benchmark’s official gpt-4o judge. Frozen recipes
-          also cover an open-weight Gemma configuration, gpt-4o-mini, LoCoMo, and BEAM at 100K,
-          1M, and 10M tokens.
+          Higher reported numbers use a different judge. MemBukkit uses LongMemEval’s official
+          gpt-4o judge and publishes the frozen recipe behind the result.
         </p>
         <div class="ctas">
-          <a class="btn btn-primary" href="/benchmarks/">See every result →</a>
-          <a class="btn btn-ghost" href={benchmarks}>Reproduction guide ↗</a>
+          <a class="btn btn-primary" href={benchmarks}>Reproduce the result ↗</a>
+          <a class="btn btn-ghost" href="/benchmarks/">Full methodology →</a>
         </div>
       </div>
-      <div class="score-grid">
-        <div class="score-card main"><span>LongMemEval-S</span><b>92.6%</b><small>gpt-5.4 · official judge</small></div>
-        <div class="score-card"><span>LongMemEval-S</span><b>88.8%</b><small>Gemma 4 26B · official judge</small></div>
-        <div class="score-card"><span>LoCoMo</span><b>87.5%</b><small>Mem0 protocol</small></div>
-        <div class="score-card"><span>BEAM 10M</span><b>0.447</b><small>official BEAM average</small></div>
+
+      <div class="comparison-grid">
+        <div class="benchmark-panel">
+          <div class="panel-title">
+            <h3>Answer accuracy</h3>
+            <span>published best claims</span>
+          </div>
+          {comparisonRows.map((row) => (
+            <div class={`benchmark-row ${row.tone}`}>
+              <span class="row-label">{row.name}<small>{row.detail}</small></span>
+              <div class={`score-bar ${row.tone}`} style={`--w:${row.width}`}>
+                <i></i>
+                <b>{row.score}</b>
+              </div>
+            </div>
+          ))}
+          <p class="bench-note">
+            LongMemEval-S · 500 questions. Solid bars use the benchmark’s official gpt-4o judge.
+            Patterned bars use another judge and are context, not like-for-like rankings.
+            <a href={judges}>See who judged what ↗</a>
+          </p>
+        </div>
+
+        <div class="benchmark-panel">
+          <div class="panel-title">
+            <h3>Accuracy vs. cost per answer</h3>
+            <span>better and cheaper ↖</span>
+          </div>
+          <div class="scatter-scroll">
+            <div class="scatter" role="img" aria-label="Accuracy against estimated query-time cost per answer on LongMemEval-S. MemBukkit reaches 92.6% at a $0.015 floor with gpt-5.4, 88.8% at $0.0004 with open-weight Gemma 4 26B, and 82.0% at $0.0005 with gpt-4o-mini. Full-context GPT-4o scores 60.2% at $0.29 per answer.">
+              <div class="gridline-y" style="bottom:11.1%"><span>60%</span></div>
+              <div class="gridline-y" style="bottom:33.3%"><span>70%</span></div>
+              <div class="gridline-y" style="bottom:55.6%"><span>80%</span></div>
+              <div class="gridline-y" style="bottom:77.8%"><span>90%</span></div>
+              <div class="gridline-y" style="bottom:100%"><span>100%</span></div>
+              <div class="gridline-x" style="left:21.7%"><small>$1k / 1M answers</small><span>$0.001</span></div>
+              <div class="gridline-x" style="left:50.7%"><small>$10k / 1M</small><span>$0.01</span></div>
+              <div class="gridline-x" style="left:79.7%"><small>$100k / 1M</small><span>$0.10</span></div>
+
+              <i class="point us" style="left:8.5%; bottom:75.1%"></i>
+              <span class="point-label us" style="left:5%; bottom:83%">MemBukkit + Gemma 4 26B<br /><b>88.8%</b> · $0.0004</span>
+
+              <i class="point us" style="left:13.6%; bottom:60%"></i>
+              <span class="point-label us" style="left:10%; bottom:47%">MemBukkit + gpt-4o-mini<br /><b>82.0%</b> · $0.0005</span>
+
+              <i class="point us" style="left:55.7%; bottom:83.6%"></i>
+              <span class="point-label us" style="left:59%; bottom:84.5%">MemBukkit + gpt-5.4<br /><b>92.6%</b> · $0.015</span>
+
+              <i class="point other" style="left:42%; bottom:67.1%"></i>
+              <span class="point-label" style="left:29%; bottom:55.5%">Supermemory<br /><b>85.2%</b></span>
+
+              <i class="point other" style="left:46.2%; bottom:36%"></i>
+              <span class="point-label" style="left:41%; bottom:26%">Zep<br /><b>71.2%</b></span>
+
+              <i class="point other" style="left:93.1%; bottom:11.6%"></i>
+              <span class="point-label right" style="right:.5%; bottom:16%">full-context GPT-4o<br /><b>60.2%</b> · $0.29</span>
+
+              <i class="point other" style="left:85.4%; bottom:76%"></i>
+              <span class="point-label right" style="right:.5%; bottom:58%">Gemini 2.5 Pro full context<br /><b>89.2%</b> · $0.16</span>
+
+              <i class="point altg" style="left:52.6%; bottom:87.6%"></i>
+              <span class="point-label altg" style="left:30%; bottom:92%">Mem0 Cloud + GPT-5<br /><b>94.4%</b> · alternate judge</span>
+
+              <i class="point altg" style="left:60.1%; bottom:80.9%"></i>
+              <span class="point-label altg" style="left:63.5%; bottom:72%">Hindsight<br /><b>91.4%</b> · alternate judge</span>
+            </div>
+          </div>
+          <div class="legend">
+            <span><i class="us"></i>MemBukkit · official judge</span>
+            <span><i class="other"></i>others · official judge</span>
+            <span><i class="altg"></i>alternate judge</span>
+          </div>
+          <p class="bench-note">
+            Query-time model list-price floors on measured answer context; write-time distillation
+            and hidden reasoning tokens are excluded. <a href="/benchmarks/">Sources and protocol →</a>
+          </p>
+        </div>
+      </div>
+
+      <div class="paired-findings" aria-label="What MemBukkit's paired LongMemEval runs show">
+        {pairedFindings.map((finding) => (
+          <article>
+            <b>{finding.value}</b>
+            <span>{finding.label}</span>
+            <p>{finding.detail}</p>
+          </article>
+        ))}
       </div>
     </div>
   </section>
@@ -281,16 +365,63 @@ const capabilities = [
   .method-strip a { font-family: var(--mono); font-size: .68rem; white-space: nowrap; }
 
   .bench-section { background: linear-gradient(140deg, color-mix(in srgb, var(--green) 7%, var(--surface)), var(--surface)); border-block: 1px solid var(--border); }
-  .bench-grid { display: grid; grid-template-columns: .85fr 1.15fr; gap: clamp(2rem, 7vw, 6rem); align-items: center; }
-  .bench-grid h2 { font-size: var(--step-2); margin-top: .8rem; }
-  .bench-grid h2 span { color: var(--green); }
-  .bench-grid > div > p { color: var(--muted); font-size: var(--step-1); line-height: 1.55; margin-top: .9rem; }
-  .score-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; }
-  .score-card { border: 1px solid var(--border); border-radius: 11px; padding: 1rem; background: var(--bg); }
-  .score-card.main { border-color: color-mix(in srgb, var(--green) 55%, var(--border)); }
-  .score-card span, .score-card small { display: block; color: var(--faint); font-family: var(--mono); font-size: .6rem; }
-  .score-card b { display: block; color: var(--text); font-family: var(--mono); font-size: 1.6rem; margin-block: .18rem; }
-  .score-card.main b { color: var(--green); }
+  .bench-head { max-width: 66ch; margin-bottom: clamp(2rem, 5vw, 3.2rem); }
+  .bench-head h2 { font-size: var(--step-2); margin-top: .8rem; }
+  .bench-head h2 span { color: var(--green); font-size: 1.45em; font-variant-numeric: tabular-nums; }
+  .bench-head > p { color: var(--muted); font-size: var(--step-1); line-height: 1.55; margin-top: .9rem; }
+  .comparison-grid { display: grid; grid-template-columns: 1.05fr 1.3fr; gap: 1.1rem; align-items: start; }
+  .benchmark-panel { min-width: 0; padding: 1.5rem 1.6rem; border: 1px solid var(--border); border-radius: 13px; background: var(--bg); box-shadow: var(--shadow); }
+  .panel-title { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: .5rem; margin-bottom: 1.4rem; }
+  .panel-title h3 { font-size: var(--step-1); }
+  .panel-title > span { color: var(--green); font-family: var(--mono); font-size: var(--step--1); font-weight: 700; }
+
+  .benchmark-row { display: grid; grid-template-columns: 11.5rem 1fr; gap: .85rem; align-items: center; margin-bottom: 1rem; }
+  .row-label { color: var(--muted); font-family: var(--mono); font-size: .72rem; line-height: 1.35; }
+  .row-label small { display: block; color: var(--faint); font-size: .62rem; font-style: normal; font-weight: 400; }
+  .benchmark-row.us .row-label { color: var(--text); font-weight: 700; }
+  .benchmark-row.altg .row-label { color: color-mix(in srgb, var(--rose) 78%, var(--muted)); font-style: italic; }
+  .benchmark-row.altg .row-label small { color: color-mix(in srgb, var(--rose) 50%, var(--faint)); }
+  .score-bar { position: relative; height: 22px; overflow: hidden; border-radius: 5px; background: var(--surface-2); }
+  .score-bar > i { position: absolute; inset: 0; width: 100%; border-radius: 5px; clip-path: inset(0 calc(100% - var(--w) * 1%) 0 0 round 5px); }
+  .score-bar.us > i { background: linear-gradient(90deg, var(--green), var(--cyan)); }
+  .score-bar.other > i { background: var(--border-strong); }
+  .score-bar.full > i { background: linear-gradient(90deg, color-mix(in srgb, var(--rose) 45%, var(--surface-2)), var(--rose)); }
+  .score-bar.altg > i { background: repeating-linear-gradient(45deg, color-mix(in srgb, var(--rose) 30%, var(--surface-2)) 0 5px, var(--surface-2) 5px 11px); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--rose) 45%, transparent); }
+  .score-bar b { position: absolute; right: .5rem; top: 50%; transform: translateY(-50%); color: var(--muted); font-family: var(--mono); font-size: .68rem; font-weight: 500; }
+  .score-bar.us b { right: calc(100% - var(--w) * 1% + .55rem); color: #0a1510; font-weight: 700; }
+  .score-bar.altg b { color: color-mix(in srgb, var(--rose) 80%, var(--muted)); font-style: italic; }
+
+  .scatter-scroll { overflow: visible; }
+  .scatter { position: relative; height: 500px; margin: 1.9rem 1rem 2.6rem 3rem; }
+  .gridline-y { position: absolute; left: 0; right: 0; height: 1px; background: var(--border); }
+  .gridline-y > span { position: absolute; left: -2.5rem; top: -.5em; color: var(--faint); font-family: var(--mono); font-size: .66rem; }
+  .gridline-x { position: absolute; top: 0; bottom: -1.6rem; width: 1px; background: var(--border); }
+  .gridline-x > span { position: absolute; bottom: 0; left: 50%; transform: translateX(-50%); color: var(--faint); font-family: var(--mono); font-size: .66rem; white-space: nowrap; }
+  .gridline-x > small { position: absolute; top: -1.5rem; left: 50%; transform: translateX(-50%); color: var(--faint); font-family: var(--mono); font-size: .62rem; opacity: .75; white-space: nowrap; }
+  .point { position: absolute; width: 13px; height: 13px; border-radius: 50%; transform: translate(-50%, 50%); }
+  .point.us { width: 16px; height: 16px; background: var(--green); box-shadow: 0 0 0 3px color-mix(in srgb, var(--green) 25%, transparent); }
+  .point.other { background: var(--border-strong); }
+  .point.altg { background: transparent; border: 2px dashed var(--rose); }
+  .point-label { position: absolute; color: var(--muted); font-family: var(--mono); font-size: .68rem; line-height: 1.35; white-space: nowrap; }
+  .point-label.right { text-align: right; }
+  .point-label b { color: var(--text); }
+  .point-label.us, .point-label.us b { color: var(--green); }
+  .point-label.us b { font-size: .84rem; }
+  .point-label.altg { color: color-mix(in srgb, var(--rose) 80%, var(--muted)); font-style: italic; }
+  .point-label.altg b { color: var(--rose); }
+  .legend { display: flex; flex-wrap: wrap; gap: .8rem 1.5rem; color: var(--muted); font-family: var(--mono); font-size: .68rem; }
+  .legend > span { display: inline-flex; align-items: center; gap: .45rem; }
+  .legend i { width: 11px; height: 11px; border-radius: 50%; }
+  .legend i.us { background: var(--green); }
+  .legend i.other { background: var(--border-strong); }
+  .legend i.altg { border: 2px dashed var(--rose); }
+  .bench-note { margin-top: 1.05rem; padding-top: .85rem; border-top: 1px solid var(--border); color: var(--faint); font-family: var(--mono); font-size: .72rem; line-height: 1.55; }
+  .paired-findings { display: grid; grid-template-columns: repeat(3, 1fr); gap: .8rem; margin-top: 1.1rem; }
+  .paired-findings article { padding: 1.1rem; border: 1px solid var(--border); border-top: 2px solid var(--green); border-radius: 11px; background: var(--bg); }
+  .paired-findings b, .paired-findings span { display: block; font-family: var(--mono); }
+  .paired-findings b { color: var(--green); font-size: 1.3rem; }
+  .paired-findings span { margin-top: .15rem; color: var(--text); font-size: .7rem; font-weight: 700; }
+  .paired-findings p { margin-top: .55rem; color: var(--muted); font-size: .76rem; line-height: 1.5; }
 
   .quick-grid { display: grid; grid-template-columns: .7fr 1.3fr; gap: clamp(2rem, 7vw, 6rem); align-items: center; }
   .first-run { font-family: var(--mono); font-size: .68rem !important; color: var(--faint) !important; }
@@ -310,19 +441,23 @@ const capabilities = [
   .choose-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: .7rem; flex: none; }
 
   @media (max-width: 920px) {
-    .hero-grid, .bench-grid, .quick-grid { grid-template-columns: 1fr; }
+    .hero-grid, .quick-grid, .comparison-grid { grid-template-columns: 1fr; }
     .identity-grid { grid-template-columns: 1fr; }
     .shared { width: 9rem; justify-self: center; }
     .method-strip { grid-template-columns: 1fr; }
     .method-strip a { white-space: normal; }
     .choose-inner { align-items: flex-start; flex-direction: column; }
     .choose-actions { justify-content: flex-start; }
+    .scatter { height: 440px; }
   }
   @media (max-width: 720px) {
-    .cap-grid, .score-grid { grid-template-columns: 1fr 1fr; }
+    .cap-grid, .paired-findings { grid-template-columns: 1fr 1fr; }
     .memory-card { transform: none; }
+    .scatter-scroll { overflow-x: auto; overflow-y: hidden; }
+    .scatter { min-width: 560px; height: 420px; }
   }
   @media (max-width: 480px) {
-    .cap-grid, .score-grid { grid-template-columns: 1fr; }
+    .cap-grid, .paired-findings { grid-template-columns: 1fr; }
+    .benchmark-row { grid-template-columns: 1fr; gap: .25rem; }
   }
 </style>
