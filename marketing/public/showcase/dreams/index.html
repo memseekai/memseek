@@ -30,7 +30,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta
       name="description"
-      content="An interactive tour of Anthropic's Dreams — memory curation that reorganizes an agent's memory — implemented on memseek's immutable records."
+      content="A design walkthrough of Anthropic's Dreams mapped onto Memseek's implemented snapshot, reviewed-draft, diff, and promotion primitives."
     />
     <title>dreams × memseek — interactive showcase</title>
     <link rel="canonical" href="https://memseek.pages.dev/showcase/dreams/" />
@@ -39,7 +39,7 @@
     <meta property="og:title" content="dreams × memseek — interactive showcase" />
     <meta
       property="og:description"
-      content="An interactive tour of Anthropic's Dreams — memory curation that reorganizes an agent's memory — implemented on memseek's immutable records."
+      content="A design walkthrough of Anthropic's Dreams mapped onto Memseek's implemented snapshot, reviewed-draft, diff, and promotion primitives."
     />
     <meta property="og:url" content="https://memseek.pages.dev/showcase/dreams/" />
     <meta property="og:image" content="https://memseek.pages.dev/og-default.png" />
@@ -685,9 +685,10 @@
         <a class="brand" href="/">memseek<span class="caret">▌</span></a>
         <nav class="nav-right">
           <a class="navlink" href="#mapping">The mapping</a>
-          <a class="navlink" href="#diff">Run a dream</a>
+          <a class="navlink" href="#diff">Walk the example</a>
           <a class="navlink" href="#lifecycle">Lifecycle</a>
           <a class="navlink" href="#code">The YAML</a>
+          <a class="navlink" href="/showcase/">All showcases</a>
           <a class="nav-gh" href="https://github.com/memseekai/memseek" aria-label="Memseek on GitHub"><svg aria-hidden="true"><use href="#gh-mark"/></svg><span class="lbl">GitHub</span></a>
           <button class="theme-toggle" id="theme" type="button" aria-label="Toggle colour theme">
             <svg class="moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
@@ -702,7 +703,7 @@
     <div class="ledger-dock">
       <div class="ledger-scroll">
         <div class="wrap">
-          <div class="ledger" id="ledger" role="group" aria-label="Live diff classification tally">
+          <div class="ledger" id="ledger" role="group" aria-label="Simulated diff classification tally">
             <div class="ledger-title">
               <b>divergence</b>
               <span>user:ada · memories</span>
@@ -731,9 +732,10 @@
               the same idea is <strong>one bounded, cited derivation</strong> you own, and what you
               adopt is a <strong>classified diff</strong> rather than a store to eyeball.
             </p>
+            <p class="simulation-note"><strong>Design simulation · example walkthrough.</strong> The memories, sessions, and proposed diff below are illustrative. Memseek supports the required snapshot, draft, diff, and promotion primitives, but this repository does not yet ship the exact <code>dream</code> catalog shown on this page.</p>
             <div class="hero-cta">
-              <a class="btn btn-primary" href="#diff">Run a dream <span aria-hidden="true">→</span></a>
-              <a class="btn btn-ghost" href="#code">See the YAML</a>
+              <a class="btn btn-primary" href="#diff">Walk through the example <span aria-hidden="true">→</span></a>
+              <a class="btn btn-ghost" href="#code">See the blueprint</a>
               <span class="cta-note">5 memories · 3 sessions</span>
             </div>
           </div>
@@ -765,6 +767,154 @@
               <span>input · immutable snapshot</span>
               <span>promotion · compare-and-set</span>
             </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="case-study" aria-labelledby="case-title" style="--hue: var(--orange)">
+        <div class="wrap case-layout">
+          <aside class="case-brief rv">
+            <span class="case-number">case 08 · the cluttered store</span>
+            <h2 id="case-title">Can old memory be reorganized without letting a background model overwrite what is live?</h2>
+            <p>We are modeling a “dream” as a bounded, reviewed rebuild of a keyed memory store. The candidate may merge duplicates, update stale preferences, drop one-off noise, and add a supported pattern—but it must account for every key and remain inert until promotion.</p>
+            <dl class="case-contract">
+              <div><dt>input</dt><dd>Four current memory keys plus 1–100 sessions</dd></div>
+              <div><dt>output</dt><dd>One complete candidate store and a classified diff</dd></div>
+              <div><dt>caveat</dt><dd>Design blueprint; <code>dream.yaml</code> is not checked in</dd></div>
+            </dl>
+            <span class="case-status" style="--status-hue: var(--amber)">supported primitives · illustrative catalog</span>
+          </aside>
+
+          <div class="case-scroll">
+            <article class="case-chapter rv" style="--chapter-hue: var(--violet)">
+              <span class="case-marker">1</span>
+              <div class="case-body">
+                <span class="case-kicker">freeze the evidence</span>
+                <h3>The run reads a checkpoint, not a store that can move underneath it.</h3>
+                <p>The blueprint takes a bounded snapshot of recent sessions and the current heads of four memory keys. A separate policy record states what curation should value. These source records and their versions become the evidence contract for this one run.</p>
+                <div class="yaml-explainer">
+                  <div class="yaml-file"><header><span>blueprint · derivations/dream.yaml</span><span>not checked in</span></header><pre><code>sources:
+  sessions:
+    kind: snapshot
+    collections: [sessions]
+    max_records: 100
+    max_tokens: 24000
+  store:
+    kind: current
+    collections: [memories]
+    keys: [style, tools, domain, workflow]
+  policy:
+    kind: record
+    collection: playbooks
+    key: curation_policy</code></pre></div>
+                  <div class="yaml-notes">
+                    <div class="yaml-note"><code>kind: snapshot</code><p>Resolve a stable session corpus at one checkpoint, so later messages cannot appear halfway through the rebuild.</p></div>
+                    <div class="yaml-note"><code>kind: current</code><p>Read exactly the live heads the candidate proposes to replace and remember their versions for stale-write protection.</p></div>
+                    <div class="yaml-note"><code>keys</code><p>Define the entire target store. The model cannot invent a fifth memory category.</p></div>
+                  </div>
+                </div>
+                <div class="case-write"><span>writes now</span><p>A queued run and immutable source snapshot. The live <code>memories</code> heads do not change.</p></div>
+              </div>
+            </article>
+
+            <article class="case-chapter rv" style="--chapter-hue: var(--amber)">
+              <span class="case-marker">2</span>
+              <div class="case-body">
+                <span class="case-kicker">curate inside hard limits</span>
+                <h3>The model receives a specific job, an output shape, and a budget.</h3>
+                <p>The task may merge duplicate preferences, replace a stale tabs preference with four spaces, omit a one-off CI incident, preserve a stable domain fact, and add a cited type-hint pattern. It cannot read beyond the sources or call the model indefinitely.</p>
+                <div class="yaml-explainer">
+                  <div class="yaml-file"><header><span>blueprint · derivations/dream.yaml</span><span>the bounded task</span></header><pre><code>model: strong
+limits:
+  max_llm_calls: 2
+  max_total_tokens: 40000
+  max_wall_s: 120
+tasks:
+  - id: curate
+    use: llm
+    with:
+      output_schema: # records + citations
+      prompt: |
+        Merge duplicates, replace stale entries,
+        remove noise, and cite visible UUIDs.</code></pre></div>
+                  <div class="yaml-notes">
+                    <div class="yaml-note"><code>model: strong</code><p>Choose a versioned model alias in catalog configuration rather than hard-coding a provider name in application logic.</p></div>
+                    <div class="yaml-note"><code>limits</code><p>Cap calls, tokens, and wall time before the run begins. A “dream” is not an open-ended autonomous loop.</p></div>
+                    <div class="yaml-note"><code>output_schema</code><p>Require one legal record shape with citations. A prose essay cannot accidentally become the new store.</p></div>
+                  </div>
+                </div>
+                <div class="case-write"><span>writes next</span><p>Model-call receipts and a proposed four-key result attached to the run. It is still not active memory.</p></div>
+              </div>
+            </article>
+
+            <article class="case-chapter rv" style="--chapter-hue: var(--cyan)">
+              <span class="case-marker">3</span>
+              <div class="case-body">
+                <span class="case-kicker">stage a complete candidate</span>
+                <h3>The emission flags turn generated records into a review surface.</h3>
+                <p>The runtime compares every proposed key with the captured live head and classifies it as added, changed, removed, or unchanged. Completeness matters: a missing key must be an explicit retraction, not an ambiguous omission.</p>
+                <div class="effect-flow" aria-label="A memory snapshot and recent sessions produce a classified candidate diff">
+                  <div class="effect-stack">
+                    <div class="effect-card"><span class="effect-label">current memory <small>style</small></span><p>Prefers tabs.</p></div>
+                    <div class="effect-card"><span class="effect-label">current memory <small>duplicate</small></span><p>Uses tabs for indentation.</p></div>
+                    <div class="effect-card"><span class="effect-label">current memory <small>one-off incident</small></span><p>Debugged a flaky CI job by bumping the timeout.</p></div>
+                    <div class="effect-card"><span class="effect-label">current memory <small>domain</small></span><p>Works in the payments service.</p></div>
+                    <div class="effect-card"><span class="effect-label">recent sessions</span><p>Now prefers four spaces and consistently adds type hints to new functions.</p></div>
+                  </div>
+                  <div class="effect-arrow"><span>curate<br />complete + reviewed</span><i aria-hidden="true"></i></div>
+                  <div class="effect-stack">
+                    <div class="effect-card is-output"><span class="effect-label">changed</span><p>Prefers 4-space indentation.</p><dl class="effect-fields"><dt>why</dt><dd>newer session evidence supersedes tabs</dd><dt>also</dt><dd>duplicate merged</dd></dl></div>
+                    <div class="effect-card is-output"><span class="effect-label">added</span><p>Always adds type hints to new functions.</p></div>
+                    <div class="effect-card is-output"><span class="effect-label">removed</span><p>The flaky-CI note is classified as a one-off incident, not durable memory.</p></div>
+                    <div class="effect-card is-output"><span class="effect-label">unchanged</span><p>Works in the payments service.</p></div>
+                    <div class="effect-card is-zero"><span class="effect-label">live store · unchanged</span><p>These effects exist only in the candidate until promotion succeeds.</p></div>
+                  </div>
+                </div>
+                <p class="effect-summary"><strong>Visible effect:</strong> every input key has an explicit disposition; nothing disappears because the model omitted it.</p>
+                <div class="yaml-explainer">
+                  <div class="yaml-file"><header><span>blueprint · derivations/dream.yaml</span><span>the guarded emission</span></header><pre><code>emit:
+  from: "{{curate.records}}"
+  collection: memories
+  type: memory
+  keys: [style, tools, domain, workflow]
+  complete: true
+  review: required</code></pre></div>
+                  <div class="yaml-notes">
+                    <div class="yaml-note"><code>keys</code><p>Map each output to one of the four legal current heads and reject any extra category.</p></div>
+                    <div class="yaml-note"><code>complete: true</code><p>Demand that the candidate accounts for the whole store so review can distinguish “remove this” from “the model forgot it.”</p></div>
+                    <div class="yaml-note"><code>review: required</code><p>Stage candidate records and divergence metadata instead of advancing live heads automatically.</p></div>
+                  </div>
+                </div>
+                <div class="case-write"><span>writes next</span><p>One inert candidate set plus a per-key diff: duplicate merged, style changed, CI note removed, domain kept, type-hint pattern added.</p></div>
+              </div>
+            </article>
+
+            <article class="case-chapter rv" style="--chapter-hue: var(--green)">
+              <span class="case-marker">4</span>
+              <div class="case-body">
+                <span class="case-kicker">promotion is a compare-and-set</span>
+                <h3>Approval succeeds only if the store is still the one that was reviewed.</h3>
+                <p>A person inspects the candidate and chooses adopt or decline. Promotion rechecks the captured input heads. If another process updated <code>style</code> during review, the operation is rejected as stale instead of overwriting newer memory.</p>
+                <div class="case-event"><b>review decision</b>Approve the classified diff only after verifying every changed or removed key and its evidence.</div>
+                <div class="yaml-explainer">
+                  <div class="yaml-file"><header><span>reviewed artifact contract</span><span>runtime behavior</span></header><pre><code>lifecycle: reviewed
+candidate:
+  covered_keys: [style, tools, domain, workflow]
+  divergence: [added, changed,
+               removed, unchanged]
+promotion:
+  precondition: captured_input_heads
+  on_stale: reject</code></pre></div>
+                  <div class="yaml-notes">
+                    <div class="yaml-note"><code>covered_keys</code><p>Prove the draft accounted for every store slot defined by the emission contract.</p></div>
+                    <div class="yaml-note"><code>divergence</code><p>Give the reviewer semantic change classes instead of asking them to compare opaque store IDs.</p></div>
+                    <div class="yaml-note"><code>on_stale: reject</code><p>This is explanatory pseudoconfiguration for the runtime’s compare-and-set behavior—not a field in the unfinished <code>dream.yaml</code>.</p></div>
+                  </div>
+                </div>
+                <div class="case-write"><span>final state</span><p>On approval, four new current heads are promoted atomically and the prior heads remain in history. On decline or staleness, live memory is unchanged.</p></div>
+                <a class="case-next" href="#mapping">Continue into the interactive blueprint and diff →</a>
+              </div>
+            </article>
           </div>
         </div>
       </section>
@@ -835,7 +985,7 @@
         <div class="wrap">
           <div class="region-head rv">
             <p class="eyebrow">02 · run it</p>
-            <h2>Run a dream. See exactly what it changed.</h2>
+            <h2>Walk through a dream-shaped rebuild and inspect every proposed change.</h2>
             <p>
               Steer the curation policy, pick how many sessions to mine, then open any curated
               memory to see <strong>the records it cites</strong>. The tally above fills as the
@@ -940,17 +1090,17 @@
         <div class="wrap">
           <div class="region-head rv">
             <p class="eyebrow">04 · how you write it</p>
-            <h2>The hosted job, and the file you own.</h2>
+            <h2>The hosted job, and a Memseek implementation blueprint.</h2>
             <p>
-              One is a beta endpoint you call and poll. The other is a definition you
-              <strong>version, review, and run anywhere</strong>.
+              One is a research-preview endpoint you call and poll. The other shows how the same
+              workflow can be composed from Memseek primitives in a definition you author and version.
             </p>
           </div>
 
           <article class="panel code-card rv">
             <div class="tabs" role="tablist" aria-label="Implementation">
               <button class="tab" type="button" role="tab" id="tab-api" aria-controls="panel-api" aria-selected="true">anthropic dreams API</button>
-              <button class="tab" type="button" role="tab" id="tab-yaml" aria-controls="panel-yaml" aria-selected="false" tabindex="-1">memseek — the derivation</button>
+              <button class="tab" type="button" role="tab" id="tab-yaml" aria-controls="panel-yaml" aria-selected="false" tabindex="-1">memseek — blueprint</button>
               <button class="tab" type="button" role="tab" id="tab-run" aria-controls="panel-run" aria-selected="false" tabindex="-1">trigger it</button>
               <button class="tab" type="button" role="tab" id="tab-adopt" aria-controls="panel-adopt" aria-selected="false" tabindex="-1">adopt the result</button>
             </div>
@@ -968,7 +1118,7 @@ dream = client.beta.<span class="fn">dreams</span>.create(
     instructions=<span class="s">"Focus on coding-style preferences; ignore one-off debugging notes."</span>,
 )
 
-<span class="cm"># minutes to hours, driven by transcript count</span>
+<span class="cm"># typically minutes to tens of minutes, driven by input size</span>
 <span class="k">while</span> dream.status <span class="k">in</span> (<span class="s">"pending"</span>, <span class="s">"running"</span>):
     time.<span class="fn">sleep</span>(<span class="n">10</span>)
     dream = client.beta.<span class="fn">dreams</span>.<span class="fn">retrieve</span>(dream.id)
@@ -980,20 +1130,22 @@ store = <span class="k">next</span>(o.memory_store_id <span class="k">for</span>
             </div>
 
             <div class="tabpanel" role="tabpanel" id="panel-yaml" aria-labelledby="tab-yaml" tabindex="0" hidden>
-<pre><span class="cm"># derivations/dream.yaml — the whole dream, as one bounded derivation</span>
+<pre><span class="cm"># blueprint: derivations/dream.yaml — not checked in yet</span>
 <span class="k">name</span>: dream
 <span class="k">sources</span>:
-  <span class="k">store</span>:                      <span class="cm"># the memory store — immutable input</span>
-    <span class="k">kind</span>: snapshot            <span class="cm"># complete bounded corpus at one checkpoint</span>
-    <span class="k">collections</span>: [memories]
-    <span class="k">statuses</span>: [active]
-    <span class="k">max_records</span>: <span class="n">200</span>
-    <span class="k">allow_empty</span>: true         <span class="cm"># dream from sessions alone if the store is empty</span>
-  <span class="k">sessions</span>:                   <span class="cm"># the transcripts to mine</span>
-    <span class="k">kind</span>: changes
+  <span class="k">sessions</span>:                   <span class="cm"># the one bounded run driver</span>
+    <span class="k">kind</span>: snapshot
     <span class="k">collections</span>: [sessions]
+    <span class="k">statuses</span>: [active]
     <span class="k">max_records</span>: <span class="n">100</span>          <span class="cm"># the "sessions window" slider</span>
     <span class="k">max_tokens</span>: <span class="n">24000</span>
+  <span class="k">store</span>:                      <span class="cm"># current keyed memory heads</span>
+    <span class="k">kind</span>: current
+    <span class="k">collections</span>: [memories]
+    <span class="k">statuses</span>: [active]
+    <span class="k">keys</span>: [style, tools, domain, workflow]
+    <span class="k">max_records</span>: <span class="n">4</span>
+    <span class="k">max_tokens</span>: <span class="n">6000</span>
   <span class="k">policy</span>:                     <span class="cm"># steering, as one guarded current record</span>
     <span class="k">kind</span>: record
     <span class="k">collection</span>: playbooks
@@ -1024,7 +1176,7 @@ store = <span class="k">next</span>(o.memory_store_id <span class="k">for</span>
   <span class="k">keys</span>: [style, tools, domain, workflow]   <span class="cm"># the bounded target</span>
   <span class="k">complete</span>: true            <span class="cm"># a full rebuild, every key accounted for</span>
   <span class="k">review</span>: required          <span class="cm"># stage a draft — never auto-overwrite</span></pre>
-              <p class="code-note"><code>snapshot</code> + <code>complete: true</code> + <code>review: required</code> over a bounded <code>keys</code> target is exactly “rebuild the whole store from a fixed corpus and stage it for approval” — the dream contract, declared in one file you own. Steering is a record, not a request parameter: rewrite <code>curation_policy</code> and the next run reads the new one, with the old version still on file.</p>
+              <p class="code-note">This is an implementation blueprint, not a copy-paste-ready checked-in file: a real catalog must include the collection schemas, a complete output schema, the reviewed artifact, package bindings, and tests. The closest runnable pattern in this repository is the reviewed CRM profile rebuild.</p>
             </div>
 
             <div class="tabpanel" role="tabpanel" id="panel-run" aria-labelledby="tab-run" tabindex="0" hidden>
@@ -1046,7 +1198,7 @@ queued = <span class="k">await</span> memseek.<span class="fn">run_processor</sp
 
 <span class="cm"># …or don't call it at all. A cron trigger dreams nightly, and a write
 # trigger dreams once enough new sessions have landed.</span></pre>
-              <p class="code-note">A dream is just a run. Fire it on demand, on a schedule, or on a write trigger when enough new sessions accumulate — no separate service, no beta endpoint. Nothing is live yet: the run staged a draft.</p>
+              <p class="code-note">In this blueprint, a memory rebuild is an ordinary run. A completed catalog could fire it on demand, on a schedule, or from a write trigger when enough sessions accumulate. Nothing would become live yet: the run would stage a draft.</p>
             </div>
 
             <div class="tabpanel" role="tabpanel" id="panel-adopt" aria-labelledby="tab-adopt" tabindex="0" hidden>
@@ -1090,12 +1242,12 @@ candidate[<span class="s">"divergence"</span>]     <span class="cm"># per key: a
         <div class="wrap">
           <div class="region-head rv">
             <p class="eyebrow">05 · then take it further</p>
-            <h2>Everything else composes onto it.</h2>
-            <p>Because a dream is just a bounded, cited derivation, it inherits the rest of the system for free.</p>
+            <h2>The design can be extended with existing primitives.</h2>
+            <p>Once the base catalog is implemented and tested, these are the next controls you can add deliberately.</p>
           </div>
 
           <dl class="extend rv">
-            <div class="exrow"><dt>Dream continuously</dt><dd>Swap the on-demand run for a <code>write</code> trigger that fires once a threshold of new sessions lands. Memory stays curated <strong>without a cron or a human in the loop</strong>.</dd></div>
+            <div class="exrow"><dt>Prepare drafts continuously</dt><dd>Swap the on-demand run for a <code>write</code> trigger that fires once a threshold of new sessions lands. New drafts can arrive without a cron; promotion can remain an explicit human decision.</dd></div>
             <div class="exrow"><dt>Detect contradictions</dt><dd>Add a <code>contradiction</code> pass so “replace stale entries” becomes explicit: the diff shows <strong>which session overturned which prior memory</strong>, with both cited.</dd></div>
             <div class="exrow"><dt>Scope per entity</dt><dd>Every dream is entity-scoped for free. One definition curates a separate, isolated store for each user, agent, or account — no cross-contamination.</dd></div>
             <div class="exrow"><dt>Anchor on a graph</dt><dd>Feed a graph-boosted retrieval as a Source so the dream weights memories near an anchor entity — curate “everything about the payments project” more tightly.</dd></div>
@@ -1110,14 +1262,14 @@ candidate[<span class="s">"divergence"</span>]     <span class="cm"># per key: a
         <div class="wrap close-grid">
           <div class="rv">
             <p class="eyebrow">start building</p>
-            <h2>Declare your own dream in one file.</h2>
+            <h2>Use this blueprint to build a bounded memory rebuild.</h2>
             <p>
-              It’s a derivation like any other: sources, limits, one task, an emission that stages
-              for review. Nothing about it is special-cased.
+              The necessary engine behavior already exists: bounded sources, model limits, a complete
+              keyed candidate, a visible diff, and explicit promotion. Your catalog supplies the domain.
             </p>
             <div class="hero-cta">
-              <a class="btn btn-primary" href="/#waitlist">Start building <span aria-hidden="true">→</span></a>
-              <a class="btn btn-ghost" href="/showcase/gbrain/">See the gbrain showcase</a>
+              <a class="btn btn-primary" href="/showcase/living-profile/#rebuild">See a runnable reviewed rebuild <span aria-hidden="true">→</span></a>
+              <a class="btn btn-ghost" href="/showcase/gbrain/">See the gbrain case</a>
             </div>
           </div>
 
@@ -1129,16 +1281,16 @@ candidate[<span class="s">"divergence"</span>]     <span class="cm"># per key: a
   <span class="k">keys</span>: [style, tools, domain, workflow]
   <span class="k">complete</span>: true
   <span class="k">review</span>: required</pre>
-            <p class="code-note">Two lines — <code>complete</code> and <code>review</code> — decide that a dream stages a reviewable draft over a bounded set of keys instead of overwriting live memory.</p>
+            <p class="code-note">In a completed catalog, <code>complete</code> and <code>review</code> are the two emission flags that make the run stage a full, reviewable draft instead of overwriting live memory.</p>
           </div>
         </div>
       </section>
 
       <div class="wrap">
         <p class="disclosure">
-          Illustrative, not a captured run. The memories, citations and counts on this page model
-          the shape of a real <code>dream</code> derivation over the coding-preferences corpus;
-          they are not output recorded from a live provider.
+          Design simulation, not a captured or checked-in run. The memories, citations, counts, and
+          <code>dream.yaml</code> model how a bounded reviewed rebuild can be implemented from supported
+          primitives. Use the runnable CRM rebuild as the current executable reference.
         </p>
       </div>
     </main>

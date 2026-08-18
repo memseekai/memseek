@@ -3,13 +3,13 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="description" content="An interactive workspace explorer for the complete memseek catalog: definitions, records, processors, derivations, views, and artifacts." />
+    <meta name="description" content="A guided, read-only workspace explorer for definitions, records, processing runs, views, and rendered artifacts." />
     <title>Workspace explorer — memseek</title>
     <link rel="canonical" href="https://memseek.pages.dev/showcase/workspace-explorer/" />
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="Memseek" />
     <meta property="og:title" content="Workspace explorer — memseek" />
-    <meta property="og:description" content="Explore a complete memory workspace: contracts, records, processors, derivations, views, and artifacts in one calm control surface." />
+    <meta property="og:description" content="Follow a memory workspace from definitions and records through processing runs to the views and artifacts an agent uses." />
     <meta property="og:url" content="https://memseek.pages.dev/showcase/workspace-explorer/" />
     <meta property="og:image" content="https://memseek.pages.dev/og-default.png" />
     <meta name="twitter:card" content="summary_large_image" />
@@ -474,12 +474,127 @@
           <div>
             <p class="eyebrow">workspace explorer · live API</p>
             <h1>Every part of memory, <span class="grad">in view.</span></h1>
-            <p class="lede">A workspace explorer for the whole declared system: the contracts that define it, the records that feed it, the bounded work that changes it, and the views and artifacts an agent actually uses.</p>
+            <p class="lede">Start with one audit case below, then connect a workspace to inspect the contracts that define it, the records that feed it, the runs that changed it, and the final views and prompt artifacts an agent can use.</p>
+            <p class="simulation-note"><strong>Worked case + optional live tool.</strong> The case uses example records to explain the interface. The explorer itself does not invent workspace data: it stays empty until you connect, then reads your live API in read-only mode.</p>
           </div>
           <aside class="intro-note">
-            <strong>Your workspace, not a demo</strong>
-            Connect a workspace API and the explorer reads its live catalog, records, runs, views, and artifact renders.
+            <strong>Read-only live mode</strong>
+            Connect a workspace API to inspect its catalog, records, runs, views, and artifact renders. This page does not write or promote anything.
           </aside>
+        </div>
+      </section>
+
+      <section class="case-study" aria-labelledby="case-title" style="--hue: var(--cyan)">
+        <div class="wrap case-layout">
+          <aside class="case-brief rv">
+            <span class="case-number">case 05 · explain a record</span>
+            <h2 id="case-title">A profile says “the billing migration is still an open thread.” Where did that claim come from?</h2>
+            <p>We are modeling an audit journey across a live workspace. The explorer does not run the memory architecture or create a demo dataset; it reads the definitions, records, run receipts, and rendered outputs that already exist.</p>
+            <dl class="case-contract">
+              <div><dt>question</dt><dd>What wrote this record, under which contract, from which evidence?</dd></div>
+              <div><dt>source</dt><dd>Your connected workspace API</dd></div>
+              <div><dt>writes</dt><dd>None—the explorer is read-only</dd></div>
+            </dl>
+            <span class="case-status" style="--status-hue: var(--cyan)">live tool · no seeded fallback</span>
+          </aside>
+
+          <div class="case-scroll">
+            <article class="case-chapter rv" style="--chapter-hue: var(--cyan)">
+              <span class="case-marker">1</span>
+              <div class="case-body">
+                <span class="case-kicker">start with the contract</span>
+                <h3>The catalog tells you what a record is allowed to mean.</h3>
+                <p>Open Definitions and choose a collection. Its YAML answers whether records append or supersede, which fields are valid, which processors must finish, and whether the collection can be searched or answered over.</p>
+                <div class="yaml-explainer">
+                  <div class="yaml-file"><header><span>collections/core.yaml</span><span>example definition</span></header><pre><code>- name: profiles
+  version: 1
+  mode: keyed
+  required_processors: [embedding_v1]
+  search_profile: pg_default
+  answerable: true</code></pre></div>
+                  <div class="yaml-notes">
+                    <div class="yaml-note"><code>mode: keyed</code><p>One current record exists per profile key. A rewrite creates a new version and supersedes the old head instead of erasing it.</p></div>
+                    <div class="yaml-note"><code>required_processors</code><p>The record is not ready until required annotations such as its embedding have completed.</p></div>
+                    <div class="yaml-note"><code>answerable</code><p>The collection may participate in cited synthesis. This is an explicit contract choice, not a UI toggle.</p></div>
+                  </div>
+                </div>
+                <div class="case-write"><span>explorer reads</span><p>The published YAML plus its immutable definition hash. It writes nothing back to the catalog.</p></div>
+              </div>
+            </article>
+
+            <article class="case-chapter rv" style="--chapter-hue: var(--violet)">
+              <span class="case-marker">2</span>
+              <div class="case-body">
+                <span class="case-kicker">open the record and its run</span>
+                <h3>The current value is only the top of the evidence chain.</h3>
+                <p>In Records, select the open-thread claim. The drawer shows its entity, key, status, content, citations, and writer run. Following the run reveals the exact derivation version and source snapshot that produced it.</p>
+                <div class="effect-flow" aria-label="A current profile record opens through its writer run to source evidence">
+                  <div class="effect-stack">
+                    <div class="effect-card is-output"><span class="effect-label">profiles · open_threads <small>current head</small></span><p>The billing migration remains blocked on mobile compatibility evidence.</p><dl class="effect-fields"><dt>written_by</dt><dd>profile run UUID</dd><dt>citations</dt><dd>2 source UUIDs</dd></dl></div>
+                  </div>
+                  <div class="effect-arrow"><span>follow IDs<br />read only</span><i aria-hidden="true"></i></div>
+                  <div class="effect-stack">
+                    <div class="effect-card"><span class="effect-label">run receipt</span><p><code>profile@definition-hash</code> read a bounded <code>new_events</code> snapshot and emitted <code>open_threads</code>.</p></div>
+                    <div class="effect-card"><span class="effect-label">source observation 1</span><p>Mobile clients still use the legacy response fields.</p></div>
+                    <div class="effect-card"><span class="effect-label">source observation 2</span><p>Compatibility may be removed only after zero-traffic telemetry.</p></div>
+                    <div class="effect-card is-zero"><span class="effect-label">explorer writes · 0</span><p>Opening the chain changes neither the record nor its run receipt.</p></div>
+                  </div>
+                </div>
+                <p class="effect-summary"><strong>Visible effect:</strong> a conclusion stops being opaque; one click reveals the execution and the evidence that produced it.</p>
+                <div class="yaml-explainer">
+                  <div class="yaml-file"><header><span>derivations/profile.yaml</span><span>how to read a run</span></header><pre><code>sources:
+  new_events:
+    kind: changes
+    collections: [main]
+  current_profile:
+    kind: current
+    collections: [profiles]
+emit:
+  collection: profiles
+  type: fact
+  keys: [role, preferences, commitments,
+         open_threads, timeline]</code></pre></div>
+                  <div class="yaml-notes">
+                    <div class="yaml-note"><code>sources</code><p>Explain what evidence the run was permitted to see. The receipt resolves these declarations to concrete record IDs.</p></div>
+                    <div class="yaml-note"><code>emit</code><p>Explain the only collection, type, and key the run was allowed to write.</p></div>
+                    <div class="yaml-note"><code>run receipt</code><p>Connect the abstract YAML to one execution: inputs, outputs, model calls, limits, status, and definition hash.</p></div>
+                  </div>
+                </div>
+                <div class="case-write"><span>explorer reads</span><p>The current record, its earlier versions, cited source UUIDs, and the audited run that wrote it. Still no mutation.</p></div>
+              </div>
+            </article>
+
+            <article class="case-chapter rv" style="--chapter-hue: var(--green)">
+              <span class="case-marker">3</span>
+              <div class="case-body">
+                <span class="case-kicker">inspect what the agent receives</span>
+                <h3>A view or artifact is the final bounded read—not another hidden store.</h3>
+                <p>Open a view to run declared retrieval or render an artifact to see the prompt-ready context. Its YAML states which blocks exist, their token budgets, and the literal template around them.</p>
+                <div class="yaml-explainer">
+                  <div class="yaml-file"><header><span>artifacts/agent_prompt.yaml</span><span>the delivery contract</span></header><pre><code>blocks:
+  profile:
+    document:
+      collections: [profiles]
+    max_tokens: 2000
+  memory:
+    view: agent_relevant_memory@1
+    max_tokens: 3500
+template: |
+  CURRENT PROFILE:
+  {{profile}}
+  RELEVANT MEMORY:
+  {{memory}}</code></pre></div>
+                  <div class="yaml-notes">
+                    <div class="yaml-note"><code>blocks</code><p>Name each context source so its result, truncation, and provenance can be inspected separately.</p></div>
+                    <div class="yaml-note"><code>max_tokens</code><p>Make the context budget a declared limit rather than a surprise in application code.</p></div>
+                    <div class="yaml-note"><code>template</code><p>Show the exact text and ordering the agent receives; the renderer adds no secret prose.</p></div>
+                  </div>
+                </div>
+                <div class="case-write"><span>final state</span><p>You can explain the claim from delivered context back through the run to the source message. The workspace remains unchanged.</p></div>
+                <a class="case-next" href="#explorer">Connect and follow the trail in your workspace →</a>
+              </div>
+            </article>
+          </div>
         </div>
       </section>
 

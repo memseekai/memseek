@@ -3,13 +3,13 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="description" content="Observations become reflections, reflections become convictions, and a detector aimed at the agent's own beliefs catches it contradicting itself — then makes it reflect on the dissonance." />
+    <meta name="description" content="An example walkthrough where observations become beliefs, two strategies conflict, and every conclusion remains traceable to evidence." />
     <title>The self-auditing mind — memseek</title>
     <link rel="canonical" href="https://memseek.pages.dev/showcase/self-audit/" />
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="Memseek" />
     <meta property="og:title" content="The self-auditing mind — memseek" />
-    <meta property="og:description" content="Observations become reflections, reflections become convictions, and a detector aimed at the agent's own beliefs catches it contradicting itself — then makes it reflect on the dissonance." />
+    <meta property="og:description" content="An example walkthrough where observations become beliefs, two strategies conflict, and every conclusion remains traceable to evidence." />
     <meta property="og:url" content="https://memseek.pages.dev/showcase/self-audit/" />
     <meta property="og:image" content="https://memseek.pages.dev/og-default.png" />
     <meta name="twitter:card" content="summary_large_image" />
@@ -72,7 +72,8 @@
           <div>
             <p class="eyebrow">worked example · reflective loop</p>
             <h1>A memory that <span class="grad">catches itself</span> in a contradiction.</h1>
-            <p class="lede">Four tiers of derivation, each firing on its own trigger, each required to cite the tier below. The top tier is the interesting one: a contradiction detector pointed not at the world, but at the agent's own standing convictions.</p>
+            <p class="lede">A fictional strategy agent believes Northwind must honor enterprise contracts. Later it concludes the company should redirect all engineering to self-serve customers. The conflict is easy for a human to spot; this walkthrough shows how the memory system spots it too—and proves where both beliefs came from.</p>
+            <p class="simulation-note"><strong>Simulation · example walkthrough.</strong> The observations, convictions, and contradiction below form an invented agent history used to explain the reflective loop. They are not a live agent trace or claims about a real person.</p>
             <div class="hero-cta">
               <a class="btn btn-primary" href="#reflect">Walk the loop <span aria-hidden="true">→</span></a>
               <a class="btn btn-ghost" href="#use">See the descent</a>
@@ -94,6 +95,153 @@
               </div>
             </div>
             <div class="panel-foot">Four tiers, each an immutable record. Nothing the agent concluded is unfalsifiable.</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="case-study" aria-labelledby="case-title" style="--hue: var(--pink)">
+        <div class="wrap case-layout">
+          <aside class="case-brief rv">
+            <span class="case-number">case 03 · strategy agent</span>
+            <h2 id="case-title">Can an agent notice that two of its current beliefs cannot both be honored?</h2>
+            <p>We are modeling inspectable belief formation—not consciousness. Raw observations support reflections; reflections support durable convictions; a separate detector compares only convictions held at the same time. No conclusion is allowed to float free of the evidence below it.</p>
+            <dl class="case-contract">
+              <div><dt>wave one</dt><dd>Honor enterprise commitments</dd></div>
+              <div><dt>wave two</dt><dd>Redirect all engineering to self-serve</dd></div>
+              <div><dt>target</dt><dd>Surface the bind without deleting either belief</dd></div>
+            </dl>
+            <span class="case-status">runnable · <code>examples/self_auditing_mind.py</code></span>
+          </aside>
+
+          <div class="case-scroll">
+            <article class="case-chapter rv" style="--chapter-hue: var(--cyan)">
+              <span class="case-marker">1</span>
+              <div class="case-body">
+                <span class="case-kicker">events become reflections</span>
+                <h3>The first layer asks questions only after enough important evidence accumulates.</h3>
+                <p>The application writes observations such as contractual promises and delivery choices. The derivation sums their importance; crossing the threshold starts a bounded run that asks three questions, retrieves supporting records, and writes higher-level insights.</p>
+                <div class="yaml-explainer">
+                  <div class="yaml-file"><header><span>derivations/reflection.yaml</span><span>depth 0 → 1</span></header><pre><code>trigger:
+  accumulator:
+    metric: importance
+    threshold: 150
+sources:
+  recent_memories:
+    kind: changes
+    collections: [main]
+tasks:
+  - id: qs
+  - id: evidence_by_question
+    use: search
+  - id: result
+emit:
+  collection: reflections
+  type: reflection</code></pre></div>
+                  <div class="yaml-notes">
+                    <div class="yaml-note"><code>importance: 150</code><p>Do not “reflect” after every trivial event. Accumulate enough weighted evidence to justify a higher-level conclusion.</p></div>
+                    <div class="yaml-note"><code>kind: changes</code><p>Consume the unprocessed observation window that caused this run and advance it only after a successful commit.</p></div>
+                    <div class="yaml-note"><code>qs → search → result</code><p>Ask what matters, find relevant prior evidence, then write. This avoids treating a recent batch as the entire history.</p></div>
+                  </div>
+                </div>
+                <div class="case-write"><span>writes now</span><p>Cited <code>reflection</code> records such as “Enterprise delivery promises remain binding even when priorities change.”</p></div>
+              </div>
+            </article>
+
+            <article class="case-chapter rv" style="--chapter-hue: var(--violet)">
+              <span class="case-marker">2</span>
+              <div class="case-body">
+                <span class="case-kicker">reflections become convictions</span>
+                <h3>A belief is keyed, current, and deliberately allowed to disagree with another belief.</h3>
+                <p>After three new reflections, the worldview derivation updates only one of five allowed belief slots. Commitments remain in force until evidence says they were fulfilled or cancelled; a new strategy cannot quietly erase them.</p>
+                <div class="yaml-explainer">
+                  <div class="yaml-file"><header><span>derivations/worldview.yaml</span><span>depth 1 → 2</span></header><pre><code>trigger:
+  accumulator: {metric: count, threshold: 3}
+sources:
+  new_reflections: {kind: changes}
+  current_worldview: {kind: current}
+emit:
+  collection: worldview
+  type: conviction
+  keys: [identity, strategy, commitments,
+         risks, principles]</code></pre></div>
+                  <div class="yaml-notes">
+                    <div class="yaml-note"><code>threshold: 3</code><p>Require several insights before promoting a pattern into a durable belief.</p></div>
+                    <div class="yaml-note"><code>current_worldview</code><p>Read the beliefs already held so only genuinely shifted keys get a new version.</p></div>
+                    <div class="yaml-note"><code>keys</code><p>Constrain belief shape. “Strategy” and “commitments” are separate on purpose, because a plan can conflict with a promise.</p></div>
+                  </div>
+                </div>
+                <div class="case-write"><span>writes next</span><p>Two current keyed records coexist: an enterprise <code>commitments</code> conviction and a self-serve <code>strategy</code> conviction.</p></div>
+              </div>
+            </article>
+
+            <article class="case-chapter rv" style="--chapter-hue: var(--pink)">
+              <span class="case-marker">3</span>
+              <div class="case-body">
+                <span class="case-kicker">the conflict is recorded</span>
+                <h3>The detector compares current beliefs and writes an edge—not a verdict.</h3>
+                <p>A write to <code>worldview</code> triggers the detector. It may compare the changed conviction with all current convictions, but it can emit a conflict only when both cited beliefs are active now and at least one just changed.</p>
+                <div class="effect-flow" aria-label="Two current convictions produce a self-contradiction relation">
+                  <div class="effect-stack">
+                    <div class="effect-card"><span class="effect-label">worldview · commitments <small>current conviction</small></span><p>Deliver the contracted SSO and audit-log roadmap to Meridian, Halcyon, and Corva by quarter end.</p></div>
+                    <div class="effect-card"><span class="effect-label">worldview · strategy <small>changed conviction</small></span><p>Redirect engineering to the self-serve SMB flywheel and stop starting bespoke enterprise work.</p></div>
+                  </div>
+                  <div class="effect-arrow"><span>belief_conflict<br />compare current pairs</span><i aria-hidden="true"></i></div>
+                  <div class="effect-stack">
+                    <div class="effect-card is-output"><span class="effect-label">relations · self_contradiction <small>2 citations</small></span><p>Stopping enterprise engineering now would break the still-active enterprise delivery commitments.</p><dl class="effect-fields"><dt>subject</dt><dd>strategy UUID</dd><dt>object</dt><dd>commitments UUID</dd><dt>confidence</dt><dd>model score 0–1</dd></dl></div>
+                    <div class="effect-card is-zero"><span class="effect-label">convictions · unchanged</span><p>The detector exposes the bind but cannot rewrite either belief.</p></div>
+                  </div>
+                </div>
+                <p class="effect-summary"><strong>Visible effect:</strong> two standing beliefs remain intact; a new addressable edge makes their incompatibility countable and auditable. Conviction wording is model-produced from the checked-in observations.</p>
+                <div class="yaml-explainer">
+                  <div class="yaml-file"><header><span>derivations/belief_conflict.yaml</span><span>depth 2 → relation</span></header><pre><code>trigger:
+  write:
+    collections: [worldview]
+sources:
+  changed_convictions: {kind: changes}
+  current_convictions: {kind: current}
+tasks:
+  - id: result
+emit:
+  collection: relations
+  type: self_contradiction</code></pre></div>
+                  <div class="yaml-notes">
+                    <div class="yaml-note"><code>changed + current</code><p>Re-examine what moved against the full standing worldview without comparing superseded history as if it were current.</p></div>
+                    <div class="yaml-note"><code>two citations</code><p>The output schema requires exactly the two conflicting conviction UUIDs.</p></div>
+                    <div class="yaml-note"><code>relations</code><p>Write a typed, cited edge. The detector is not allowed to rewrite, soften, or retract either belief.</p></div>
+                  </div>
+                </div>
+                <div class="case-write"><span>writes next</span><p>One <code>self_contradiction</code> relation: “all engineering to self-serve” would break the still-active enterprise commitment.</p></div>
+              </div>
+            </article>
+
+            <article class="case-chapter rv" style="--chapter-hue: var(--green)">
+              <span class="case-marker">4</span>
+              <div class="case-body">
+                <span class="case-kicker">enough conflict forces review</span>
+                <h3>Reconciliation fires only after the bind becomes a pattern.</h3>
+                <p>One edge might be noise. The final derivation waits until two standing self-contradictions exist, then writes an insight that names the tension and cites the conflicts or convictions behind it. That insight can become evidence for the next worldview update.</p>
+                <div class="yaml-explainer">
+                  <div class="yaml-file"><header><span>derivations/reconcile.yaml</span><span>relation → depth 3</span></header><pre><code>trigger:
+  census:
+    collections: [relations]
+    types: [self_contradiction]
+    threshold: 2
+sources:
+  new_conflicts: {kind: changes}
+  current_convictions: {kind: current}
+emit:
+  collection: reflections
+  type: reconciliation</code></pre></div>
+                  <div class="yaml-notes">
+                    <div class="yaml-note"><code>census.threshold</code><p>Escalate only when a new edge lands and the current count shows persistent dissonance.</p></div>
+                    <div class="yaml-note"><code>current_convictions</code><p>Give the reconciler the beliefs themselves, not only short conflict labels.</p></div>
+                    <div class="yaml-note"><code>type: reconciliation</code><p>Close the loop with a cited insight, not a destructive edit. Later evidence decides which conviction changes.</p></div>
+                  </div>
+                </div>
+                <div class="case-write"><span>final state</span><p>The evidence, both convictions, both conflict edges, and the reconciliation remain inspectable as separate immutable records.</p></div>
+                <a class="case-next" href="#reflect">Continue into the full four-tier run →</a>
+              </div>
+            </article>
           </div>
         </div>
       </section>
@@ -301,7 +449,7 @@ rec[<span class="s">"derived_from"</span>]  <span class="c"># the importance-sco
             </div>
           </div>
 
-          <p class="disclosure rv">The four derivations, their trigger kinds, and the depth ladder are the checked-in catalog (<code>derivations/reflection.yaml</code>, <code>worldview.yaml</code>, <code>belief_conflict.yaml</code>, <code>reconcile.yaml</code>); the loop is <code>examples/self_auditing_mind.py</code>. Model-written text is representative of a real provider run rather than a captured transcript.</p>
+          <p class="disclosure rv">The four derivations, their trigger kinds, and the depth ladder are checked in under <code>resources/derivations/</code> (<code>reflection.yaml</code>, <code>worldview.yaml</code>, <code>belief_conflict.yaml</code>, and <code>reconcile.yaml</code>); the loop is <code>examples/self_auditing_mind.py</code>. Model-written text is representative of a real provider run rather than a captured transcript.</p>
         </div>
       </section>
 
@@ -341,7 +489,7 @@ rec[<span class="s">"derived_from"</span>]  <span class="c"># the importance-sco
         <div class="wrap">
           <div class="region-head rv" style="margin-bottom:1.4rem">
             <p class="eyebrow">keep going</p>
-            <h2>The other walkthroughs.</h2>
+            <h2>The other cases.</h2>
           </div>
           <div class="rv">
         <div class="siblings">

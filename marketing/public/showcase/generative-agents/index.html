@@ -3,13 +3,13 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="description" content="The memory architecture from Park et al. (UIST '23) — memory stream, importance, retrieval score, reflection, agent summary — declared as one memseek catalog instead of built." />
-    <title>Generative agents — memseek</title>
+    <meta name="description" content="Generative agents explained in plain language: three fictional AI characters observe, remember, reflect, and update their beliefs in a small town simulation." />
+    <title>Generative agents, explained — memseek</title>
     <link rel="canonical" href="https://memseek.pages.dev/showcase/generative-agents/" />
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="Memseek" />
-    <meta property="og:title" content="Generative agents — memseek" />
-    <meta property="og:description" content="The memory architecture from Park et al. (UIST '23) — memory stream, importance, retrieval score, reflection, agent summary — declared as one memseek catalog instead of built." />
+    <meta property="og:title" content="Generative agents, explained — memseek" />
+    <meta property="og:description" content="Generative agents explained in plain language: three fictional AI characters observe, remember, reflect, and update their beliefs in a small town simulation." />
     <meta property="og:url" content="https://memseek.pages.dev/showcase/generative-agents/" />
     <meta property="og:image" content="https://memseek.pages.dev/og-default.png" />
     <meta name="twitter:card" content="summary_large_image" />
@@ -49,10 +49,10 @@
       <div class="wrap nav-inner">
         <a class="brand" href="/">memseek<span class="caret">▌</span></a>
         <nav class="nav-right">
-          <a class="navlink" href="#map">The mapping</a>
-          <a class="navlink" href="#score">Retrieval score</a>
-          <a class="navlink" href="#days">Three days</a>
-          <a class="navlink" href="#boundary">The boundary</a>
+          <a class="navlink" href="#model">Start here</a>
+          <a class="navlink" href="#score">How memory works</a>
+          <a class="navlink" href="#days">The story</a>
+          <a class="navlink" href="#boundary">What is modeled</a>
           <a class="navlink" href="#use">From your app</a>
           <a class="navlink" href="/showcase/">All showcases</a>
           <a class="nav-gh" href="https://github.com/memseekai/memseek" aria-label="Memseek on GitHub"><svg aria-hidden="true"><use href="#gh-mark"/></svg><span class="lbl">GitHub</span></a>
@@ -70,32 +70,179 @@
       <section class="hero" id="top" style="--hue: var(--violet)">
         <div class="wrap hero-grid">
           <div>
-            <p class="eyebrow">worked example · generative agents</p>
-            <h1>Park et al.'s memory architecture, <span class="grad">declared.</span></h1>
-            <p class="lede">The 2023 paper's agents remember, score what mattered, retrieve by relevance-importance-recency, reflect overnight, and summarise themselves. Every one of those is a primitive here — so the memory module is configuration, and only the simulation is code.</p>
+            <p class="eyebrow">worked case · generative agents</p>
+            <h1>What happens when AI characters can <span class="grad">remember?</span></h1>
+            <p class="lede">A <strong>generative agent</strong> is a fictional character controlled by software. It uses an AI language model to create dialogue and plans, but it also needs a memory: what it has seen, what mattered, and what it currently believes.</p>
+            <p class="simulation-note"><strong>What you are looking at.</strong> This is a three-character thought experiment about how information moves through separate memories. It is not a model of a real town, a complete human mind, or conscious behavior.</p>
             <div class="hero-cta">
-              <a class="btn btn-primary" href="#map">See the mapping <span aria-hidden="true">→</span></a>
-              <a class="btn btn-ghost" href="#days">Three simulated days</a>
+              <a class="btn btn-primary" href="#model">Understand the model <span aria-hidden="true">→</span></a>
+              <a class="btn btn-ghost" href="#days">Follow the story</a>
             </div>
-            <p class="cta-note" style="margin-top:1.1rem">3 game days · gossip that leaves a traversable graph</p>
+            <p class="cta-note" style="margin-top:1.1rem">3 characters · 3 simulated days · 1 changing fact</p>
           </div>
 
           <div class="panel rv">
             <div class="panel-head">
-              <span class="t">retrieval score · rank expression</span>
-              <span class="badge" style="--bh: var(--violet)">declared</span>
+              <span class="t">one moment inside a character</span>
+              <span class="badge" style="--bh: var(--violet)">simplified</span>
             </div>
-            <div class="panel-body" style="padding:0">
-<pre class="code"><span class="c"># the paper's retrieval function, as a portable rank AST</span>
-<span class="k">score</span>:
-  <span class="k">sum</span>:
-    - <span class="k">normalize</span>: relevance      <span class="c"># embedding + lexical match</span>
-    - <span class="k">normalize</span>: importance     <span class="c"># the 1–10 llm score</span>
-    - <span class="k">decay</span>:                    <span class="c"># recency</span>
-        <span class="k">field</span>: occurred_at
-        <span class="k">half_life_s</span>: <span class="z">3600</span></pre>
+            <div class="panel-body">
+              <div class="descent">
+                <div class="dstep" style="--d:0; --dh: var(--cyan)"><span class="lvl">1 · sees</span><div><span class="rec">an event enters this character's world</span><p class="tx">Sam says, “I have decided to run for mayor.”</p></div></div>
+                <div class="dstep" style="--d:1; --dh: var(--violet)"><span class="lvl">2 · stores</span><div><span class="rec">the event becomes this character's memory</span><p class="tx">“Sam told me he plans to run for mayor.”</p></div></div>
+                <div class="dstep" style="--d:2; --dh: var(--amber)"><span class="lvl">3 · recalls</span><div><span class="rec">a later situation brings that memory back</span><p class="tx">The mayoral news matters when politics comes up.</p></div></div>
+                <div class="dstep" style="--d:3; --dh: var(--green)"><span class="lvl">4 · acts</span><div><span class="rec">the language model receives that memory</span><p class="tx">The character mentions Sam's campaign.</p></div></div>
+              </div>
             </div>
-            <div class="panel-foot">Relevance, importance, recency — the three terms from the paper, weighted in YAML instead of application code.</div>
+            <div class="panel-foot">Each character repeats this loop with a separate memory. No character automatically knows what another one knows.</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="case-study" id="model" aria-labelledby="case-title" style="--hue: var(--violet)">
+        <div class="wrap case-layout">
+          <aside class="case-brief rv">
+            <span class="case-number">case 06 · Smallville</span>
+            <h2 id="case-title">Isabella hears that Sam will run for mayor. What should she remember—and what should Klaus know?</h2>
+            <p>We are modeling information flow among three software characters. Each has a private event stream, bounded recall, cited reflections, a current profile, and plans authored by the simulation. We are not modeling human consciousness or claiming the characters have lives outside the programmed world.</p>
+            <dl class="case-contract">
+              <div><dt>world</dt><dd>Three agents, two simulated days, explicit encounters</dd></div>
+              <div><dt>question</dt><dd>Can beliefs differ until evidence actually reaches each agent?</dd></div>
+              <div><dt>success</dt><dd>Every belief traces to what that character saw</dd></div>
+            </dl>
+            <span class="case-status">runnable · <code>examples/generative_agents_toy.py</code></span>
+          </aside>
+
+          <div class="case-scroll">
+            <article class="case-chapter rv" style="--chapter-hue: var(--amber)">
+              <span class="case-marker">1</span>
+              <div class="case-body">
+                <span class="case-kicker">Isabella observes</span>
+                <h3>The event is written only to the character who experienced it.</h3>
+                <p>The simulation controls the clock and encounter. When Sam tells Isabella about the campaign, the application writes one observation under Isabella’s entity. Klaus receives no copy, so his memory cannot retrieve the news yet.</p>
+                <div class="case-event"><b>simulated encounter</b>Sam tells Isabella, “I have decided to run for mayor.”</div>
+                <div class="effect-flow" aria-label="Sam's message becomes memory for Isabella but not for Klaus">
+                  <div class="effect-stack">
+                    <div class="effect-card"><span class="effect-label">spoken message <small>Sam → Isabella</small></span><blockquote>“I have decided to run for mayor.”</blockquote></div>
+                    <div class="effect-card is-muted"><span class="effect-label">who was present</span><p>Isabella heard the statement. Klaus was not part of this encounter.</p></div>
+                  </div>
+                  <div class="effect-arrow"><span>simulation<br />writes by observer</span><i aria-hidden="true"></i></div>
+                  <div class="effect-stack">
+                    <div class="effect-card is-output"><span class="effect-label">Isabella · main/observation <small>+1 record</small></span><p>Sam told me he plans to run for mayor.</p><dl class="effect-fields"><dt>entity</dt><dd>Isabella</dd><dt>source</dt><dd>the encounter</dd><dt>processors</dt><dd>embedding + importance</dd></dl></div>
+                    <div class="effect-card is-zero"><span class="effect-label">Klaus · no write <small>0 records</small></span><p>He cannot recall or act on the campaign until the information reaches him through a later event.</p></div>
+                  </div>
+                </div>
+                <p class="effect-summary"><strong>Visible effect:</strong> the same simulated world now produces different knowledge states for two characters.</p>
+                <div class="yaml-explainer">
+                  <div class="yaml-file"><header><span>collections/core.yaml</span><span>the private stream</span></header><pre><code>- name: main
+  mode: mixed
+  schema:
+    required: [text]
+  required_processors:
+    - embedding_v1
+    - importance
+  search_profile: pg_default
+  answerable: true</code></pre></div>
+                  <div class="yaml-notes">
+                    <div class="yaml-note"><code>entity</code><p>The entity is supplied with the write, not hard-coded here. Isabella, Klaus, and Sam therefore use the same contract but keep separate records.</p></div>
+                    <div class="yaml-note"><code>importance</code><p>Score how consequential the memory is from 1–10; that score later competes with relevance and recency during recall.</p></div>
+                    <div class="yaml-note"><code>answerable</code><p>Allow cited synthesis over the stream, while still requiring entity scope at query time.</p></div>
+                  </div>
+                </div>
+                <div class="case-write"><span>writes now</span><p>One immutable <code>main/observation</code> record for Isabella, with time and importance. Klaus still has zero evidence of the campaign.</p></div>
+              </div>
+            </article>
+
+            <article class="case-chapter rv" style="--chapter-hue: var(--cyan)">
+              <span class="case-marker">2</span>
+              <div class="case-body">
+                <span class="case-kicker">a later moment recalls it</span>
+                <h3>Memory competes on relevance, importance, and recency before the model speaks.</h3>
+                <p>When Isabella later plans a gathering, the application queries only her entity. Semantic or text similarity finds related records, importance favors the campaign announcement over small talk, and time decay prevents ancient memories from dominating forever.</p>
+                <div class="yaml-explainer">
+                  <div class="yaml-file"><header><span>conf/rank_default.yaml</span><span>the recall equation</span></header><pre><code>variants:
+  hybrid:
+    - sum
+    - - [product, 1.0,
+         [normalize, [max,
+          [[similarity], [text_match]]]]]
+      - [product, 1.0,
+         [normalize, [score, importance]]]
+      - [product, 1.0,
+         [decay, [age_hours, last_accessed],
+          {midpoint: 24, exponent: 1}]]</code></pre></div>
+                  <div class="yaml-notes">
+                    <div class="yaml-note"><code>max(similarity, text_match)</code><p>Let either meaning or exact wording establish relevance; one weak method does not cancel the other.</p></div>
+                    <div class="yaml-note"><code>score.importance</code><p>Favor memories the processor judged consequential, even when several candidates are equally topical.</p></div>
+                    <div class="yaml-note"><code>decay</code><p>Reduce recency weight around a 24-hour midpoint. This changes selection, not the stored memory itself.</p></div>
+                  </div>
+                </div>
+                <div class="case-write"><span>writes next</span><p>No new belief is written by recall. The selected memory is included in Isabella’s bounded context with its source ID.</p></div>
+              </div>
+            </article>
+
+            <article class="case-chapter rv" style="--chapter-hue: var(--violet)">
+              <span class="case-marker">3</span>
+              <div class="case-body">
+                <span class="case-kicker">experience becomes insight</span>
+                <h3>Enough important memories can produce a reflection, but only with citations.</h3>
+                <p>At the end of the day, the reflection derivation fires after the accumulated importance crosses 150. It asks three high-level questions, searches Isabella’s memories and prior reflections, then emits insights that must cite the records the model actually saw.</p>
+                <div class="yaml-explainer">
+                  <div class="yaml-file"><header><span>derivations/reflection.yaml</span><span>the synthesis rule</span></header><pre><code>trigger:
+  accumulator: {metric: importance,
+                threshold: 150}
+sources:
+  recent_memories:
+    kind: changes
+    collections: [main]
+tasks:
+  - {id: qs, use: llm}
+  - {id: evidence_by_question, use: search}
+  - {id: result, use: llm}
+emit:
+  collection: reflections
+  type: reflection</code></pre></div>
+                  <div class="yaml-notes">
+                    <div class="yaml-note"><code>accumulator</code><p>Make reflection event-driven but not constant: trivial scenes alone do not justify a new abstraction.</p></div>
+                    <div class="yaml-note"><code>evidence_by_question</code><p>Retrieve beyond the latest batch so the insight may connect the campaign with earlier goals or relationships.</p></div>
+                    <div class="yaml-note"><code>citations</code><p>The output schema requires full visible UUIDs; an invented insight or invisible source fails validation.</p></div>
+                  </div>
+                </div>
+                <div class="case-write"><span>writes next</span><p>A <code>reflections</code> record for Isabella, citing her observations. Klaus still does not inherit it.</p></div>
+              </div>
+            </article>
+
+            <article class="case-chapter rv" style="--chapter-hue: var(--green)">
+              <span class="case-marker">4</span>
+              <div class="case-body">
+                <span class="case-kicker">only then does the model act</span>
+                <h3>The prompt assembles current profile, schedule, and selected memory—not the town’s whole history.</h3>
+                <p>The live artifact makes the handoff explicit. Isabella’s profile, upcoming calendar, and task-relevant memories become named blocks with independent token budgets. When she later tells Klaus, his new observation changes what he can know. When Sam withdraws, only agents who receive that correction can update.</p>
+                <div class="yaml-explainer">
+                  <div class="yaml-file"><header><span>artifacts/agent_prompt.yaml</span><span>the decision context</span></header><pre><code>blocks:
+  profile:
+    document: {collections: [profiles]}
+    max_tokens: 2000
+  calendar:
+    view: upcoming_calendar@1
+    max_tokens: 2500
+  memory:
+    view: agent_relevant_memory@1
+    max_tokens: 3500
+template: |
+  CURRENT PROFILE: {{profile}}
+  UPCOMING CALENDAR: {{calendar}}
+  RELEVANT MEMORY: {{memory}}</code></pre></div>
+                  <div class="yaml-notes">
+                    <div class="yaml-note"><code>blocks</code><p>Keep stable identity, authored plans, and recalled experience separate so each input can be inspected and budgeted.</p></div>
+                    <div class="yaml-note"><code>view</code><p>Run the declared retrieval at render time for this character and this task; do not pre-bake global town knowledge.</p></div>
+                    <div class="yaml-note"><code>template</code><p>Define the literal context boundary the dialogue model sees. The simulation, not the model, remains responsible for time and encounters.</p></div>
+                  </div>
+                </div>
+                <div class="case-write"><span>final state</span><p>Dialogue is generated from bounded, character-specific context. Observations, reflections, profile versions, plans, and prompt snapshots remain separately auditable.</p></div>
+                <a class="case-next" href="#map">Continue into the complete two-day simulation →</a>
+              </div>
+            </article>
           </div>
         </div>
       </section>
@@ -104,23 +251,23 @@
       <section class="region" id="map" style="--hue: var(--violet)">
         <div class="wrap">
           <div class="region-head rv">
-            <p class="eyebrow">01 · the mapping</p>
-            <h2>Nine paper concepts, nine catalog primitives.</h2>
-            <p class="lede">Nothing on this list was added for this example. Each row is a primitive that already exists because other memory products need it too.</p>
+            <p class="eyebrow">01 · from behavior to software</p>
+            <h2>What does a character need in order to remember?</h2>
+            <p class="lede">The left side describes the behavior in everyday language. The right side names the software part that makes it possible. These are the building blocks adapted from Park et al.'s 2023 Generative Agents paper.</p>
           </div>
 
           <div class="rv">
             <div class="maplist">
-              <div class="maphead" aria-hidden="true"><span>park et al. (uist '23)</span><span class="arrow">→</span><span>memseek</span></div>
-              <div class="maprow"><div class="from"><b>memory stream</b><small>an append-only log of what the agent saw and said</small></div><span class="arrow" aria-hidden="true">→</span><div class="to"><b>main records</b><small>immutable observation / chat events</small></div></div>
-              <div class="maprow"><div class="from"><b>importance (1–10)</b><small>&ldquo;how poignant was this?&rdquo;, asked of the model</small></div><span class="arrow" aria-hidden="true">→</span><div class="to"><b>importance score processor</b><small>shipped; mirrored into scores.importance</small></div></div>
-              <div class="maprow"><div class="from"><b>relevance</b><small>similarity to the current query</small></div><span class="arrow" aria-hidden="true">→</span><div class="to"><b>hybrid search</b><small>embedding similarity + lexical match</small></div></div>
-              <div class="maprow"><div class="from"><b>recency</b><small>exponential decay since last access</small></div><span class="arrow" aria-hidden="true">→</span><div class="to"><b>decay term</b><small>a node in the rank expression</small></div></div>
-              <div class="maprow"><div class="from"><b>retrieval score</b><small>the weighted sum of the three</small></div><span class="arrow" aria-hidden="true">→</span><div class="to"><b>rank AST</b><small>declared per search profile</small></div></div>
-              <div class="maprow"><div class="from"><b>reflection</b><small>periodic higher-level insight, with evidence</small></div><span class="arrow" aria-hidden="true">→</span><div class="to"><b>reflection derivation</b><small>accumulator at 150 summed importance, as in the paper</small></div></div>
-              <div class="maprow"><div class="from"><b>agent summary</b><small>the self-description injected into prompts</small></div><span class="arrow" aria-hidden="true">→</span><div class="to"><b>profile derivation</b><small>keyed: role, preferences, commitments, open_threads, timeline</small></div></div>
-              <div class="maprow"><div class="from"><b>plans &amp; calendar</b><small>the day the agent intends to have</small></div><span class="arrow" aria-hidden="true">→</span><div class="to"><b>plans / calendar_events</b><small>keyed records your simulator authors</small></div></div>
-              <div class="maprow"><div class="from"><b>prompt assembly</b><small>summary + schedule + retrieved memory</small></div><span class="arrow" aria-hidden="true">→</span><div class="to"><b>daily_agent_prompt artifact</b><small>token-budgeted blocks + an input manifest</small></div></div>
+              <div class="maphead" aria-hidden="true"><span>what the character needs</span><span class="arrow">→</span><span>how the example represents it</span></div>
+              <div class="maprow"><div class="from"><b>A private history</b><small>Remember what this character saw and said.</small></div><span class="arrow" aria-hidden="true">→</span><div class="to"><b>Memory stream</b><small>A time-ordered log of observations and conversations.</small></div></div>
+              <div class="maprow"><div class="from"><b>A sense of what mattered</b><small>Treat a major decision differently from small talk.</small></div><span class="arrow" aria-hidden="true">→</span><div class="to"><b>Importance score</b><small>The model rates each memory from 1 to 10.</small></div></div>
+              <div class="maprow"><div class="from"><b>A way to find related memories</b><small>Bring up the party when someone mentions tonight's plans.</small></div><span class="arrow" aria-hidden="true">→</span><div class="to"><b>Relevance search</b><small>Matches both meaning and words, not just exact phrases.</small></div></div>
+              <div class="maprow"><div class="from"><b>A preference for recent events</b><small>Yesterday usually matters more than last year.</small></div><span class="arrow" aria-hidden="true">→</span><div class="to"><b>Recency score</b><small>Older memories gradually receive less weight.</small></div></div>
+              <div class="maprow"><div class="from"><b>A limited focus</b><small>Choose a small set of memories before speaking.</small></div><span class="arrow" aria-hidden="true">→</span><div class="to"><b>Recall ranking</b><small>Combines relevance, importance, and recency.</small></div></div>
+              <div class="maprow"><div class="from"><b>A way to make sense of experience</b><small>Turn many events into a conclusion such as “Sam is campaigning.”</small></div><span class="arrow" aria-hidden="true">→</span><div class="to"><b>Reflection</b><small>A higher-level insight that cites the memories behind it.</small></div></div>
+              <div class="maprow"><div class="from"><b>A current picture of itself</b><small>Keep roles, commitments, and open questions up to date.</small></div><span class="arrow" aria-hidden="true">→</span><div class="to"><b>Agent profile</b><small>A summary that changes when new evidence arrives.</small></div></div>
+              <div class="maprow"><div class="from"><b>Intentions</b><small>Represent what the character plans to do next.</small></div><span class="arrow" aria-hidden="true">→</span><div class="to"><b>Plans and calendar</b><small>Scheduled activities authored by the simulation.</small></div></div>
+              <div class="maprow"><div class="from"><b>Context for the next decision</b><small>Give the language model only what it needs right now.</small></div><span class="arrow" aria-hidden="true">→</span><div class="to"><b>Prompt assembly</b><small>Combines profile, schedule, and selected memories.</small></div></div>
             </div>
           </div>
         </div>
@@ -130,33 +277,30 @@
       <section class="region" id="score" style="--hue: var(--cyan)">
         <div class="wrap">
           <div class="region-head rv">
-            <p class="eyebrow">02 · the retrieval score</p>
-            <h2>The weighting is data, so you can argue with it.</h2>
-            <p class="lede">In the paper the retrieval function is code. Here it is a rank expression attached to a search profile — which means you can change how much recency matters, or how much the importance score counts, without touching the simulator.</p>
+            <p class="eyebrow">02 · how recall works</p>
+            <h2>Why does one memory come to mind instead of another?</h2>
+            <p class="lede">A character may collect hundreds of memories, but the language model cannot—and should not—receive all of them every time. Before a character speaks or plans, the system selects a small set using three understandable signals.</p>
           </div>
 
           <div class="work rv">
             <div class="panel">
-              <div class="panel-head"><span class="t">views/agent_memory.yaml</span><span class="badge" style="--bh: var(--cyan)">multi-source RRF</span></div>
-<pre class="code"><span class="k">views</span>:
-  - <span class="k">name</span>: agent_relevant_memory
-    <span class="k">query</span>:
-      <span class="k">sources</span>:
-        - <span class="k">name</span>: observations
-          <span class="k">scope</span>: {<span class="k">collections</span>: [main]}
-        - <span class="k">name</span>: plans
-          <span class="k">scope</span>: {<span class="k">collections</span>: [plans]}
-        - <span class="k">name</span>: reflections
-          <span class="k">scope</span>: {<span class="k">collections</span>: [reflections]}
-      <span class="k">fuse</span>: {<span class="k">kind</span>: rrf, <span class="k">rank_constant</span>: <span class="z">60</span>}</pre>
+              <div class="panel-head"><span class="t">example · Isabella meets Klaus at the cafe</span><span class="badge" style="--bh: var(--cyan)">two memories compete</span></div>
+              <div class="panel-body">
+                <div class="descent">
+                  <div class="dstep" style="--d:0; --dh: var(--green)"><span class="lvl">comes to mind</span><div><span class="rec">relevant · important · recent</span><p class="tx">“The Valentine's party is tonight and Klaus is invited.”</p></div></div>
+                  <div class="dstep" style="--d:1; --dh: var(--muted)"><span class="lvl">stays back</span><div><span class="rec">less relevant · ordinary · older</span><p class="tx">“I bought bread last week.”</p></div></div>
+                  <div class="descent-foot">The first memory is placed in the character's prompt; the second is still stored, but not used for this moment.</div>
+                </div>
+              </div>
             </div>
             <div>
-              <div class="surface-head"><span>what this buys the simulation</span><span>3 things</span></div>
-              <div class="trow"><span class="n">one query, three streams</span><span class="kd">rrf</span><span class="bind">→ observations · plans · reflections</span><p>An agent about to act retrieves from what it saw, what it intended, and what it concluded — fused by reciprocal rank rather than a hand-tuned blend.</p></div>
-              <div class="trow"><span class="n">tunable without code</span><span class="kd">rank AST</span><span class="bind">→ per search profile</span><p>Half-life, term weights, and boosts are catalog values. Re-publishing the package re-tunes the whole population.</p></div>
-              <div class="trow"><span class="n">the same view feeds the prompt</span><span class="kd">artifact block</span><span class="bind">→ daily_agent_prompt</span><p>Retrieval and prompt assembly share one definition, so what the agent recalls is what the agent is told.</p></div>
+              <div class="surface-head"><span>the three signals</span><span>plain language</span></div>
+              <div class="trow"><span class="n">relevance</span><span class="kd">is it related?</span><span class="bind">→ the situation now</span><p>A memory about the party matches a conversation about tonight's plans.</p></div>
+              <div class="trow"><span class="n">importance</span><span class="kd">did it matter?</span><span class="bind">→ rated 1–10</span><p>A campaign decision receives more weight than routine small talk.</p></div>
+              <div class="trow"><span class="n">recency</span><span class="kd">when was it?</span><span class="bind">→ newer ranks higher</span><p>Recent memories receive more weight, while older ones fade gradually.</p></div>
             </div>
           </div>
+          <p class="disclosure rv">This is a useful engineering approximation, not a claim that human memory can be reduced to three numbers. In Memseek, the weights are visible configuration, so a developer can inspect and change what the software favors.</p>
         </div>
       </section>
 
@@ -165,32 +309,33 @@
         <div class="wrap">
           <div class="region-head rv">
             <p class="eyebrow">03 · three simulated days</p>
-            <h2>Gossip that leaves a traversable graph.</h2>
-            <p class="lede">When an agent relays something it heard, the relayed memory stores a <code>derived_from</code> edge back to the fact it came from. Diffusion therefore stops being &ldquo;similar text in two places&rdquo; and becomes a graph you can walk — which is how the paper's interview measurement becomes a query instead of an eyeball.</p>
+            <h2>Watch one belief move through three separate minds.</h2>
+            <p class="lede">Isabella runs a cafe, Klaus is a student, and Sam is involved in local politics. At first, each knows different things. Their beliefs become shared only through the conversations the simulation schedules.</p>
           </div>
 
           <div class="work flip rv">
             <div>
               <ul class="flow" style="--hue: var(--amber)">
-                <li><span class="n">d1</span><div><b>wake, meet, gossip</b><span>Agents start with seed memories, plans, and calendars, then trade what they know. Each relay writes a provenance edge, not a copy.</span></div></li>
-                <li><span class="n">↓</span><div><b>overnight: reflect</b><span>The accumulator has crossed 150 summed importance, so each agent's day becomes cited insight — and every insight opens onto the scored memories under it.</span></div></li>
-                <li><span class="n">d2</span><div><b>re-plan, meet again</b><span>Plans are revised from those reflections. The party happens, or it doesn't.</span></div></li>
-                <li><span class="n">m</span><div><b>measure</b><span>A paper-style interview measures how far one fact actually diffused, dawn → day 2 — answered from the graph.</span></div></li>
-                <li><span class="n">d3</span><div><b>distil &amp; open the glass box</b><span>The profile derivation turns each stream into a cited agent summary, and one belief is opened to its roots: the run that wrote it, the resolved model, and the events it fused.</span></div></li>
+                <li><span class="n">d1</span><div><b>two facts begin in two minds</b><span>Isabella knows about her party. Sam knows he plans to run for mayor. As the three characters meet, they pass those facts to one another.</span></div></li>
+                <li><span class="n">↓</span><div><b>each character reflects alone</b><span>Overnight, each one reviews only its own memories and forms higher-level conclusions. A conclusion keeps links to the observations that support it.</span></div></li>
+                <li><span class="n">d2</span><div><b>memory shapes the next day</b><span>The characters make new plans, meet again, and attend Isabella's party. By the end of the day, all three believe Sam is running.</span></div></li>
+                <li><span class="n">d3</span><div><b>reality changes for one person</b><span>Sam withdraws from the race. At that moment only Sam's memory changes; Klaus and Isabella still reasonably believe yesterday's news.</span></div></li>
+                <li><span class="n">→</span><div><b>the correction travels</b><span>Sam tells Klaus and Isabella. Their memories and profiles update only after each conversation, creating a record of who knew what at each moment.</span></div></li>
               </ul>
             </div>
             <div class="panel">
-              <div class="panel-head"><span class="t">one relayed memory</span><span class="badge" style="--bh: var(--amber)">provenance, not duplication</span></div>
+              <div class="panel-head"><span class="t">day 3 morning · the same fact, three views</span><span class="badge" style="--bh: var(--amber)">before Sam tells them</span></div>
               <div class="panel-body">
                 <div class="descent">
-                  <div class="dstep" style="--d:0; --dh: var(--amber)"><span class="lvl">relay</span><div><span class="rec">main / chat · isabella → tom</span><p class="tx">"Maria's throwing something at Hobbs on Tuesday — you should come."</p></div></div>
-                  <div class="dstep" style="--d:1; --dh: var(--violet)"><span class="lvl">↳ heard from</span><div><span class="rec">main / chat · maria → isabella</span><p class="tx">"I'm planning a party at Hobbs Cafe on Tuesday."</p></div></div>
-                  <div class="dstep" style="--d:2; --dh: var(--green)"><span class="lvl">↳ origin</span><div><span class="rec">plans / plan · maria · depth 0</span><p class="tx">"Throw a Valentine's party at Hobbs Cafe."</p></div></div>
-                  <div class="descent-foot">3 hops · the interview answer is a traversal, not a guess</div>
+                  <div class="dstep" style="--d:0; --dh: var(--green)"><span class="lvl">Sam · updated</span><div><span class="rec">observed the change directly</span><p class="tx">“I have withdrawn from the mayoral race.”</p></div></div>
+                  <div class="dstep" style="--d:1; --dh: var(--amber)"><span class="lvl">Klaus · old</span><div><span class="rec">has not heard the correction</span><p class="tx">“Sam is running for mayor.”</p></div></div>
+                  <div class="dstep" style="--d:2; --dh: var(--amber)"><span class="lvl">Isabella · old</span><div><span class="rec">has not heard the correction</span><p class="tx">“Sam is running for mayor.”</p></div></div>
+                  <div class="descent-foot">This disagreement is expected. Separate memories mean there is no invisible global update.</div>
                 </div>
               </div>
             </div>
           </div>
+          <p class="disclosure rv">Because each saved statement names the earlier memory it came from, the system can later trace a belief back through the conversations that carried it. That is what “cited memory” and “provenance” mean on this page: the software keeps the receipts.</p>
         </div>
       </section>
 
@@ -198,31 +343,34 @@
       <section class="region" id="boundary" style="--hue: var(--green)">
         <div class="wrap">
           <div class="region-head rv">
-            <p class="eyebrow">04 · the boundary</p>
-            <h2>Memseek is not the simulator.</h2>
-            <p class="lede">This distinction is the reason the example is honest: the interesting generative behaviour stays application code, and it calls its own model. Memseek stores what happened and decides what to recall.</p>
+            <p class="eyebrow">04 · what is—and is not—modeled</p>
+            <h2>This is a memory-system demonstration, not a model of humanity.</h2>
+            <p class="lede">The example isolates one engineering problem: how an AI application can give several characters durable, separate, inspectable memories. It does not claim that the resulting behavior is equivalent to human thought.</p>
           </div>
 
           <div class="split rv">
             <div class="col" style="--ch: var(--amber)">
-              <h3>The simulation owns</h3>
+              <h3>What the example does model</h3>
               <ul>
-                <li>Simulated <b>time</b>, and who is in the same place</li>
-                <li>Who <b>meets</b> whom, and what they say</li>
-                <li>Its own <b>LLM calls</b> for in-character dialogue and planning</li>
-                <li>Deciding to <b>act</b> — memseek never moves an agent</li>
+                <li>What each character <b>observes</b> in the events it experiences</li>
+                <li>Which memories are <b>selected</b> before it speaks or plans</li>
+                <li>How observations become cited <b>reflections and beliefs</b></li>
+                <li>How a fact or correction <b>spreads through conversation</b></li>
+                <li>What each character <b>believed at a particular time</b></li>
               </ul>
             </div>
             <div class="col" style="--ch: var(--green)">
-              <h3>Memseek owns</h3>
+              <h3>What the example does not model</h3>
               <ul>
-                <li>The immutable <b>memory stream</b> and its provenance edges</li>
-                <li><b>Importance</b> scoring on write, and the fused <b>retrieval score</b></li>
-                <li><b>Reflection</b> and <b>profile</b> derivations, with citations required</li>
-                <li>Deterministic <b>prompt assembly</b> with a hashed input manifest</li>
+                <li>A scientifically complete account of <b>human memory or personality</b></li>
+                <li>A realistic society, economy, body, or <b>physical environment</b></li>
+                <li>Consciousness, feelings, or genuinely <b>independent desires</b></li>
+                <li>A guarantee that the language model's words or conclusions are <b>true</b></li>
+                <li>Events beyond the people, times, and encounters the <b>simulation defines</b></li>
               </ul>
             </div>
           </div>
+          <p class="simulation-note rv"><strong>Who does what in the software.</strong> The simulation controls time, encounters, events, and actions. The language model generates text. Memseek stores each character's evidence, chooses memories to recall, builds cited reflections and profiles, and prepares the context sent to the model.</p>
         </div>
       </section>
 
@@ -231,25 +379,25 @@
         <div class="wrap">
           <div class="region-head rv">
             <p class="eyebrow">05 · from your app</p>
-            <h2>The simulator's whole memory interface.</h2>
-            <p class="lede">Observations in, ranked recall and an assembled prompt out. The example borrows memseek's configured provider seam for its own in-character generation, so the model aliases stay in one place.</p>
+            <h2>How the software produces one turn.</h2>
+            <p class="lede">For technical readers, the loop below is the entire handoff. The simulation records what happened, asks for the memories relevant now, assembles a compact briefing, and gives that briefing to its language model.</p>
           </div>
 
           <div class="work one rv">
             <div class="panel">
               <div class="panel-head"><span class="t">simulation.py</span><span class="badge" style="--bh: var(--orange)">public SDK</span></div>
-<pre class="code"><span class="c"># 1 · the agent saw something. importance is scored on write.</span>
+<pre class="code"><span class="c"># 1 · Klaus relays a memory. His statement points to his own source.</span>
 <span class="k">await</span> memseek.records.<span class="z">ingest</span>(
-    collection=<span class="s">"main"</span>, type=<span class="s">"observation"</span>, entity=<span class="s">"agent:isabella"</span>,
-    text=<span class="s">"Maria said she is planning a party at Hobbs Cafe on Tuesday."</span>,
-    content={<span class="s">"heard_from"</span>: <span class="s">"agent:maria"</span>},
-    derived_from=[origin_record_id],   <span class="c"># ← makes diffusion traversable</span>
+    collection=<span class="s">"main"</span>, type=<span class="s">"chat"</span>, entity=<span class="s">"agent:klaus"</span>,
+    text=<span class="s">"Klaus told Sam that Isabella is planning a party at Hobbs Cafe."</span>,
+    content={<span class="s">"heard_from"</span>: <span class="s">"agent:isabella"</span>},
+    derived_from=[klaus_source_record_id],   <span class="c"># ← the memory Klaus recalled</span>
 )
 
 <span class="c"># 2 · about to act: recall across observations, plans, reflections</span>
 recall = <span class="k">await</span> memseek.<span class="z">search</span>(
     query=<span class="s">"what should I do this afternoon?"</span>,
-    entity=<span class="s">"agent:isabella"</span>, mode=<span class="s">"hybrid"</span>, k=<span class="z">12</span>,
+    entity=<span class="s">"agent:klaus"</span>, mode=<span class="s">"hybrid"</span>, k=<span class="z">12</span>,
     include=[<span class="s">"text"</span>, <span class="s">"scores"</span>, <span class="s">"occurred_at"</span>],
 )
 <span class="k">for</span> hit <span class="k">in</span> recall[<span class="s">"hits"</span>]:
@@ -257,17 +405,17 @@ recall = <span class="k">await</span> memseek.<span class="z">search</span>(
 
 <span class="c"># 3 · assemble the prompt: summary + schedule + relevant memory</span>
 prompt = <span class="k">await</span> memseek.<span class="z">render_artifact</span>(
-    <span class="s">"daily_agent_prompt"</span>, entity=<span class="s">"agent:isabella"</span>,
+    <span class="s">"daily_agent_prompt"</span>, entity=<span class="s">"agent:klaus"</span>,
 )
 prompt[<span class="s">"rendered"</span>]                        <span class="c"># hand this to your model</span>
 prompt[<span class="s">"manifest"</span>][<span class="s">"input_record_ids"</span>]   <span class="c"># exactly what it knew</span>
 
 <span class="c"># 4 · your simulator's own call — memseek is not in this loop</span>
-line = <span class="k">await</span> your_model.<span class="z">say</span>(prompt[<span class="s">"rendered"</span>], in_character=<span class="s">"isabella"</span>)</pre>
+line = <span class="k">await</span> your_model.<span class="z">say</span>(prompt[<span class="s">"rendered"</span>], in_character=<span class="s">"klaus"</span>)</pre>
             </div>
           </div>
 
-          <p class="disclosure rv">The mapping, the three-day arc, and the ownership boundary are <code>examples/generative_agents_toy.py</code> and the shipped catalog it runs on. Dialogue and insight text come from a real provider at run time, so what you see here is representative wording rather than a captured transcript. Park et al., <em>Generative Agents</em>, UIST '23.</p>
+          <p class="disclosure rv">The runnable example is <code>examples/generative_agents_toy.py</code> plus the shipped Memseek catalog. Dialogue and reflections are generated by a real model at run time, so the wording on this page is explanatory rather than a captured transcript. The architecture is adapted from Park et al., <em>Generative Agents: Interactive Simulacra of Human Behavior</em>, UIST '23.</p>
         </div>
       </section>
 
@@ -276,8 +424,8 @@ line = <span class="k">await</span> your_model.<span class="z">say</span>(prompt
         <div class="wrap close-grid">
           <div class="rv">
             <p class="eyebrow">start building</p>
-            <h2>Run three simulated days.</h2>
-            <p>The script drives the simulation, the gossip, the overnight reflections, and the paper-style interview — then opens one belief all the way down to the observation that produced it.</p>
+            <h2>Run the three-character experiment.</h2>
+            <p>The script drives the clock, conversations, overnight reflections, and day-three correction. It then shows who knew each fact and traces one belief back to the observations that produced it.</p>
             <div class="hero-cta">
               <a class="btn btn-primary" href="/#waitlist">Join the waitlist <span aria-hidden="true">→</span></a>
               <a class="btn btn-ghost" href="/#quickstart">See the quickstart</a>
@@ -297,7 +445,7 @@ line = <span class="k">await</span> your_model.<span class="z">say</span>(prompt
               <div><span class="p">$</span> <span class="hl">uv run memseek worker &amp;</span></div>
               <div class="c"># then the simulation</div>
               <div><span class="p">$</span> <span class="hl">uv run python examples/generative_agents_toy.py</span></div>
-              <div class="o" style="margin-top:.5rem">day 2 · interview: <span class="hl">4 of 5 agents know about the party</span></div>
+              <div class="o" style="margin-top:.5rem">day 2 · interview: <span class="hl">3 of 3 agents know about the party</span></div>
             </div>
           </div>
         </div>
@@ -307,7 +455,7 @@ line = <span class="k">await</span> your_model.<span class="z">say</span>(prompt
         <div class="wrap">
           <div class="region-head rv" style="margin-bottom:1.4rem">
             <p class="eyebrow">keep going</p>
-            <h2>The other walkthroughs.</h2>
+            <h2>The other cases.</h2>
           </div>
           <div class="rv">
         <div class="siblings">

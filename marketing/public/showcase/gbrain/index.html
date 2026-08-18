@@ -27,7 +27,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta
       name="description"
-      content="Watch an entire knowledge product assemble itself from an empty workspace — declared as one memseek catalog, with every fact traceable to the record it came from."
+      content="An example walkthrough where five Markdown pages become a graph, fact index, memory, and cited answers through one Memseek catalog."
     />
     <title>An entire brain, declared — memseek</title>
     <link rel="canonical" href="https://memseek.pages.dev/showcase/gbrain/" />
@@ -36,7 +36,7 @@
     <meta property="og:title" content="An entire brain, declared — memseek" />
     <meta
       property="og:description"
-      content="Watch an entire knowledge product assemble itself from an empty workspace — declared as one memseek catalog, with every fact traceable to the record it came from."
+      content="An example walkthrough where five Markdown pages become a graph, fact index, memory, and cited answers through one Memseek catalog."
     />
     <meta property="og:url" content="https://memseek.pages.dev/showcase/gbrain/" />
     <meta property="og:image" content="https://memseek.pages.dev/og-default.png" />
@@ -379,7 +379,7 @@
     <div class="readout-dock">
       <div class="readout-scroll">
         <div class="wrap">
-          <div class="readout" id="readout" role="group" aria-label="Live workspace contents">
+          <div class="readout" id="readout" role="group" aria-label="Simulated workspace contents during the walkthrough">
             <div class="readout-title">
               <b>workspace</b>
               <span>gbrain@0.13.0</span>
@@ -402,13 +402,14 @@
         <div class="wrap hero-grid">
           <div>
             <p class="eyebrow">worked example · gbrain</p>
-            <h1>An entire brain, <span class="grad">declared.</span> <span class="dim">Not built.</span></h1>
+            <h1>Five pages become a <span class="grad">searchable brain.</span></h1>
             <p class="sell">
-              The workspace above is real, and right now it is <strong>empty</strong>. Scroll, and a
-              knowledge product assembles itself in it: a cited graph, a fact index, durable memory,
-              and answers that show their evidence. <strong>None of it is a service someone
-              wrote</strong> — it is one catalog of YAML.
+              The case starts with an <strong>empty, disposable workspace</strong>. Scroll,
+              and a knowledge product assembles itself in it: a cited graph, a fact index, durable memory,
+              and answers that show their evidence. The application writes ordinary pages; one
+              versioned catalog describes how everything else is produced.
             </p>
+            <p class="simulation-note"><strong>Simulation · example walkthrough.</strong> The guided scenario seeds a disposable workspace with example pages, people, and facts. The script is runnable, but the story and output shown here are illustrative rather than a customer deployment.</p>
             <div class="hero-cta">
               <a class="btn btn-primary" href="#start">Start building <span aria-hidden="true">→</span></a>
               <a class="btn btn-ghost" href="#write">Watch it fill</a>
@@ -431,6 +432,155 @@
                 <span style="color:var(--muted)">the workspace is empty. nothing has been written yet.</span>
               </div>
             </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="case-study" aria-labelledby="case-title" style="--hue: var(--orange)">
+        <div class="wrap case-layout">
+          <aside class="case-brief rv">
+            <span class="case-number">case 07 · a five-page brain</span>
+            <h2 id="case-title">Can plain Markdown become a queryable knowledge graph without asking authors to maintain a graph?</h2>
+            <p>We are modeling a small gbrain-shaped memory: people and company pages are the source of truth; explicit links and a <code>Facts</code> section become derived structure; conversations can add learned patterns; answers remain grounded in the page records.</p>
+            <dl class="case-contract">
+              <div><dt>authored</dt><dd>Five Markdown pages</dd></div>
+              <div><dt>derived</dt><dd>Edges, fact index, concepts, patterns, takes</dd></div>
+              <div><dt>proof</dt><dd>Every structure points back to its page or transcript</dd></div>
+            </dl>
+            <span class="case-status">runnable · <code>examples/gbrain_showcase.py</code></span>
+          </aside>
+
+          <div class="case-scroll">
+            <article class="case-chapter rv" style="--chapter-hue: var(--orange)">
+              <span class="case-marker">1</span>
+              <div class="case-body">
+                <span class="case-kicker">Maya’s page is written</span>
+                <h3>A page is current by key, but its earlier versions remain addressable.</h3>
+                <p>The application writes ordinary Markdown plus a title and type under the key <code>people/maya</code>. The collection contract chooses keyed history because a knowledge page has one current version, unlike an append-only conversation stream.</p>
+                <div class="case-event"><b>authored page</b><code>people/maya</code> links to Acme and declares two short facts under a <code>Facts</code> heading.</div>
+                <div class="yaml-explainer">
+                  <div class="yaml-file"><header><span>collections/pages.yaml</span><span>the source contract</span></header><pre><code>- name: pages
+  mode: keyed
+  schema:
+    required: [text, title, body, type]
+  fields:
+    title: {filter: true, project: true}
+    type: {filter: true, project: true}
+  required_processors: [embedding_v1]
+  answerable: true</code></pre></div>
+                  <div class="yaml-notes">
+                    <div class="yaml-note"><code>mode: keyed</code><p><code>people/maya</code> has one live head. Updating it supersedes the prior record without destroying page history.</p></div>
+                    <div class="yaml-note"><code>schema.required</code><p>Guarantee enough structured metadata to filter pages while retaining the exact authored Markdown in <code>text</code> and <code>body</code>.</p></div>
+                    <div class="yaml-note"><code>embedding_v1</code><p>Make the page semantically searchable after the required processor finishes.</p></div>
+                  </div>
+                </div>
+                <div class="case-write"><span>writes now</span><p>One active <code>pages</code> record for Maya. No edge or fact has been asserted by the application.</p></div>
+              </div>
+            </article>
+
+            <article class="case-chapter rv" style="--chapter-hue: var(--cyan)">
+              <span class="case-marker">2</span>
+              <div class="case-body">
+                <span class="case-kicker">explicit structure is extracted</span>
+                <h3>Links become edges deterministically—without a language model.</h3>
+                <p>A page write triggers <code>link_extraction</code>. It reads changed pages plus the current page keys, recognizes explicit Markdown links and known-page references, and emits structural edges. Because this is parsing, the YAML forbids model calls.</p>
+                <div class="effect-flow" aria-label="Maya's Markdown page produces graph edges and declared facts">
+                  <div class="effect-stack">
+                    <div class="effect-card"><span class="effect-label">pages · people/maya <small>authored Markdown</small></span><p>Maya founded <code>[Acme](companies/acme)</code> after investing in <code>companies/orbit</code>.</p><p><strong>Facts</strong><br />− Maya founded Acme.<br />− Maya invested in Orbit.</p></div>
+                  </div>
+                  <div class="effect-arrow"><span>page write<br />2 deterministic derivations</span><i aria-hidden="true"></i></div>
+                  <div class="effect-stack">
+                    <div class="effect-card is-output"><span class="effect-label">edges · edge</span><p><code>people/maya → companies/acme</code></p><dl class="effect-fields"><dt>basis</dt><dd>explicit Markdown link</dd><dt>model calls</dt><dd>0</dd></dl></div>
+                    <div class="effect-card is-output"><span class="effect-label">edges · edge</span><p><code>people/maya → companies/orbit</code></p><dl class="effect-fields"><dt>basis</dt><dd>known bare page reference</dd><dt>model calls</dt><dd>0</dd></dl></div>
+                    <div class="effect-card is-output"><span class="effect-label">facts · page_facts</span><p>Maya founded Acme.<br />Maya invested in Orbit.</p><dl class="effect-fields"><dt>basis</dt><dd>lines under the Facts heading</dd><dt>citations</dt><dd>people/maya record</dd></dl></div>
+                  </div>
+                </div>
+                <p class="effect-summary"><strong>Visible effect:</strong> one authored page remains the source of truth while three derived structures become separately queryable.</p>
+                <div class="yaml-explainer">
+                  <div class="yaml-file"><header><span>derivations/link_extraction.yaml</span><span>page → edge</span></header><pre><code>trigger:
+  write: {collections: [pages], keyed: true}
+sources:
+  changed_pages: {kind: changes}
+  current_pages: {kind: current}
+model: null
+limits:
+  max_tasks: 1
+  max_llm_calls: 0
+tasks:
+  - id: edges
+    use: extract_relations
+emit:
+  collection: edges
+  type: edge</code></pre></div>
+                  <div class="yaml-notes">
+                    <div class="yaml-note"><code>changed_pages</code><p>Parse only page versions that moved, so an unchanged corpus is not repeatedly reprocessed.</p></div>
+                    <div class="yaml-note"><code>current_pages</code><p>Resolve a bare reference against the complete current key set and avoid creating edges to nonexistent pages.</p></div>
+                    <div class="yaml-note"><code>model: null</code><p>State that this operation is deterministic. <code>max_llm_calls: 0</code> enforces the claim at runtime.</p></div>
+                  </div>
+                </div>
+                <div class="case-write"><span>writes next</span><p>An <code>edges</code> record from <code>people/maya</code> to <code>companies/acme</code>, citing the page that contained the link.</p></div>
+              </div>
+            </article>
+
+            <article class="case-chapter rv" style="--chapter-hue: var(--violet)">
+              <span class="case-marker">3</span>
+              <div class="case-body">
+                <span class="case-kicker">declared facts become an index</span>
+                <h3>The complete fact set is rewritten as one derived value for each page.</h3>
+                <p>A second deterministic derivation reads the current pages, extracts only short lines under the <code>Facts</code> heading, and emits one complete keyed fact index. If Maya edits or removes a fact, the derived head changes with the page.</p>
+                <div class="yaml-explainer">
+                  <div class="yaml-file"><header><span>derivations/fact_extraction.yaml</span><span>page → fact index</span></header><pre><code>tasks:
+  - id: fact_index
+    use: extract_facts
+    input:
+      records: "{{current_pages.records}}"
+      changed_records: "{{changed_pages.records}}"
+    with:
+      heading: Facts
+      max_facts: 100
+      max_fact_chars: 80
+emit:
+  collection: facts
+  type: page_facts
+  keys: [page_facts]
+  complete: true</code></pre></div>
+                  <div class="yaml-notes">
+                    <div class="yaml-note"><code>heading: Facts</code><p>Make authorship explicit. Prose elsewhere on the page does not silently become a declared fact.</p></div>
+                    <div class="yaml-note"><code>max_*</code><p>Bound the derived index in both count and fact length before anything is written.</p></div>
+                    <div class="yaml-note"><code>complete: true</code><p>Treat each output as the whole current fact index, so removed facts disappear from the head while remaining in history.</p></div>
+                  </div>
+                </div>
+                <div class="case-write"><span>writes next</span><p>One current <code>facts/page_facts</code> record containing the declared facts from all five current pages, with page citations.</p></div>
+              </div>
+            </article>
+
+            <article class="case-chapter rv" style="--chapter-hue: var(--green)">
+              <span class="case-marker">4</span>
+              <div class="case-body">
+                <span class="case-kicker">the structure becomes context</span>
+                <h3>An agent can traverse the graph or receive a bounded dossier without a new endpoint.</h3>
+                <p>The graph view declares its seed, direction, predicates, depth, and path ceiling. The prompt artifact separately assembles current pages, concepts, and consolidated takes. Both are reads over the same cited records.</p>
+                <div class="yaml-explainer">
+                  <div class="yaml-file"><header><span>views/graph_query.yaml</span><span>bounded traversal</span></header><pre><code>name: graph_query
+kind: graph
+graph: {edges: edges}
+parameters:
+  seed: {type: string, required: true}
+  direction: {enum: [out, in, both]}
+  depth: {type: integer, minimum: 1,
+          maximum: 4}
+  limit: {type: integer, minimum: 1,
+          maximum: 100}</code></pre></div>
+                  <div class="yaml-notes">
+                    <div class="yaml-note"><code>graph.edges</code><p>Name the derived edge collection the traversal is allowed to follow.</p></div>
+                    <div class="yaml-note"><code>predicates / direction</code><p>Let a caller ask a precise relationship question without granting arbitrary graph code execution.</p></div>
+                    <div class="yaml-note"><code>depth / limit</code><p>Publish deployment ceilings in the generated input schema so the client cannot request an unbounded walk.</p></div>
+                  </div>
+                </div>
+                <div class="case-write"><span>final state</span><p>Graph traversal and the final dossier write nothing. They return bounded, cited projections over pages, edges, concepts, and takes.</p></div>
+                <a class="case-next" href="#write">Continue through the full five-page build →</a>
+              </div>
+            </article>
           </div>
         </div>
       </section>
@@ -1029,7 +1179,7 @@ rec[<span class="s">"derived_from"</span>]  <span class="c"># its parents — wa
             <p class="eyebrow">start building</p>
             <h2>Run this exact brain in about a minute.</h2>
             <p>
-              The walkthrough seeds its own isolated workspace and entity, so it never collides
+              The runnable case seeds its own isolated workspace and entity, so it never collides
               with anything you already have. Then it hands you a prompt and gets out of the way.
             </p>
             <div class="hero-cta">

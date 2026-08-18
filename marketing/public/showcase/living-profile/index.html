@@ -3,13 +3,13 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="description" content="Watch a CRM profile derive and maintain itself from raw events — every slot cited, every belief traceable to the audited run that wrote it." />
+    <meta name="description" content="An example CRM walkthrough where four events become one current profile, with evidence behind every field." />
     <title>The living profile — memseek</title>
     <link rel="canonical" href="https://memseek.pages.dev/showcase/living-profile/" />
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="Memseek" />
     <meta property="og:title" content="The living profile — memseek" />
-    <meta property="og:description" content="Watch a CRM profile derive and maintain itself from raw events — every slot cited, every belief traceable to the audited run that wrote it." />
+    <meta property="og:description" content="An example CRM walkthrough where four events become one current profile, with evidence behind every field." />
     <meta property="og:url" content="https://memseek.pages.dev/showcase/living-profile/" />
     <meta property="og:image" content="https://memseek.pages.dev/og-default.png" />
     <meta name="twitter:card" content="summary_large_image" />
@@ -72,7 +72,8 @@
           <div>
             <p class="eyebrow">worked example · crm</p>
             <h1>A profile that <span class="grad">maintains itself.</span></h1>
-            <p class="lede">Raw CRM events land in an append-only collection. Nobody writes a summary, schedules a job, or updates a field — and yet the document on the right stays current, and every line in it can be opened down to the event it came from.</p>
+            <p class="lede">Avery takes ownership of a migration, asks for written updates, and gets a new role. Those ordinary CRM events become the current profile on the right—while a low-value email open stays out. Every line can be traced back to the event that supports it.</p>
+            <p class="simulation-note"><strong>Simulation · example walkthrough.</strong> Avery Chen, the CRM events, and the derived profile are fictional examples that show the workflow step by step. No live CRM or customer record is being changed.</p>
             <div class="hero-cta">
               <a class="btn btn-primary" href="#arrive">Watch it derive <span aria-hidden="true">→</span></a>
               <a class="btn btn-ghost" href="#derive">See the YAML</a>
@@ -95,6 +96,130 @@
               </div>
             </div>
             <div class="panel-foot">Nothing in this document was typed by a person. Every line names the CRM events it was fused from, and the run that wrote it.</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="case-study" aria-labelledby="case-title" style="--hue: var(--amber)">
+        <div class="wrap case-layout">
+          <aside class="case-brief rv">
+            <span class="case-number">case 01 · Avery Chen</span>
+            <h2 id="case-title">Can a CRM remember what matters without turning every event into a profile claim?</h2>
+            <p>We are modeling a maintained business profile: durable facts a representative can act on now, rebuilt from an immutable event history. We are not trying to summarize every click or infer a person’s private traits.</p>
+            <dl class="case-contract">
+              <div><dt>input</dt><dd>Four fictional CRM events</dd></div>
+              <div><dt>target</dt><dd>Five named profile slots</dd></div>
+              <div><dt>success</dt><dd>Useful facts survive; noise does not; every line cites evidence</dd></div>
+            </dl>
+            <span class="case-status">runnable · <code>examples/sdk_crm_profile.py</code></span>
+          </aside>
+
+          <div class="case-scroll">
+            <article class="case-chapter rv" style="--chapter-hue: var(--amber)">
+              <span class="case-marker">1</span>
+              <div class="case-body">
+                <span class="case-kicker">the evidence arrives</span>
+                <h3>A commitment is history first—not a profile edit.</h3>
+                <p>The application reports that Avery owns the Atlas migration and committed to August. It appends exactly what happened; it does not decide which profile field should change.</p>
+                <div class="case-event"><b>observed event</b>Salesforce · commitment · “Avery now owns the Atlas migration and committed to an August launch.”</div>
+                <div class="yaml-explainer">
+                  <div class="yaml-file"><header><span>collections/crm.yaml</span><span>the evidence contract</span></header><pre><code>name: crm_events
+mode: event
+schema:
+  required: [text, source, event_kind]
+required_processors:
+  - crm_embedding
+  - importance</code></pre></div>
+                  <div class="yaml-notes">
+                    <div class="yaml-note"><code>mode: event</code><p>Append a new fact to history. Never overwrite the event that later conclusions must prove themselves against.</p></div>
+                    <div class="yaml-note"><code>required</code><p>Force every write to say what happened, where it came from, and what kind of event it is.</p></div>
+                    <div class="yaml-note"><code>importance</code><p>Score salience after the write so low-value interactions can remain searchable without becoming durable profile knowledge.</p></div>
+                  </div>
+                </div>
+                <div class="case-write"><span>writes now</span><p>One immutable <code>crm_events</code> record. The current profile is still untouched.</p></div>
+              </div>
+            </article>
+
+            <article class="case-chapter rv" style="--chapter-hue: var(--cyan)">
+              <span class="case-marker">2</span>
+              <div class="case-body">
+                <span class="case-kicker">the contract decides</span>
+                <h3>The derivation sees new evidence and the profile that already exists.</h3>
+                <p>The YAML makes the maintenance rule explicit: consider only new CRM events, read the five current slots, and emit no more than those same five keys. The prompt explains the semantic boundary between a commitment, a preference, a role, an open thread, and a goal.</p>
+                <div class="yaml-explainer">
+                  <div class="yaml-file"><header><span>derivations/crm_profile.yaml</span><span>the update rule</span></header><pre><code>trigger:
+  accumulator:
+    metric: importance
+    threshold: 1
+sources:
+  new_crm_events:
+    kind: changes
+    collections: [crm_events]
+  current_profile:
+    kind: current
+    collections: [user_profiles]
+emit:
+  collection: user_profiles
+  type: profile
+  keys: [role, commitments,
+         preferences, open_threads, goals]</code></pre></div>
+                  <div class="yaml-notes">
+                    <div class="yaml-note"><code>trigger.accumulator</code><p>Run when enough meaningful evidence accumulates. The example uses a deliberately low threshold so each seeded case step is visible.</p></div>
+                    <div class="yaml-note"><code>kind: changes</code><p>Give the model the new evidence that caused this run—not an unbounded CRM history.</p></div>
+                    <div class="yaml-note"><code>kind: current</code><p>Also show the present profile so list-like slots can preserve still-valid claims and replace only what new evidence supersedes.</p></div>
+                    <div class="yaml-note"><code>keys</code><p>These are the only legal outputs. The model cannot invent a “personality” or “hobbies” field.</p></div>
+                  </div>
+                </div>
+                <div class="case-write"><span>writes next</span><p>A new current version of <code>commitments</code>, citing the Salesforce event. The prior version remains in history.</p></div>
+              </div>
+            </article>
+
+            <article class="case-chapter rv" style="--chapter-hue: var(--green)">
+              <span class="case-marker">3</span>
+              <div class="case-body">
+                <span class="case-kicker">the case resolves</span>
+                <h3>Three useful events change three slots. The email open changes none.</h3>
+                <p>The same rule handles Avery’s written-update preference and promotion. The product login remains in the event log but supports no action-worthy slot, so the correct output is silence. A second derivation then rewrites one summary from the complete current slot set.</p>
+                <div class="effect-flow" aria-label="Four CRM events produce three profile slots while one low-value event is ignored">
+                  <div class="effect-stack">
+                    <div class="effect-card"><span class="effect-label">salesforce · commitment <small>importance 9</small></span><p>Avery owns Atlas and committed to an August launch.</p></div>
+                    <div class="effect-card"><span class="effect-label">support · preference <small>importance 7</small></span><p>Send a concise written recap the day before every call.</p></div>
+                    <div class="effect-card"><span class="effect-label">hubspot · role <small>importance 8</small></span><p>Avery was promoted to SVP Product; platform is now in scope.</p></div>
+                    <div class="effect-card is-muted"><span class="effect-label">product · interaction <small>importance 2</small></span><p>Opened the release-notes email.</p></div>
+                  </div>
+                  <div class="effect-arrow"><span>crm_profile<br />route by meaning</span><i aria-hidden="true"></i></div>
+                  <div class="effect-stack">
+                    <div class="effect-card is-output"><span class="effect-label">user_profiles · commitments</span><p>Atlas migration launches in August.</p></div>
+                    <div class="effect-card is-output"><span class="effect-label">user_profiles · preferences</span><p>Concise written updates the day before any call.</p></div>
+                    <div class="effect-card is-output"><span class="effect-label">user_profiles · role</span><p>SVP Product at Acme Cloud — product and platform.</p></div>
+                    <div class="effect-card is-zero"><span class="effect-label">email open · no profile write</span><p>The event stays searchable in history, but it supports none of the five durable profile slots.</p></div>
+                  </div>
+                </div>
+                <p class="effect-summary"><strong>Visible effect:</strong> 4 events remain in history; only 3 change current profile state.</p>
+                <div class="yaml-explainer">
+                  <div class="yaml-file"><header><span>derivations/crm_summary.yaml</span><span>the readable result</span></header><pre><code>trigger:
+  changed:
+    collections: [user_profiles]
+    types: [profile]
+sources:
+  changed_slots:
+    kind: changes
+  current_slots:
+    kind: current
+emit:
+  collection: user_profiles
+  type: summary
+  keys: [summary]</code></pre></div>
+                  <div class="yaml-notes">
+                    <div class="yaml-note"><code>changed_slots</code><p>Explains why the summary must be regenerated and advances a cursor so settled profiles do not loop forever.</p></div>
+                    <div class="yaml-note"><code>current_slots</code><p>Build the sentence from the whole live profile, not only the field that changed most recently.</p></div>
+                    <div class="yaml-note"><code>type: summary</code><p>Keep the presentation layer separate from the durable slot records it cites.</p></div>
+                  </div>
+                </div>
+                <div class="case-write"><span>final state</span><p><code>role</code>, <code>commitments</code>, and <code>preferences</code> have cited current values; <code>goals</code> stays absent; one <code>summary</code> record points to the slots it synthesized.</p></div>
+                <a class="case-next" href="#arrive">Continue into the full event-by-event run →</a>
+              </div>
+            </article>
           </div>
         </div>
       </section>
@@ -372,7 +497,7 @@
         <div class="wrap">
           <div class="region-head rv" style="margin-bottom:1.4rem">
             <p class="eyebrow">keep going</p>
-            <h2>The other walkthroughs.</h2>
+            <h2>The other cases.</h2>
           </div>
           <div class="rv">
         <div class="siblings">

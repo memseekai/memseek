@@ -10,17 +10,20 @@
 
   var messages = [
     {
-      role: 'alice',
+      role: 'user',
+      speaker: 'Alice',
       time: '09:00',
       text: 'New Node services use Fastify. Billing stays on Express until mobile drops the old response fields.'
     },
     {
-      role: 'alice',
+      role: 'user',
+      speaker: 'Alice',
       time: '09:02',
-      text: 'Never deploy billing changes without my explicit approval.'
+      text: 'Never deploy billing changes without my explicit approval. Writing the code is fine; shipping it is not.'
     },
     {
-      role: 'alice',
+      role: 'user',
+      speaker: 'Alice',
       time: '09:05',
       text: 'Before removing compatibility, show me telemetry proving the old fields have zero traffic.'
     }
@@ -30,47 +33,125 @@
     l0: {
       threshold: 1,
       count: 3,
-      label: 'L0 · EXACT MESSAGE',
-      title: 'Keep the original words',
-      text: 'The conversation is immutable. Later claims can always be checked against what Alice actually said.',
-      note: 'Use it to verify wording, time, and source.',
-      color: 'var(--am-l0)'
+      label: 'L0 · SOURCE EVIDENCE',
+      title: 'Capture what Alice actually said',
+      text: 'Each message is stored unchanged, with its speaker, conversation, time, and order. This is evidence, not interpretation.',
+      note: 'Use L0 to verify exact wording, time, and source.',
+      color: 'var(--am-l0)',
+      collection: 'messages',
+      recordType: 'message',
+      storage: 'event · append only',
+      input: 'Alice’s three example messages',
+      computation: 'No model rewrites the content. Memseek validates the fields, stores the exact message, and adds an embedding so it can be found later.',
+      pipeline: ['validate', 'store exact text', 'embed for search'],
+      records: [
+        {
+          label: 'message · ordinal 1',
+          text: 'Never deploy billing changes without my explicit approval. Writing the code is fine; shipping it is not.',
+          fields: 'role user · session platform-review · 09:02',
+          citation: 'Source record · no citation needed'
+        }
+      ],
+      result: '3 immutable message records in messages.'
     },
     l1: {
       threshold: 2,
-      count: 3,
-      label: 'L1 · USEFUL MEMORY',
-      title: 'Extract one claim at a time',
-      text: 'Billing stays on Express. Deploys need explicit approval. Compatibility removal needs zero-traffic telemetry.',
-      note: 'Use it to recall precise facts and rules.',
-      color: 'var(--am-l1)'
+      count: 4,
+      label: 'L1 · ATOMIC MEMORY',
+      title: 'Turn the conversation into separate claims',
+      text: 'The worker extracts one reusable claim per record. It then searches existing memory and decides whether each claim should be stored, merged with an older claim, or skipped as a repeat.',
+      note: 'Use L1 to recall one precise fact or rule without replaying the conversation.',
+      color: 'var(--am-l1)',
+      collection: 'memories',
+      recordType: 'memory',
+      storage: 'event · append only',
+      input: 'New messages + any memories already stored',
+      computation: 'Extract atomic claims, classify each one, search for overlap, then make an auditable store / merge / skip decision.',
+      pipeline: ['extract claims', 'search existing', 'store · merge · skip'],
+      records: [
+        {
+          label: 'persona · priority 80 · store',
+          text: 'New Node services use Fastify.',
+          fields: 'scene Billing migration',
+          citation: 'cites message · 09:00'
+        },
+        {
+          label: 'instruction · priority 100 · store',
+          text: 'Billing changes require Alice’s explicit approval before production deployment.',
+          fields: 'scene Billing migration',
+          citation: 'cites message · 09:02'
+        },
+        {
+          label: 'episodic · priority 85 · store',
+          text: 'Billing stays on Express while mobile depends on the old response fields.',
+          fields: 'scene Billing migration',
+          citation: 'cites message · 09:00'
+        },
+        {
+          label: 'instruction · priority 95 · store',
+          text: 'Remove compatibility only after telemetry shows zero traffic.',
+          fields: 'scene Billing migration',
+          citation: 'cites message · 09:05'
+        }
+      ],
+      result: '4 active atomic records in memories. A repeated rule would write nothing; a changed fact would supersede its earlier record.'
     },
     l2: {
       threshold: 3,
       count: 1,
       label: 'L2 · WORKING SCENE',
-      title: 'Maintain the billing context',
-      text: 'One scene keeps the migration plan, mobile dependency, approval gate, and evidence requirement together.',
-      note: 'Use it to restore a complete working context.',
-      color: 'var(--am-l2)'
+      title: 'Maintain one readable billing context',
+      text: 'The worker combines related L1 claims with the current billing scene. It updates that one named document instead of producing another loose summary.',
+      note: 'Use L2 to restore a complete working context for a project or situation.',
+      color: 'var(--am-l2)',
+      collection: 'scenes',
+      recordType: 'scene_block',
+      storage: 'keyed · current version + history',
+      input: 'New and standing L1 claims + the current billing scene',
+      computation: 'Choose update, create, merge, or retract. Then write one structured Markdown block and cite every L1 claim it keeps.',
+      pipeline: ['group by context', 'update scene', 'retain citations'],
+      records: [
+        {
+          label: 'key · billing-api-compatibility',
+          text: '## Work Context\nBilling remains on Express while mobile uses legacy fields.\n\n## Decision Logic\nKeep compatibility until zero-traffic telemetry is available. Get Alice’s approval before production deployment.',
+          fields: 'heat 1 · current head',
+          citation: 'cites 4 memories'
+        }
+      ],
+      result: '1 current Markdown document in scenes; later updates keep the same key and preserve earlier versions.'
     },
     l3: {
       threshold: 4,
       count: 1,
       label: 'L3 · DURABLE PERSONA',
-      title: 'Learn how Alice works',
-      text: 'Alice expects explicit approval and observable evidence before risky production changes.',
-      note: 'Use it to adapt consistently across projects.',
-      color: 'var(--am-l3)'
+      title: 'Keep only the pattern that should travel',
+      text: 'The worker compares changed scenes with the existing profile. Project dates and billing details stay in L2; only a stable interaction pattern is promoted.',
+      note: 'Use L3 to adapt consistently without mistaking a temporary project fact for personality.',
+      color: 'var(--am-l3)',
+      collection: 'persona',
+      recordType: 'trait',
+      storage: 'keyed · current version + history',
+      input: 'Changed scene blocks + current scenes + current persona',
+      computation: 'Look for a stable cross-context pattern and update only the named trait that changed. A scene update can legitimately produce no L3 record.',
+      pipeline: ['compare scenes', 'filter temporary facts', 'update changed trait'],
+      records: [
+        {
+          label: 'key · interaction_protocol',
+          text: 'Treat writing code and shipping it as separate approvals; ask Alice before any production deployment.',
+          fields: 'current head · one of five possible trait keys',
+          citation: 'cites scene · billing-api-compatibility'
+        }
+      ],
+      result: '1 illustrative trait in persona. A real run may update zero to five trait keys, depending on the evidence.'
     }
   };
 
   var steps = [
     { status: 'Ready', title: 'Start with a conversation', copy: 'No memory exists before the first message arrives.', layer: 'l0' },
-    { status: 'L0 stored', title: 'Keep the exact messages', copy: 'Three source messages are stored without rewriting them.', layer: 'l0' },
-    { status: 'L1 extracted', title: 'Pull out useful claims', copy: 'The worker creates small, cited facts and rules.', layer: 'l1' },
-    { status: 'L2 updated', title: 'Build one working scene', copy: 'Related claims become a maintained billing context.', layer: 'l2' },
-    { status: 'L3 ready', title: 'Distil a stable pattern', copy: 'The agent can now adapt to Alice without guessing.', layer: 'l3' }
+    { status: 'L0 stored', title: 'Validate, store, and index the source', copy: 'Three messages land unchanged in the messages collection.', layer: 'l0' },
+    { status: 'L1 extracted', title: 'Extract, search, and decide', copy: 'Four separate claims land in memories, each citing a source message.', layer: 'l1' },
+    { status: 'L2 updated', title: 'Update one named context', copy: 'The claims become the current billing scene while its history remains readable.', layer: 'l2' },
+    { status: 'L3 ready', title: 'Promote only the durable pattern', copy: 'One interaction trait changes; temporary billing facts stay in the scene.', layer: 'l3' }
   ];
 
   function byId(id) {
@@ -83,6 +164,11 @@
     });
   }
 
+  function clipText(value, length) {
+    var text = String(value || '');
+    return text.length > length ? text.slice(0, length - 1).trimEnd() + '…' : text;
+  }
+
   function renderMessages() {
     if (currentStep < 1) {
       byId('demo-messages').innerHTML = '<p class="am-empty">Press play to add the conversation.</p>';
@@ -90,7 +176,7 @@
     }
     byId('demo-messages').innerHTML = messages.map(function (message, index) {
       return '<article class="am-message" style="animation-delay:' + (index * 70) + 'ms"><span>A</span><div><b>' +
-        escapeHtml(message.role) + '<time>' + escapeHtml(message.time) + '</time></b><p>' +
+        escapeHtml(message.speaker || message.role) + '<time>' + escapeHtml(message.time) + '</time></b><p>' +
         escapeHtml(message.text) + '</p></div></article>';
     }).join('');
   }
@@ -100,12 +186,27 @@
     var reached = currentStep >= layer.threshold;
     var detail = byId('layer-detail');
     detail.style.setProperty('--detail-color', layer.color);
-    if (!reached) {
-      detail.innerHTML = '<span>' + escapeHtml(layer.label) + '</span><h3>Not built yet</h3><p>Move forward to let the worker create this layer.</p>';
-      return;
-    }
-    detail.innerHTML = '<span>' + escapeHtml(layer.label) + '</span><h3>' + escapeHtml(layer.title) +
-      '</h3><p>' + escapeHtml(layer.text) + '</p><small>' + escapeHtml(layer.note) + '</small>';
+    var pipeline = layer.pipeline.map(function (item, index) {
+      return '<span>' + escapeHtml(item) + '</span>' + (index < layer.pipeline.length - 1 ? '<i aria-hidden="true">→</i>' : '');
+    }).join('');
+    var records = layer.records.map(function (record) {
+      return '<article class="am-example-record"><div class="am-example-label">' + escapeHtml(record.label) +
+        '</div><p>' + escapeHtml(record.text) + '</p><div class="am-example-meta"><span>' +
+        escapeHtml(record.fields) + '</span><span>' + escapeHtml(record.citation) + '</span></div></article>';
+    }).join('');
+    detail.innerHTML = '<div class="am-detail-heading"><span>' + escapeHtml(layer.label) +
+      '</span><span class="am-detail-state' + (reached ? ' is-ready' : '') + '">' +
+      (reached ? 'built in this step' : 'example preview') + '</span></div><h3>' +
+      escapeHtml(layer.title) + '</h3><p>' + escapeHtml(layer.text) +
+      '</p><div class="am-compute"><div><small>INPUT</small><b>' + escapeHtml(layer.input) +
+      '</b></div><div><small>WHAT RUNS</small><p>' + escapeHtml(layer.computation) +
+      '</p><div class="am-pipeline">' + pipeline + '</div></div></div><section class="am-record-preview" aria-label="Example records in ' +
+      escapeHtml(layer.collection) + '"><header><div><small>ENDS UP IN</small><b>' +
+      escapeHtml(layer.collection) + '</b></div><span>' + escapeHtml(layer.storage) +
+      '</span></header><div class="am-record-type">collection <b>' + escapeHtml(layer.collection) +
+      '</b> · type <b>' + escapeHtml(layer.recordType) + '</b></div><div class="am-example-list">' +
+      records + '</div><footer>' + escapeHtml(layer.result) + '</footer></section><small class="am-layer-use">' +
+      escapeHtml(layer.note) + '</small>';
   }
 
   function renderStep(nextStep) {
@@ -122,10 +223,13 @@
       var button = document.querySelector('[data-layer="' + key + '"]');
       button.classList.toggle('is-reached', reached);
       button.classList.toggle('is-selected', selectedLayer === key);
+      button.setAttribute('aria-pressed', String(selectedLayer === key));
       byId('count-' + key).textContent = reached ? String(layer.count) : '0';
     });
     document.querySelectorAll('[data-step]').forEach(function (button) {
-      button.classList.toggle('is-active', Number(button.dataset.step) === currentStep);
+      var active = Number(button.dataset.step) === currentStep;
+      button.classList.toggle('is-active', active);
+      button.setAttribute('aria-pressed', String(active));
     });
     renderMessages();
     renderLayerDetail();
@@ -135,6 +239,7 @@
     var button = byId('demo-play');
     button.textContent = playing ? 'Ⅱ' : '▶';
     button.setAttribute('aria-pressed', String(playing));
+    button.setAttribute('aria-label', playing ? 'Pause memory build' : 'Play memory build');
   }
 
   function stopPlayback() {
@@ -158,13 +263,13 @@
       renderStep(currentStep + 1);
     };
     advance();
-    playTimer = window.setInterval(advance, reduceMotion ? 700 : 1350);
+    playTimer = window.setInterval(advance, reduceMotion ? 1800 : 2600);
   }
 
   function useMemory() {
     var answer = byId('recall-answer');
     answer.classList.add('is-ready');
-    answer.querySelector('p').textContent = 'Do not deploy tonight. Keep billing compatible, prepare a rollback plan, and get Alice’s explicit approval first.';
+    answer.querySelector('p').textContent = 'Do not rewrite or deploy billing tonight. Keep the old response fields until telemetry shows zero traffic, then get Alice’s explicit approval before production deployment.';
     byId('recall-button').textContent = 'Memory applied ✓';
   }
 
@@ -188,9 +293,24 @@
     byId('api-live-list').innerHTML = rows.slice(0, 10).map(function (record) {
       var stamp = record.occurred_at || record.created_at || '';
       var time = stamp ? new Date(stamp).toLocaleDateString([], { month: 'short', day: 'numeric' }) : '—';
+      var content = record.content && typeof record.content === 'object' ? record.content : {};
+      var value = record.text || content.text || '(no text projection)';
+      var meta = [record.type || 'record'];
+      if (record.key) meta.push('key ' + record.key);
+      if (collection === 'messages') {
+        if (content.role) meta.push('role ' + content.role);
+        if (content.session_id) meta.push('session ' + content.session_id);
+        if (content.ordinal !== undefined) meta.push('ordinal ' + content.ordinal);
+      } else if (collection === 'memories') {
+        if (content.memory_kind) meta.push(content.memory_kind);
+        if (content.priority !== undefined) meta.push('p' + content.priority);
+        if (content.decision) meta.push(content.decision);
+      } else if (collection === 'scenes' && content.heat !== undefined) {
+        meta.push('heat ' + content.heat);
+      }
+      meta.push('seq ' + (record.seq || '—'));
       return '<article class="am-live-row"><span>' + escapeHtml(time) + '</span><p>' +
-        escapeHtml(record.text || '(no text projection)') + '<small>' +
-        escapeHtml((record.type || 'record') + ' · seq ' + (record.seq || '—')) + '</small></p></article>';
+        escapeHtml(clipText(value, 320)) + '<small>' + escapeHtml(meta.join(' · ')) + '</small></p></article>';
     }).join('');
   }
 
@@ -294,6 +414,7 @@
       selectedLayer = button.dataset.layer;
       document.querySelectorAll('[data-layer]').forEach(function (item) {
         item.classList.toggle('is-selected', item.dataset.layer === selectedLayer);
+        item.setAttribute('aria-pressed', String(item.dataset.layer === selectedLayer));
       });
       renderLayerDetail();
     });

@@ -38,7 +38,7 @@ const capabilities = [
 
 <BaseLayout
   title="MemBukkit — the open agent-memory showcase from Memseek"
-  description="MemBukkit is Memseek's open agent-memory showcase: a library, CLI, explainability GUI, and reproducible benchmark harness for dated facts, supersession, budgeted search, and answers with receipts."
+  description="A seeded example walkthrough of MemBukkit's runnable library, CLI, explainability GUI, and benchmark harness for dated facts and cited answers."
 >
   <section class="hero">
     <div class="wrap hero-grid">
@@ -50,6 +50,11 @@ const capabilities = [
           A small, inspectable library + CLI + GUI for <b>dated facts, as-of answers,
           supersession, budgeted search, and clickable receipts.</b> It is where we demonstrate the
           agent-memory method and publish the recipes behind our SOTA results.
+        </p>
+        <p class="simulation-note">
+          <strong>Simulation · example walkthrough.</strong> The personal-assistant scenario and
+          memory records below are seeded examples, not customer data. The library, code, and
+          benchmark harness are real and runnable; the depicted history is illustrative.
         </p>
         <div class="ctas">
           <a class="btn btn-primary" href={repo}>Open MemBukkit on GitHub →</a>
@@ -76,6 +81,96 @@ const capabilities = [
           <code>2024-01-08 · turn 4</code>
         </div>
         <div class="receipt"><span>3 buckets opened</span><span>30% scan budget</span><span>2 citations</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="case-study" aria-labelledby="case-title">
+    <div class="wrap case-layout">
+      <aside class="case-brief">
+        <span class="case-number">case 10 · rent changed</span>
+        <h2 id="case-title">Rent was €800, then became €950. What should memory answer in May—and in June?</h2>
+        <p>We are modeling time-aware factual memory: preserve both claims, attach the dates on which each was true, connect the replacement to the fact it supersedes, and answer from the correct point in history.</p>
+        <dl class="case-contract">
+          <div><dt>source</dt><dd>Two dated conversation turns</dd></div>
+          <div><dt>target</dt><dd>One current fact plus inspectable history</dd></div>
+          <div><dt>success</dt><dd>€800 in May; €950 from June; both answers cited</dd></div>
+        </dl>
+        <span class="case-status">runnable · MemBukkit personal-assistant demo</span>
+        <p class="case-caveat"><strong>Why there is no YAML here.</strong> MemBukkit is the separate code-first library and benchmark showcase. The Memseek catalog examples use versioned YAML; this case uses simplified record projections to explain behavior instead of pretending MemBukkit has the same configuration or wire format.</p>
+      </aside>
+
+      <div class="case-scroll">
+        <article class="case-chapter" style="--chapter-hue:var(--orange)">
+          <span class="case-marker">1</span>
+          <div class="case-body">
+            <span class="case-kicker">January · the first fact</span>
+            <h3>The conversation becomes an atomic, dated claim.</h3>
+            <p>The demo records “Monthly rent is €800” with the source turn and the time from which the claim is valid. Atomic facts are useful here because later evidence can replace one value without rewriting unrelated memory.</p>
+            <div class="record-explainer">
+              <pre><code># conceptual record projection
+fact: Monthly rent is €800
+valid_from: 2024-01-08
+source: conversation / turn 4
+status: current</code></pre>
+              <div><b><code>valid_from</code></b><p>Makes “what was true then?” different from “what is true now?”</p><b><code>source</code></b><p>Keeps the answer openable back to the exact conversation turn.</p></div>
+            </div>
+            <div class="case-write"><span>writes now</span><p>One active rent fact. No future value is inferred.</p></div>
+          </div>
+        </article>
+
+        <article class="case-chapter" style="--chapter-hue:var(--violet)">
+          <span class="case-marker">2</span>
+          <div class="case-body">
+            <span class="case-kicker">April · a future change arrives</span>
+            <h3>The new amount supersedes the old claim from June onward.</h3>
+            <p>The landlord’s April message says the rent rises to €950 in June. Memory must distinguish when the statement was observed from when the new value becomes true.</p>
+            <div class="record-explainer">
+              <pre><code># conceptual record projection
+fact: Monthly rent is €950
+observed_at: 2024-04-02
+valid_from: 2024-06-01
+source: conversation / turn 18
+supersedes: rent-800</code></pre>
+              <div><b><code>observed_at</code></b><p>Records when the system learned about the change.</p><b><code>valid_from</code></b><p>Prevents the April message from making the May answer prematurely become €950.</p><b><code>supersedes</code></b><p>Links the replacement to the older claim without deleting it.</p></div>
+            </div>
+            <div class="case-write"><span>writes next</span><p>One future-effective €950 fact plus a supersession edge to the €800 fact. Both sources remain inspectable.</p></div>
+          </div>
+        </article>
+
+        <article class="case-chapter" style="--chapter-hue:var(--green)">
+          <span class="case-marker">3</span>
+          <div class="case-body">
+            <span class="case-kicker">the as-of question</span>
+            <h3>The query date chooses the valid claim; the receipt explains the search.</h3>
+            <p>For May, the €800 interval is still valid. For June, the superseding €950 claim wins. The response includes the evidence turns plus the buckets opened and scan budget used to find them.</p>
+            <div class="effect-flow" aria-label="Two dated rent facts produce different answers for May and June">
+              <div class="effect-stack">
+                <div class="effect-card"><span class="effect-label">turn 4 · learned January</span><p>Monthly rent is €800.</p><dl><dt>valid</dt><dd>from 2024-01-08</dd></dl></div>
+                <div class="effect-card"><span class="effect-label">turn 18 · learned April</span><p>Rent becomes €950 from June.</p><dl><dt>valid</dt><dd>from 2024-06-01</dd><dt>replaces</dt><dd>the €800 fact</dd></dl></div>
+              </div>
+              <div class="effect-arrow"><span>as-of query<br />select valid fact</span><i aria-hidden="true"></i></div>
+              <div class="effect-stack">
+                <div class="effect-card is-output"><span class="effect-label">ask · 2024-05-15</span><p><strong>€800 per month.</strong></p><small>cites turn 4</small></div>
+                <div class="effect-card is-output"><span class="effect-label">ask · 2024-06-01</span><p><strong>€950 per month.</strong></p><small>cites turn 18 and preserves turn 4 as superseded history</small></div>
+              </div>
+            </div>
+            <p class="effect-summary"><strong>Visible effect:</strong> one question produces two correct answers because the query date changes which fact is valid.</p>
+            <div class="record-explainer">
+              <pre><code># conceptual query receipt
+question: How much is my rent?
+as_of: 2024-06-01
+answer: €950 per month
+evidence: [turn 18, turn 4]
+receipt:
+  buckets_opened: 3
+  scan_budget: 30%</code></pre>
+              <div><b><code>as_of</code></b><p>Evaluates fact validity at the requested time rather than flattening the timeline.</p><b><code>evidence</code></b><p>Shows the winning claim and the history needed to explain what changed.</p><b><code>receipt</code></b><p>Makes the bounded retrieval path inspectable, including what memory was not scanned.</p></div>
+            </div>
+            <div class="case-write"><span>final state</span><p>No memory is written by the question. The read returns a dated answer and an explainability receipt.</p></div>
+            <a class="case-next" href="#how">Continue into the full memory method →</a>
+          </div>
+        </article>
       </div>
     </div>
   </section>
@@ -154,7 +249,7 @@ const capabilities = [
     <div class="wrap">
       <div class="bench-head">
         <span class="eyebrow" style="--hue:var(--green)">public benchmark · official judge</span>
-        <h2><span>92.6%</span> on LongMemEval-S.<br />Highest score under the official judge.</h2>
+        <h2><span>92.6%</span> on LongMemEval-S.<br />When LongMemEval judges, MemBukkit leads.</h2>
         <p>
           Higher reported numbers use a different judge. MemBukkit uses LongMemEval’s official
           gpt-4o judge and publishes the frozen recipe behind the result.
@@ -315,8 +410,63 @@ const capabilities = [
   .tagline { margin-top: .65rem; color: var(--green); font-family: var(--mono); font-size: var(--step-1); font-weight: 700; }
   .lede { color: var(--muted); font-size: var(--step-1); line-height: 1.58; max-width: 60ch; margin-top: 1.15rem; }
   .lede b { color: var(--text); }
+  .simulation-note { max-width: 60ch; margin-top: 1rem; padding: .75rem .9rem; border: 1px solid color-mix(in srgb, var(--green) 28%, var(--border)); border-left: 3px solid var(--green); border-radius: 8px; background: color-mix(in srgb, var(--green) 6%, var(--surface)); color: var(--muted); font-size: .78rem; line-height: 1.55; }
+  .simulation-note strong { color: var(--text); font-family: var(--mono); font-size: .66rem; letter-spacing: .09em; text-transform: uppercase; }
   .ctas { display: flex; flex-wrap: wrap; align-items: center; gap: .8rem; margin-top: 1.6rem; }
   .license { margin-top: 1.1rem; color: var(--faint); font-family: var(--mono); font-size: .68rem; }
+
+  .case-study { --case-hue: var(--green); background: linear-gradient(90deg, color-mix(in srgb, var(--case-hue) 5%, transparent), transparent 38%), var(--surface); border-block: 1px solid var(--border); }
+  .case-layout { display: grid; grid-template-columns: minmax(15rem, .7fr) minmax(0, 1.3fr); gap: clamp(2rem, 6vw, 6rem); align-items: start; }
+  .case-brief { position: sticky; top: 5.5rem; min-width: 0; }
+  .case-number { display: inline-flex; align-items: center; gap: .55rem; color: var(--case-hue); font-family: var(--mono); font-size: .58rem; font-weight: 700; letter-spacing: .13em; text-transform: uppercase; }
+  .case-number::before { content: ""; width: 1.8rem; height: 1px; background: currentColor; }
+  .case-brief h2 { max-width: 16ch; margin-top: 1rem; font-size: var(--step-2); line-height: 1.08; }
+  .case-brief > p { max-width: 44ch; margin-top: 1rem; color: var(--muted); font-size: .84rem; line-height: 1.65; }
+  .case-contract { display: grid; gap: 0; margin-top: 1.5rem; overflow: hidden; border: 1px solid var(--border); border-radius: 10px; background: var(--bg); }
+  .case-contract div { display: grid; grid-template-columns: 4.8rem 1fr; gap: .7rem; padding: .72rem .8rem; border-top: 1px solid var(--border); }
+  .case-contract div:first-child { border-top: 0; }
+  .case-contract dt { color: var(--faint); font-family: var(--mono); font-size: .56rem; letter-spacing: .08em; text-transform: uppercase; }
+  .case-contract dd { color: var(--text); font-size: .72rem; line-height: 1.45; }
+  .case-status { display: inline-flex; align-items: center; gap: .45rem; margin-top: 1rem; color: var(--faint); font-family: var(--mono); font-size: .58rem; }
+  .case-status::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--green); box-shadow: 0 0 0 4px color-mix(in srgb, var(--green) 12%, transparent); }
+  .case-caveat { padding: .75rem .85rem; border-left: 2px solid var(--cyan); background: color-mix(in srgb, var(--cyan) 5%, var(--bg)); border-radius: 0 8px 8px 0; }
+  .case-caveat strong { color: var(--text); }
+  .case-scroll { position: relative; min-width: 0; }
+  .case-scroll::before { content: ""; position: absolute; top: 1rem; bottom: 1rem; left: 1.05rem; width: 1px; background: linear-gradient(var(--green), color-mix(in srgb, var(--green) 12%, var(--border))); }
+  .case-chapter { --chapter-hue: var(--green); position: relative; display: grid; grid-template-columns: 2.15rem minmax(0, 1fr); gap: 1.2rem; padding-bottom: clamp(3.6rem, 8vw, 7rem); }
+  .case-chapter:last-child { padding-bottom: 0; }
+  .case-marker { position: sticky; top: 6rem; z-index: 1; display: grid; width: 2.15rem; height: 2.15rem; place-items: center; border: 1px solid color-mix(in srgb, var(--chapter-hue) 55%, var(--border)); border-radius: 50%; background: var(--surface); color: var(--chapter-hue); font-family: var(--mono); font-size: .58rem; font-weight: 700; }
+  .case-body { min-width: 0; }
+  .case-kicker { color: var(--chapter-hue); font-family: var(--mono); font-size: .58rem; font-weight: 700; letter-spacing: .11em; text-transform: uppercase; }
+  .case-body h3 { max-width: 26ch; margin-top: .55rem; font-size: clamp(1.28rem, 2.3vw, 1.75rem); line-height: 1.18; }
+  .case-body > p { max-width: 61ch; margin-top: .8rem; color: var(--muted); font-size: .86rem; line-height: 1.65; }
+  .effect-flow { display: grid; grid-template-columns: minmax(0, 1fr) 5.5rem minmax(0, 1fr); gap: .8rem; align-items: stretch; margin-top: 1.2rem; }
+  .effect-stack { display: grid; gap: .55rem; min-width: 0; }
+  .effect-card { min-width: 0; padding: .85rem .9rem; border: 1px solid var(--border); border-left: 3px solid var(--chapter-hue); border-radius: 8px; background: var(--bg); }
+  .effect-card.is-output { background: color-mix(in srgb, var(--chapter-hue) 6%, var(--bg)); }
+  .effect-label { display: block; color: var(--chapter-hue); font-family: var(--mono); font-size: .58rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+  .effect-card p { margin-top: .42rem; color: var(--text); font-size: .76rem; line-height: 1.5; }
+  .effect-card small { display: block; margin-top: .35rem; color: var(--faint); font-family: var(--mono); font-size: .56rem; line-height: 1.45; }
+  .effect-card dl { display: grid; grid-template-columns: auto 1fr; gap: .15rem .5rem; margin-top: .45rem; font-family: var(--mono); font-size: .56rem; }
+  .effect-card dt { color: var(--faint); }
+  .effect-card dd { color: var(--text); }
+  .effect-arrow { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .5rem; color: var(--chapter-hue); text-align: center; }
+  .effect-arrow span { padding: .28rem .4rem; border: 1px solid color-mix(in srgb, var(--chapter-hue) 35%, var(--border)); border-radius: 999px; font-family: var(--mono); font-size: .52rem; font-weight: 700; line-height: 1.25; text-transform: uppercase; }
+  .effect-arrow i { position: relative; display: block; width: 100%; height: 1px; background: color-mix(in srgb, var(--chapter-hue) 50%, var(--border)); }
+  .effect-arrow i::after { content: ""; position: absolute; top: 50%; right: 0; width: .45rem; height: .45rem; border-top: 1px solid currentColor; border-right: 1px solid currentColor; transform: translateY(-50%) rotate(45deg); }
+  .effect-summary { margin-top: .7rem !important; color: var(--muted); font-family: var(--mono); font-size: .58rem !important; line-height: 1.5; }
+  .effect-summary strong { color: var(--chapter-hue); }
+  .record-explainer { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(13rem, .95fr); margin-top: 1.2rem; overflow: hidden; border: 1px solid var(--border); border-radius: 11px; background: var(--bg); }
+  .record-explainer pre { max-width: 100%; margin: 0; padding: 1rem; overflow-x: auto; background: #0b0f14; color: #d7e0ea; }
+  .record-explainer pre code { color: inherit; font-family: var(--mono); font-size: .7rem; line-height: 1.65; white-space: pre; }
+  .record-explainer > div { padding: .9rem; }
+  .record-explainer b { display: block; margin-top: .7rem; color: var(--chapter-hue); font-size: .64rem; }
+  .record-explainer b:first-child { margin-top: 0; }
+  .record-explainer p { margin-top: .18rem; color: var(--muted); font-size: .7rem; line-height: 1.45; }
+  .case-write { display: grid; grid-template-columns: 5.7rem 1fr; gap: .8rem; margin-top: 1rem; padding: .9rem 1rem; border: 1px solid color-mix(in srgb, var(--chapter-hue) 30%, var(--border)); border-radius: 9px; background: color-mix(in srgb, var(--chapter-hue) 5%, var(--surface)); }
+  .case-write > span { color: var(--chapter-hue); font-family: var(--mono); font-size: .58rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+  .case-write p { color: var(--text); font-size: .72rem; line-height: 1.5; }
+  .case-next { display: inline-flex; margin-top: 1rem; color: var(--chapter-hue); font-family: var(--mono); font-size: .66rem; font-weight: 700; }
 
   .memory-card { background: var(--surface); border: 1px solid var(--border-strong); border-radius: 16px; padding: 1rem; box-shadow: var(--shadow); transform: rotate(.6deg); }
   .memory-top { display: flex; justify-content: space-between; gap: 1rem; color: var(--faint); font-family: var(--mono); font-size: .62rem; padding-bottom: .8rem; border-bottom: 1px solid var(--border); }
@@ -441,7 +591,9 @@ const capabilities = [
   .choose-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: .7rem; flex: none; }
 
   @media (max-width: 920px) {
-    .hero-grid, .quick-grid, .comparison-grid { grid-template-columns: 1fr; }
+    .hero-grid, .quick-grid, .comparison-grid, .case-layout { grid-template-columns: 1fr; }
+    .case-layout { gap: 3rem; }
+    .case-brief { position: static; }
     .identity-grid { grid-template-columns: 1fr; }
     .shared { width: 9rem; justify-self: center; }
     .method-strip { grid-template-columns: 1fr; }
@@ -453,6 +605,15 @@ const capabilities = [
   @media (max-width: 720px) {
     .cap-grid, .paired-findings { grid-template-columns: 1fr 1fr; }
     .memory-card { transform: none; }
+    .case-scroll::before { left: .85rem; }
+    .case-chapter { grid-template-columns: 1.7rem minmax(0, 1fr); gap: .8rem; }
+    .case-marker { width: 1.7rem; height: 1.7rem; top: 5rem; }
+    .record-explainer { grid-template-columns: 1fr; }
+    .case-contract div, .case-write { grid-template-columns: 1fr; gap: .3rem; }
+    .effect-flow { grid-template-columns: 1fr; }
+    .effect-arrow { min-height: 3.2rem; }
+    .effect-arrow i { width: 1px; height: 2rem; }
+    .effect-arrow i::after { top: auto; right: 50%; bottom: 0; transform: translateX(50%) rotate(135deg); }
     .scatter-scroll { overflow-x: auto; overflow-y: hidden; }
     .scatter { min-width: 560px; height: 420px; }
   }

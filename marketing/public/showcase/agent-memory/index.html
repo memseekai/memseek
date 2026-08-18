@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta
       name="description"
-      content="Watch a conversation become useful agent memory, one layer at a time."
+      content="An example walkthrough of one conversation becoming useful agent memory, one explainable layer at a time."
     />
     <title>Agent Memory Reactor — memseek</title>
     <link rel="canonical" href="https://memseek.pages.dev/showcase/agent-memory/" />
@@ -14,7 +14,7 @@
     <meta property="og:title" content="Agent Memory Reactor — memseek" />
     <meta
       property="og:description"
-      content="One conversation becomes exact messages, useful facts, a working scene, and durable context."
+      content="An example conversation becomes exact messages, useful facts, a working scene, and durable context."
     />
     <meta property="og:url" content="https://memseek.pages.dev/showcase/agent-memory/" />
     <meta property="og:image" content="https://memseek.pages.dev/showcase/agent-memory/og.png" />
@@ -53,6 +53,7 @@
       <div class="wrap nav-inner">
         <a class="brand" href="/">memseek<span class="caret">▌</span></a>
         <nav class="nav-right" aria-label="Showcase navigation">
+          <a class="navlink" href="/showcase/">All showcases</a>
           <a class="navlink" href="#demo">Demo</a>
           <a class="navlink" href="#connect">Connect</a>
           <button class="theme-toggle" id="theme" type="button" aria-label="Toggle colour theme">◐</button>
@@ -62,28 +63,202 @@
     </header>
 
     <main id="main">
-      <section class="am-hero">
+      <section class="hero am-hero" id="top" style="--hue: var(--green)">
         <div class="am-grid" aria-hidden="true"></div>
-        <div class="wrap am-hero-layout">
+        <div class="wrap hero-grid am-hero-layout">
           <div class="am-hero-copy">
-            <p class="am-kicker">Agent memory, made visible</p>
-            <h1>A memory<br />you can <em>see.</em></h1>
-            <p>
-              A conversation becomes useful context in four small steps. Nothing is hidden, and
-              every layer can point back to the exact words that created it.
+            <p class="eyebrow">worked example · agent memory</p>
+            <h1>One conversation becomes <span class="grad">memory you can inspect.</span></h1>
+            <p class="sell">
+              Alice is planning a billing migration. In three short messages she explains the
+              migration and its safety rules. Watch those exact words become reusable memory,
+              then see how that memory changes the answer to a risky request.
             </p>
-            <button class="am-button am-button-primary" id="hero-start" type="button">Watch it build <span>↓</span></button>
+            <p class="simulation-note"><strong>Simulation · example walkthrough.</strong> This page steps through an invented conversation and illustrative memory records. It demonstrates the flow; it is not a live agent session or customer history.</p>
+            <div class="hero-cta">
+              <button class="btn btn-primary" id="hero-start" type="button">Watch memory form <span aria-hidden="true">→</span></button>
+              <a class="btn btn-ghost" href="#recall">See memory change the answer</a>
+            </div>
+            <p class="cta-note">this example · 3 messages → 4 atoms → 1 scene → 1 trait</p>
           </div>
 
-          <div class="am-hero-stack" aria-label="Four layers of agent memory">
-            <div class="am-hero-layer am-hero-l3"><span>L3</span><div><small>PERSONA</small><b>How Alice works</b></div><i>1</i></div>
-            <div class="am-hero-line" aria-hidden="true"></div>
-            <div class="am-hero-layer am-hero-l2"><span>L2</span><div><small>SCENE</small><b>Billing migration</b></div><i>1</i></div>
-            <div class="am-hero-line" aria-hidden="true"></div>
-            <div class="am-hero-layer am-hero-l1"><span>L1</span><div><small>MEMORY</small><b>Rules and facts</b></div><i>3</i></div>
-            <div class="am-hero-line" aria-hidden="true"></div>
-            <div class="am-hero-layer am-hero-l0"><span>L0</span><div><small>MESSAGE</small><b>What Alice said</b></div><i>3</i></div>
-            <p><span></span> Each layer cites the one below it</p>
+          <div class="panel am-hero-panel" aria-label="Four layers of agent memory">
+            <div class="panel-head">
+              <span class="t">memory ladder · source to context</span>
+              <span class="badge" style="--bh: var(--green)">4 layers</span>
+            </div>
+            <div class="panel-body am-hero-stack">
+              <div class="am-hero-layer am-hero-l0"><span>L0</span><div><small>MESSAGES</small><b>What Alice said</b></div><i>3</i></div>
+              <div class="am-hero-line" aria-hidden="true"></div>
+              <div class="am-hero-layer am-hero-l1"><span>L1</span><div><small>MEMORIES</small><b>Four atomic claims</b></div><i>4</i></div>
+              <div class="am-hero-line" aria-hidden="true"></div>
+              <div class="am-hero-layer am-hero-l2"><span>L2</span><div><small>SCENES</small><b>Billing context</b></div><i>1</i></div>
+              <div class="am-hero-line" aria-hidden="true"></div>
+              <div class="am-hero-layer am-hero-l3"><span>L3</span><div><small>PERSONA</small><b>One durable trait</b></div><i>1</i></div>
+            </div>
+            <p class="panel-foot am-hero-foot"><span aria-hidden="true"></span> Every derived layer points back to the evidence below it.</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="case-study" aria-labelledby="case-title" style="--hue: var(--green)">
+        <div class="wrap case-layout">
+          <aside class="case-brief rv">
+            <span class="case-number">case 09 · Alice’s billing migration</span>
+            <h2 id="case-title">How do three messages become a rule that changes what an agent does weeks later?</h2>
+            <p>We are modeling four deliberately separate forms of memory: exact source messages, reusable atomic claims, a maintained project scene, and stable cross-context traits. The point is not to summarize Alice; it is to preserve the right information at the right level with a citation path back to her words.</p>
+            <dl class="case-contract">
+              <div><dt>input</dt><dd>Three messages about a billing migration</dd></div>
+              <div><dt>constraint</dt><dd>Never deploy billing without Alice’s approval</dd></div>
+              <div><dt>success</dt><dd>A later “deploy tonight” request is refused for the right cited reason</dd></div>
+            </dl>
+            <span class="case-status">runnable · <code>examples/agent_memory.py</code></span>
+          </aside>
+
+          <div class="case-scroll">
+            <article class="case-chapter rv" style="--chapter-hue: var(--green)">
+              <span class="case-marker">1</span>
+              <div class="case-body">
+                <span class="case-kicker">L0 · preserve what was said</span>
+                <h3>The evidence layer stores messages without interpreting them.</h3>
+                <p>Alice explains the migration, the compatibility gate, and the approval rule. Each message is an independent event with session order. This layer exists so every later summary or trait can be opened back to exact words rather than a model’s paraphrase.</p>
+                <div class="case-event"><b>Alice · message 3</b>“Never deploy billing changes without my explicit approval. Writing the code is fine; shipping it is not.”</div>
+                <div class="yaml-explainer">
+                  <div class="yaml-file"><header><span>collections/messages.yaml</span><span>L0 contract</span></header><pre><code>- name: messages
+  mode: event
+  schema:
+    required: [text, role, session_id, ordinal]
+  fields:
+    session_id: {filter: true, project: true}
+    ordinal: {filter: true, sort: true,
+              project: true}
+  required_processors: [embedding_v1]</code></pre></div>
+                  <div class="yaml-notes">
+                    <div class="yaml-note"><code>mode: event</code><p>Append every message as immutable evidence. Later processing may supersede a claim, but it never rewrites what Alice said.</p></div>
+                    <div class="yaml-note"><code>session_id + ordinal</code><p>Reconstruct one conversation in exact order without pretending that order applies across all sessions.</p></div>
+                    <div class="yaml-note"><code>embedding_v1</code><p>Allow relevant background messages to be found later while preserving the original text byte-for-byte.</p></div>
+                  </div>
+                </div>
+                <div class="case-write"><span>writes now</span><p>Three <code>messages</code> records. No fact, scene, or persona claim exists yet.</p></div>
+              </div>
+            </article>
+
+            <article class="case-chapter rv" style="--chapter-hue: var(--cyan)">
+              <span class="case-marker">2</span>
+              <div class="case-body">
+                <span class="case-kicker">L1 · extract and reconcile claims</span>
+                <h3>One pass reads the conversation; another decides whether each claim is new.</h3>
+                <p>The first model call splits Alice’s messages into standalone facts and instructions, assigns a kind and priority, and cites the source messages. Search then finds similar active memory. A final pass chooses <code>store</code>, <code>merge</code>, or <code>skip</code>; skipped duplicates are not written.</p>
+                <div class="effect-flow" aria-label="Three source messages produce four atomic memory records">
+                  <div class="effect-stack">
+                    <div class="effect-card"><span class="effect-label">message 1 <small>Alice</small></span><blockquote>“New Node services use Fastify. Billing stays on Express until mobile drops the old response fields.”</blockquote></div>
+                    <div class="effect-card"><span class="effect-label">message 2 <small>Alice</small></span><blockquote>“Never deploy billing changes without my explicit approval.”</blockquote></div>
+                    <div class="effect-card"><span class="effect-label">message 3 <small>Alice</small></span><blockquote>“Before removing compatibility, show me telemetry proving the old fields have zero traffic.”</blockquote></div>
+                  </div>
+                  <div class="effect-arrow"><span>l1_extract<br />extract → search → decide</span><i aria-hidden="true"></i></div>
+                  <div class="effect-stack">
+                    <div class="effect-card is-output"><span class="effect-label">memory · persona <small>priority 80</small></span><p>New Node services use Fastify.</p></div>
+                    <div class="effect-card is-output"><span class="effect-label">memory · episodic <small>priority 85</small></span><p>Billing stays on Express while mobile depends on the old response fields.</p></div>
+                    <div class="effect-card is-output"><span class="effect-label">memory · instruction <small>priority 100</small></span><p>Billing changes require Alice’s explicit approval before production deployment.</p></div>
+                    <div class="effect-card is-output"><span class="effect-label">memory · instruction <small>priority 95</small></span><p>Remove compatibility only after telemetry shows zero traffic.</p></div>
+                  </div>
+                </div>
+                <p class="effect-summary"><strong>Visible effect:</strong> 3 immutable inputs → 4 independently retrievable claims. Each output cites the message that supports it.</p>
+                <div class="yaml-explainer">
+                  <div class="yaml-file"><header><span>derivations/l1_extract.yaml</span><span>L0 → L1</span></header><pre><code>trigger:
+  write: {collections: [messages]}
+sources:
+  new_messages: {kind: changes}
+  background: {kind: view,
+               view: recent_messages@1}
+tasks:
+  - {id: claims, use: llm}
+  - {id: existing, use: search}
+  - {id: result, use: llm}
+emit:
+  collection: memories
+  type: memory</code></pre></div>
+                  <div class="yaml-notes">
+                    <div class="yaml-note"><code>claims</code><p>Extract one reusable statement per record. “Never deploy…” becomes an <code>instruction</code> with priority 100, not a vague conversation summary.</p></div>
+                    <div class="yaml-note"><code>existing</code><p>Retrieve what memory already says before deciding. This is what makes repeat → skip and changed fact → merge possible.</p></div>
+                    <div class="yaml-note"><code>result</code><p>Copy or reconcile claims after retrieval. Separating the calls prevents deduplication from collapsing a rich conversation into one sentence.</p></div>
+                  </div>
+                </div>
+                <div class="case-write"><span>writes next</span><p>Four <code>memories</code> events: atomic claims with <code>memory_kind</code>, priority, scene name, decision, and citations to L0. A repeated rule would write nothing.</p></div>
+              </div>
+            </article>
+
+            <article class="case-chapter rv" style="--chapter-hue: var(--violet)">
+              <span class="case-marker">3</span>
+              <div class="case-body">
+                <span class="case-kicker">L2 and L3 · maintain context at two timescales</span>
+                <h3>Project facts stay in the project; stable behavior rises into persona.</h3>
+                <p>The scene derivation folds the four claims into one keyed Markdown block named <code>billing-api-compatibility</code>. It keeps state, constraints, evidence, and open questions together. A separate persona derivation reads changed scene blocks and emits only cross-context patterns—never a dated release fact.</p>
+                <div class="yaml-explainer">
+                  <div class="yaml-file"><header><span>derivations/scene_synthesis.yaml</span><span>L1 → L2</span></header><pre><code>sources:
+  new_memories: {kind: changes}
+  standing_memories:
+    kind: view
+    view: memory_audit@1
+  current_scenes: {kind: current}
+emit:
+  collection: scenes
+  type: scene_block
+  dynamic_keys: true
+  max_active_keys: 15</code></pre></div>
+                  <div class="yaml-notes">
+                    <div class="yaml-note"><code>standing_memories</code><p>Keep older still-valid claims in the rewritten scene instead of summarizing only the latest suffix.</p></div>
+                    <div class="yaml-note"><code>current_scenes</code><p>Update the existing project block when possible; create a new key only for a genuinely distinct durable context.</p></div>
+                    <div class="yaml-note"><code>max_active_keys</code><p>Bound the number of live scenes. At capacity, the prompt must merge related blocks instead of growing forever.</p></div>
+                  </div>
+                </div>
+                <div class="case-write"><span>writes next</span><p>One current <code>scenes/billing-api-compatibility</code> block citing the L1 claims, then one <code>persona/interaction_protocol</code> trait citing that scene: writing code and shipping are separate approvals.</p></div>
+              </div>
+            </article>
+
+            <article class="case-chapter rv" style="--chapter-hue: var(--amber)">
+              <span class="case-marker">4</span>
+              <div class="case-body">
+                <span class="case-kicker">recall · assemble a safe decision</span>
+                <h3>The later request receives stable traits, project context, hard rules, and relevant memory in separate budgets.</h3>
+                <p>Weeks later, “Rewrite billing in Fastify and deploy it tonight” renders <code>agent_context</code>. Persona says how Alice works, the scene preserves the migration state, standing instructions carry the priority-100 approval gate, and recall finds task-specific evidence. A long scene cannot crowd out the hard rule.</p>
+                <div class="effect-flow" aria-label="Remembered constraints change the answer to a deployment request">
+                  <div class="effect-stack">
+                    <div class="effect-card"><span class="effect-label">new request</span><blockquote>“Rewrite billing in Fastify and deploy it tonight.”</blockquote></div>
+                    <div class="effect-card is-muted"><span class="effect-label">without memory</span><p>A generic coding agent can interpret this as authorization to implement and ship.</p></div>
+                  </div>
+                  <div class="effect-arrow"><span>render<br />agent_context</span><i aria-hidden="true"></i></div>
+                  <div class="effect-stack">
+                    <div class="effect-card is-output"><span class="effect-label">produced context</span><p>Express compatibility is still required · zero-traffic telemetry first · Alice must approve production.</p></div>
+                    <div class="effect-card is-output"><span class="effect-label">agent effect</span><p>Do not rewrite or deploy tonight. Keep compatibility until telemetry shows zero traffic, then request Alice’s explicit approval.</p></div>
+                  </div>
+                </div>
+                <div class="yaml-explainer">
+                  <div class="yaml-file"><header><span>artifacts/agent_context.yaml</span><span>memory → action</span></header><pre><code>blocks:
+  persona: {max_tokens: 1200}
+  scenes: {max_tokens: 2500}
+  instructions:
+    view: standing_instructions@1
+    args: {min_priority: 80}
+    max_tokens: 1500
+  memory:
+    view: memory_recall@1
+    max_tokens: 2500
+template: |
+  WHO YOU ARE WORKING WITH: {{persona}}
+  PROJECT CONTEXT: {{scenes}}
+  STANDING RULES: {{instructions}}
+  RELEVANT MEMORY: {{memory}}</code></pre></div>
+                  <div class="yaml-notes">
+                    <div class="yaml-note"><code>separate blocks</code><p>Give each memory timescale its own budget and provenance manifest instead of concatenating one opaque “memory” string.</p></div>
+                    <div class="yaml-note"><code>min_priority: 80</code><p>Always retrieve hard standing rules above the declared threshold, even if semantic recall ranks something else higher.</p></div>
+                    <div class="yaml-note"><code>template</code><p>State how retrieved data may influence the model and mark the request itself as untrusted data.</p></div>
+                  </div>
+                </div>
+                <div class="case-write"><span>final state</span><p>The render writes one prompt snapshot for audit. The agent can prepare code, but it must refuse deployment until Alice gives explicit approval.</p></div>
+                <a class="case-next" href="#demo">Play the condensed conversation and inspect every stored layer →</a>
+              </div>
+            </article>
           </div>
         </div>
       </section>
@@ -91,14 +266,14 @@
       <section class="am-demo" id="demo">
         <div class="wrap">
           <div class="am-section-head rv">
-            <p class="am-kicker">Interactive demo</p>
-            <h2>One conversation. Four useful forms.</h2>
-            <p>Press play, or move through the layers yourself.</p>
+            <p class="am-kicker">01 · follow the memory build</p>
+            <h2>See the input, the computation, and the stored record.</h2>
+            <p>Press play for the sequence, or select any level to inspect its example output. The three messages are a condensed simulation of the fuller runnable example.</p>
           </div>
 
           <div class="am-demo-shell rv">
             <div class="am-demo-toolbar">
-              <span><i></i> <b id="demo-status">Ready</b></span>
+              <span><i></i> <b id="demo-status" aria-live="polite">Ready</b></span>
               <div>
                 <button id="demo-back" type="button" aria-label="Previous step">←</button>
                 <button class="am-play" id="demo-play" type="button" aria-label="Play memory build" aria-pressed="false">▶</button>
@@ -108,30 +283,84 @@
 
             <div class="am-demo-body">
               <section class="am-conversation" aria-labelledby="conversation-heading">
-                <header><span>CONVERSATION</span><h3 id="conversation-heading">Alice · platform review</h3></header>
+                <header><span>INPUT · MESSAGES COLLECTION</span><h3 id="conversation-heading">Alice · platform review</h3></header>
                 <div class="am-messages" id="demo-messages" aria-live="polite"></div>
               </section>
 
               <section class="am-memory" aria-label="Memory layers">
                 <div class="am-layer-list">
-                  <button class="am-layer am-layer-l3" data-layer="l3" type="button"><span>L3</span><div><small>PERSONA</small><b>Working style</b></div><i id="count-l3">0</i></button>
-                  <button class="am-layer am-layer-l2" data-layer="l2" type="button"><span>L2</span><div><small>SCENE</small><b>Billing migration</b></div><i id="count-l2">0</i></button>
-                  <button class="am-layer am-layer-l1" data-layer="l1" type="button"><span>L1</span><div><small>MEMORY</small><b>Rules and facts</b></div><i id="count-l1">0</i></button>
-                  <button class="am-layer am-layer-l0 is-selected" data-layer="l0" type="button"><span>L0</span><div><small>MESSAGE</small><b>Exact conversation</b></div><i id="count-l0">0</i></button>
+                  <button class="am-layer am-layer-l0 is-selected" data-layer="l0" type="button"><span>L0</span><div><small>MESSAGES COLLECTION</small><b>Exact conversation</b></div><i id="count-l0">0</i></button>
+                  <button class="am-layer am-layer-l1" data-layer="l1" type="button"><span>L1</span><div><small>MEMORIES COLLECTION</small><b>Atomic claims</b></div><i id="count-l1">0</i></button>
+                  <button class="am-layer am-layer-l2" data-layer="l2" type="button"><span>L2</span><div><small>SCENES COLLECTION</small><b>Working context</b></div><i id="count-l2">0</i></button>
+                  <button class="am-layer am-layer-l3" data-layer="l3" type="button"><span>L3</span><div><small>PERSONA COLLECTION</small><b>Durable traits</b></div><i id="count-l3">0</i></button>
                 </div>
-                <div class="am-layer-detail" id="layer-detail" aria-live="polite"></div>
+                <div class="am-layer-detail" id="layer-detail"></div>
               </section>
             </div>
 
             <div class="am-demo-footer">
               <div><b id="step-title">Start with a conversation</b><p id="step-copy">No memory exists before the first message arrives.</p></div>
               <div class="am-steps" aria-label="Memory build progress">
-                <button class="is-active" data-step="0" type="button" aria-label="Start"></button>
-                <button data-step="1" type="button" aria-label="L0 messages"></button>
-                <button data-step="2" type="button" aria-label="L1 memories"></button>
-                <button data-step="3" type="button" aria-label="L2 scene"></button>
-                <button data-step="4" type="button" aria-label="L3 persona"></button>
+                <button class="is-active" data-step="0" type="button" aria-label="Start">Start</button>
+                <button data-step="1" type="button" aria-label="L0 messages">L0</button>
+                <button data-step="2" type="button" aria-label="L1 memories">L1</button>
+                <button data-step="3" type="button" aria-label="L2 scene">L2</button>
+                <button data-step="4" type="button" aria-label="L3 persona">L3</button>
               </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="am-collections" id="collections" style="--hue: var(--cyan)">
+        <div class="wrap">
+          <div class="am-section-head rv">
+            <p class="am-kicker">02 · open the collections</p>
+            <h2>Four levels become four ordinary collections.</h2>
+            <p>The levels are not hidden inside one opaque memory object. Each writes a record shaped for a different job, and each derived record keeps a citation to the evidence below it.</p>
+          </div>
+
+          <div class="am-collection-shell rv">
+            <div class="am-storage-key" aria-label="Collection storage modes">
+              <p><span class="am-mode am-mode-event">event</span><b>History grows.</b> New messages and claims append; earlier claims remain available for audit.</p>
+              <p><span class="am-mode am-mode-keyed">keyed</span><b>Current truth stays easy to read.</b> Each scene or trait has one named current version, with older versions kept in history.</p>
+            </div>
+
+            <div class="am-collection-table-wrap">
+              <table class="am-collection-table">
+                <thead>
+                  <tr><th>Level</th><th>Collection</th><th>Record shape</th><th>How it changes</th><th>This simulation</th></tr>
+                </thead>
+                <tbody>
+                  <tr style="--tier: var(--am-l0)"><td><b>L0</b><span>source</span></td><td><code>messages</code></td><td>Exact text, role, session, order</td><td>Append only</td><td>3 message records</td></tr>
+                  <tr style="--tier: var(--am-l1)"><td><b>L1</b><span>atoms</span></td><td><code>memories</code></td><td>One claim, kind, priority, citations</td><td>Store, merge, or skip</td><td>4 active claims</td></tr>
+                  <tr style="--tier: var(--am-l2)"><td><b>L2</b><span>scene</span></td><td><code>scenes</code></td><td>One Markdown block per context key</td><td>New current version</td><td><code>billing-api-compatibility</code></td></tr>
+                  <tr style="--tier: var(--am-l3)"><td><b>L3</b><span>persona</span></td><td><code>persona</code></td><td>One stable trait per profile key</td><td>Only changed keys update</td><td><code>interaction_protocol</code></td></tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div class="am-second-wave">
+              <header><div><span>THE NEXT CONVERSATION</span><h3>New input does not mean “append everything.”</h3></div><p>The runnable example sends three follow-up messages through the same L1 decision step.</p></header>
+              <div class="am-decision-grid">
+                <article style="--decision: var(--am-l2)"><span>MERGE · WRITES 1</span><h4>A plan moved.</h4><p>Mobile release 7 becomes release 8 in October. A new current claim cites the new message and the earlier claim it supersedes.</p><code>decision: merge<br />supersedes: [earlier-memory]</code></article>
+                <article style="--decision: var(--am-muted)"><span>SKIP · WRITES 0</span><h4>A rule was repeated.</h4><p>Alice restates the production approval rule. Search finds the same active claim, so no duplicate record is written.</p><code>decision: skip<br />collection change: none</code></article>
+                <article style="--decision: var(--am-l1)"><span>STORE · WRITES 1</span><h4>A safeguard is new.</h4><p>Alice requires a rollback plan for billing deploys. It becomes a new instruction with its own priority and source citation.</p><code>decision: store<br />memory_kind: instruction</code></article>
+              </div>
+            </div>
+
+            <div class="am-trace">
+              <header><div><span>ONE MEMORY · END TO END</span><h3>Open any conclusion back to Alice’s words.</h3></div><small>illustrative labels · stored UUIDs omitted</small></header>
+              <div class="am-trace-flow">
+                <article style="--tier: var(--am-l0)"><span>L0 · messages</span><b>message · 09:02</b><p>“Never deploy billing changes without my explicit approval. Writing the code is fine; shipping it is not.”</p></article>
+                <i aria-hidden="true"><span>cited by</span></i>
+                <article style="--tier: var(--am-l1)"><span>L1 · memories</span><b>instruction · p100</b><p>Billing production deploys require Alice’s explicit approval.</p></article>
+                <i aria-hidden="true"><span>cited by</span></i>
+                <article style="--tier: var(--am-l2)"><span>L2 · scenes</span><b>billing-api-compatibility</b><p>The approval gate is retained in the current working scene.</p></article>
+                <i aria-hidden="true"><span>cited by</span></i>
+                <article style="--tier: var(--am-l3)"><span>L3 · persona</span><b>interaction_protocol</b><p>Writing code and shipping it are separate approvals.</p></article>
+              </div>
+              <p class="am-trace-note">The stored citation direction points downward—from L3 to L2 to L1 to L0—so the interface can walk the chain back to evidence.</p>
             </div>
           </div>
         </div>
@@ -140,7 +369,7 @@
       <section class="am-recall" id="recall">
         <div class="wrap am-recall-grid">
           <div class="am-recall-copy rv">
-            <p class="am-kicker">Why it matters</p>
+            <p class="am-kicker">03 · see why recall matters</p>
             <h2>Memory changes the answer.</h2>
             <p>The request sounds simple. The remembered rules make the safe next step obvious.</p>
           </div>
@@ -149,8 +378,8 @@
             <p id="recall-task">Rewrite billing in Fastify and deploy it tonight.</p>
             <div class="am-remembered">
               <span>Needs explicit approval</span>
-              <span>Keep mobile compatibility</span>
-              <span>Attach a rollback plan</span>
+              <span>Billing remains on Express</span>
+              <span>Wait for zero-traffic telemetry</span>
             </div>
             <button class="am-button am-button-primary" id="recall-button" type="button">Use memory</button>
             <div class="am-answer" id="recall-answer" aria-live="polite">
@@ -164,7 +393,7 @@
       <section class="am-connect" id="connect">
         <div class="wrap">
           <div class="am-section-head rv">
-            <p class="am-kicker">Optional live connection</p>
+            <p class="am-kicker">04 · optional live connection</p>
             <h2>Load a real Memseek run.</h2>
             <p>The demo works on its own. Connect only when you want to inspect records created by <code>agent_memory.py</code>.</p>
           </div>
@@ -190,6 +419,7 @@
                   <button data-live-layer="scenes" type="button"><span>L2</span><b id="live-l2">0</b></button>
                   <button data-live-layer="persona" type="button"><span>L3</span><b id="live-l3">0</b></button>
                 </div>
+                <p class="am-live-note">These are timeline record versions. A keyed scene or trait may have older versions in the count while exposing one current head.</p>
                 <div class="am-live-list" id="api-live-list"></div>
               </div>
             </form>

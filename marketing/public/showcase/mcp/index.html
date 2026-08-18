@@ -3,13 +3,13 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="description" content="A memseek package declares its MCP tool surface; the API serves it remotely over authenticated Streamable HTTP, with stdio available locally." />
+    <meta name="description" content="An example walkthrough where a five-item allowlist becomes a safe, versioned MCP tool surface for an existing agent." />
     <title>The tool surface — memseek</title>
     <link rel="canonical" href="https://memseek.pages.dev/showcase/mcp/" />
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="Memseek" />
     <meta property="og:title" content="The tool surface — memseek" />
-    <meta property="og:description" content="A memseek package declares its MCP tool surface; the API serves it remotely over authenticated Streamable HTTP, with stdio available locally." />
+    <meta property="og:description" content="An example walkthrough where a five-item allowlist becomes a safe, versioned MCP tool surface for an existing agent." />
     <meta property="og:url" content="https://memseek.pages.dev/showcase/mcp/" />
     <meta property="og:image" content="https://memseek.pages.dev/og-default.png" />
     <meta name="twitter:card" content="summary_large_image" />
@@ -71,8 +71,9 @@
         <div class="wrap hero-grid">
           <div>
             <p class="eyebrow">worked example · mcp</p>
-            <h1>Your agent gets five tools. <span class="grad">You wrote none of them.</span></h1>
-            <p class="lede">Memseek exposes an MCP interface only when a package explicitly declares one — so the tool surface is a small, versioned, reviewable file rather than a folder of handlers. Nothing leaks in by accident.</p>
+            <h1>Give an agent <span class="grad">five safe memory tools.</span></h1>
+            <p class="lede">The agent can search memory, check the calendar, render its daily context, and open a citation—but it cannot see every operation the workspace supports. One short allowlist decides what becomes a tool.</p>
+            <p class="simulation-note"><strong>Simulation · example walkthrough.</strong> The tool declarations, agent, workspace data, and call sequence below are examples that walk through the integration. The interface is runnable; the activity shown here is not live production traffic.</p>
             <div class="hero-cta">
               <a class="btn btn-primary" href="#declare">See the declaration <span aria-hidden="true">→</span></a>
               <a class="btn btn-ghost" href="#use">Plug in an agent</a>
@@ -93,6 +94,121 @@
               <div class="trow" style="--hue: var(--cyan)" ><span class="n">record</span><span class="kd">record</span><span class="bind">→ dereference one cited ID</span></div>
             </div>
             <div class="panel-foot">Everything else the workspace can do stays invisible. A view, artifact, or route does not become a tool merely because it exists.</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="case-study" aria-labelledby="case-title" style="--hue: var(--cyan)">
+        <div class="wrap case-layout">
+          <aside class="case-brief rv">
+            <span class="case-number">case 04 · tool boundary</span>
+            <h2 id="case-title">How does an agent get useful memory tools without inheriting the entire workspace?</h2>
+            <p>We are modeling a least-authority interface. The workspace already has records, views, and prompt artifacts; MCP should expose only a named, versioned subset. The example is intentionally read-only: a good answer must not create or mutate memory.</p>
+            <dl class="case-contract">
+              <div><dt>request</dt><dd>Orient me, recall context, and inspect one cited source</dd></div>
+              <div><dt>surface</dt><dd>Five declared tools</dd></div>
+              <div><dt>writes</dt><dd>Zero workspace records</dd></div>
+            </dl>
+            <span class="case-status">runnable · <code>examples/pydantic_ai_mcp_showcase.py</code></span>
+          </aside>
+
+          <div class="case-scroll">
+            <article class="case-chapter rv" style="--chapter-hue: var(--cyan)">
+              <span class="case-marker">1</span>
+              <div class="case-body">
+                <span class="case-kicker">the package opts in</span>
+                <h3>An MCP surface does not exist merely because the workspace has capabilities.</h3>
+                <p>The package explicitly binds one versioned MCP definition. Without this line, publishing the same collections, views, and artifacts exposes no agent tools at all.</p>
+                <div class="yaml-explainer">
+                  <div class="yaml-file"><header><span>packages/agentic_memory_core.yaml</span><span>the opt-in</span></header><pre><code>name: agentic_memory_core
+version: 2.2.0
+views:
+  - agent_relevant_memory@1
+  - upcoming_calendar@1
+artifacts:
+  - daily_agent_prompt@1
+mcp: agentic_memory_core@1</code></pre></div>
+                  <div class="yaml-notes">
+                    <div class="yaml-note"><code>views / artifacts</code><p>Declare capabilities the package contains. This alone does not make them callable by an MCP client.</p></div>
+                    <div class="yaml-note"><code>mcp: ...@1</code><p>Open exactly one reviewed interface version. Capability changes now ship and roll back with the package.</p></div>
+                    <div class="yaml-note"><code>@1</code><p>Pin the contract so clients do not silently discover a different tool shape after a catalog update.</p></div>
+                  </div>
+                </div>
+                <div class="case-write"><span>writes now</span><p>Publishing writes a versioned catalog definition. It does not write user memory or add an implicit mutation endpoint.</p></div>
+              </div>
+            </article>
+
+            <article class="case-chapter rv" style="--chapter-hue: var(--violet)">
+              <span class="case-marker">2</span>
+              <div class="case-body">
+                <span class="case-kicker">discovery returns an allowlist</span>
+                <h3>Each friendly tool name binds to a validated workspace operation.</h3>
+                <p>The interface lists five tools. A view gets its own declared parameters and result shape; an artifact renders a bounded context product; <code>record</code> dereferences one citation. There is no handwritten handler or second schema.</p>
+                <div class="yaml-explainer">
+                  <div class="yaml-file"><header><span>mcp/agentic_memory_core.yaml</span><span>the tool contract</span></header><pre><code>name: agentic_memory_core
+version: 1
+tools:
+  - name: answer
+    kind: answer
+  - name: relevant_memory
+    kind: view
+    view: agent_relevant_memory@1
+  - name: daily_prompt
+    kind: artifact
+    artifact: daily_agent_prompt@1
+  - name: record
+    kind: record</code></pre></div>
+                  <div class="yaml-notes">
+                    <div class="yaml-note"><code>name</code><p>The model sees this stable callable name plus its description. Naming is part of tool usability, not cosmetic metadata.</p></div>
+                    <div class="yaml-note"><code>kind</code><p>Select a built-in, audited execution path: synthesized answer, declared view, artifact render, or citation lookup.</p></div>
+                    <div class="yaml-note"><code>view / artifact</code><p>Bind to an existing validated definition, inheriting its inputs, bounds, and output contract.</p></div>
+                  </div>
+                </div>
+                <div class="case-write"><span>writes next</span><p>Authenticated discovery returns five JSON schemas to the client. The other collections, processors, and routes stay absent.</p></div>
+              </div>
+            </article>
+
+            <article class="case-chapter rv" style="--chapter-hue: var(--green)">
+              <span class="case-marker">3</span>
+              <div class="case-body">
+                <span class="case-kicker">the agent uses the boundary</span>
+                <h3>The model can read context and chase evidence, but it cannot save its answer.</h3>
+                <p>Pydantic AI discovers the tools, chooses <code>relevant_memory</code>, and may call <code>record</code> on a cited UUID. Memseek executes the already-declared view and record read. There is no write tool for the model to select.</p>
+                <div class="effect-flow" aria-label="An agent prompt produces read-only MCP tool calls and a cited answer">
+                  <div class="effect-stack">
+                    <div class="effect-card"><span class="effect-label">user message <small>checked-in demo prompt</small></span><blockquote>“Give a concise orientation to the memory available in this workspace. Use the declared MCP tools before making factual claims.”</blockquote></div>
+                    <div class="effect-card"><span class="effect-label">discovered capability</span><p><code>relevant_memory</code> → the declared <code>agent_relevant_memory@1</code> view.</p></div>
+                  </div>
+                  <div class="effect-arrow"><span>Pydantic AI<br />chooses tools</span><i aria-hidden="true"></i></div>
+                  <div class="effect-stack">
+                    <div class="effect-card is-output"><span class="effect-label">tool call 1</span><p><code>relevant_memory(task="what am I working on?")</code> returns bounded records and canonical IDs.</p></div>
+                    <div class="effect-card is-output"><span class="effect-label">tool call 2 · optional</span><p><code>record(id)</code> opens one cited source before the agent states the claim.</p></div>
+                    <div class="effect-card is-output"><span class="effect-label">agent effect</span><p>A concise orientation grounded in the connected workspace’s actual records.</p></div>
+                    <div class="effect-card is-zero"><span class="effect-label">workspace writes · 0</span><p>No ingest, promotion, or catalog tool was discovered, so none can be called.</p></div>
+                  </div>
+                </div>
+                <div class="case-event"><b>example call sequence</b><code>relevant_memory(entity, task)</code> → cited results → <code>record(id)</code> → grounded reply</div>
+                <div class="yaml-explainer">
+                  <div class="yaml-file"><header><span>mcp/agentic_memory_core.yaml</span><span>what is deliberately absent</span></header><pre><code>tools:
+  - {name: answer, kind: answer}
+  - {name: relevant_memory, kind: view, ...}
+  - {name: upcoming_calendar, kind: view, ...}
+  - {name: daily_prompt, kind: artifact, ...}
+  - {name: record, kind: record}
+
+# no record.write
+# no candidate.promote
+# no catalog.publish</code></pre></div>
+                  <div class="yaml-notes">
+                    <div class="yaml-note"><code>absence is policy</code><p>The model cannot call a capability that discovery never returned, even if the underlying API has such a route.</p></div>
+                    <div class="yaml-note"><code>read-only kinds</code><p>All five selected operations read or synthesize over existing state. The answer itself is not persisted.</p></div>
+                    <div class="yaml-note"><code>change the YAML</code><p>Adding a write is a catalog review and package-version decision, not an incidental client-code change.</p></div>
+                  </div>
+                </div>
+                <div class="case-write"><span>final state</span><p>The agent returns a cited answer. Workspace data is unchanged; the only capability surface was the five-tool allowlist.</p></div>
+                <a class="case-next" href="#declare">Continue into discovery, calls, and the safety boundary →</a>
+              </div>
+            </article>
           </div>
         </div>
       </section>
@@ -281,7 +397,7 @@ result = <span class="k">await</span> agent.<span class="z">run</span>(
             </div>
           </div>
 
-          <p class="disclosure rv">The package manifest, the interface file, and the five tools are the checked-in catalog (<code>packages/agentic_memory_core.yaml</code>, <code>mcp/agentic_memory_core.yaml</code>); the client is <code>examples/pydantic_ai_mcp_showcase.py</code>. It runs Pydantic AI in an isolated environment and launches Memseek's current MCP SDK 2.x server from the project environment.</p>
+          <p class="disclosure rv">The package manifest, the interface file, and the five tools are checked in at <code>resources/packages/agentic_memory_core.yaml</code> and <code>resources/mcp/agentic_memory_core.yaml</code>; the client is <code>examples/pydantic_ai_mcp_showcase.py</code>. It runs Pydantic AI in an isolated environment and launches Memseek's current MCP SDK 2.x server from the project environment.</p>
         </div>
       </section>
 
@@ -321,7 +437,7 @@ result = <span class="k">await</span> agent.<span class="z">run</span>(
         <div class="wrap">
           <div class="region-head rv" style="margin-bottom:1.4rem">
             <p class="eyebrow">keep going</p>
-            <h2>The other walkthroughs.</h2>
+            <h2>The other cases.</h2>
           </div>
           <div class="rv">
         <div class="siblings">

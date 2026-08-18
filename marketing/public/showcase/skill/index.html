@@ -3,13 +3,13 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="description" content="Real outcomes become a cited draft revision of an agent's playbook — and a human decides whether it ships. Nothing the model writes goes live on its own." />
+    <meta name="description" content="A walkthrough where example outcomes become a cited draft revision of an agent's playbook — and a human decides whether it ships." />
     <title>The maintained skill — memseek</title>
     <link rel="canonical" href="https://memseek.pages.dev/showcase/skill/" />
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="Memseek" />
     <meta property="og:title" content="The maintained skill — memseek" />
-    <meta property="og:description" content="Real outcomes become a cited draft revision of an agent's playbook — and a human decides whether it ships. Nothing the model writes goes live on its own." />
+    <meta property="og:description" content="A walkthrough where example outcomes become a cited draft revision of an agent's playbook — and a human decides whether it ships." />
     <meta property="og:url" content="https://memseek.pages.dev/showcase/skill/" />
     <meta property="og:image" content="https://memseek.pages.dev/og-default.png" />
     <meta name="twitter:card" content="summary_large_image" />
@@ -71,8 +71,9 @@
         <div class="wrap hero-grid">
           <div>
             <p class="eyebrow">worked example · skill maintenance</p>
-            <h1>A skill that learns from <span class="grad">what actually happened.</span></h1>
-            <p class="lede">A support assistant runs on a playbook: keyed <code>steps</code>, <code>pitfalls</code>, and <code>examples</code>. One rule keeps backfiring. Here is the loop that fixes it — evidence, a cited draft, and a human gate that the model cannot open.</p>
+            <h1>A bad refund rule becomes a <span class="grad">reviewable fix.</span></h1>
+            <p class="lede">A fictional support assistant attaches a discount code to every refund reply—even when the company made the mistake. Three example outcomes expose the problem. The system drafts a narrower rule, but only a person can decide whether it becomes the active playbook.</p>
+            <p class="simulation-note"><strong>Simulation · example walkthrough.</strong> The support cases, outcomes, and proposed playbook revision are fictional examples used to walk through the maintenance loop. They are not customer incidents or a live policy change.</p>
             <div class="hero-cta">
               <a class="btn btn-primary" href="#install">Follow the loop <span aria-hidden="true">→</span></a>
               <a class="btn btn-ghost" href="#draft">See the gate</a>
@@ -99,6 +100,134 @@
               </div>
             </div>
             <div class="panel-foot">The model wrote the draft. It cannot ship it.</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="case-study" aria-labelledby="case-title" style="--hue: var(--green)">
+        <div class="wrap case-layout">
+          <aside class="case-brief rv">
+            <span class="case-number">case 02 · refund assistant</span>
+            <h2 id="case-title">How can an agent learn from bad outcomes without silently rewriting its own rules?</h2>
+            <p>We are modeling a maintained operating skill: the exact playbook version used for a reply is remembered, later outcomes are attached to that use, and a replacement is proposed as a reviewable draft. Learning means evidence plus approval—not autonomous prompt drift.</p>
+            <dl class="case-contract">
+              <div><dt>problem</dt><dd>“Attach a discount to every refund” causes three poor outcomes</dd></div>
+              <div><dt>target</dt><dd>A complete three-section replacement skill</dd></div>
+              <div><dt>safety</dt><dd>The active skill cannot change until a person promotes the draft</dd></div>
+            </dl>
+            <span class="case-status">runnable · <code>examples/skill_maintenance.py</code></span>
+          </aside>
+
+          <div class="case-scroll">
+            <article class="case-chapter rv" style="--chapter-hue: var(--green)">
+              <span class="case-marker">1</span>
+              <div class="case-body">
+                <span class="case-kicker">the rule in force</span>
+                <h3>The playbook is data with a version—not a string buried in application code.</h3>
+                <p>Three keyed records make up the current skill: <code>steps</code>, <code>pitfalls</code>, and <code>examples</code>. Rendering the skill resolves their current versions and records exactly which heads the agent used.</p>
+                <div class="case-event"><b>active rule</b><code>pitfalls@v1</code> says “Attach a discount code to every refund reply.”</div>
+                <div class="yaml-explainer">
+                  <div class="yaml-file"><header><span>artifacts/skill.yaml</span><span>the thing being learned</span></header><pre><code>name: maintained_skill
+kind: skill
+lifecycle: reviewed
+blocks:
+  sections:
+    document:
+      collections: [skills]
+template: |
+  {{sections}}
+candidate_processor: skill
+complete_keys: [steps, pitfalls, examples]</code></pre></div>
+                  <div class="yaml-notes">
+                    <div class="yaml-note"><code>lifecycle: reviewed</code><p>Generated replacements stop as candidates. The renderer keeps serving the currently promoted records.</p></div>
+                    <div class="yaml-note"><code>document</code><p>Resolve the current keyed skill records at render time, so every use can identify the exact versions it carried.</p></div>
+                    <div class="yaml-note"><code>complete_keys</code><p>A candidate must contain the whole skill contract. Reviewers never approve a mysterious partial patch.</p></div>
+                  </div>
+                </div>
+                <div class="case-write"><span>writes now</span><p>An artifact-use receipt pins the rendered skill, definition hash, and resolved learning target. No skill record changes.</p></div>
+              </div>
+            </article>
+
+            <article class="case-chapter rv" style="--chapter-hue: var(--amber)">
+              <span class="case-marker">2</span>
+              <div class="case-body">
+                <span class="case-kicker">the outcomes arrive</span>
+                <h3>Feedback names the exact rule use it is evidence about.</h3>
+                <p>The application reports one task success plus a thumbs-down, a low evaluator score, and an operator correction. Each signal carries the artifact-use receipt, preventing feedback from being misattributed to whatever skill happens to be current later.</p>
+                <div class="yaml-explainer">
+                  <div class="yaml-file"><header><span>collections/learning.yaml</span><span>the feedback contract</span></header><pre><code>name: learning_signals
+mode: event
+schema:
+  required: [text, artifact_use, signal]
+  properties:
+    artifact_use:
+      required: [id, artifact, render_sha256]
+    signal:
+      required: [kind, source]
+      properties:
+        kind:
+          type: string
+          enum: [thumbs_down, correction,
+                 task_failure, evaluation]
+          # plus success and exception kinds</code></pre></div>
+                  <div class="yaml-notes">
+                    <div class="yaml-note"><code>mode: event</code><p>Keep every selected outcome as immutable evidence. Do not edit history to make the new skill look better.</p></div>
+                    <div class="yaml-note"><code>artifact_use</code><p>Bind the outcome to the precise render that influenced the reply, including its content hash.</p></div>
+                    <div class="yaml-note"><code>signal.kind / source</code><p>Separate what happened from who judged it, so downstream policy can weigh an end user, evaluator, and application differently.</p></div>
+                  </div>
+                </div>
+                <div class="case-write"><span>writes next</span><p>Four <code>learning_signals</code> records—one success and three signals that challenge the rule. The over-broad rule remains active while evidence accumulates.</p></div>
+              </div>
+            </article>
+
+            <article class="case-chapter rv" style="--chapter-hue: var(--cyan)">
+              <span class="case-marker">3</span>
+              <div class="case-body">
+                <span class="case-kicker">the proposal—not promotion</span>
+                <h3>The model must return a complete, cited candidate.</h3>
+                <p>The derivation compares new evidence with the current skill, first proposes the smallest supported patch, then materializes all three sections. The emission contract requires citations and marks the output for review.</p>
+                <div class="effect-flow" aria-label="Feedback on a refund reply produces a complete reviewed skill candidate">
+                  <div class="effect-stack">
+                    <div class="effect-card"><span class="effect-label">active pitfalls rule</span><p>Always include a discount code for the customer’s next order before closing.</p></div>
+                    <div class="effect-card"><span class="effect-label">thumbs down <small>end user</small></span><p>Being upsold immediately after our billing error felt tone-deaf.</p></div>
+                    <div class="effect-card"><span class="effect-label">evaluation <small>score 0.2</small></span><p>The always-discount rule fires when the company caused the charge.</p></div>
+                    <div class="effect-card"><span class="effect-label">correction <small>operator</small></span><p>Apologize and fix company errors; reserve discounts for goodwill and retention.</p></div>
+                  </div>
+                  <div class="effect-arrow"><span>route evidence<br />skill derivation</span><i aria-hidden="true"></i></div>
+                  <div class="effect-stack">
+                    <div class="effect-card is-output"><span class="effect-label">candidate · steps <small>carried forward</small></span><p>The working refund procedure remains intact.</p></div>
+                    <div class="effect-card is-output"><span class="effect-label">candidate · pitfalls <small>changed</small></span><p>Do not attach a discount when the company caused the error; use one only for a supported goodwill or retention case.</p></div>
+                    <div class="effect-card is-output"><span class="effect-label">candidate · examples <small>carried forward</small></span><p>The existing worked examples remain part of the complete draft.</p></div>
+                    <div class="effect-card is-zero"><span class="effect-label">active skill · unchanged</span><p>The candidate has an effect only after a person promotes it.</p></div>
+                  </div>
+                </div>
+                <p class="effect-summary"><strong>Visible effect:</strong> the problematic rule changes in the draft; the rest of the playbook is preserved; production behavior does not move yet.</p>
+                <div class="yaml-explainer">
+                  <div class="yaml-file"><header><span>derivations/skill.yaml</span><span>the guarded write</span></header><pre><code>sources:
+  new_evidence:
+    kind: changes
+    collections: [main, outcomes]
+  current_skill:
+    kind: current
+    collections: [skills]
+tasks:
+  - id: proposal
+  - id: result
+emit:
+  collection: skills
+  keys: [steps, pitfalls, examples]
+  complete: true
+  review: required</code></pre></div>
+                  <div class="yaml-notes">
+                    <div class="yaml-note"><code>proposal → result</code><p>Separate diagnosis from writing: identify the smallest evidence-supported change, then construct the complete candidate snapshot.</p></div>
+                    <div class="yaml-note"><code>complete: true</code><p>Require all three keys in one coherent draft, even when only <code>pitfalls</code> changes.</p></div>
+                    <div class="yaml-note"><code>review: required</code><p>Store the output as a candidate. Only an explicit promotion moves the active heads.</p></div>
+                  </div>
+                </div>
+                <div class="case-write"><span>final state</span><p>One cited candidate replaces “discount every refund” with a narrower rule; <code>steps</code> and <code>examples</code> are carried forward. The old skill still serves until approval.</p></div>
+                <a class="case-next" href="#install">Continue into the complete feedback and promotion trail →</a>
+              </div>
+            </article>
           </div>
         </div>
       </section>
@@ -344,7 +473,7 @@ candidate[<span class="s">"divergence"</span>]     <span class="c"># what actual
         <div class="wrap">
           <div class="region-head rv" style="margin-bottom:1.4rem">
             <p class="eyebrow">keep going</p>
-            <h2>The other walkthroughs.</h2>
+            <h2>The other cases.</h2>
           </div>
           <div class="rv">
         <div class="siblings">

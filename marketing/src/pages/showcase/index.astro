@@ -8,81 +8,90 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
  * Adding one is two steps: drop the file in public/, add a row here.
  */
 /**
- * One card per memory kind. `kind` is the label a reader already knows the
- * concept by — it does the work three jargon tag-pills used to do badly, and it
- * is why the list reads as coverage rather than as seven unrelated demos. One
- * sentence each: the card decides whether to open the page, nothing more.
+ * One card per memory story. `kind` deliberately describes the visible change
+ * in plain language instead of asking a new reader to know memory-system jargon.
+ * `status` says whether the destination is runnable, connected, or a blueprint.
  */
 const showcases = [
   {
     href: '/membukkit/',
     slug: 'membukkit',
-    kind: 'open agent-memory showcase',
+    kind: 'dated memory',
     title: 'MemBukkit',
-    blurb: 'Explore the library, GUI, SOTA search method, and reproducible memory benchmarks.',
+    blurb: 'Rent changes from €800 to €950. Ask what is true now—or what was true before.',
+    status: 'runnable · separate repository',
     accent: 'var(--orange)',
   },
   {
     slug: 'workspace-explorer',
-    kind: 'workspace surface',
+    kind: 'inspect the system',
     title: 'The workspace explorer',
-    blurb: 'Collections, records, derivations, views, and artifacts in one calm control surface.',
+    blurb: 'Connect a workspace and follow definitions, records, runs, views, and outputs.',
+    status: 'live · read-only connection',
     accent: 'var(--cyan)',
   },
   {
     slug: 'agent-memory',
-    kind: 'layered memory',
+    kind: 'conversation → memory',
     title: 'The agent memory reactor',
-    blurb: 'Watch exact messages rise into atomic claims, maintained scenes, and durable persona.',
+    blurb: 'Watch Alice’s migration rules become facts, project context, and a safer answer.',
+    status: 'simulation + runnable example',
     accent: 'var(--green)',
   },
   {
     slug: 'generative-agents',
-    kind: 'episodic',
+    kind: 'agents remember events',
     title: 'Generative agents',
-    blurb: "Park et al.'s memory stream, importance and reflection — as one catalog.",
+    blurb: 'Follow a party rumor, an overnight reflection, and a correction across three days.',
+    status: 'simulation + runnable example',
     accent: 'var(--violet)',
   },
   {
     slug: 'gbrain',
-    kind: 'semantic · graph',
+    kind: 'pages → knowledge',
     title: 'An entire brain, declared',
-    blurb: 'A knowledge base that assembles itself, every fact traceable to its page.',
+    blurb: 'Five Markdown pages become a graph, fact index, durable memory, and cited answers.',
+    status: 'simulation + runnable example',
     accent: 'var(--orange)',
   },
   {
     slug: 'self-audit',
-    kind: 'reflection',
+    kind: 'beliefs challenge themselves',
     title: 'The self-auditing mind',
-    blurb: 'Beliefs built on beliefs, and a detector that catches its own contradictions.',
+    blurb: 'Two reasonable strategies collide, and every belief opens back to its evidence.',
+    status: 'simulation + runnable example',
     accent: 'var(--pink)',
   },
   {
     slug: 'dreams',
-    kind: 'consolidation',
+    kind: 'clean up memory',
     title: 'dreams × memseek',
-    blurb: "Anthropic's Dreams as one bounded, cited derivation you adopt as a diff.",
+    blurb: 'Merge duplicates, replace stale memory, and review the proposed store as a diff.',
+    status: 'design simulation · blueprint',
     accent: 'var(--amber)',
   },
   {
     slug: 'living-profile',
-    kind: 'entity profiles',
+    kind: 'events → current profile',
     title: 'The living profile',
-    blurb: 'A CRM profile that maintains itself from raw events, every slot cited.',
+    blurb: 'Four CRM events become one current profile, with evidence behind every field.',
+    status: 'simulation + runnable example',
     accent: 'var(--cyan)',
   },
   {
     slug: 'skill',
-    kind: 'procedural',
+    kind: 'feedback → better playbook',
     title: 'The maintained skill',
-    blurb: 'A playbook that revises itself from real outcomes, behind a human gate.',
+    blurb: 'A bad refund rule produces a cited replacement that only a person can approve.',
+    status: 'simulation + runnable example',
     accent: 'var(--green)',
   },
   {
     slug: 'mcp',
-    kind: 'tool surface',
+    kind: 'memory tools for agents',
     title: 'Plug it into an existing agent',
-    blurb: 'Five declared tools, compiled over stdio. Capabilities as YAML, not code.',
+    blurb: 'Turn a five-item allowlist into safe search, calendar, prompt, and citation tools.',
+    status: 'simulation + runnable example',
     accent: 'var(--violet)',
   },
 ];
@@ -90,16 +99,21 @@ const showcases = [
 
 <BaseLayout
   title="Showcases — Memseek"
-  description="Interactive walkthroughs of the Memseek context engine: a self-wiring knowledge graph, a profile that maintains itself from raw events, and memory curation as a reviewable, cited diff."
+  description="Scroll-driven case studies of the Memseek context engine, with the modeled problem, YAML contract, resulting writes, and evidence trail made explicit."
 >
   <section class="sc-hero">
     <div class="wrap">
       <span class="eyebrow">Showcases</span>
-      <h1>See it <span class="grad">actually run.</span></h1>
+      <h1>See how it <span class="grad">runs.</span></h1>
       <p class="lede">
-        One walkthrough per memory mechanism the context engine runs — episodic, semantic,
-        reflection, consolidation. Each is a single page you can poke at: no signup, nothing to
-        provision.
+        Pick a familiar case: a rent change, a CRM update, a rumor spreading through town, or a
+        support rule that needs fixing. As you scroll, the event, the YAML that handles it, the
+        record that gets written, and the reason for that write unfold together.
+      </p>
+      <p class="simulation-note">
+        <strong>Simulation · worked cases.</strong> The people, events, conversations, and
+        outputs shown in these showcases are illustrative examples, not live customer records or
+        captured customer activity. A page will say explicitly if you choose to connect live data.
       </p>
     </div>
   </section>
@@ -113,7 +127,8 @@ const showcases = [
             <span class="kind">{s.kind}</span>
             <h2>{s.title}</h2>
             <p>{s.blurb}</p>
-            <span class="read">Open →</span>
+            <span class="status">{s.status}</span>
+            <span class="read">Open case →</span>
           </div>
         </article>
       ))}
@@ -133,6 +148,17 @@ const showcases = [
   .sc-hero .wrap { position: relative; z-index: 1; }
   .sc-hero h1 { font-size: var(--step-3); margin-top: 1.1rem; max-width: 16ch; }
   .lede { color: var(--muted); max-width: 48ch; margin-top: 1.1rem; }
+  .simulation-note {
+    max-width: 62ch; margin-top: 1rem; padding: .8rem .95rem;
+    border: 1px solid color-mix(in srgb, var(--orange) 28%, var(--border));
+    border-left: 3px solid var(--orange); border-radius: 8px;
+    background: color-mix(in srgb, var(--orange) 6%, var(--surface));
+    color: var(--muted); font-size: var(--step--1); line-height: 1.55;
+  }
+  .simulation-note strong {
+    color: var(--text); font-family: var(--mono); font-size: .68rem;
+    letter-spacing: .08em; text-transform: uppercase;
+  }
 
   .sc-list { padding-bottom: clamp(3rem, 7vw, 6rem); }
   /* Narrower track than the old blurb needed: one sentence per card reads better
@@ -162,6 +188,12 @@ const showcases = [
   .card h2 { font-size: var(--step-1); line-height: 1.25; }
   .card:hover h2 { color: var(--hue); }
   .card p { color: var(--muted); font-size: .93rem; line-height: 1.55; }
+
+  .status {
+    display: inline-flex; align-items: center; gap: .4rem; margin-top: .25rem;
+    color: var(--faint); font-family: var(--mono); font-size: .6rem;
+  }
+  .status::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--hue); }
 
   .read { margin-top: auto; padding-top: .7rem; font-family: var(--mono); font-size: var(--step--1); color: var(--cyan); }
 </style>
