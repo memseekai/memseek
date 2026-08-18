@@ -7,6 +7,7 @@
   font-size: clamp(1rem, .97rem + .2vw, 1.1rem);
   line-height: 1.72;
   color: var(--text);
+  text-align: start;
 }
 .prose > * + * { margin-top: 1.15em; }
 

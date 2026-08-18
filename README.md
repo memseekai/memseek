@@ -293,6 +293,4 @@ record content in issues, logs, or pull requests.
 
 ## License
 
-This repository does not currently include a license file. Check with the
-maintainers before redistributing the software or contributing code under an
-assumed license.
+Memseek is licensed under the [Apache License 2.0](LICENSE).

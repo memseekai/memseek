@@ -223,11 +223,6 @@
 
 .post.loop-essay .prose > * + * { margin-top: .9em; }
 .post.loop-essay .prose p + p { margin-top: .72em; }
-.post.loop-essay .prose p {
-  text-align: justify;
-  text-justify: inter-word;
-  hyphens: auto;
-}
 
 .post.loop-essay .prose h2 {
   margin-top: 2.35em;
