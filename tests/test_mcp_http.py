@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import httpx
 import httpx2
+from mcp import Client
 from mcp.client.streamable_http import streamable_http_client
 
-from mcp import Client
 from memseek.api import create_app
 from memseek.auth import create_workspace
 from memseek.db import DatabasePool, create_pool
