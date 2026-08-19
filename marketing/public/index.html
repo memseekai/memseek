@@ -1135,20 +1135,22 @@
       <div class="pv-head reveal">
         <span class="eyebrow" style="--hue:var(--cyan)">the short version</span>
         <h2>History goes in.<br><em>Current context comes out.</em></h2>
-        <p>Your apps and agents produce messages, events, documents, and traces. Memseek turns that
-          history into <b>maintained knowledge</b>, then assembles only the context an agent needs
-          for the task in front of it.</p>
+        <p>Your apps and agents leave behind an ever-growing history of messages, events, documents,
+          tool results, and outcomes. Memseek turns it into a <b>maintained, evidence-backed model</b>
+          of what the agent should know, then compiles a cited context package for the exact task and
+          token budget.</p>
       </div>
 
-      <p class="pv-pull reveal">You define what “memory” means for your application.
-        <b>Memseek runs it.</b></p>
+      <p class="pv-pull reveal">You define what to remember, how it changes, and what each task
+        should see — in versioned YAML. <b>Memseek runs the entire lifecycle on your Postgres.</b></p>
 
       <div class="pvs reveal">
         <div class="pv-side"><span class="k">RAG</span><p>retrieves what <b>looks relevant</b>.</p></div>
         <div class="pv-side b" style="--hue:var(--green)"><span class="k">Memseek</span><p>maintains what is <b>true now</b>.</p></div>
-        <p class="pv-note">Search is one primitive. Memseek also tracks <b>what changed</b>, <b>what
-          replaced it</b>, <b>where each claim came from</b>, and <b>what belongs in the next
-          prompt</b>.</p>
+        <p class="pv-note">Search is one primitive. Memseek also <b>derives and reconciles
+          knowledge</b>, <b>supersedes stale facts without erasing history</b>, preserves the
+          <b>evidence behind every claim</b>, replays any point in time, and assembles agent-ready
+          context to a declared token budget.</p>
       </div>
     </div>
   </section>
@@ -2126,7 +2128,7 @@ brief[<span class="cs">"manifest"</span>][<span class="cs">"rendered_sha256"</sp
       <div class="faq reveal">
         <details open>
           <summary>How do Memseek and MemBukkit relate?<span class="pm">+</span></summary>
-          <div class="ans"><b>Memseek is the context engine.</b> It provides search, maintained state, provenance, policies, and prompt-time context for production agents. <b><a href="/membukkit/">MemBukkit</a> is our open agent-memory showcase</b>: a focused library, CLI, GUI, and reproducible benchmark harness. The SOTA-performing search method demonstrated in MemBukkit is available in Memseek; MemBukkit is not a second context-engine product.</div>
+          <div class="ans"><b>Memseek is the context engine.</b> It provides search, maintained state, provenance, policies, and prompt-time context for production agents. <b><a href="/membukkit/">MemBukkit</a> is our open agent-memory showcase</b>: a focused library, CLI, GUI, and reproducible benchmark harness. The SOTA-performing search method demonstrated in MemBukkit will be available in the hosted version of Memseek; MemBukkit is not a second context-engine product.</div>
         </details>
         <details open>
           <summary>What does it cost to run?<span class="pm">+</span></summary>

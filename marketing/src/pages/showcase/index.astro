@@ -8,28 +8,37 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
  * Adding one is two steps: drop the file in public/, add a row here.
  */
 /**
- * One card per memory story. `kind` deliberately describes the visible change
- * in plain language instead of asking a new reader to know memory-system jargon.
- * `status` says whether the destination is runnable, connected, or a blueprint.
+ * MemBukkit and the workspace explorer are things readers can use, rather than
+ * worked memory stories, so they get their own category on the hub.
  */
-const showcases = [
+const projectsAndTools = [
   {
     href: '/membukkit/',
     slug: 'membukkit',
-    kind: 'dated memory',
+    kind: 'open agent-memory project',
     title: 'MemBukkit',
     blurb: 'Rent changes from €800 to €950. Ask what is true now—or what was true before.',
     status: 'runnable · separate repository',
+    action: 'Explore project →',
     accent: 'var(--orange)',
   },
   {
     slug: 'workspace-explorer',
-    kind: 'inspect the system',
+    kind: 'live workspace tool',
     title: 'The workspace explorer',
     blurb: 'Connect a workspace and follow definitions, records, runs, views, and outputs.',
     status: 'live · read-only connection',
+    action: 'Open explorer →',
     accent: 'var(--cyan)',
   },
+];
+
+/**
+ * One card per memory story. `kind` deliberately describes the visible change
+ * in plain language instead of asking a new reader to know memory-system jargon.
+ * `status` says whether the destination is runnable or a blueprint.
+ */
+const showcases = [
   {
     slug: 'agent-memory',
     kind: 'conversation → memory',
@@ -106,32 +115,61 @@ const showcases = [
       <span class="eyebrow">Showcases</span>
       <h1>See how it <span class="grad">runs.</span></h1>
       <p class="lede">
-        Pick a familiar case: a rent change, a CRM update, a rumor spreading through town, or a
-        support rule that needs fixing. As you scroll, the event, the YAML that handles it, the
-        record that gets written, and the reason for that write unfold together.
+        Try an open project, inspect a live workspace, or pick a familiar memory case. The tools
+        let you explore directly; the showcases unfold each event, write, and evidence trail as
+        you scroll.
       </p>
       <p class="simulation-note">
-        <strong>Simulation · worked cases.</strong> The people, events, conversations, and
-        outputs shown in these showcases are illustrative examples, not live customer records or
-        captured customer activity. A page will say explicitly if you choose to connect live data.
+        <strong>About the showcase cases.</strong> Their people, events, conversations, and
+        outputs are illustrative examples, not live customer records or captured customer
+        activity. The workspace explorer says explicitly when you choose to connect live data.
       </p>
     </div>
   </section>
 
   <section class="sc-list">
-    <div class="wrap grid">
-      {showcases.map((s) => (
-        <article class="card" style={`--hue: ${s.accent}`}>
-          <a href={s.href ?? `/showcase/${s.slug}/`} class="hit" aria-label={s.title}></a>
-          <div class="body">
-            <span class="kind">{s.kind}</span>
-            <h2>{s.title}</h2>
-            <p>{s.blurb}</p>
-            <span class="status">{s.status}</span>
-            <span class="read">Open case →</span>
-          </div>
-        </article>
-      ))}
+    <div class="wrap categories">
+      <div class="category">
+        <div class="category-heading">
+          <h2>Projects &amp; tools</h2>
+          <p>Runnable ways to try the memory system or inspect what a workspace contains.</p>
+        </div>
+        <div class="grid">
+          {projectsAndTools.map((item) => (
+            <article class="card" style={`--hue: ${item.accent}`}>
+              <a href={item.href ?? `/showcase/${item.slug}/`} class="hit" aria-label={item.title}></a>
+              <div class="body">
+                <span class="kind">{item.kind}</span>
+                <h3>{item.title}</h3>
+                <p>{item.blurb}</p>
+                <span class="status">{item.status}</span>
+                <span class="read">{item.action}</span>
+              </div>
+            </article>
+          ))}
+        </div>
+      </div>
+
+      <div class="category">
+        <div class="category-heading">
+          <h2>Showcases</h2>
+          <p>Worked memory cases that make each transformation and its evidence visible.</p>
+        </div>
+        <div class="grid">
+          {showcases.map((showcase) => (
+            <article class="card" style={`--hue: ${showcase.accent}`}>
+              <a href={`/showcase/${showcase.slug}/`} class="hit" aria-label={showcase.title}></a>
+              <div class="body">
+                <span class="kind">{showcase.kind}</span>
+                <h3>{showcase.title}</h3>
+                <p>{showcase.blurb}</p>
+                <span class="status">{showcase.status}</span>
+                <span class="read">Open case →</span>
+              </div>
+            </article>
+          ))}
+        </div>
+      </div>
     </div>
   </section>
 </BaseLayout>
@@ -161,9 +199,14 @@ const showcases = [
   }
 
   .sc-list { padding-bottom: clamp(3rem, 7vw, 6rem); }
+  .categories { display: flex; flex-direction: column; gap: clamp(2.6rem, 6vw, 4.8rem); }
+  .category { display: flex; flex-direction: column; gap: 1.2rem; }
+  .category-heading { display: flex; align-items: end; justify-content: space-between; gap: 1.5rem; }
+  .category-heading h2 { font-size: var(--step-2); }
+  .category-heading p { max-width: 35rem; color: var(--muted); font-size: .93rem; }
   /* Narrower track than the old blurb needed: one sentence per card reads better
-     three-across than two, and seven cards land in three rows instead of four. */
-  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 19rem), 1fr)); gap: 1rem; }
+     three-across than two. */
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 19rem), 1fr)); gap: 1rem; }
 
   .card {
     position: relative;
@@ -185,8 +228,8 @@ const showcases = [
     text-transform: uppercase; color: var(--hue);
   }
   :root[data-theme="light"] .kind { color: color-mix(in srgb, var(--hue) 72%, var(--text)); }
-  .card h2 { font-size: var(--step-1); line-height: 1.25; }
-  .card:hover h2 { color: var(--hue); }
+  .card h3 { font-size: var(--step-1); line-height: 1.25; }
+  .card:hover h3 { color: var(--hue); }
   .card p { color: var(--muted); font-size: .93rem; line-height: 1.55; }
 
   .status {
@@ -196,4 +239,8 @@ const showcases = [
   .status::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--hue); }
 
   .read { margin-top: auto; padding-top: .7rem; font-family: var(--mono); font-size: var(--step--1); color: var(--cyan); }
+
+  @media (max-width: 700px) {
+    .category-heading { align-items: start; flex-direction: column; gap: .5rem; }
+  }
 </style>
