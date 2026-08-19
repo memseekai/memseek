@@ -25,7 +25,7 @@ def print_workspace_explorer(*, api_url: str, api_key: str) -> None:
 
     explorer_base = os.environ.get(
         "MEMSEEK_EXPLORER_URL",
-        "http://localhost:4321/showcase/workspace-explorer/index.html",
+        "https://memseek.ai/showcase/workspace-explorer/",
     )
     separator = "&" if "?" in explorer_base else "?"
     explorer_url = explorer_base + separator + urlencode({"api_url": api_url})

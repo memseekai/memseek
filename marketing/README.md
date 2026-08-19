@@ -208,7 +208,7 @@ does not.
 
 ### Site URL
 
-`astro.config.mjs` reads `SITE_URL`, defaulting to `https://memseek.pages.dev`.
+`astro.config.mjs` reads `SITE_URL`, defaulting to `https://memseek.ai`.
 It affects absolute URLs only — RSS, sitemap, canonical, `og:url` — never the
 page markup. When a custom domain is attached, set it at build time:
 

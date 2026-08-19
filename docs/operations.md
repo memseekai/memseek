@@ -66,7 +66,7 @@ Running Uvicorn yourself, it is an ordinary export:
     uv run uvicorn memseek.api:app --host 127.0.0.1 --port 8000
 
     # Add every production console origin explicitly, for example:
-    export API_CORS_ORIGINS='["https://console.example.com","https://memseek.pages.dev"]'
+    export API_CORS_ORIGINS='["https://console.example.com","https://memseek.ai"]'
 
 Confirm it took effect — an allowed origin is echoed back, and any other origin
 gets no header at all, which is what makes the browser refuse the response:

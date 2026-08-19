@@ -5,13 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="description" content="A guided, read-only workspace explorer for definitions, records, processing runs, views, and rendered artifacts." />
     <title>Workspace explorer — memseek</title>
-    <link rel="canonical" href="https://memseek.pages.dev/showcase/workspace-explorer/" />
+    <link rel="canonical" href="https://memseek.ai/showcase/workspace-explorer/" />
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="Memseek" />
     <meta property="og:title" content="Workspace explorer — memseek" />
     <meta property="og:description" content="Follow a memory workspace from definitions and records through processing runs to the views and artifacts an agent uses." />
-    <meta property="og:url" content="https://memseek.pages.dev/showcase/workspace-explorer/" />
-    <meta property="og:image" content="https://memseek.pages.dev/og-default.png" />
+    <meta property="og:url" content="https://memseek.ai/showcase/workspace-explorer/" />
+    <meta property="og:image" content="https://memseek.ai/og-default.png" />
     <meta name="twitter:card" content="summary_large_image" />
     <script>
       try {
@@ -39,6 +39,7 @@
       [hidden] { display: none !important; }
       body > header.nav, .page-intro { display: none; }
       body > main { flex: 1; min-height: 0; display: flex; }
+      body > main > :not(.explorer-region) { display: none; }
       .explorer-region { flex: 1; width: 100%; min-height: 0; display: flex; padding: 0; }
       .explorer-region > .wrap { max-width: none; min-height: 0; display: flex; flex: 1; padding: 0; }
       .explorer { flex: 1; height: 100vh; min-height: 0; border: 0; border-radius: 0; box-shadow: none; }
@@ -574,7 +575,7 @@
               <span class="when">what you connect</span>
               <p class="beat">An API address and a workspace key, both read-only. Your key stays in this tab.</p>
               <pre><span class="c"># let this page call your API, then paste URL + key</span>
-export API_CORS_ORIGINS=<span class="s">'["https://memseek.pages.dev"]'</span></pre>
+export API_CORS_ORIGINS=<span class="s">https://memseek.ai</span></pre>
             </li>
             </ol>
           </div>

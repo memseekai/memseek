@@ -11,6 +11,8 @@ root, add your key to `.env` (replace the placeholder with your real key):
 
 ```dotenv
 OPENAI_API_KEY=sk-your-key
+# Only needed for the browser workspace explorer
+API_CORS_ORIGINS=https://memseek.ai
 ```
 
 Then run:
@@ -25,7 +27,9 @@ uv run python examples/generative_agents_toy.py
 `make up` starts PostgreSQL, the Memseek API, and the worker. The example needs
 its own catalog, so do not point it at the populated `local` workspace created
 by `make up`. With `DATABASE_URL` set instead, the script creates a fresh
-workspace for every run in the same Docker database.
+workspace for every run in the same Docker database. `API_CORS_ORIGINS` lets
+the hosted, read-only workspace explorer call your local API; the workspace key
+is never put in its URL.
 
 This is a hands-on tour of a small, complete example: a town of three
 residents who wake up, plan their day, cross paths, gossip, sleep on what they

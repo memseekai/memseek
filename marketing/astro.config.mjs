@@ -11,7 +11,7 @@ import cloudflare from "@astrojs/cloudflare";
 
 // Set SITE_URL in the Cloudflare Pages build env once a custom domain is attached.
 // It only affects absolute URLs (RSS, sitemap, og:url) — never the page markup.
-const site = process.env.SITE_URL ?? 'https://memseek.pages.dev';
+const site = process.env.SITE_URL ?? 'https://memseek.ai';
 
 /**
  * Wraps every <table> in <div class="table-scroll"> so wide tables scroll
