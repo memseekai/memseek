@@ -680,21 +680,57 @@
       <symbol id="gh-mark" viewBox="0 0 16 16"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.1-.25-.36-1.07.08-2.2 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.13.18 1.95.08 2.2.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A7.995 7.995 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></symbol>
     </svg>
 
-    <header class="nav">
+    <header class="nav site-nav">
       <div class="wrap nav-inner">
-        <a class="brand" href="/">memseek<span class="caret">▌</span></a>
-        <nav class="nav-right">
-          <a class="navlink" href="#mapping">The mapping</a>
-          <a class="navlink" href="#diff">Walk the example</a>
-          <a class="navlink" href="#lifecycle">Lifecycle</a>
-          <a class="navlink" href="#code">The YAML</a>
-          <a class="navlink" href="/showcase/">All showcases</a>
-          <a class="nav-gh" href="https://github.com/memseekai/memseek" aria-label="Memseek on GitHub"><svg aria-hidden="true"><use href="#gh-mark"/></svg><span class="lbl">GitHub</span></a>
-          <button class="theme-toggle" id="theme" type="button" aria-label="Toggle colour theme">
-            <svg class="moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
-            <svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
-          </button>
-          <a class="nav-cta" href="#start">Start building</a>
+        <a class="brand" href="/"><span class="dot"></span>memseek</a>
+        <nav class="nav-links" aria-label="Main navigation">
+          <div class="nav-menu">
+            <button class="nav-trigger" type="button" aria-expanded="false" aria-controls="navProduct">Product</button>
+            <div class="nav-panel" id="navProduct">
+              <a href="/#how">How it works</a>
+              <a href="/#catalog">The catalog</a>
+              <a href="/#designs">Memory designs</a>
+              <a href="/#quickstart">Run it locally</a>
+              <a href="/claude-code/">Claude Code plugin</a>
+              <a href="/#compare">Compare</a>
+              <a href="/benchmarks/" class="narrow-only">Benchmarks</a>
+            </div>
+          </div>
+          <a href="/benchmarks/" class="nav-bench">Benchmarks</a>
+          <div class="nav-menu">
+            <button class="nav-trigger" type="button" aria-expanded="false" aria-controls="navLearn" data-current>Resources</button>
+            <div class="nav-panel" id="navLearn">
+              <a href="/context-engine/">Context engine</a>
+              <a href="/membukkit/">MemBukkit</a>
+              <a href="/showcase/" aria-current="page">Showcases</a>
+              <a href="/blog/">Blog</a>
+              <a href="/#faq">FAQ</a>
+            </div>
+          </div>
+          <a href="https://github.com/memseekai/memseek" class="nav-gh" aria-label="Memseek on GitHub"><svg aria-hidden="true"><use href="#gh-mark"/></svg></a>
+          <button class="theme-toggle" id="theme" type="button" aria-label="Toggle color theme">THEME</button>
+          <a href="/#waitlist" class="nav-cta"><span class="cta-wide">Join the waitlist</span><span class="cta-narrow">Join</span></a>
+          <div class="nav-menu nav-burger">
+            <button class="nav-trigger" type="button" aria-expanded="false" aria-controls="navAll" aria-label="Menu"><span class="bars" aria-hidden="true"></span></button>
+            <div class="nav-panel" id="navAll">
+              <div class="nav-group">Product</div>
+              <a href="/#how">How it works</a>
+              <a href="/#catalog">The catalog</a>
+              <a href="/#designs">Memory designs</a>
+              <a href="/#quickstart">Run it locally</a>
+              <a href="/claude-code/">Claude Code plugin</a>
+              <a href="/#compare">Compare</a>
+              <a href="/benchmarks/">Benchmarks</a>
+              <div class="nav-group">Resources</div>
+              <a href="/context-engine/">Context engine</a>
+              <a href="/membukkit/">MemBukkit</a>
+              <a href="/showcase/" aria-current="page">Showcases</a>
+              <a href="/blog/">Blog</a>
+              <a href="/#faq">FAQ</a>
+              <div class="nav-group">Project</div>
+              <a href="https://github.com/memseekai/memseek">GitHub</a>
+            </div>
+          </div>
         </nav>
       </div>
     </header>
@@ -771,12 +807,95 @@
         </div>
       </section>
 
+      <!-- ============ the problem, in plain language ============ -->
+      <section class="region" id="why" style="--hue: var(--orange)">
+        <div class="wrap">
+          <div class="region-head rv">
+            <p class="eyebrow">00 · the problem</p>
+            <h2>Memory that tidies itself. Who checks what it threw out?</h2>
+          </div>
+          <p class="why-lead rv">Nobody, usually — and that is the problem. You would review it if the system told you what changed. A background model re-reading an agent’s memory can genuinely merge duplicates and retire stale entries. But hand back a whole second store and nobody can see which memories moved — so nobody reviews it, and everybody hopes.</p>
+
+          <div class="why-grid">
+            <article class="why-card is-without rv">
+              <span class="why-tag">a second store</span>
+              <h3>Get back a new store and compare by hand.</h3>
+              <ul>
+                <li><b>You get a store, not a diff.</b></li>
+                <li><b>Reviewing means eyeballing,</b> which nobody does twice.</li>
+                <li><b>A cleanup can land on top of newer memory.</b></li>
+              </ul>
+            </article>
+            <article class="why-card is-with rv">
+              <span class="why-tag">with memseek</span>
+              <h3>Get back a labelled draft you adopt or decline.</h3>
+              <ul>
+                <li><b>The result is a draft.</b> Live memory is untouched.</li>
+                <li><b>Every slot is labelled,</b> with the evidence behind it.</li>
+                <li><b>Adoption is refused</b> if the store moved while you read.</li>
+              </ul>
+            </article>
+          </div>
+
+          <div class="story rv">
+            <ol>
+            <li>
+              <span class="when">the store gets messy</span>
+              <p class="beat">Two memories say the same thing, and one of them is out of date.</p>
+              <q>&ldquo;Prefers tabs.&rdquo; &nbsp;+&nbsp; &ldquo;Uses tabs for indentation.&rdquo;</q>
+            </li>
+            <li>
+              <span class="when">the cleanup runs</span>
+              <p class="beat">It reads the recent sessions and proposes a tidier version.</p>
+              <q>&ldquo;Prefers 4-space indentation.&rdquo;</q>
+              <span class="aside">Changed, and it says why: a later session standardised on four spaces.</span>
+            </li>
+            <li>
+              <span class="when">you get a diff, not a store</span>
+              <p class="beat">Every slot is labelled, including the one it wants to throw away.</p>
+              <q><b>removed</b> &mdash; &ldquo;Debugged a flaky CI job by bumping the timeout.&rdquo; <b>kept</b> &mdash; &ldquo;Works in the payments service.&rdquo;</q>
+            </li>
+            <li>
+              <span class="when">what you write</span>
+              <p class="beat">Read the diff. One line adopts it &mdash; and only you can run that line.</p>
+              <pre>review = await memseek.<span class="s">run</span>(run_id)
+review[<span class="s">"candidate_set"</span>][<span class="s">"divergence"</span>]  <span class="c"># what moved</span>
+
+await memseek.<span class="s">promote</span>(...)  <span class="c"># nothing is live until this</span></pre>
+            </li>
+            </ol>
+          </div>
+
+          <div class="why-out rv">
+            <div><b><em>4 slots</em> in, every one accounted for</b><span>A missing entry has to be a deliberate removal, not a model’s omission.</span></div>
+            <div><b><em>0 live changes</em> before approval</b><span>Declining costs nothing: the draft stays on the record and memory never moved.</span></div>
+            <div><b><em>A diff, not a store</em></b><span>You review changes with reasons attached, not two lists side by side.</span></div>
+          </div>
+
+          <p class="why-note rv"><b>New to Memseek?</b> You write one small
+            configuration file describing what your application should remember. After that
+            your application only appends what happened; Memseek does the deriving, keeps every
+            conclusion linked to the evidence underneath it, and hands your agent a bounded
+            briefing instead of a pile of text. Everything below is that file and what it
+            produces &mdash; <a href="/#how">how it works</a>.</p>
+
+          <div class="why-words rv">
+            <header><span>the words the rest of this page uses</span><span>plain english</span></header>
+            <dl>
+              <div><dt>candidate, draft</dt><dd>A proposed result that is stored but not in use.</dd></div>
+              <div><dt>divergence</dt><dd>The diff: which slots were added, changed, removed, or kept.</dd></div>
+              <div><dt>promotion</dt><dd>The single act that makes a draft live. A person does it.</dd></div>
+              <div><dt>blueprint</dt><dd>The design on this page is not shipped yet, though the pieces it needs are. The runnable version today is the CRM rebuild.</dd></div>
+            </dl>
+          </div>
+        </div>
+      </section>
       <section class="case-study" aria-labelledby="case-title" style="--hue: var(--orange)">
         <div class="wrap case-layout">
           <aside class="case-brief rv">
             <span class="case-number">case 08 · the cluttered store</span>
             <h2 id="case-title">Can old memory be reorganized without letting a background model overwrite what is live?</h2>
-            <p>We are modeling a “dream” as a bounded, reviewed rebuild of a keyed memory store. The candidate may merge duplicates, update stale preferences, drop one-off noise, and add a supported pattern—but it must account for every key and remain inert until promotion.</p>
+            <p>A “dream” here is a bounded, reviewed rebuild of one small memory store. The proposal may merge duplicates, refresh a stale preference, drop a one-off note, and add a pattern it can support — but it has to say something about every slot, and it does nothing at all until a person adopts it.</p>
             <dl class="case-contract">
               <div><dt>input</dt><dd>Four current memory keys plus 1–100 sessions</dd></div>
               <div><dt>output</dt><dd>One complete candidate store and a classified diff</dd></div>
@@ -813,7 +932,7 @@
                     <div class="yaml-note"><code>keys</code><p>Define the entire target store. The model cannot invent a fifth memory category.</p></div>
                   </div>
                 </div>
-                <div class="case-write"><span>writes now</span><p>A queued run and immutable source snapshot. The live <code>memories</code> heads do not change.</p></div>
+                <div class="case-write"><span>writes now</span><p>A queued run and a frozen copy of its inputs: the four current memories (&ldquo;Prefers tabs.&rdquo; &middot; &ldquo;Uses tabs for indentation.&rdquo; &middot; &ldquo;Debugged a flaky CI job by bumping the timeout.&rdquo; &middot; &ldquo;Works in the payments service.&rdquo;) and three recent sessions. The live <code>memories</code> heads do not change.</p></div>
               </div>
             </article>
 
@@ -843,7 +962,7 @@ tasks:
                     <div class="yaml-note"><code>output_schema</code><p>Require one legal record shape with citations. A prose essay cannot accidentally become the new store.</p></div>
                   </div>
                 </div>
-                <div class="case-write"><span>writes next</span><p>Model-call receipts and a proposed four-key result attached to the run. It is still not active memory.</p></div>
+                <div class="case-write"><span>writes next</span><p>Model-call receipts and a proposed four-key result attached to the run: <code>style</code> &rarr; &ldquo;Prefers 4-space indentation.&rdquo;, <code>workflow</code> &rarr; &ldquo;Always adds type hints to new functions.&rdquo;, <code>tools</code> &rarr; dropped, <code>domain</code> &rarr; unchanged. It is still not active memory.</p></div>
               </div>
             </article>
 
@@ -885,14 +1004,14 @@ tasks:
                     <div class="yaml-note"><code>review: required</code><p>Stage candidate records and divergence metadata instead of advancing live heads automatically.</p></div>
                   </div>
                 </div>
-                <div class="case-write"><span>writes next</span><p>One inert candidate set plus a per-key diff: duplicate merged, style changed, CI note removed, domain kept, type-hint pattern added.</p></div>
+                <div class="case-write"><span>writes next</span><p>One inert candidate set plus a per-key diff: the tabs duplicate merged, <code>style</code> changed to &ldquo;Prefers 4-space indentation.&rdquo;, the flaky-CI note removed, &ldquo;Works in the payments service.&rdquo; kept, and &ldquo;Always adds type hints to new functions.&rdquo; added.</p></div>
               </div>
             </article>
 
             <article class="case-chapter rv" style="--chapter-hue: var(--green)">
               <span class="case-marker">4</span>
               <div class="case-body">
-                <span class="case-kicker">promotion is a compare-and-set</span>
+                <span class="case-kicker">you adopt it, or you don’t</span>
                 <h3>Approval succeeds only if the store is still the one that was reviewed.</h3>
                 <p>A person inspects the candidate and chooses adopt or decline. Promotion rechecks the captured input heads. If another process updated <code>style</code> during review, the operation is rejected as stale instead of overwriting newer memory.</p>
                 <div class="case-event"><b>review decision</b>Approve the classified diff only after verifying every changed or removed key and its evidence.</div>
@@ -911,7 +1030,7 @@ promotion:
                     <div class="yaml-note"><code>on_stale: reject</code><p>This is explanatory pseudoconfiguration for the runtime’s compare-and-set behavior—not a field in the unfinished <code>dream.yaml</code>.</p></div>
                   </div>
                 </div>
-                <div class="case-write"><span>final state</span><p>On approval, four new current heads are promoted atomically and the prior heads remain in history. On decline or staleness, live memory is unchanged.</p></div>
+                <div class="case-write"><span>final state</span><p>On approval, four new current heads are promoted at once and &ldquo;Prefers tabs.&rdquo; moves into history. On decline or staleness, live memory still says &ldquo;Prefers tabs.&rdquo; and the draft stays on the record.</p></div>
                 <a class="case-next" href="#mapping">Continue into the interactive blueprint and diff →</a>
               </div>
             </article>

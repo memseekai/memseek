@@ -45,22 +45,57 @@
       <symbol id="gh-mark" viewBox="0 0 16 16"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.1-.25-.36-1.07.08-2.2 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.13.18 1.95.08 2.2.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A7.995 7.995 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></symbol>
     </svg>
 
-    <header class="nav">
+    <header class="nav site-nav">
       <div class="wrap nav-inner">
-        <a class="brand" href="/">memseek<span class="caret">▌</span></a>
-        <nav class="nav-right">
-          <a class="navlink" href="#install">The skill</a>
-          <a class="navlink" href="#bind">Bind a use</a>
-          <a class="navlink" href="#report">Report outcomes</a>
-          <a class="navlink" href="#draft">The draft & the gate</a>
-          <a class="navlink" href="#use">From your app</a>
-          <a class="navlink" href="/showcase/">All showcases</a>
-          <a class="nav-gh" href="https://github.com/memseekai/memseek" aria-label="Memseek on GitHub"><svg aria-hidden="true"><use href="#gh-mark"/></svg><span class="lbl">GitHub</span></a>
-          <button class="theme-toggle" id="theme" type="button" aria-label="Toggle colour theme">
-            <svg class="moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
-            <svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
-          </button>
-          <a class="nav-cta" href="#start">Start building</a>
+        <a class="brand" href="/"><span class="dot"></span>memseek</a>
+        <nav class="nav-links" aria-label="Main navigation">
+          <div class="nav-menu">
+            <button class="nav-trigger" type="button" aria-expanded="false" aria-controls="navProduct">Product</button>
+            <div class="nav-panel" id="navProduct">
+              <a href="/#how">How it works</a>
+              <a href="/#catalog">The catalog</a>
+              <a href="/#designs">Memory designs</a>
+              <a href="/#quickstart">Run it locally</a>
+              <a href="/claude-code/">Claude Code plugin</a>
+              <a href="/#compare">Compare</a>
+              <a href="/benchmarks/" class="narrow-only">Benchmarks</a>
+            </div>
+          </div>
+          <a href="/benchmarks/" class="nav-bench">Benchmarks</a>
+          <div class="nav-menu">
+            <button class="nav-trigger" type="button" aria-expanded="false" aria-controls="navLearn" data-current>Resources</button>
+            <div class="nav-panel" id="navLearn">
+              <a href="/context-engine/">Context engine</a>
+              <a href="/membukkit/">MemBukkit</a>
+              <a href="/showcase/" aria-current="page">Showcases</a>
+              <a href="/blog/">Blog</a>
+              <a href="/#faq">FAQ</a>
+            </div>
+          </div>
+          <a href="https://github.com/memseekai/memseek" class="nav-gh" aria-label="Memseek on GitHub"><svg aria-hidden="true"><use href="#gh-mark"/></svg></a>
+          <button class="theme-toggle" id="theme" type="button" aria-label="Toggle color theme">THEME</button>
+          <a href="/#waitlist" class="nav-cta"><span class="cta-wide">Join the waitlist</span><span class="cta-narrow">Join</span></a>
+          <div class="nav-menu nav-burger">
+            <button class="nav-trigger" type="button" aria-expanded="false" aria-controls="navAll" aria-label="Menu"><span class="bars" aria-hidden="true"></span></button>
+            <div class="nav-panel" id="navAll">
+              <div class="nav-group">Product</div>
+              <a href="/#how">How it works</a>
+              <a href="/#catalog">The catalog</a>
+              <a href="/#designs">Memory designs</a>
+              <a href="/#quickstart">Run it locally</a>
+              <a href="/claude-code/">Claude Code plugin</a>
+              <a href="/#compare">Compare</a>
+              <a href="/benchmarks/">Benchmarks</a>
+              <div class="nav-group">Resources</div>
+              <a href="/context-engine/">Context engine</a>
+              <a href="/membukkit/">MemBukkit</a>
+              <a href="/showcase/" aria-current="page">Showcases</a>
+              <a href="/blog/">Blog</a>
+              <a href="/#faq">FAQ</a>
+              <div class="nav-group">Project</div>
+              <a href="https://github.com/memseekai/memseek">GitHub</a>
+            </div>
+          </div>
         </nav>
       </div>
     </header>
@@ -104,12 +139,95 @@
         </div>
       </section>
 
+      <!-- ============ the problem, in plain language ============ -->
+      <section class="region" id="why" style="--hue: var(--green)">
+        <div class="wrap">
+          <div class="region-head rv">
+            <p class="eyebrow">00 · the problem</p>
+            <h2>Your assistant is wrong. Who edits its instructions?</h2>
+          </div>
+          <p class="why-lead rv">Today: a person edits a prompt in the codebase, ships it, and waits to see whether the complaints stop. The instructions live in source control, the complaints live in a support tool, and <strong>nothing connects a bad reply to the exact wording that produced it</strong>.</p>
+
+          <div class="why-grid">
+            <article class="why-card is-without rv">
+              <span class="why-tag">the usual options</span>
+              <h3>Edit the prompt. Ship. Hope.</h3>
+              <ul>
+                <li><b>The playbook is a string in code,</b> with no real versions.</li>
+                <li><b>Feedback floats free.</b> A thumbs-down cannot point at the wording.</li>
+                <li><b>Or the agent edits itself,</b> and the rules drift.</li>
+              </ul>
+            </article>
+            <article class="why-card is-with rv">
+              <span class="why-tag">with memseek</span>
+              <h3>Treat the playbook as data, and gate the change.</h3>
+              <ul>
+                <li><b>The playbook is versioned records</b> the agent reads as it answers.</li>
+                <li><b>Each outcome is filed against that exact version.</b></li>
+                <li><b>The model drafts; only a person ships.</b></li>
+              </ul>
+            </article>
+          </div>
+
+          <div class="story rv">
+            <ol>
+            <li>
+              <span class="when">the rule in force</span>
+              <p class="beat">The assistant follows a playbook. One line of it is too broad.</p>
+              <q>&ldquo;Attach a discount code to every refund reply.&rdquo;</q>
+            </li>
+            <li>
+              <span class="when">the complaints arrive</span>
+              <p class="beat">Each one is filed against the exact version of the playbook that caused it.</p>
+              <q>&ldquo;Being upsold immediately after our billing error felt tone-deaf.&rdquo;</q>
+            </li>
+            <li>
+              <span class="when">a narrower rule is drafted</span>
+              <p class="beat">The model writes the replacement. It cannot put it into service.</p>
+              <q>&ldquo;When the charge was our own error, apologise and refund in full &mdash; no discount code.&rdquo;</q>
+              <span class="aside">Until someone approves it, the assistant keeps running the old line.</span>
+            </li>
+            <li>
+              <span class="when">what you write</span>
+              <p class="beat">Report the outcome. Approve, or don&rsquo;t.</p>
+              <pre>await memseek.feedback.<span class="s">thumbs_down</span>(use_id=use_id,
+    note=<span class="s">"Discount on a refund that was our own error."</span>)
+
+await memseek.<span class="s">promote</span>(...)  <span class="c"># only a person runs this</span></pre>
+            </li>
+            </ol>
+          </div>
+
+          <div class="why-out rv">
+            <div><b><em>1 rule narrowed</em>, the rest untouched</b><span>“Discount every refund” becomes “not when the error was ours”. Steps and examples carry forward.</span></div>
+            <div><b><em>0 automatic changes</em></b><span>The assistant keeps running the old playbook until someone approves the new one.</span></div>
+            <div><b>Every complaint <em>points at a version</em></b><span>You can show which wording caused which reply, months later.</span></div>
+          </div>
+
+          <p class="why-note rv"><b>New to Memseek?</b> You write one small
+            configuration file describing what your application should remember. After that
+            your application only appends what happened; Memseek does the deriving, keeps every
+            conclusion linked to the evidence underneath it, and hands your agent a bounded
+            briefing instead of a pile of text. Everything below is that file and what it
+            produces &mdash; <a href="/#how">how it works</a>.</p>
+
+          <div class="why-words rv">
+            <header><span>the words the rest of this page uses</span><span>plain english</span></header>
+            <dl>
+              <div><dt>skill, playbook</dt><dd>The operating instructions an assistant follows: steps, pitfalls, examples.</dd></div>
+              <div><dt>use ID</dt><dd>The one short ID your app stores beside its reply. It pins exactly which version was in force.</dd></div>
+              <div><dt>candidate</dt><dd>A proposed new playbook: stored, cited, and not in use.</dd></div>
+              <div><dt>promotion</dt><dd>The single act that makes a candidate live. A person does it.</dd></div>
+            </dl>
+          </div>
+        </div>
+      </section>
       <section class="case-study" aria-labelledby="case-title" style="--hue: var(--green)">
         <div class="wrap case-layout">
           <aside class="case-brief rv">
             <span class="case-number">case 02 · refund assistant</span>
             <h2 id="case-title">How can an agent learn from bad outcomes without silently rewriting its own rules?</h2>
-            <p>We are modeling a maintained operating skill: the exact playbook version used for a reply is remembered, later outcomes are attached to that use, and a replacement is proposed as a reviewable draft. Learning means evidence plus approval—not autonomous prompt drift.</p>
+            <p>The assistant’s playbook, kept like data. The exact version used for a reply is remembered, later outcomes are filed against that version, and a replacement arrives as a draft for review. Learning here means evidence plus approval — not a prompt that quietly edits itself.</p>
             <dl class="case-contract">
               <div><dt>problem</dt><dd>“Attach a discount to every refund” causes three poor outcomes</dd></div>
               <div><dt>target</dt><dd>A complete three-section replacement skill</dd></div>
@@ -144,7 +262,7 @@ complete_keys: [steps, pitfalls, examples]</code></pre></div>
                     <div class="yaml-note"><code>complete_keys</code><p>A candidate must contain the whole skill contract. Reviewers never approve a mysterious partial patch.</p></div>
                   </div>
                 </div>
-                <div class="case-write"><span>writes now</span><p>An artifact-use receipt pins the rendered skill, definition hash, and resolved learning target. No skill record changes.</p></div>
+                <div class="case-write"><span>writes now</span><p>An artifact-use receipt pins the rendered skill &mdash; <code>pitfalls@v1</code>, &ldquo;Attach a discount code to every refund reply.&rdquo; &mdash; along with its definition hash and learning target. No skill record changes.</p></div>
               </div>
             </article>
 
@@ -176,7 +294,7 @@ schema:
                     <div class="yaml-note"><code>signal.kind / source</code><p>Separate what happened from who judged it, so downstream policy can weigh an end user, evaluator, and application differently.</p></div>
                   </div>
                 </div>
-                <div class="case-write"><span>writes next</span><p>Four <code>learning_signals</code> records—one success and three signals that challenge the rule. The over-broad rule remains active while evidence accumulates.</p></div>
+                <div class="case-write"><span>writes next</span><p>Four <code>learning_signals</code> records: one success, plus &ldquo;Being upsold immediately after our billing error felt tone-deaf.&rdquo; (thumbs down), an evaluation of 0.2, and an operator correction &mdash; &ldquo;Apologize and fix company errors; reserve discounts for goodwill and retention.&rdquo; The over-broad rule remains active while evidence accumulates.</p></div>
               </div>
             </article>
 
@@ -224,7 +342,7 @@ emit:
                     <div class="yaml-note"><code>review: required</code><p>Store the output as a candidate. Only an explicit promotion moves the active heads.</p></div>
                   </div>
                 </div>
-                <div class="case-write"><span>final state</span><p>One cited candidate replaces “discount every refund” with a narrower rule; <code>steps</code> and <code>examples</code> are carried forward. The old skill still serves until approval.</p></div>
+                <div class="case-write"><span>final state</span><p>One cited candidate replaces &ldquo;discount every refund&rdquo; with &ldquo;When the charge was our own error, apologise and refund in full &mdash; no discount code.&rdquo; <code>steps</code> and <code>examples</code> are carried forward unchanged. The old skill still serves until approval.</p></div>
                 <a class="case-next" href="#install">Continue into the complete feedback and promotion trail →</a>
               </div>
             </article>
@@ -276,7 +394,7 @@ emit:
             <div>
               <ul class="flow" style="--hue: var(--cyan)">
                 <li><span class="n">01</span><div><b>the artifact declares its learning target</b><span>Feedback about this prompt is about the skill it carried — not the calendar, not the retrieved memory. The artifact says so, once.</span></div></li>
-                <li><span class="n">02</span><div><b>the bind resolves it</b><span>You get back a use ID plus the promoted skill version that produced this exact render.</span></div></li>
+                <li><span class="n">02</span><div><b>the bind resolves it</b><span>You get back a use ID plus the promoted skill version that produced this exact render.</span><div class="eg"><span class="eg-l">what comes back</span>use_9f2c41ab &middot; maintained_skill@1 &middot; heads in force: steps@v1, pitfalls@v1, examples@v1 <span class="eg-m">&mdash; the version that said &ldquo;attach a discount code to every refund reply&rdquo;</span></div></div></li>
                 <li><span class="n">03</span><div><b>deliberately not observability</b><span>A use holds no prompt, no response, no tool calls, no token counts, no spans. It expires on a retention setting.</span></div></li>
                 <li><span class="n">04</span><div><b>correlation stays optional</b><span>OpenTelemetry integration is a bounded map of scalar attributes and an optional dependency — the SDK works without it.</span></div></li>
               </ul>

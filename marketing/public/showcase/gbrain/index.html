@@ -356,21 +356,57 @@
       <symbol id="gh-mark" viewBox="0 0 16 16"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.1-.25-.36-1.07.08-2.2 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.13.18 1.95.08 2.2.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A7.995 7.995 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></symbol>
     </svg>
 
-    <header class="nav">
+    <header class="nav site-nav">
       <div class="wrap nav-inner">
-        <a class="brand" href="/">memseek<span class="caret">▌</span></a>
-        <nav class="nav-right">
-          <a class="navlink" href="#write">The write</a>
-          <a class="navlink" href="#wires">It wires itself</a>
-          <a class="navlink" href="#ask">Ask it</a>
-          <a class="navlink" href="#catalog">The catalog</a>
-          <a class="navlink" href="/showcase/">All showcases</a>
-          <a class="nav-gh" href="https://github.com/memseekai/memseek" aria-label="Memseek on GitHub"><svg aria-hidden="true"><use href="#gh-mark"/></svg><span class="lbl">GitHub</span></a>
-          <button class="theme-toggle" id="theme" type="button" aria-label="Toggle colour theme">
-            <svg class="moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
-            <svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
-          </button>
-          <a class="nav-cta" href="#start">Start building</a>
+        <a class="brand" href="/"><span class="dot"></span>memseek</a>
+        <nav class="nav-links" aria-label="Main navigation">
+          <div class="nav-menu">
+            <button class="nav-trigger" type="button" aria-expanded="false" aria-controls="navProduct">Product</button>
+            <div class="nav-panel" id="navProduct">
+              <a href="/#how">How it works</a>
+              <a href="/#catalog">The catalog</a>
+              <a href="/#designs">Memory designs</a>
+              <a href="/#quickstart">Run it locally</a>
+              <a href="/claude-code/">Claude Code plugin</a>
+              <a href="/#compare">Compare</a>
+              <a href="/benchmarks/" class="narrow-only">Benchmarks</a>
+            </div>
+          </div>
+          <a href="/benchmarks/" class="nav-bench">Benchmarks</a>
+          <div class="nav-menu">
+            <button class="nav-trigger" type="button" aria-expanded="false" aria-controls="navLearn" data-current>Resources</button>
+            <div class="nav-panel" id="navLearn">
+              <a href="/context-engine/">Context engine</a>
+              <a href="/membukkit/">MemBukkit</a>
+              <a href="/showcase/" aria-current="page">Showcases</a>
+              <a href="/blog/">Blog</a>
+              <a href="/#faq">FAQ</a>
+            </div>
+          </div>
+          <a href="https://github.com/memseekai/memseek" class="nav-gh" aria-label="Memseek on GitHub"><svg aria-hidden="true"><use href="#gh-mark"/></svg></a>
+          <button class="theme-toggle" id="theme" type="button" aria-label="Toggle color theme">THEME</button>
+          <a href="/#waitlist" class="nav-cta"><span class="cta-wide">Join the waitlist</span><span class="cta-narrow">Join</span></a>
+          <div class="nav-menu nav-burger">
+            <button class="nav-trigger" type="button" aria-expanded="false" aria-controls="navAll" aria-label="Menu"><span class="bars" aria-hidden="true"></span></button>
+            <div class="nav-panel" id="navAll">
+              <div class="nav-group">Product</div>
+              <a href="/#how">How it works</a>
+              <a href="/#catalog">The catalog</a>
+              <a href="/#designs">Memory designs</a>
+              <a href="/#quickstart">Run it locally</a>
+              <a href="/claude-code/">Claude Code plugin</a>
+              <a href="/#compare">Compare</a>
+              <a href="/benchmarks/">Benchmarks</a>
+              <div class="nav-group">Resources</div>
+              <a href="/context-engine/">Context engine</a>
+              <a href="/membukkit/">MemBukkit</a>
+              <a href="/showcase/" aria-current="page">Showcases</a>
+              <a href="/blog/">Blog</a>
+              <a href="/#faq">FAQ</a>
+              <div class="nav-group">Project</div>
+              <a href="https://github.com/memseekai/memseek">GitHub</a>
+            </div>
+          </div>
         </nav>
       </div>
     </header>
@@ -436,12 +472,96 @@
         </div>
       </section>
 
+      <!-- ============ the problem, in plain language ============ -->
+      <section class="region" id="why" style="--hue: var(--orange)">
+        <div class="wrap">
+          <div class="region-head rv">
+            <p class="eyebrow">00 · the problem</p>
+            <h2>Why does a wiki stop being useful the moment it gets big?</h2>
+          </div>
+          <p class="why-lead rv">Because prose does not connect. The pages hold the knowledge, but nothing tracks who founded what, who advises whom, or which page asserts which fact — so “what connects Maya and Nora?” means reading everything and hoping. And asking authors to <em>also</em> maintain a graph never survives a deadline.</p>
+
+          <div class="why-grid">
+            <article class="why-card is-without rv">
+              <span class="why-tag">the usual options</span>
+              <h3>Search it, or hand it to a model.</h3>
+              <ul>
+                <li><b>Search returns pages,</b> not answers. You still do the reading.</li>
+                <li><b>A graph database needs a curator,</b> forever.</li>
+                <li><b>A model summarising the wiki invents the joins</b> and cites nothing.</li>
+              </ul>
+            </article>
+            <article class="why-card is-with rv">
+              <span class="why-tag">with memseek</span>
+              <h3>Read the structure out of the pages people already write.</h3>
+              <ul>
+                <li><b>Links become connections,</b> with no model calls at all.</li>
+                <li><b>Lines under a <code>Facts</code> heading become a list</b> per page.</li>
+                <li><b>Answers name their sources</b> &mdash; and name their gaps.</li>
+              </ul>
+            </article>
+          </div>
+
+          <div class="story rv">
+            <ol>
+            <li>
+              <span class="when">you write a page</span>
+              <p class="beat">Ordinary Markdown, with ordinary links. Nobody fills in a form.</p>
+              <q>Maya founded [Acme](companies/acme) after investing in companies/orbit.</q>
+            </li>
+            <li>
+              <span class="when">the moment it saves</span>
+              <p class="beat">Those links become connections, and the lines under <code>Facts</code> become a list.</p>
+              <q>Maya &rarr; founded &rarr; Acme &nbsp;&middot;&nbsp; Maya &rarr; invested_in &rarr; Orbit</q>
+              <span class="aside">No model is involved here, so it costs nothing and never invents a connection.</span>
+            </li>
+            <li>
+              <span class="when">you ask a question</span>
+              <p class="beat">The answer names the pages it used, and says what it could not find.</p>
+              <q>&ldquo;Maya founded Acme and invested in Orbit. She has also committed to introduce Nora &mdash; who advises Acme&rsquo;s board &mdash; to that board.&rdquo; <b>Gap: the meeting date.</b></q>
+            </li>
+            <li>
+              <span class="when">what you write</span>
+              <p class="beat">Two calls: save a page, ask a question.</p>
+              <pre>await memseek.records.<span class="s">ingest</span>(collection=<span class="s">"pages"</span>,
+    key=<span class="s">"people/maya"</span>, text=markdown)
+
+res = await memseek.<span class="s">answer</span>(<span class="s">"What should I know about Maya?"</span>)
+res[<span class="s">"citations"</span>]   <span class="c"># the pages behind the answer</span></pre>
+            </li>
+            </ol>
+          </div>
+
+          <div class="why-out rv">
+            <div><b><em>5 pages</em> → a graph, a fact index, cited answers</b><span>The only thing anyone authored is the Markdown.</span></div>
+            <div><b><em>0 model calls</em> for the structure</b><span>Links and facts are parsed, not inferred: no bill, no drift, no invented edges.</span></div>
+            <div><b>Every answer <em>bottoms out</em> in a page</b><span>Follow a claim down until you reach something a human typed.</span></div>
+          </div>
+
+          <p class="why-note rv"><b>New to Memseek?</b> You write one small
+            configuration file describing what your application should remember. After that
+            your application only appends what happened; Memseek does the deriving, keeps every
+            conclusion linked to the evidence underneath it, and hands your agent a bounded
+            briefing instead of a pile of text. Everything below is that file and what it
+            produces &mdash; <a href="/#how">how it works</a>.</p>
+
+          <div class="why-words rv">
+            <header><span>the words the rest of this page uses</span><span>plain english</span></header>
+            <dl>
+              <div><dt>catalog</dt><dd>One versioned config file describing what gets stored and what gets derived. Publishing it is how the design changes.</dd></div>
+              <div><dt>edge</dt><dd>A stored connection between two pages — <em>Maya → founded → Acme</em>.</dd></div>
+              <div><dt>atom, take</dt><dd>A small durable memory taken from a conversation; and a conclusion drawn from several of them.</dd></div>
+              <div><dt>citation</dt><dd>The stored link from a conclusion to the record it stands on.</dd></div>
+            </dl>
+          </div>
+        </div>
+      </section>
       <section class="case-study" aria-labelledby="case-title" style="--hue: var(--orange)">
         <div class="wrap case-layout">
           <aside class="case-brief rv">
             <span class="case-number">case 07 · a five-page brain</span>
             <h2 id="case-title">Can plain Markdown become a queryable knowledge graph without asking authors to maintain a graph?</h2>
-            <p>We are modeling a small gbrain-shaped memory: people and company pages are the source of truth; explicit links and a <code>Facts</code> section become derived structure; conversations can add learned patterns; answers remain grounded in the page records.</p>
+            <p>The pages people write are the only source of truth. Links between them, and the short lines under a <code>Facts</code> heading, become structure the software works out for itself; a conversation can add what was learned in it; and every answer stays tied to the pages it came from.</p>
             <dl class="case-contract">
               <div><dt>authored</dt><dd>Five Markdown pages</dd></div>
               <div><dt>derived</dt><dd>Edges, fact index, concepts, patterns, takes</dd></div>
@@ -474,7 +594,7 @@
                     <div class="yaml-note"><code>embedding_v1</code><p>Make the page semantically searchable after the required processor finishes.</p></div>
                   </div>
                 </div>
-                <div class="case-write"><span>writes now</span><p>One active <code>pages</code> record for Maya. No edge or fact has been asserted by the application.</p></div>
+                <div class="case-write"><span>writes now</span><p>One active <code>pages</code> record for Maya, holding her Markdown exactly as written: &ldquo;Maya founded [Acme](companies/acme) after investing in companies/orbit.&rdquo; No edge or fact has been asserted by the application.</p></div>
               </div>
             </article>
 
@@ -518,7 +638,7 @@ emit:
                     <div class="yaml-note"><code>model: null</code><p>State that this operation is deterministic. <code>max_llm_calls: 0</code> enforces the claim at runtime.</p></div>
                   </div>
                 </div>
-                <div class="case-write"><span>writes next</span><p>An <code>edges</code> record from <code>people/maya</code> to <code>companies/acme</code>, citing the page that contained the link.</p></div>
+                <div class="case-write"><span>writes next</span><p>An <code>edges</code> record &mdash; <code>people/maya &mdash;founded&rarr; companies/acme</code> &mdash; citing the page that contained the link, and written with zero model calls.</p></div>
               </div>
             </article>
 
@@ -550,7 +670,7 @@ emit:
                     <div class="yaml-note"><code>complete: true</code><p>Treat each output as the whole current fact index, so removed facts disappear from the head while remaining in history.</p></div>
                   </div>
                 </div>
-                <div class="case-write"><span>writes next</span><p>One current <code>facts/page_facts</code> record containing the declared facts from all five current pages, with page citations.</p></div>
+                <div class="case-write"><span>writes next</span><p>One current <code>facts/page_facts</code> record holding the declared facts from all five pages: &ldquo;Maya founded Acme.&rdquo; &middot; &ldquo;Maya invested in Orbit.&rdquo; &middot; &ldquo;Acme is a climate software company.&rdquo; &middot; &ldquo;Nora advises Acme.&rdquo; &middot; &ldquo;Orbit is in Maya&rsquo;s investment portfolio.&rdquo; &mdash; each with its page citation.</p></div>
               </div>
             </article>
 
@@ -577,7 +697,7 @@ parameters:
                     <div class="yaml-note"><code>depth / limit</code><p>Publish deployment ceilings in the generated input schema so the client cannot request an unbounded walk.</p></div>
                   </div>
                 </div>
-                <div class="case-write"><span>final state</span><p>Graph traversal and the final dossier write nothing. They return bounded, cited projections over pages, edges, concepts, and takes.</p></div>
+                <div class="case-write"><span>final state</span><p>Graph traversal and the dossier write nothing. &ldquo;What connects Maya and Nora?&rdquo; comes back as a cited answer over pages, edges, concepts and takes &mdash; with the meeting date named as a gap rather than guessed.</p></div>
                 <a class="case-next" href="#write">Continue through the full five-page build →</a>
               </div>
             </article>
@@ -770,24 +890,28 @@ parameters:
               <div class="top"><span class="n">STAGE 01</span><span class="badge" style="--bh: var(--violet)">cited</span></div>
               <h3>Atoms</h3>
               <p>The transcript is distilled into small, durable memories — a fact, a preference, a commitment, a decision.</p>
+              <div class="eg"><span class="eg-l">the atom it wrote</span>&ldquo;Maya committed to introduce Nora to the Acme board before the next funding meeting.&rdquo; <span class="eg-m">commitment &middot; 0.92 &middot; cites the transcript</span></div>
               <span class="out">→ 1 commitment atom</span>
             </article>
             <article class="cstep">
               <div class="top"><span class="n">STAGE 02</span><span class="badge" style="--bh: var(--violet)">≥2 citations</span></div>
               <h3>Patterns</h3>
               <p>Recurrences across the new edges and atoms. A pattern must connect at least two distinct records to exist.</p>
+              <div class="eg"><span class="eg-l">the pattern it wrote</span>&ldquo;Maya keeps appearing between Acme and the people who advise it.&rdquo; <span class="eg-m">cites edge&middot;founded + atom&middot;commitment</span></div>
               <span class="out">→ 1 pattern</span>
             </article>
             <article class="cstep">
               <div class="top"><span class="n">STAGE 03</span><span class="badge" style="--bh: var(--violet)">max 12</span></div>
               <h3>Concepts</h3>
               <p>One compact index of durable themes, replaced in place — never an append-only pile that grows forever.</p>
+              <div class="eg"><span class="eg-l">the two themes it wrote</span>&ldquo;Acme board access&rdquo; &middot; &ldquo;Maya&rsquo;s climate investments&rdquo;</div>
               <span class="out">→ 2 themes</span>
             </article>
             <article class="cstep">
               <div class="top"><span class="n">STAGE 04</span><span class="badge" style="--bh: var(--violet)">max 12</span></div>
               <h3>Takes</h3>
               <p>Evidence clusters consolidated into actionable conclusions, each carrying its own citation list.</p>
+              <div class="eg"><span class="eg-l">the take it wrote</span>&ldquo;Maya is actively brokering Acme&rsquo;s board access.&rdquo; <span class="eg-m">cites atom&middot;4b7ee54f, edge&middot;founded, fact&middot;page_facts</span></div>
               <span class="out">→ 1 take</span>
             </article>
           </div>

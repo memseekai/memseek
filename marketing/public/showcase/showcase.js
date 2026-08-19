@@ -24,6 +24,60 @@
     btn.setAttribute('aria-pressed', String(root.getAttribute('data-theme') === 'light'));
   }
 
+  /* ---------- marketing-site navigation ---------- */
+  var menus = [].slice.call(document.querySelectorAll('.site-nav .nav-menu'));
+  if (menus.length) {
+    var hoverable = window.matchMedia && window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+    var shut = null;
+
+    function closeMenu(menu) {
+      menu.classList.remove('open');
+      menu.querySelector('.nav-trigger').setAttribute('aria-expanded', 'false');
+    }
+    function closeMenus(except) {
+      menus.forEach(function (menu) { if (menu !== except) closeMenu(menu); });
+    }
+    function openMenu(menu) {
+      closeMenus(menu);
+      menu.classList.add('open');
+      menu.querySelector('.nav-trigger').setAttribute('aria-expanded', 'true');
+    }
+
+    menus.forEach(function (menu) {
+      var trigger = menu.querySelector('.nav-trigger');
+      trigger.addEventListener('click', function () {
+        if (shut) { clearTimeout(shut); shut = null; }
+        menu.classList.contains('open') ? closeMenu(menu) : openMenu(menu);
+      });
+      menu.addEventListener('click', function (event) {
+        if (event.target.closest('.nav-panel a')) closeMenu(menu);
+      });
+      if (hoverable) {
+        menu.addEventListener('mouseenter', function () {
+          if (shut) { clearTimeout(shut); shut = null; }
+          openMenu(menu);
+        });
+        menu.addEventListener('mouseleave', function () {
+          shut = setTimeout(function () { closeMenu(menu); shut = null; }, 140);
+        });
+      }
+      menu.addEventListener('focusout', function (event) {
+        if (!menu.contains(event.relatedTarget)) closeMenu(menu);
+      });
+    });
+
+    document.addEventListener('click', function (event) {
+      if (!event.target.closest('.site-nav .nav-menu')) closeMenus(null);
+    });
+    document.addEventListener('keydown', function (event) {
+      if (event.key !== 'Escape') return;
+      var open = document.querySelector('.site-nav .nav-menu.open');
+      if (!open) return;
+      closeMenu(open);
+      open.querySelector('.nav-trigger').focus();
+    });
+  }
+
   /* ---------- reveal on scroll ----------
      Extra selectors let a page opt its own machinery in without
      duplicating the observer. */

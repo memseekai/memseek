@@ -49,15 +49,61 @@
     <script>document.documentElement.className += ' js';</script>
     <a class="skip" href="#main">Skip to the memory demo</a>
 
-    <header class="nav am-nav">
+    <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+      <symbol id="gh-mark" viewBox="0 0 16 16"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.1-.25-.36-1.07.08-2.2 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2.27.27 1.53-1.04 2.2-.82 2.2-.82.44 1.13.18 1.95.08 2.2.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A7.995 7.995 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></symbol>
+    </svg>
+
+    <header class="nav site-nav">
       <div class="wrap nav-inner">
-        <a class="brand" href="/">memseek<span class="caret">▌</span></a>
-        <nav class="nav-right" aria-label="Showcase navigation">
-          <a class="navlink" href="/showcase/">All showcases</a>
-          <a class="navlink" href="#demo">Demo</a>
-          <a class="navlink" href="#connect">Connect</a>
-          <button class="theme-toggle" id="theme" type="button" aria-label="Toggle colour theme">◐</button>
-          <a class="nav-cta" href="https://github.com/memseekai/memseek/blob/main/examples/agent_memory.py">View code</a>
+        <a class="brand" href="/"><span class="dot"></span>memseek</a>
+        <nav class="nav-links" aria-label="Main navigation">
+          <div class="nav-menu">
+            <button class="nav-trigger" type="button" aria-expanded="false" aria-controls="navProduct">Product</button>
+            <div class="nav-panel" id="navProduct">
+              <a href="/#how">How it works</a>
+              <a href="/#catalog">The catalog</a>
+              <a href="/#designs">Memory designs</a>
+              <a href="/#quickstart">Run it locally</a>
+              <a href="/claude-code/">Claude Code plugin</a>
+              <a href="/#compare">Compare</a>
+              <a href="/benchmarks/" class="narrow-only">Benchmarks</a>
+            </div>
+          </div>
+          <a href="/benchmarks/" class="nav-bench">Benchmarks</a>
+          <div class="nav-menu">
+            <button class="nav-trigger" type="button" aria-expanded="false" aria-controls="navLearn" data-current>Resources</button>
+            <div class="nav-panel" id="navLearn">
+              <a href="/context-engine/">Context engine</a>
+              <a href="/membukkit/">MemBukkit</a>
+              <a href="/showcase/" aria-current="page">Showcases</a>
+              <a href="/blog/">Blog</a>
+              <a href="/#faq">FAQ</a>
+            </div>
+          </div>
+          <a href="https://github.com/memseekai/memseek" class="nav-gh" aria-label="Memseek on GitHub"><svg aria-hidden="true"><use href="#gh-mark"/></svg></a>
+          <button class="theme-toggle" id="theme" type="button" aria-label="Toggle color theme">THEME</button>
+          <a href="/#waitlist" class="nav-cta"><span class="cta-wide">Join the waitlist</span><span class="cta-narrow">Join</span></a>
+          <div class="nav-menu nav-burger">
+            <button class="nav-trigger" type="button" aria-expanded="false" aria-controls="navAll" aria-label="Menu"><span class="bars" aria-hidden="true"></span></button>
+            <div class="nav-panel" id="navAll">
+              <div class="nav-group">Product</div>
+              <a href="/#how">How it works</a>
+              <a href="/#catalog">The catalog</a>
+              <a href="/#designs">Memory designs</a>
+              <a href="/#quickstart">Run it locally</a>
+              <a href="/claude-code/">Claude Code plugin</a>
+              <a href="/#compare">Compare</a>
+              <a href="/benchmarks/">Benchmarks</a>
+              <div class="nav-group">Resources</div>
+              <a href="/context-engine/">Context engine</a>
+              <a href="/membukkit/">MemBukkit</a>
+              <a href="/showcase/" aria-current="page">Showcases</a>
+              <a href="/blog/">Blog</a>
+              <a href="/#faq">FAQ</a>
+              <div class="nav-group">Project</div>
+              <a href="https://github.com/memseekai/memseek">GitHub</a>
+            </div>
+          </div>
         </nav>
       </div>
     </header>
@@ -101,12 +147,95 @@
         </div>
       </section>
 
+      <!-- ============ the problem, in plain language ============ -->
+      <section class="region" id="why" style="--hue: var(--green)">
+        <div class="wrap">
+          <div class="region-head rv">
+            <p class="eyebrow">00 · the problem</p>
+            <h2>Told the rule on Monday. Breaks it on Friday. Why?</h2>
+          </div>
+          <p class="why-lead rv">Because the rule was only ever a sentence in a chat window. By Friday the conversation is too long to send again, and a summary of it keeps the gist while losing the one line that mattered: <strong>never ship billing without my approval</strong>. A chat log is a record of talking, not a set of rules an agent can be held to.</p>
+
+          <div class="why-grid">
+            <article class="why-card is-without rv">
+              <span class="why-tag">the usual options</span>
+              <h3>Resend the transcript, or summarise it.</h3>
+              <ul>
+                <li><b>Send it all again.</b> The conversation outgrows the prompt, and the bill grows with it.</li>
+                <li><b>Send a summary.</b> &ldquo;Alice cares about release quality&rdquo; is not a rule an agent can obey.</li>
+                <li><b>Either way, no receipts.</b> You cannot see who set a rule, or when.</li>
+              </ul>
+            </article>
+            <article class="why-card is-with rv">
+              <span class="why-tag">with memseek</span>
+              <h3>Keep the words and the rule — separately.</h3>
+              <ul>
+                <li><b>The three messages are kept word for word.</b></li>
+                <li><b>The rule is stored separately,</b> as a hard instruction the agent always gets.</li>
+                <li><b>Every claim links back</b> to the sentence it came from.</li>
+              </ul>
+            </article>
+          </div>
+
+          <div class="story rv">
+            <ol>
+            <li>
+              <span class="when">monday</span>
+              <p class="beat">Alice explains a billing migration in three short messages. One of them is a rule.</p>
+              <q>&ldquo;Never deploy billing changes without my explicit approval. Writing the code is fine; shipping it is not.&rdquo;</q>
+            </li>
+            <li>
+              <span class="when">a second later</span>
+              <p class="beat">The messages are kept word for word. The rule is also written down on its own.</p>
+              <q>Billing deploys need Alice&rsquo;s explicit approval.</q>
+              <span class="aside">It keeps a link to the message it came from, so you can always check it.</span>
+            </li>
+            <li>
+              <span class="when">weeks later</span>
+              <p class="beat">Someone asks the agent to ship tonight. It still has the rule, so it says no.</p>
+              <q>&ldquo;I can prepare the rewrite, but I can&rsquo;t deploy it &mdash; a production billing deploy needs your approval.&rdquo;</q>
+            </li>
+            <li>
+              <span class="when">what you write</span>
+              <p class="beat">One call per message. You never ask for the rule to be extracted.</p>
+              <pre>await memseek.records.<span class="s">ingest</span>(
+    collection=<span class="s">"messages"</span>, entity=<span class="s">"user:alice"</span>,
+    text=<span class="s">"Never deploy billing without my approval."</span>,
+)</pre>
+            </li>
+            </ol>
+          </div>
+
+          <div class="why-out rv">
+            <div><b><em>3 messages</em> in, one standing rule out</b><span>It survives on its own, long after the conversation is gone.</span></div>
+            <div><b>A “deploy tonight” request is <em>refused</em></b><span>And the refusal says why: production billing needs Alice’s approval.</span></div>
+            <div><b><em>Every claim</em> opens to its evidence</b><span>Refusal → rule → the sentence in the chat. No dead ends.</span></div>
+          </div>
+
+          <p class="why-note rv"><b>New to Memseek?</b> You write one small
+            configuration file describing what your application should remember. After that
+            your application only appends what happened; Memseek does the deriving, keeps every
+            conclusion linked to the evidence underneath it, and hands your agent a bounded
+            briefing instead of a pile of text. Everything below is that file and what it
+            produces &mdash; <a href="/#how">how it works</a>.</p>
+
+          <div class="why-words rv">
+            <header><span>the words the rest of this page uses</span><span>plain english</span></header>
+            <dl>
+              <div><dt>L0 – L3</dt><dd>Four kinds of memory, raw to durable: what was said, single facts, project notes, and how this person works.</dd></div>
+              <div><dt>collection</dt><dd>A table of records. Messages go in one, extracted facts in another.</dd></div>
+              <div><dt>derivation</dt><dd>An automatic step that reads new records and writes new ones. You describe it in a small config file; nothing schedules it by hand.</dd></div>
+              <div><dt>citation</dt><dd>The receipt — a stored link from a conclusion to the record it came from.</dd></div>
+            </dl>
+          </div>
+        </div>
+      </section>
       <section class="case-study" aria-labelledby="case-title" style="--hue: var(--green)">
         <div class="wrap case-layout">
           <aside class="case-brief rv">
             <span class="case-number">case 09 · Alice’s billing migration</span>
             <h2 id="case-title">How do three messages become a rule that changes what an agent does weeks later?</h2>
-            <p>We are modeling four deliberately separate forms of memory: exact source messages, reusable atomic claims, a maintained project scene, and stable cross-context traits. The point is not to summarize Alice; it is to preserve the right information at the right level with a citation path back to her words.</p>
+            <p>The walkthrough keeps four kinds of memory apart on purpose: Alice’s exact messages, the individual claims taken from them, a running note about this project, and the few stable things about how Alice works. The goal is not to summarize Alice. It is to keep each piece at the level where it stays useful, with a path back to her words.</p>
             <dl class="case-contract">
               <div><dt>input</dt><dd>Three messages about a billing migration</dd></div>
               <div><dt>constraint</dt><dd>Never deploy billing without Alice’s approval</dd></div>
@@ -119,7 +248,7 @@
             <article class="case-chapter rv" style="--chapter-hue: var(--green)">
               <span class="case-marker">1</span>
               <div class="case-body">
-                <span class="case-kicker">L0 · preserve what was said</span>
+                <span class="case-kicker">step 1 · keep the words (L0)</span>
                 <h3>The evidence layer stores messages without interpreting them.</h3>
                 <p>Alice explains the migration, the compatibility gate, and the approval rule. Each message is an independent event with session order. This layer exists so every later summary or trait can be opened back to exact words rather than a model’s paraphrase.</p>
                 <div class="case-event"><b>Alice · message 3</b>“Never deploy billing changes without my explicit approval. Writing the code is fine; shipping it is not.”</div>
@@ -139,14 +268,14 @@
                     <div class="yaml-note"><code>embedding_v1</code><p>Allow relevant background messages to be found later while preserving the original text byte-for-byte.</p></div>
                   </div>
                 </div>
-                <div class="case-write"><span>writes now</span><p>Three <code>messages</code> records. No fact, scene, or persona claim exists yet.</p></div>
+                <div class="case-write"><span>writes now</span><p>Three <code>messages</code> records, stored word for word &mdash; including &ldquo;Never deploy billing changes without my explicit approval.&rdquo; No fact, scene, or persona claim exists yet.</p></div>
               </div>
             </article>
 
             <article class="case-chapter rv" style="--chapter-hue: var(--cyan)">
               <span class="case-marker">2</span>
               <div class="case-body">
-                <span class="case-kicker">L1 · extract and reconcile claims</span>
+                <span class="case-kicker">step 2 · pull out the claims (L1)</span>
                 <h3>One pass reads the conversation; another decides whether each claim is new.</h3>
                 <p>The first model call splits Alice’s messages into standalone facts and instructions, assigns a kind and priority, and cites the source messages. Search then finds similar active memory. A final pass chooses <code>store</code>, <code>merge</code>, or <code>skip</code>; skipped duplicates are not written.</p>
                 <div class="effect-flow" aria-label="Three source messages produce four atomic memory records">
@@ -184,14 +313,14 @@ emit:
                     <div class="yaml-note"><code>result</code><p>Copy or reconcile claims after retrieval. Separating the calls prevents deduplication from collapsing a rich conversation into one sentence.</p></div>
                   </div>
                 </div>
-                <div class="case-write"><span>writes next</span><p>Four <code>memories</code> events: atomic claims with <code>memory_kind</code>, priority, scene name, decision, and citations to L0. A repeated rule would write nothing.</p></div>
+                <div class="case-write"><span>writes next</span><p>Four <code>memories</code> events, one sentence each: &ldquo;New Node services use Fastify&rdquo; (persona, p80) &middot; &ldquo;Billing stays on Express while mobile depends on the old response fields&rdquo; (episodic, p85) &middot; &ldquo;Billing changes require Alice&rsquo;s explicit approval before production deployment&rdquo; (instruction, p100) &middot; &ldquo;Remove compatibility only after telemetry shows zero traffic&rdquo; (instruction, p95). Each cites the message it came from. A repeated rule would write nothing.</p></div>
               </div>
             </article>
 
             <article class="case-chapter rv" style="--chapter-hue: var(--violet)">
               <span class="case-marker">3</span>
               <div class="case-body">
-                <span class="case-kicker">L2 and L3 · maintain context at two timescales</span>
+                <span class="case-kicker">step 3 · the project note, and the habit (L2, L3)</span>
                 <h3>Project facts stay in the project; stable behavior rises into persona.</h3>
                 <p>The scene derivation folds the four claims into one keyed Markdown block named <code>billing-api-compatibility</code>. It keeps state, constraints, evidence, and open questions together. A separate persona derivation reads changed scene blocks and emits only cross-context patterns—never a dated release fact.</p>
                 <div class="yaml-explainer">
@@ -212,14 +341,14 @@ emit:
                     <div class="yaml-note"><code>max_active_keys</code><p>Bound the number of live scenes. At capacity, the prompt must merge related blocks instead of growing forever.</p></div>
                   </div>
                 </div>
-                <div class="case-write"><span>writes next</span><p>One current <code>scenes/billing-api-compatibility</code> block citing the L1 claims, then one <code>persona/interaction_protocol</code> trait citing that scene: writing code and shipping are separate approvals.</p></div>
+                <div class="case-write"><span>writes next</span><p>One current <code>scenes/billing-api-compatibility</code> block &mdash; &ldquo;Billing stays on Express while mobile depends on the legacy response fields; compatibility may be removed only after telemetry shows zero traffic; production deploys need Alice&rsquo;s approval&rdquo; &mdash; citing the four claims. Then one <code>persona/interaction_protocol</code> trait citing that scene: &ldquo;Writing code and shipping it are separate approvals.&rdquo;</p></div>
               </div>
             </article>
 
             <article class="case-chapter rv" style="--chapter-hue: var(--amber)">
               <span class="case-marker">4</span>
               <div class="case-body">
-                <span class="case-kicker">recall · assemble a safe decision</span>
+                <span class="case-kicker">step 4 · answer the risky request</span>
                 <h3>The later request receives stable traits, project context, hard rules, and relevant memory in separate budgets.</h3>
                 <p>Weeks later, “Rewrite billing in Fastify and deploy it tonight” renders <code>agent_context</code>. Persona says how Alice works, the scene preserves the migration state, standing instructions carry the priority-100 approval gate, and recall finds task-specific evidence. A long scene cannot crowd out the hard rule.</p>
                 <div class="effect-flow" aria-label="Remembered constraints change the answer to a deployment request">
@@ -255,7 +384,7 @@ template: |
                     <div class="yaml-note"><code>template</code><p>State how retrieved data may influence the model and mark the request itself as untrusted data.</p></div>
                   </div>
                 </div>
-                <div class="case-write"><span>final state</span><p>The render writes one prompt snapshot for audit. The agent can prepare code, but it must refuse deployment until Alice gives explicit approval.</p></div>
+                <div class="case-write"><span>final state</span><p>The render writes one prompt snapshot for audit, and the agent answers: &ldquo;I can prepare the rewrite, but I can&rsquo;t deploy it. Billing stays on Express until telemetry shows zero traffic on the legacy fields, and a production billing deploy needs your explicit approval.&rdquo;</p></div>
                 <a class="case-next" href="#demo">Play the condensed conversation and inspect every stored layer →</a>
               </div>
             </article>
