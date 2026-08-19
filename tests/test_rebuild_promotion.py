@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 from pathlib import Path
+from types import MappingProxyType
 
 import httpx
 from psycopg.types.json import Jsonb
@@ -98,25 +100,33 @@ async def _run_rebuild(
     settings: Settings,
     catalog: DefinitionCatalog,
     source_id: str,
+    source_needs_annotation: bool,
 ) -> str:
-    # The directly inserted ready fixture still receives the catalog's optional
-    # JSON annotation before the worker reaches the manual derive job.
-    fake.enqueue(
-        Completion('[{"stage":"active","churn_risk":0.0}]'),
-        Completion(_replacement(source_id)),
-    )
+    completions: list[Completion] = []
+    if source_needs_annotation:
+        # The directly inserted ready fixture receives the catalog's optional
+        # JSON annotation before the worker reaches the first manual derive job.
+        completions.append(Completion('[{"stage":"active","churn_risk":0.0}]'))
+    completions.append(Completion(_replacement(source_id)))
+    fake.enqueue(*completions)
     queued = await client.post(
         "/processors/crm_profile_rebuild/run",
         headers=headers,
         json={"entity": "contact:avery-chen"},
     )
     assert queued.status_code == 200, queued.text
+    rebuild_catalog = replace(
+        catalog,
+        derivations=MappingProxyType(
+            {"crm_profile_rebuild": catalog.derivations["crm_profile_rebuild"]}
+        ),
+    )
     worker_pool = create_pool(settings)
     async with worker_lifespan(
-        settings, catalog=catalog, pool=worker_pool, verify_storage=False
+        settings, catalog=rebuild_catalog, pool=worker_pool, verify_storage=False
     ) as runtime:
         result = await run_worker_once(
-            WorkerRuntime(settings=settings, catalog=catalog, pool=runtime.pool),
+            WorkerRuntime(settings=settings, catalog=rebuild_catalog, pool=runtime.pool),
             worker_id="crm-rebuild-worker",
         )
         assert result.derivation_jobs == 1
@@ -147,6 +157,7 @@ async def test_corpus_rebuild_divergence_promotion_and_stale_guard(
                 settings=settings,
                 catalog=catalog,
                 source_id=source_id,
+                source_needs_annotation=True,
             )
             first = await client.get(f"/runs/{first_run_id}", headers=headers)
             assert first.status_code == 200, first.text
@@ -275,6 +286,7 @@ async def test_corpus_rebuild_divergence_promotion_and_stale_guard(
                 settings=settings,
                 catalog=catalog,
                 source_id=source_id,
+                source_needs_annotation=False,
             )
             async with db_pool.connection() as conn:
                 await conn.execute(
