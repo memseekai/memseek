@@ -1294,7 +1294,21 @@ async def main() -> None:
     author = Author(settings, load_definition_catalog(settings))
 
     async with MemseekClient(base_url, api_key) as client:
-        await publish_reference_catalog(client)
+        try:
+            await publish_reference_catalog(client)
+        except MemseekHTTPError as error:
+            payload = error.payload
+            if (
+                error.status_code == 409
+                and isinstance(payload, dict)
+                and payload.get("error") == "catalog_incompatible"
+            ):
+                raise SystemExit(
+                    "this workspace already contains records from a different catalog; "
+                    "unset MEMSEEK_API_KEY and set DATABASE_URL so this example can "
+                    "create a fresh workspace; see docs/generative-agents-example.md"
+                ) from error
+            raise
         catalog = await client._request("GET", "/collections")
         active = {c["name"] for c in catalog.get("collections", []) if c.get("active")}
         if not {"main", "reflections", "plans"} <= active:

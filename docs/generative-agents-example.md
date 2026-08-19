@@ -3,6 +3,30 @@ title: Build an agent that remembers
 eyebrow: Tutorial — the Generative Agents architecture
 ---
 
+## Run the demo
+
+Start with the working agent, then follow the tutorial to see how its memory is
+built. You need Docker Compose, `uv`, and an OpenAI API key. From the repository
+root, add your key to `.env` (replace the placeholder with your real key):
+
+```dotenv
+OPENAI_API_KEY=sk-your-key
+```
+
+Then run:
+
+```console
+make up
+unset MEMSEEK_API_KEY
+export DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5433/memseek
+uv run python examples/generative_agents_toy.py
+```
+
+`make up` starts PostgreSQL, the Memseek API, and the worker. The example needs
+its own catalog, so do not point it at the populated `local` workspace created
+by `make up`. With `DATABASE_URL` set instead, the script creates a fresh
+workspace for every run in the same Docker database.
+
 This is a hands-on tour of a small, complete example: a town of three
 residents who wake up, plan their day, cross paths, gossip, sleep on what they
 learned, and get interviewed the next evening — and then, on a third day, one of
@@ -21,8 +45,8 @@ You don't need to know Memseek's internals to follow along. Each section
 introduces one capability, shows the small piece of YAML that turns it on, and
 then shows the **actual output** captured from a real run so you can see
 exactly what that YAML bought you. The runnable script is
-`examples/generative_agents_toy.py` — but read this first; it reads best once
-you know what each part is doing.
+`examples/generative_agents_toy.py`. Let it run while you read on: each section
+explains one part of the memory system and shows what it produces.
 
 > The example recreates the memory architecture from *Generative Agents:
 > Interactive Simulacra of Human Behavior* (Park et al., UIST '23). If you've
@@ -723,10 +747,11 @@ your application making its *own* model calls, not something smuggled into a
 Memseek processor. That boundary is what keeps the memory substrate reusable
 across wildly different applications.
 
-## Run it yourself
+## Alternative: run the services on your host
 
-Follow the [programmer quickstart](getting-started.md) to start PostgreSQL, the
-API, and the worker, then:
+The Docker quick start at the top is the simplest route. If you are developing
+the API or worker itself, follow the [programmer quickstart](getting-started.md)
+to run those processes on your host, then:
 
 ```console
 export DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:55432/memseek_test
