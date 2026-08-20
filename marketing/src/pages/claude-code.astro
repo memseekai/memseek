@@ -95,12 +95,12 @@ const trouble = [
             The shipped design calls OpenAI: a chat model for the memory passes and
             <code>text-embedding-3-small</code> for every stored record. Create a key at
             <a href="https://platform.openai.com/api-keys">platform.openai.com/api-keys</a>.
-            Compose reads <code>.env</code> automatically, and it is gitignored.
+            Add it as <code>OPENAI_API_KEY</code> to <code>.env</code> in the repository
+            root. Compose reads that file automatically, and Git ignores it.
           </p>
           <div class="term">
             <div class="th"><span class="tf">your terminal</span><button class="cp" type="button">copy</button></div>
-            <pre><span class="cd">$</span> git clone https://github.com/memseekai/memseek &amp;&amp; <span class="ck">cd</span> memseek
-<span class="cd">$</span> <span class="ck">printf</span> <span class="cs">'OPENAI_API_KEY=sk-your-real-key\n'</span> &gt; .env</pre>
+            <pre><span class="cd">$</span> git clone https://github.com/memseekai/memseek &amp;&amp; <span class="ck">cd</span> memseek</pre>
           </div>
           <p class="alt-note">
             Another provider? Point <code>examples/agent_memory_catalog/conf/models.yaml</code> at

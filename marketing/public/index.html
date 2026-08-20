@@ -1077,9 +1077,9 @@
         <div class="code hero-code">
           <div class="code-tabs">
             <span class="fname">your terminal</span>
-            <button class="copy" type="button" data-copy="git clone https://github.com/memseekai/memseek &amp;&amp; cd memseek&#10;docker compose up -d --build --wait">copy</button>
           </div>
 <pre><span class="cd">$</span> git clone https://github.com/memseekai/memseek &amp;&amp; <span class="ck">cd</span> memseek
+<span class="cm"># Add OPENAI_API_KEY to .env, then:</span>
 <span class="cd">$</span> docker compose up -d --build --wait
 
 <span class="cm"># postgres → migrate → api + worker → setup:
@@ -1467,13 +1467,16 @@
               <b>API</b> your app and agents talk to, the <b>worker</b> that embeds, scores and
               derives in the background, and a <b>setup</b> step that mints a workspace key and
               publishes the four-layer agent-memory catalog. <b>Docker is the only thing you need
-              installed.</b></p>
+              installed.</b> After cloning, add your <code>OPENAI_API_KEY</code> to
+              <code>.env</code> in the repository root, then start the stack.</p>
           </div>
           <div class="code">
-            <div class="code-tabs"><button class="t" aria-selected="true" tabindex="-1">console</button><span class="fname">your terminal</span><button class="copy" type="button" data-copy="git clone https://github.com/memseekai/memseek &amp;&amp; cd memseek&#10;printf 'OPENAI_API_KEY=sk-...\n' &gt; .env&#10;docker compose up -d --build --wait">copy</button></div>
-<pre class="p on"><span class="cd">$</span> git clone https://github.com/memseekai/memseek &amp;&amp; <span class="ck">cd</span> memseek
-<span class="cd">$</span> <span class="ck">printf</span> <span class="cs">'OPENAI_API_KEY=sk-...\n'</span> &gt; .env   <span class="cm"># conf/models.yaml names the variable</span>
-<span class="cd">$</span> docker compose up -d --build --wait
+            <div class="code-tabs"><button class="t" aria-selected="true" tabindex="-1">console</button><span class="fname">your terminal</span><button class="copy" type="button" data-copy="git clone https://github.com/memseekai/memseek &amp;&amp; cd memseek">copy</button></div>
+<pre class="p on"><span class="cd">$</span> git clone https://github.com/memseekai/memseek &amp;&amp; <span class="ck">cd</span> memseek</pre>
+            <p class="step-note">Add your <code>OPENAI_API_KEY</code> to <code>.env</code> in
+              the repository root. Then start the stack:</p>
+            <div class="code-tabs"><button class="t" aria-selected="true" tabindex="-1">console</button><span class="fname">your terminal</span><button class="copy" type="button" data-copy="docker compose up -d --build --wait">copy</button></div>
+<pre class="p on"><span class="cd">$</span> docker compose up -d --build --wait
 
 <span class="cm"># postgres → migrate → api + worker → setup, in that order:
 #
@@ -1488,8 +1491,7 @@
 <span class="cd">$</span> <span class="ck">export</span> MEMSEEK_URL=http://127.0.0.1:8000
 <span class="cd">$</span> <span class="ck">export</span> MEMSEEK_API_KEY=$(cat .memseek/api_key)</pre>
             <p class="step-note"><b>Docker is the whole install</b>, and the key is the only thing
-              you supply: embeddings and the memory passes are real model calls, so put your
-              provider key in <code>.env</code> before bringing the stack up.
+              you supply: embeddings and the memory passes are real model calls.
               <code>docker compose logs setup</code> shows what was published,
               <code>docker compose logs -f worker</code> shows it thinking, and
               <code>docker compose down -v</code> removes all of it. Prefer to run the processes
