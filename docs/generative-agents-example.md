@@ -6,12 +6,12 @@ eyebrow: Tutorial — the Generative Agents architecture
 ## Run the demo
 
 Start with the working agent, then follow the tutorial to see how its memory is
-built. You need Docker Compose, `uv`, and an OpenAI API key. From the repository
-root, add your key to `.env` (replace the placeholder with your real key):
+built. You need Docker Compose, `uv`, and an OpenAI API key. Add your
+`OPENAI_API_KEY` to `.env` in the repository root.
+
+If you want to use the browser workspace explorer, add its allowed origin too:
 
 ```dotenv
-OPENAI_API_KEY=sk-your-key
-# Only needed for the browser workspace explorer
 API_CORS_ORIGINS=https://memseek.ai
 ```
 

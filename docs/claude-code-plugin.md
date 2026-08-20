@@ -47,15 +47,15 @@ in `examples/agent_memory_catalog/conf/models.yaml`:
 | `strong` | `gpt-5.4-2026-03-05` | passes whose output becomes durable memory |
 | embedding | `text-embedding-3-small` | every stored record's vector |
 
-Clone the repository and write the key into `.env`, which Docker Compose reads
-automatically:
+Clone the repository:
 
 ```console
 git clone https://github.com/memseekai/memseek && cd memseek
-printf 'OPENAI_API_KEY=sk-your-real-key\n' > .env
 ```
 
-`.env` is gitignored. Nothing else belongs in it for this test.
+Then add your `OPENAI_API_KEY` to `.env` in the repository root. Docker Compose
+reads this file automatically, and Git ignores it. Nothing else belongs in it
+for this test.
 
 !!! note "Using a different provider or model"
     Edit `examples/agent_memory_catalog/conf/models.yaml`: change the `providers` block

@@ -221,11 +221,15 @@ the L1–L3 ladder these steps check.
 procedure from an empty machine: it starts PostgreSQL, the API, the worker, and a published
 `agent_memory@0.3.0` catalog with one `docker compose up`, says where to get the model API
 key and where to put it, and proves the service and that key work before Claude Code is
-involved. In short:
+involved. In short, clone the repository:
 
 ```bash
 git clone https://github.com/memseekai/memseek && cd memseek
-printf 'OPENAI_API_KEY=sk-your-real-key\n' > .env
+```
+
+Add your `OPENAI_API_KEY` to `.env` in the repository root, then start the stack:
+
+```bash
 docker compose up -d --build --wait
 cat .memseek/api_key          # the workspace key this plugin asks for
 ```

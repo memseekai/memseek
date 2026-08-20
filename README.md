@@ -91,10 +91,17 @@ real OpenAI-compatible model for embeddings and memory derivations.
 **You need:** Docker with Compose and an `OPENAI_API_KEY` with access to the
 models named in `examples/agent_memory_catalog/conf/models.yaml`.
 
+Clone the repository:
+
 ```console
 git clone https://github.com/memseekai/memseek.git
 cd memseek
-printf 'OPENAI_API_KEY=sk-your-key\n' > .env
+```
+
+Add your `OPENAI_API_KEY` to a `.env` file in the repository root. Docker
+Compose reads this file automatically. Then start the stack:
+
+```console
 make up
 
 export MEMSEEK_URL=http://127.0.0.1:8000
