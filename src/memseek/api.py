@@ -3,18 +3,19 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from datetime import datetime
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Annotated, Any, Literal
 from uuid import UUID
 
-from fastapi import FastAPI, Request
+from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
 from memseek.answer import AnswerError, AnswerRequest, answer_question
+from memseek.artifact_uses import ArtifactUseRequest, FeedbackRequest
 from memseek.auth import (
     ApiKeyCache,
     AuthenticationError,
@@ -62,7 +63,9 @@ from memseek.views import (
     fetch_timeline,
     upsert_cursor,
 )
+from memseek.views.context import ContextQuery, ContextRequestError, build_context
 from memseek.views.entities import EntitiesQuery, fetch_entities
+from memseek.views.runs import RunNotFound, RunOutputsQuery, RunsQuery, fetch_run, fetch_runs
 from memseek.workspace_catalog import (
     WorkspaceCatalogError,
     WorkspaceCatalogRegistry,
@@ -158,6 +161,149 @@ class ReindexRequest(BaseModel):
     confirm: bool = False
 
 
+class _RequestRejected(Exception):
+    """A request that the HTTP Adapter can reject without invoking a domain Module."""
+
+    def __init__(self, status: int, code: str, detail: str) -> None:
+        super().__init__(detail)
+        self.status = status
+        self.code = code
+        self.detail = detail
+
+
+def _validation_detail(exc: ValidationError) -> str:
+    issue = exc.errors(include_url=False)[0]
+    path = ".".join(str(part) for part in issue.get("loc", ()))
+    return f"{path}: {issue['msg']}" if path else str(issue["msg"])
+
+
+async def _authenticated_workspace(request: Request) -> str:
+    """Resolve the bearer's workspace and selected catalog or reject the request."""
+
+    try:
+        bearer = parse_bearer_header(request.headers.get("authorization"))
+        workspace = await authenticate_api_key(
+            request.app.state.pool,
+            bearer,
+            request.app.state.api_key_cache,
+        )
+    except AuthenticationError as exc:
+        raise _RequestRejected(401, "unauthorized", "invalid bearer credential") from exc
+    if workspace is None:
+        raise _RequestRejected(401, "unauthorized", "invalid bearer credential")
+    registry: WorkspaceCatalogRegistry = request.app.state.catalog_registry
+    try:
+        request.state.catalog = await registry.get(workspace)
+    except WorkspaceCatalogError as exc:
+        if exc.code != "no_catalog":
+            raise
+        # Publishing a package is how a workspace acquires a catalog, so a new
+        # workspace must be able to authenticate before it has one. Routes that
+        # need definitions raise this deferred error through `_request_catalog`.
+        request.state.catalog_error = exc
+    return workspace
+
+
+_AuthenticatedWorkspace = Annotated[str, Depends(_authenticated_workspace)]
+
+
+async def _json_payload(request: Request) -> Any:
+    try:
+        return await request.json()
+    except (UnicodeDecodeError, ValueError) as exc:
+        raise _RequestRejected(422, "invalid_json", "request body must be valid JSON") from exc
+
+
+async def _validated_json[T: BaseModel](request: Request, model: type[T]) -> T:
+    try:
+        return model.model_validate(await _json_payload(request))
+    except ValidationError as exc:
+        raise _RequestRejected(422, "request_schema", _validation_detail(exc)) from exc
+
+
+def _json_body[T: BaseModel](model: type[T]) -> Callable[..., Awaitable[T]]:
+    async def parse(request: Request, _workspace: _AuthenticatedWorkspace) -> T:
+        return await _validated_json(request, model)
+
+    return parse
+
+
+def _json_object(detail: str) -> Callable[..., Awaitable[dict[str, Any]]]:
+    async def parse(request: Request, _workspace: _AuthenticatedWorkspace) -> dict[str, Any]:
+        payload = await _json_payload(request)
+        if not isinstance(payload, dict):
+            raise _RequestRejected(422, "request_schema", detail)
+        return payload
+
+    return parse
+
+
+def _query_model[T: BaseModel](model: type[T]) -> Callable[..., Awaitable[T]]:
+    async def parse(request: Request, _workspace: _AuthenticatedWorkspace) -> T:
+        try:
+            return model.model_validate(dict(request.query_params))
+        except ValidationError as exc:
+            raise _RequestRejected(422, "request_schema", _validation_detail(exc)) from exc
+
+    return parse
+
+
+def _uuid_path(
+    parameter: str,
+    detail: str,
+    *,
+    code: str = "invalid_id",
+) -> Callable[..., Awaitable[UUID]]:
+    async def parse(request: Request, _workspace: _AuthenticatedWorkspace) -> UUID:
+        try:
+            return UUID(request.path_params[parameter])
+        except ValueError as exc:
+            raise _RequestRejected(422, code, detail) from exc
+
+    return parse
+
+
+_WorkspaceCatalogBody = Annotated[
+    WorkspaceCatalogRequest, Depends(_json_body(WorkspaceCatalogRequest))
+]
+_BackfillBody = Annotated[BackfillRequest, Depends(_json_body(BackfillRequest))]
+_CursorRebindBody = Annotated[CursorRebindRequest, Depends(_json_body(CursorRebindRequest))]
+_ReindexBody = Annotated[ReindexRequest, Depends(_json_body(ReindexRequest))]
+_RecordBatchBody = Annotated[RecordBatchRequest, Depends(_json_body(RecordBatchRequest))]
+_CursorBody = Annotated[CursorRequest, Depends(_json_body(CursorRequest))]
+_SearchBody = Annotated[SearchSpec, Depends(_json_body(SearchSpec))]
+_AnswerBody = Annotated[AnswerRequest, Depends(_json_body(AnswerRequest))]
+_PromotionBody = Annotated[PromotionRequest, Depends(_json_body(PromotionRequest))]
+_ErasureBody = Annotated[ErasureRequest, Depends(_json_body(ErasureRequest))]
+_ArtifactUseBody = Annotated[ArtifactUseRequest, Depends(_json_body(ArtifactUseRequest))]
+_FeedbackBody = Annotated[FeedbackRequest, Depends(_json_body(FeedbackRequest))]
+
+_TimelineParams = Annotated[TimelineQuery, Depends(_query_model(TimelineQuery))]
+_EntitiesParams = Annotated[EntitiesQuery, Depends(_query_model(EntitiesQuery))]
+_DocumentParams = Annotated[DocumentQuery, Depends(_query_model(DocumentQuery))]
+_HistoryParams = Annotated[HistoryQuery, Depends(_query_model(HistoryQuery))]
+_DeltaParams = Annotated[DeltaQuery, Depends(_query_model(DeltaQuery))]
+_RunsParams = Annotated[RunsQuery, Depends(_query_model(RunsQuery))]
+_RunOutputsParams = Annotated[RunOutputsQuery, Depends(_query_model(RunOutputsQuery))]
+_ContextParams = Annotated[ContextQuery, Depends(_query_model(ContextQuery))]
+
+_ViewParameters = Annotated[
+    dict[str, Any], Depends(_json_object("view parameters must be an object"))
+]
+_ArtifactParameters = Annotated[
+    dict[str, Any], Depends(_json_object("artifact parameters must be an object"))
+]
+
+_JobId = Annotated[UUID, Depends(_uuid_path("job_id", "job id must be a UUID"))]
+_BackfillId = Annotated[UUID, Depends(_uuid_path("backfill_id", "backfill id must be a UUID"))]
+_RecordId = Annotated[UUID, Depends(_uuid_path("record_id", "record id must be a UUID"))]
+_RunId = Annotated[UUID, Depends(_uuid_path("run_id", "run id must be a UUID"))]
+_ArtifactUseId = Annotated[
+    UUID,
+    Depends(_uuid_path("use_id", "use_id must be a UUID", code="request_schema")),
+]
+
+
 def _load_catalog(settings: Settings) -> DefinitionCatalog:
     from memseek.definitions import load_definition_catalog
 
@@ -248,6 +394,10 @@ def create_app(
     )
     application.add_middleware(McpEndpointMiddleware, endpoint=mcp_http_runtime.endpoint)
 
+    @application.exception_handler(_RequestRejected)
+    async def _handle_rejected_request(_request: Request, exc: _RequestRejected) -> JSONResponse:
+        return _error_response(exc.status, exc.code, exc.detail)
+
     @application.get("/health")
     async def health(request: Request) -> JSONResponse:
         try:
@@ -267,21 +417,17 @@ def create_app(
         return JSONResponse(status_code=200, content={"ok": True, "db": True})
 
     @application.get("/catalog")
-    async def read_catalog(request: Request) -> JSONResponse:
-        workspace = await _authenticated_workspace(request)
-        if workspace is None:
-            return _unauthorized()
+    async def read_catalog(request: Request, workspace: _AuthenticatedWorkspace) -> JSONResponse:
         registry: WorkspaceCatalogRegistry = request.app.state.catalog_registry
         metadata = await registry.metadata(workspace)
         return JSONResponse(status_code=200, content=metadata)
 
     @application.get("/catalog/compatibility")
-    async def read_catalog_compatibility(request: Request) -> JSONResponse:
+    async def read_catalog_compatibility(
+        request: Request, workspace: _AuthenticatedWorkspace
+    ) -> JSONResponse:
         """Report the installed catalog's standing against its own records."""
 
-        workspace = await _authenticated_workspace(request)
-        if workspace is None:
-            return _unauthorized()
         registry: WorkspaceCatalogRegistry = request.app.state.catalog_registry
         try:
             report = await registry.compatibility(workspace)
@@ -290,12 +436,11 @@ def create_app(
         return JSONResponse(status_code=200, content=report.as_json())
 
     @application.get("/catalog/prune")
-    async def read_catalog_prune(request: Request) -> JSONResponse:
+    async def read_catalog_prune(
+        request: Request, workspace: _AuthenticatedWorkspace
+    ) -> JSONResponse:
         """Report which inactive definitions nothing in the workspace references."""
 
-        workspace = await _authenticated_workspace(request)
-        if workspace is None:
-            return _unauthorized()
         from memseek.evolution import prune_definitions
 
         try:
@@ -309,17 +454,12 @@ def create_app(
         return JSONResponse(status_code=200, content=report.as_json())
 
     @application.post("/catalog")
-    async def load_catalog(request: Request, dry_run: bool = False) -> JSONResponse:
-        workspace = await _authenticated_workspace(request)
-        if workspace is None:
-            return _unauthorized()
-        try:
-            payload = await request.json()
-            body = WorkspaceCatalogRequest.model_validate(payload)
-        except (UnicodeDecodeError, ValueError, ValidationError) as exc:
-            if isinstance(exc, ValidationError):
-                return _schema_error_response(exc)
-            return _error_response(422, "invalid_json", "request body must be valid JSON")
+    async def load_catalog(
+        request: Request,
+        workspace: _AuthenticatedWorkspace,
+        body: _WorkspaceCatalogBody,
+        dry_run: bool = False,
+    ) -> JSONResponse:
         registry: WorkspaceCatalogRegistry = request.app.state.catalog_registry
         try:
             if dry_run:
@@ -343,20 +483,14 @@ def create_app(
         return JSONResponse(status_code=200, content=result.as_json())
 
     @application.post("/processors/{processor_name}/run")
-    async def run_processor(request: Request, processor_name: str) -> JSONResponse:
-        workspace = await _authenticated_workspace(request)
-        if workspace is None:
-            return _unauthorized()
+    async def run_processor(
+        request: Request,
+        processor_name: str,
+        workspace: _AuthenticatedWorkspace,
+    ) -> JSONResponse:
         if processor_name not in _request_catalog(request).derivations:
             return _error_response(422, "processor_kind", "only derive processors can be run")
-        try:
-            payload = await request.json()
-        except UnicodeDecodeError, ValueError:
-            return _error_response(422, "invalid_json", "request body must be valid JSON")
-        try:
-            body = ManualDerivationRequest.model_validate(payload)
-        except ValidationError as exc:
-            return _schema_error_response(exc)
+        body = await _validated_json(request, ManualDerivationRequest)
         try:
             from memseek.derive.runner import enqueue_derivation_job
 
@@ -388,21 +522,16 @@ def create_app(
         )
 
     @application.get("/jobs/{job_id}")
-    async def read_job(request: Request, job_id: str) -> JSONResponse:
-        workspace = await _authenticated_workspace(request)
-        if workspace is None:
-            return _unauthorized()
-        try:
-            parsed_id = UUID(job_id)
-        except ValueError:
-            return _error_response(422, "invalid_id", "job id must be a UUID")
+    async def read_job(
+        request: Request, job_id: _JobId, workspace: _AuthenticatedWorkspace
+    ) -> JSONResponse:
         try:
             from memseek.jobs import get_job_status
 
             status = await get_job_status(
                 request.app.state.pool,
                 workspace=workspace,
-                job_id=parsed_id,
+                job_id=job_id,
             )
         except Exception as exc:
             from memseek.jobs import JobNotFound
@@ -413,21 +542,16 @@ def create_app(
         return JSONResponse(status_code=200, content=status)
 
     @application.post("/jobs/{job_id}/retry")
-    async def retry_job(request: Request, job_id: str) -> JSONResponse:
-        workspace = await _authenticated_workspace(request)
-        if workspace is None:
-            return _unauthorized()
-        try:
-            parsed_id = UUID(job_id)
-        except ValueError:
-            return _error_response(422, "invalid_id", "job id must be a UUID")
+    async def retry_job(
+        request: Request, job_id: _JobId, workspace: _AuthenticatedWorkspace
+    ) -> JSONResponse:
         try:
             from memseek.jobs import retry_dead_job
 
             status = await retry_dead_job(
                 request.app.state.pool,
                 workspace=workspace,
-                job_id=parsed_id,
+                job_id=job_id,
             )
         except Exception as exc:
             from memseek.jobs import JobNotFound, JobRetryConflict
@@ -440,20 +564,13 @@ def create_app(
         return JSONResponse(status_code=200, content=status)
 
     @application.post("/backfill")
-    async def create_backfill(request: Request) -> JSONResponse:
+    async def create_backfill(
+        request: Request,
+        workspace: _AuthenticatedWorkspace,
+        body: _BackfillBody,
+    ) -> JSONResponse:
         """Apply one processor to records that already exist in a collection version."""
 
-        workspace = await _authenticated_workspace(request)
-        if workspace is None:
-            return _unauthorized()
-        try:
-            payload = await request.json()
-        except UnicodeDecodeError, ValueError:
-            return _error_response(422, "invalid_json", "request body must be valid JSON")
-        try:
-            body = BackfillRequest.model_validate(payload)
-        except ValidationError as exc:
-            return _schema_error_response(exc)
         from memseek.backfill import BackfillError, request_backfill
 
         try:
@@ -473,10 +590,7 @@ def create_app(
         return JSONResponse(status_code=202, content=handle.as_json())
 
     @application.get("/backfill")
-    async def read_backfills(request: Request) -> JSONResponse:
-        workspace = await _authenticated_workspace(request)
-        if workspace is None:
-            return _unauthorized()
+    async def read_backfills(request: Request, workspace: _AuthenticatedWorkspace) -> JSONResponse:
         from memseek.backfill import list_backfills
 
         try:
@@ -489,19 +603,16 @@ def create_app(
         )
 
     @application.get("/backfill/{backfill_id}")
-    async def read_backfill(request: Request, backfill_id: str) -> JSONResponse:
-        workspace = await _authenticated_workspace(request)
-        if workspace is None:
-            return _unauthorized()
-        try:
-            parsed_id = UUID(backfill_id)
-        except ValueError:
-            return _error_response(422, "invalid_id", "backfill id must be a UUID")
+    async def read_backfill(
+        request: Request,
+        backfill_id: _BackfillId,
+        workspace: _AuthenticatedWorkspace,
+    ) -> JSONResponse:
         from memseek.backfill import BackfillError, get_backfill
 
         try:
             handle = await get_backfill(
-                request.app.state.pool, workspace=workspace, backfill_id=parsed_id
+                request.app.state.pool, workspace=workspace, backfill_id=backfill_id
             )
         except BackfillError as exc:
             return _error_response(exc.status, exc.code, exc.detail)
@@ -510,21 +621,18 @@ def create_app(
         return JSONResponse(status_code=200, content=handle.as_json())
 
     @application.post("/backfill/{backfill_id}/cancel")
-    async def stop_backfill(request: Request, backfill_id: str) -> JSONResponse:
+    async def stop_backfill(
+        request: Request,
+        backfill_id: _BackfillId,
+        workspace: _AuthenticatedWorkspace,
+    ) -> JSONResponse:
         """Stop a live backfill. Annotations already written are valid and kept."""
 
-        workspace = await _authenticated_workspace(request)
-        if workspace is None:
-            return _unauthorized()
-        try:
-            parsed_id = UUID(backfill_id)
-        except ValueError:
-            return _error_response(422, "invalid_id", "backfill id must be a UUID")
         from memseek.backfill import BackfillError, cancel_backfill
 
         try:
             handle = await cancel_backfill(
-                request.app.state.pool, workspace=workspace, backfill_id=parsed_id
+                request.app.state.pool, workspace=workspace, backfill_id=backfill_id
             )
         except BackfillError as exc:
             return _error_response(exc.status, exc.code, exc.detail)
@@ -533,20 +641,14 @@ def create_app(
         return JSONResponse(status_code=200, content=handle.as_json())
 
     @application.post("/derivations/{derivation_name}/rebind")
-    async def rebind_derivation_cursor(request: Request, derivation_name: str) -> JSONResponse:
+    async def rebind_derivation_cursor(
+        request: Request,
+        derivation_name: str,
+        workspace: _AuthenticatedWorkspace,
+        body: _CursorRebindBody,
+    ) -> JSONResponse:
         """Repoint a changes cursor after a deliberate source-scope change."""
 
-        workspace = await _authenticated_workspace(request)
-        if workspace is None:
-            return _unauthorized()
-        try:
-            payload = await request.json()
-        except UnicodeDecodeError, ValueError:
-            return _error_response(422, "invalid_json", "request body must be valid JSON")
-        try:
-            body = CursorRebindRequest.model_validate(payload)
-        except ValidationError as exc:
-            return _schema_error_response(exc)
         from memseek.evolution import EvolutionError, rebind_cursor
 
         try:
@@ -566,20 +668,13 @@ def create_app(
         return JSONResponse(status_code=200, content=result.as_json())
 
     @application.post("/reindex")
-    async def reindex_projections(request: Request) -> JSONResponse:
+    async def reindex_projections(
+        request: Request,
+        workspace: _AuthenticatedWorkspace,
+        body: _ReindexBody,
+    ) -> JSONResponse:
         """Queue a bounded external-projection rebuild for this workspace."""
 
-        workspace = await _authenticated_workspace(request)
-        if workspace is None:
-            return _unauthorized()
-        try:
-            payload = await request.json()
-        except UnicodeDecodeError, ValueError:
-            return _error_response(422, "invalid_json", "request body must be valid JSON")
-        try:
-            body = ReindexRequest.model_validate(payload)
-        except ValidationError as exc:
-            return _schema_error_response(exc)
         from memseek.reindex import ReindexError, reindex
 
         try:
@@ -606,20 +701,11 @@ def create_app(
         return JSONResponse(status_code=200, content=result.as_json())
 
     @application.post("/records")
-    async def create_records(request: Request) -> JSONResponse:
-        workspace = await _authenticated_workspace(request)
-        if workspace is None:
-            return _unauthorized()
-
-        try:
-            payload = await request.json()
-        except UnicodeDecodeError, ValueError:
-            return _error_response(422, "invalid_json", "request body must be valid JSON")
-        try:
-            batch = RecordBatchRequest.model_validate(payload)
-        except ValidationError as exc:
-            return _schema_error_response(exc)
-
+    async def create_records(
+        request: Request,
+        workspace: _AuthenticatedWorkspace,
+        batch: _RecordBatchBody,
+    ) -> JSONResponse:
         try:
             result = await insert_public_records(
                 request.app.state.pool,
@@ -645,19 +731,16 @@ def create_app(
         return JSONResponse(status_code=200, content=result.model_dump(mode="json"))
 
     @application.get("/records/{record_id}")
-    async def read_record(request: Request, record_id: str) -> JSONResponse:
-        workspace = await _authenticated_workspace(request)
-        if workspace is None:
-            return _unauthorized()
-        try:
-            parsed_id = UUID(record_id)
-        except ValueError:
-            return _error_response(422, "invalid_id", "record id must be a UUID")
+    async def read_record(
+        request: Request,
+        record_id: _RecordId,
+        workspace: _AuthenticatedWorkspace,
+    ) -> JSONResponse:
         try:
             detail = await fetch_record(
                 request.app.state.pool,
                 workspace=workspace,
-                record_id=parsed_id,
+                record_id=record_id,
                 settings=request.app.state.settings,
             )
         except Exception as exc:
@@ -667,14 +750,11 @@ def create_app(
         return JSONResponse(status_code=200, content=detail)
 
     @application.get("/timeline")
-    async def read_timeline(request: Request) -> JSONResponse:
-        workspace = await _authenticated_workspace(request)
-        if workspace is None:
-            return _unauthorized()
-        try:
-            query = TimelineQuery.model_validate(dict(request.query_params))
-        except ValidationError as exc:
-            return _schema_error_response(exc)
+    async def read_timeline(
+        request: Request,
+        workspace: _AuthenticatedWorkspace,
+        query: _TimelineParams,
+    ) -> JSONResponse:
         try:
             timeline = await fetch_timeline(
                 request.app.state.pool,
@@ -687,14 +767,11 @@ def create_app(
         return JSONResponse(status_code=200, content=timeline)
 
     @application.get("/entities")
-    async def list_entities(request: Request) -> JSONResponse:
-        workspace = await _authenticated_workspace(request)
-        if workspace is None:
-            return _unauthorized()
-        try:
-            query = EntitiesQuery.model_validate(dict(request.query_params))
-        except ValidationError as exc:
-            return _schema_error_response(exc)
+    async def list_entities(
+        request: Request,
+        workspace: _AuthenticatedWorkspace,
+        query: _EntitiesParams,
+    ) -> JSONResponse:
         try:
             entities = await fetch_entities(
                 request.app.state.pool, workspace=workspace, query=query
@@ -704,14 +781,11 @@ def create_app(
         return JSONResponse(status_code=200, content=entities)
 
     @application.get("/document")
-    async def read_document(request: Request) -> JSONResponse:
-        workspace = await _authenticated_workspace(request)
-        if workspace is None:
-            return _unauthorized()
-        try:
-            query = DocumentQuery.model_validate(dict(request.query_params))
-        except ValidationError as exc:
-            return _schema_error_response(exc)
+    async def read_document(
+        request: Request,
+        workspace: _AuthenticatedWorkspace,
+        query: _DocumentParams,
+    ) -> JSONResponse:
         try:
             document = await build_document(
                 request.app.state.pool,
@@ -727,14 +801,11 @@ def create_app(
         return JSONResponse(status_code=200, content=document)
 
     @application.get("/document/history")
-    async def read_document_history(request: Request) -> JSONResponse:
-        workspace = await _authenticated_workspace(request)
-        if workspace is None:
-            return _unauthorized()
-        try:
-            query = HistoryQuery.model_validate(dict(request.query_params))
-        except ValidationError as exc:
-            return _schema_error_response(exc)
+    async def read_document_history(
+        request: Request,
+        workspace: _AuthenticatedWorkspace,
+        query: _HistoryParams,
+    ) -> JSONResponse:
         try:
             history = await fetch_history(
                 request.app.state.pool,
@@ -747,14 +818,11 @@ def create_app(
         return JSONResponse(status_code=200, content=history)
 
     @application.get("/delta")
-    async def read_delta(request: Request) -> JSONResponse:
-        workspace = await _authenticated_workspace(request)
-        if workspace is None:
-            return _unauthorized()
-        try:
-            query = DeltaQuery.model_validate(dict(request.query_params))
-        except ValidationError as exc:
-            return _schema_error_response(exc)
+    async def read_delta(
+        request: Request,
+        workspace: _AuthenticatedWorkspace,
+        query: _DeltaParams,
+    ) -> JSONResponse:
         try:
             delta = await fetch_delta(
                 request.app.state.pool,
@@ -769,18 +837,11 @@ def create_app(
         return JSONResponse(status_code=200, content=delta)
 
     @application.post("/cursor")
-    async def write_cursor(request: Request) -> JSONResponse:
-        workspace = await _authenticated_workspace(request)
-        if workspace is None:
-            return _unauthorized()
-        try:
-            payload = await request.json()
-        except UnicodeDecodeError, ValueError:
-            return _error_response(422, "invalid_json", "request body must be valid JSON")
-        try:
-            body = CursorRequest.model_validate(payload)
-        except ValidationError as exc:
-            return _schema_error_response(exc)
+    async def write_cursor(
+        request: Request,
+        workspace: _AuthenticatedWorkspace,
+        body: _CursorBody,
+    ) -> JSONResponse:
         try:
             cursor = await upsert_cursor(
                 request.app.state.pool,
@@ -794,25 +855,15 @@ def create_app(
         return JSONResponse(status_code=200, content=cursor)
 
     @application.post("/search")
-    async def search(request: Request) -> JSONResponse:
-        workspace = await _authenticated_workspace(request)
-        if workspace is None:
-            return _unauthorized()
-        try:
-            payload = await request.json()
-        except UnicodeDecodeError, ValueError:
-            return _error_response(422, "invalid_json", "request body must be valid JSON")
-        try:
-            spec = SearchSpec.model_validate(payload)
-        except ValidationError as exc:
-            return _schema_error_response(exc)
+    async def search(
+        request: Request,
+        workspace: _AuthenticatedWorkspace,
+        spec: _SearchBody,
+    ) -> JSONResponse:
         return await _run_search(request, workspace, spec)
 
     @application.get("/search")
-    async def search_sugar(request: Request) -> JSONResponse:
-        workspace = await _authenticated_workspace(request)
-        if workspace is None:
-            return _unauthorized()
+    async def search_sugar(request: Request, workspace: _AuthenticatedWorkspace) -> JSONResponse:
         params = dict(request.query_params)
         query = params.pop("q", "").strip()
         if not query:
@@ -840,22 +891,16 @@ def create_app(
             )
         except (ValueError, ValidationError) as exc:
             if isinstance(exc, ValidationError):
-                return _schema_error_response(exc)
+                return _error_response(422, "request_schema", _validation_detail(exc))
             return _error_response(422, "request_schema", "k must be an integer")
         return await _run_search(request, workspace, spec)
 
     @application.post("/answer")
-    async def answer(request: Request) -> JSONResponse:
-        workspace = await _authenticated_workspace(request)
-        if workspace is None:
-            return _unauthorized()
-        try:
-            payload = await request.json()
-            body = AnswerRequest.model_validate(payload)
-        except (UnicodeDecodeError, ValueError) as exc:
-            if isinstance(exc, ValidationError):
-                return _schema_error_response(exc)
-            return _error_response(422, "invalid_json", "request body must be valid JSON")
+    async def answer(
+        request: Request,
+        workspace: _AuthenticatedWorkspace,
+        body: _AnswerBody,
+    ) -> JSONResponse:
         try:
             result = await answer_question(
                 request.app.state.pool,
@@ -895,32 +940,25 @@ def create_app(
         return _bounded_json(result, request.app.state.settings)
 
     @application.get("/views")
-    async def list_views(request: Request) -> JSONResponse:
-        workspace = await _authenticated_workspace(request)
-        if workspace is None:
-            return _unauthorized()
+    async def list_views(request: Request, _workspace: _AuthenticatedWorkspace) -> JSONResponse:
         return JSONResponse(
             status_code=200,
             content=view_catalog_payload(_request_catalog(request)),
         )
 
     @application.post("/views/{view_name}/query")
-    async def query_view(request: Request, view_name: str) -> JSONResponse:
-        workspace = await _authenticated_workspace(request)
-        if workspace is None:
-            return _unauthorized()
-        try:
-            payload = await request.json()
-        except UnicodeDecodeError, ValueError:
-            return _error_response(422, "invalid_json", "request body must be valid JSON")
-        if not isinstance(payload, dict):
-            return _error_response(422, "request_schema", "view parameters must be an object")
+    async def query_view(
+        request: Request,
+        view_name: str,
+        workspace: _AuthenticatedWorkspace,
+        parameters: _ViewParameters,
+    ) -> JSONResponse:
         try:
             result = await execute_view(
                 request.app.state.pool,
                 workspace=workspace,
                 name=view_name,
-                parameters=payload,
+                parameters=parameters,
                 catalog=_request_catalog(request),
                 settings=request.app.state.settings,
             )
@@ -935,26 +973,18 @@ def create_app(
         return _bounded_json(result, request.app.state.settings)
 
     @application.get("/rank/schema")
-    async def rank_schema(request: Request) -> JSONResponse:
-        workspace = await _authenticated_workspace(request)
-        if workspace is None:
-            return _unauthorized()
+    async def rank_schema(request: Request, _workspace: _AuthenticatedWorkspace) -> JSONResponse:
         return JSONResponse(
             status_code=200,
             content=rank_schema_payload(_request_catalog(request), request.app.state.settings),
         )
 
     @application.get("/runs")
-    async def list_runs(request: Request) -> JSONResponse:
-        workspace = await _authenticated_workspace(request)
-        if workspace is None:
-            return _unauthorized()
-        from memseek.views.runs import RunsQuery, fetch_runs
-
-        try:
-            query = RunsQuery.model_validate(dict(request.query_params))
-        except ValidationError as exc:
-            return _schema_error_response(exc)
+    async def list_runs(
+        request: Request,
+        workspace: _AuthenticatedWorkspace,
+        query: _RunsParams,
+    ) -> JSONResponse:
         try:
             runs = await fetch_runs(
                 request.app.state.pool,
@@ -967,25 +997,17 @@ def create_app(
         return JSONResponse(status_code=200, content=runs)
 
     @application.get("/runs/{run_id}")
-    async def read_run(request: Request, run_id: str) -> JSONResponse:
-        workspace = await _authenticated_workspace(request)
-        if workspace is None:
-            return _unauthorized()
-        from memseek.views.runs import RunNotFound, RunOutputsQuery, fetch_run
-
-        try:
-            parsed_id = UUID(run_id)
-        except ValueError:
-            return _error_response(422, "invalid_id", "run id must be a UUID")
-        try:
-            query = RunOutputsQuery.model_validate(dict(request.query_params))
-        except ValidationError as exc:
-            return _schema_error_response(exc)
+    async def read_run(
+        request: Request,
+        run_id: _RunId,
+        workspace: _AuthenticatedWorkspace,
+        query: _RunOutputsParams,
+    ) -> JSONResponse:
         try:
             run = await fetch_run(
                 request.app.state.pool,
                 workspace=workspace,
-                run_id=parsed_id,
+                run_id=run_id,
                 query=query,
                 settings=request.app.state.settings,
             )
@@ -996,16 +1018,11 @@ def create_app(
         return JSONResponse(status_code=200, content=run)
 
     @application.get("/context")
-    async def read_context(request: Request) -> JSONResponse:
-        workspace = await _authenticated_workspace(request)
-        if workspace is None:
-            return _unauthorized()
-        from memseek.views.context import ContextQuery, ContextRequestError, build_context
-
-        try:
-            query = ContextQuery.model_validate(dict(request.query_params))
-        except ValidationError as exc:
-            return _schema_error_response(exc)
+    async def read_context(
+        request: Request,
+        workspace: _AuthenticatedWorkspace,
+        query: _ContextParams,
+    ) -> JSONResponse:
         try:
             context = await build_context(
                 request.app.state.pool,
@@ -1027,37 +1044,29 @@ def create_app(
         return _bounded_json(context, request.app.state.settings)
 
     @application.get("/collections")
-    async def list_collections(request: Request) -> JSONResponse:
-        workspace = await _authenticated_workspace(request)
-        if workspace is None:
-            return _unauthorized()
+    async def list_collections(
+        request: Request, _workspace: _AuthenticatedWorkspace
+    ) -> JSONResponse:
         from memseek.catalog_views import collections_payload
 
         return JSONResponse(status_code=200, content=collections_payload(_request_catalog(request)))
 
     @application.get("/processors")
-    async def list_processors(request: Request) -> JSONResponse:
-        workspace = await _authenticated_workspace(request)
-        if workspace is None:
-            return _unauthorized()
+    async def list_processors(
+        request: Request, _workspace: _AuthenticatedWorkspace
+    ) -> JSONResponse:
         from memseek.catalog_views import processors_payload
 
         return JSONResponse(status_code=200, content=processors_payload(_request_catalog(request)))
 
     @application.get("/triggers")
-    async def list_triggers(request: Request) -> JSONResponse:
-        workspace = await _authenticated_workspace(request)
-        if workspace is None:
-            return _unauthorized()
+    async def list_triggers(request: Request, _workspace: _AuthenticatedWorkspace) -> JSONResponse:
         from memseek.catalog_views import triggers_payload
 
         return JSONResponse(status_code=200, content=triggers_payload(_request_catalog(request)))
 
     @application.get("/tools")
-    async def list_tools(request: Request) -> JSONResponse:
-        workspace = await _authenticated_workspace(request)
-        if workspace is None:
-            return _unauthorized()
+    async def list_tools(request: Request, workspace: _AuthenticatedWorkspace) -> JSONResponse:
         from memseek.tools import tool_definitions_payload
 
         registry: WorkspaceCatalogRegistry = request.app.state.catalog_registry
@@ -1074,10 +1083,7 @@ def create_app(
         )
 
     @application.get("/artifacts")
-    async def list_artifacts(request: Request) -> JSONResponse:
-        workspace = await _authenticated_workspace(request)
-        if workspace is None:
-            return _unauthorized()
+    async def list_artifacts(request: Request, _workspace: _AuthenticatedWorkspace) -> JSONResponse:
         from memseek.artifacts import artifact_catalog_payload
 
         return JSONResponse(
@@ -1085,24 +1091,20 @@ def create_app(
         )
 
     @application.post("/artifacts/{artifact_name}/render")
-    async def render_artifact_route(request: Request, artifact_name: str) -> JSONResponse:
-        workspace = await _authenticated_workspace(request)
-        if workspace is None:
-            return _unauthorized()
+    async def render_artifact_route(
+        request: Request,
+        artifact_name: str,
+        workspace: _AuthenticatedWorkspace,
+        parameters: _ArtifactParameters,
+    ) -> JSONResponse:
         from memseek.artifacts import render_artifact
 
-        try:
-            payload = await request.json()
-        except UnicodeDecodeError, ValueError:
-            return _error_response(422, "invalid_json", "request body must be valid JSON")
-        if not isinstance(payload, dict):
-            return _error_response(422, "request_schema", "artifact parameters must be an object")
         try:
             result = await render_artifact(
                 request.app.state.pool,
                 workspace=workspace,
                 name=artifact_name,
-                parameters=payload,
+                parameters=parameters,
                 catalog=_request_catalog(request),
                 settings=request.app.state.settings,
             )
@@ -1111,24 +1113,20 @@ def create_app(
         return _bounded_json(result, request.app.state.settings)
 
     @application.post("/artifacts/{artifact_name}/snapshot")
-    async def snapshot_artifact_route(request: Request, artifact_name: str) -> JSONResponse:
-        workspace = await _authenticated_workspace(request)
-        if workspace is None:
-            return _unauthorized()
+    async def snapshot_artifact_route(
+        request: Request,
+        artifact_name: str,
+        workspace: _AuthenticatedWorkspace,
+        parameters: _ArtifactParameters,
+    ) -> JSONResponse:
         from memseek.artifacts import snapshot_artifact
 
-        try:
-            payload = await request.json()
-        except UnicodeDecodeError, ValueError:
-            return _error_response(422, "invalid_json", "request body must be valid JSON")
-        if not isinstance(payload, dict):
-            return _error_response(422, "request_schema", "artifact parameters must be an object")
         try:
             result = await snapshot_artifact(
                 request.app.state.pool,
                 workspace=workspace,
                 name=artifact_name,
-                parameters=payload,
+                parameters=parameters,
                 catalog=_request_catalog(request),
                 settings=request.app.state.settings,
             )
@@ -1137,22 +1135,16 @@ def create_app(
         return _bounded_json(result, request.app.state.settings)
 
     @application.post("/artifacts/{artifact_name}/uses")
-    async def bind_artifact_use_route(request: Request, artifact_name: str) -> JSONResponse:
+    async def bind_artifact_use_route(
+        request: Request,
+        artifact_name: str,
+        workspace: _AuthenticatedWorkspace,
+        body: _ArtifactUseBody,
+    ) -> JSONResponse:
         """Render one artifact and register the correlation handle for its use."""
 
-        workspace = await _authenticated_workspace(request)
-        if workspace is None:
-            return _unauthorized()
-        from memseek.artifact_uses import ArtifactUseRequest, bind_artifact_use
+        from memseek.artifact_uses import bind_artifact_use
 
-        try:
-            payload = await request.json()
-        except UnicodeDecodeError, ValueError:
-            return _error_response(422, "invalid_json", "request body must be valid JSON")
-        try:
-            body = ArtifactUseRequest.model_validate(payload)
-        except ValidationError as exc:
-            return _schema_error_response(exc)
         try:
             result = await bind_artifact_use(
                 request.app.state.pool,
@@ -1167,54 +1159,41 @@ def create_app(
         return _bounded_json(result, request.app.state.settings)
 
     @application.get("/artifact-uses/{use_id}")
-    async def read_artifact_use_route(request: Request, use_id: str) -> JSONResponse:
+    async def read_artifact_use_route(
+        request: Request,
+        use_id: _ArtifactUseId,
+        workspace: _AuthenticatedWorkspace,
+    ) -> JSONResponse:
         """Return use metadata only; never a render and never an external trace."""
 
-        workspace = await _authenticated_workspace(request)
-        if workspace is None:
-            return _unauthorized()
         from memseek.artifact_uses import read_artifact_use
 
-        try:
-            identity = UUID(use_id)
-        except ValueError:
-            return _error_response(422, "request_schema", "use_id must be a UUID")
         try:
             result = await read_artifact_use(
                 request.app.state.pool,
                 workspace=workspace,
-                use_id=identity,
+                use_id=use_id,
             )
         except Exception as exc:
             return _artifact_use_failure(exc, "artifact_uses.read_failed", workspace)
         return JSONResponse(status_code=200, content=result)
 
     @application.post("/artifact-uses/{use_id}/feedback")
-    async def submit_feedback_route(request: Request, use_id: str) -> JSONResponse:
+    async def submit_feedback_route(
+        request: Request,
+        use_id: _ArtifactUseId,
+        workspace: _AuthenticatedWorkspace,
+        body: _FeedbackBody,
+    ) -> JSONResponse:
         """Record one selected outcome as an ordinary learning-signal record."""
 
-        workspace = await _authenticated_workspace(request)
-        if workspace is None:
-            return _unauthorized()
-        from memseek.artifact_uses import FeedbackRequest, submit_feedback
+        from memseek.artifact_uses import submit_feedback
 
-        try:
-            identity = UUID(use_id)
-        except ValueError:
-            return _error_response(422, "request_schema", "use_id must be a UUID")
-        try:
-            payload = await request.json()
-        except UnicodeDecodeError, ValueError:
-            return _error_response(422, "invalid_json", "request body must be valid JSON")
-        try:
-            body = FeedbackRequest.model_validate(payload)
-        except ValidationError as exc:
-            return _schema_error_response(exc)
         try:
             result = await submit_feedback(
                 request.app.state.pool,
                 workspace=workspace,
-                use_id=identity,
+                use_id=use_id,
                 request=body,
                 catalog=_request_catalog(request),
                 settings=request.app.state.settings,
@@ -1224,10 +1203,11 @@ def create_app(
         return _bounded_json(result, request.app.state.settings)
 
     @application.get("/artifacts/{artifact_name}")
-    async def read_artifact_route(request: Request, artifact_name: str) -> JSONResponse:
-        workspace = await _authenticated_workspace(request)
-        if workspace is None:
-            return _unauthorized()
+    async def read_artifact_route(
+        request: Request,
+        artifact_name: str,
+        workspace: _AuthenticatedWorkspace,
+    ) -> JSONResponse:
         from memseek.artifacts import read_artifact_snapshot
 
         try:
@@ -1244,20 +1224,13 @@ def create_app(
         return _bounded_json(result, request.app.state.settings)
 
     @application.post("/promote")
-    async def promote(request: Request) -> JSONResponse:
-        workspace = await _authenticated_workspace(request)
-        if workspace is None:
-            return _unauthorized()
+    async def promote(
+        request: Request,
+        workspace: _AuthenticatedWorkspace,
+        body: _PromotionBody,
+    ) -> JSONResponse:
         from memseek.promote import PromotionError, promote_run
 
-        try:
-            payload = await request.json()
-        except UnicodeDecodeError, ValueError:
-            return _error_response(422, "invalid_json", "request body must be valid JSON")
-        try:
-            body = PromotionRequest.model_validate(payload)
-        except ValidationError as exc:
-            return _schema_error_response(exc)
         try:
             result = await promote_run(
                 request.app.state.pool,
@@ -1282,18 +1255,11 @@ def create_app(
         return JSONResponse(status_code=200, content=result)
 
     @application.post("/erase")
-    async def erase_records(request: Request) -> JSONResponse:
-        workspace = await _authenticated_workspace(request)
-        if workspace is None:
-            return _unauthorized()
-        try:
-            payload = await request.json()
-        except UnicodeDecodeError, ValueError:
-            return _error_response(422, "invalid_json", "request body must be valid JSON")
-        try:
-            body = ErasureRequest.model_validate(payload)
-        except ValidationError as exc:
-            return _schema_error_response(exc)
+    async def erase_records(
+        request: Request,
+        workspace: _AuthenticatedWorkspace,
+        body: _ErasureBody,
+    ) -> JSONResponse:
         try:
             result = await erase(
                 request.app.state.pool,
@@ -1314,43 +1280,6 @@ def create_app(
             )
             return _error_response(500, "internal_error", "erasure failed")
         return JSONResponse(status_code=200, content=result.as_json())
-
-    async def _authenticated_workspace(request: Request) -> str | None:
-        """Resolve the bearer's workspace and its selected catalog.
-
-        ``None`` means *the credential was rejected* and nothing else.  Resolving
-        the workspace's stored catalog can fail for reasons that have nothing to
-        do with the caller's key — a stored overlay that no longer compiles, a
-        hash mismatch — and reporting those as ``401 invalid bearer credential``
-        sends every operator hunting a key rotation that never happened.  Such a
-        failure carries its own status and code, so it is left to propagate to
-        the handler registered below.
-        """
-
-        try:
-            bearer = parse_bearer_header(request.headers.get("authorization"))
-            workspace = await authenticate_api_key(
-                request.app.state.pool,
-                bearer,
-                request.app.state.api_key_cache,
-            )
-        except AuthenticationError:
-            return None
-        if workspace is None:
-            return None
-        registry: WorkspaceCatalogRegistry = request.app.state.catalog_registry
-        try:
-            request.state.catalog = await registry.get(workspace)
-        except WorkspaceCatalogError as exc:
-            if exc.code != "no_catalog":
-                raise
-            # Publishing a package is how a workspace acquires a catalog, so
-            # authenticating cannot require one — that would leave a new
-            # workspace unable to reach the one route that fixes it. The
-            # failure is carried instead, and raised by `_request_catalog` for
-            # the routes that genuinely need definitions.
-            request.state.catalog_error = exc
-        return workspace
 
     @application.exception_handler(WorkspaceCatalogError)
     async def _handle_catalog_error(_request: Request, exc: Exception) -> JSONResponse:
@@ -1383,10 +1312,6 @@ def _error_response(status_code: int, code: str, detail: str) -> JSONResponse:
     return JSONResponse(status_code=status_code, content={"error": code, "detail": detail})
 
 
-def _unauthorized() -> JSONResponse:
-    return _error_response(401, "unauthorized", "invalid bearer credential")
-
-
 def _catalog_error_response(exc: WorkspaceCatalogError) -> JSONResponse:
     """Render a catalog failure, including its compatibility report when present.
 
@@ -1398,13 +1323,6 @@ def _catalog_error_response(exc: WorkspaceCatalogError) -> JSONResponse:
     if exc.report is not None:
         content["compatibility"] = exc.report.as_json()
     return JSONResponse(status_code=exc.status, content=content)
-
-
-def _schema_error_response(exc: ValidationError) -> JSONResponse:
-    issue = exc.errors(include_url=False)[0]
-    path = ".".join(str(part) for part in issue.get("loc", ()))
-    detail = f"{path}: {issue['msg']}" if path else str(issue["msg"])
-    return _error_response(422, "request_schema", detail)
 
 
 def _bounded_json(content: dict[str, Any], settings: Settings) -> JSONResponse:

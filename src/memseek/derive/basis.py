@@ -83,10 +83,6 @@ class EvaluationBasis:
     def watermark(self) -> int:
         return self.from_seq or 0
 
-    @property
-    def context_rows(self) -> tuple[DerivationRecord, ...]:
-        return tuple(row for rows in self.read_rows.values() for row in rows)
-
     def manifest(self) -> dict[str, Any]:
         return {
             "mode": self.mode,

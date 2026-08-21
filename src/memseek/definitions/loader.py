@@ -489,12 +489,6 @@ class DefinitionCatalog:
             raise KeyError(f"{kind} {reference!r} has no active version") from exc
 
 
-@dataclass(slots=True)
-class _Loaded:
-    value: BaseModel
-    path: Path
-
-
 class _CatalogBuilder:
     def __init__(self, settings: Settings) -> None:
         self.settings = settings
@@ -3012,34 +3006,6 @@ class _CatalogBuilder:
                     f"required package profile {profile_name!r} lacks credentials",
                     file=path,
                 )
-
-    def _all_collection_keys(self, name: str) -> set[tuple[str, int]]:
-        return {key for key in self.collections if key[0] == name}
-
-    def _collections_for_search_spec(
-        self, spec: SearchSpec, path: Path, field: str
-    ) -> tuple[CollectionDefinition, ...]:
-        sources = (
-            spec.sources
-            if spec.sources is not None
-            else (
-                SearchSource(
-                    name="source",
-                    mode=self._single_mode(spec),
-                    scope=spec.scope or {},
-                    where=spec.where,
-                    order_by=spec.order_by,
-                    params=spec.params,
-                    rank=spec.rank,
-                    k=spec.k,
-                ),
-            )
-        )
-        return tuple(
-            collection
-            for source in sources
-            for collection in self._search_scope_collections(source, path, field)
-        )
 
     def _package_collections_for_search_spec(
         self, spec: SearchSpec, path: Path, field: str

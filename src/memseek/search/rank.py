@@ -144,28 +144,6 @@ def validate_rank_expression(
     return visit(expression, 1, "rank")
 
 
-def rank_scorers(expression: Any) -> frozenset[str]:
-    """Return scorer leaves after validating the expression shape."""
-
-    found: set[str] = set()
-
-    def walk(node: Any) -> None:
-        if not isinstance(node, (list, tuple)) or not node:
-            return
-        if node[0] == "score" and len(node) == 2 and isinstance(node[1], str):
-            found.add(node[1])
-        for child in node[1:]:
-            if isinstance(child, (list, tuple)):
-                if child and isinstance(child[0], (list, tuple)):
-                    for nested in child:
-                        walk(nested)
-                else:
-                    walk(child)
-
-    walk(expression)
-    return frozenset(found)
-
-
 @dataclass(frozen=True, slots=True)
 class RankCandidate:
     """Canonical per-row signals consumed by the rank evaluator.

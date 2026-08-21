@@ -163,18 +163,6 @@ class FenceDeclaration(StrictModel):
     preamble: NonBlank | None = None
 
 
-class InputScope(StrictModel):
-    collections: tuple[PublicName, ...] = ()
-    collection_versions: dict[PublicName, tuple[int, ...]] = Field(default_factory=dict)
-    types: tuple[PublicName, ...] = ()
-    statuses: tuple[str, ...] = ("active",)
-    keyed: bool | str = "any"
-
-    @property
-    def collection_set(self) -> frozenset[str]:
-        return frozenset(self.collections)
-
-
 def ensure_unique[T: Hashable](values: tuple[T, ...] | list[T], label: str) -> None:
     if len(values) != len(set(values)):
         raise ValueError(f"{label} must contain unique values")
