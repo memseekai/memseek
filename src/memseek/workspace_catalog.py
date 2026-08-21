@@ -198,9 +198,9 @@ def _write_user_file(root: Path, relative: str, text: str) -> None:
 def _compile_overlay(settings: Settings, files: Mapping[str, str]) -> DefinitionCatalog:
     with tempfile.TemporaryDirectory(prefix="memseek-workspace-catalog-") as temporary:
         root = Path(temporary)
-        user_definition_catalog = any(
-            path.split("/", 1)[0] in _CATALOG_DIRECTORIES for path in files
-        )
+        uploaded_sections = {path.split("/", 1)[0] for path in files}
+        user_definition_catalog = bool(uploaded_sections & _CATALOG_DIRECTORIES)
+        directories: dict[str, Path | None] = {}
         for field, name in (
             ("collections_dir", "collections"),
             ("derivations_dir", "derivations"),
@@ -212,6 +212,17 @@ def _compile_overlay(settings: Settings, files: Mapping[str, str]) -> Definition
         ):
             destination = root / name
             if user_definition_catalog:
+                # An upload is the whole declaration of its catalog, so a
+                # section it never mentions stays unconfigured — the same state
+                # a service ships in when it carries no definitions of that
+                # kind. Creating an empty directory instead would hand the
+                # loader a configured-but-empty section, and that guard exists
+                # to catch a mistyped operator path, not to demand that every
+                # published catalog invent a view or an artifact it has no use
+                # for.
+                if name not in uploaded_sections:
+                    directories[field] = None
+                    continue
                 destination.mkdir(parents=True, exist_ok=True)
             elif field == "mcp_dir" and (
                 getattr(settings, field) is None or not getattr(settings, field).exists()
@@ -222,6 +233,7 @@ def _compile_overlay(settings: Settings, files: Mapping[str, str]) -> Definition
                 destination.mkdir(parents=True, exist_ok=True)
             else:
                 _copy_source(getattr(settings, field), destination)
+            directories[field] = destination
         conf = root / "conf"
         conf.mkdir()
         models_path = conf / "models.yaml"
@@ -255,13 +267,7 @@ def _compile_overlay(settings: Settings, files: Mapping[str, str]) -> Definition
                 "rank_default_file": rank_path,
                 "processors_file": processors_path,
                 "search_profiles_file": search_profiles_path,
-                "collections_dir": root / "collections",
-                "derivations_dir": root / "derivations",
-                "triggers_dir": root / "triggers",
-                "views_dir": root / "views",
-                "artifacts_dir": root / "artifacts",
-                "mcp_dir": root / "mcp",
-                "packages_dir": root / "packages",
+                **directories,
                 "search_profile_overrides_file": None,
             }
         )

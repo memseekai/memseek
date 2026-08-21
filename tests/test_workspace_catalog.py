@@ -301,6 +301,93 @@ emit:
     assert inserted.json()["inserted"][0]["ready"] is True
 
 
+async def test_workspace_can_install_a_catalog_of_collections_alone(
+    settings: Settings,
+    db_pool: DatabasePool,
+) -> None:
+    """A section an upload never mentions is absent, not an error.
+
+    The loader rejects a configured-but-empty definition directory because that
+    means an operator mistyped a path. An upload is a different kind of thing:
+    it declares its own catalog in full, so a workspace that only wants to
+    write and search records must not be made to invent a derivation, a view,
+    or an artifact it has no use for.
+    """
+
+    credential = await create_workspace(db_pool, "catalog-collections-only")
+    app = create_app(
+        settings,
+        catalog=load_definition_catalog(settings),
+        pool=create_pool(settings),
+        verify_storage=False,
+    )
+    headers = {"Authorization": f"Bearer {credential.api_key}"}
+    payload: dict[str, Any] = {
+        "package": "notes@1.0.0",
+        "files": {
+            "collections/notes.yaml": """collections:
+  - name: notes
+    version: 1
+    active: true
+    mode: event
+    schema:
+      type: object
+      required: [text]
+      properties:
+        text: {type: string}
+      additionalProperties: true
+    search_profile: pg_default
+""",
+            "conf/processors.yaml": """processors:
+  - name: importance
+    kind: score
+    source: constant
+    input: {collections: [notes]}
+    scale: [1, 10]
+    value: 5
+""",
+            "packages/notes.yaml": """name: notes
+version: 1.0.0
+collections: [notes@1]
+processors: [importance]
+search_profiles: [pg_default]
+""",
+        },
+    }
+
+    async with app.router.lifespan_context(app):
+        transport = httpx.ASGITransport(app=app)
+        async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+            loaded = await client.post("/catalog", headers=headers, json=payload)
+            collections = await client.get("/collections", headers=headers)
+            views = await client.get("/views", headers=headers)
+            artifacts = await client.get("/artifacts", headers=headers)
+            inserted = await client.post(
+                "/records",
+                headers=headers,
+                json={
+                    "records": [
+                        {
+                            "collection": "notes",
+                            "entity": "user-7",
+                            "type": "line",
+                            "text": "A catalog needs no artifact to hold a record",
+                        }
+                    ]
+                },
+            )
+
+    assert loaded.status_code == 200, loaded.text
+    assert loaded.json()["package"] == {"name": "notes", "version": "1.0.0"}
+    assert collections.status_code == 200, collections.text
+    assert [item["name"] for item in collections.json()["collections"]] == ["notes"]
+    assert views.status_code == 200, views.text
+    assert views.json()["views"] == []
+    assert artifacts.status_code == 200, artifacts.text
+    assert artifacts.json()["artifacts"] == []
+    assert inserted.status_code == 200, inserted.text
+
+
 async def test_unresolvable_stored_catalog_is_not_reported_as_a_bad_credential(
     settings: Settings,
     db_pool: DatabasePool,
