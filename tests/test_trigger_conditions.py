@@ -245,6 +245,46 @@ async def test_write_debounce_extends_the_mailbox_deadline(
         assert job["run_after"] >= first_deadline
 
 
+async def test_debounce_never_pushes_a_manual_request_later(
+    db_pool: DatabasePool, trigger_catalog: DefinitionCatalog
+) -> None:
+    """Section 11.3: the shared deadline is the earliest a stimulus allows.
+
+    A manual request allows now, so a debounced arrival coalescing into that
+    same job must keep it eligible now instead of walking it forward into a
+    settle window the caller never asked for.
+    """
+
+    async with db_pool.connection() as conn, conn.transaction():
+        await _create_workspace(conn, "ws")
+        entity = "user:manual-debounce"
+        now = await _now(conn)
+        # Exactly what POST /processors/{name}/run enqueues.
+        await conn.execute(
+            """
+            insert into job (workspace, kind, derivation, entity, run_after, payload)
+            values (%s, 'derive', 'profile', %s, %s, '{"manual": true}')
+            """,
+            ("ws", entity, now),
+        )
+        await _insert_record(
+            conn,
+            workspace="ws",
+            entity=entity,
+            collection="main",
+            type_="observation",
+            content={"text": "arrives while the manual run is queued"},
+        )
+        await evaluate_entity_triggers_tx(
+            conn, workspace="ws", entity=entity, catalog=trigger_catalog
+        )
+        job = await _active_job(conn, workspace="ws", derivation="profile", entity=entity)
+        assert job is not None
+        assert job["payload"].get("manual") is True
+        assert job["payload"].get("trigger:profile.write_debounce:write") is True
+        assert job["run_after"] <= now
+
+
 async def test_quiet_trigger_waits_for_arrivals_to_settle(
     db_pool: DatabasePool, trigger_catalog: DefinitionCatalog
 ) -> None:

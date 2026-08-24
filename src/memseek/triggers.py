@@ -309,6 +309,13 @@ async def enqueue_derive_tx(
     with this stimulus: ``earliest`` keeps the sooner time, while ``extend``
     pushes the shared deadline later — the settle semantics used by quiet and
     debounced stimuli.
+
+    An ``extend`` stimulus never pushes a job that already carries a manual
+    request. Section 11.3 puts the shared deadline at the earliest time some
+    pending stimulus allows, and a manual request allows now; letting a
+    debounce or quiet window walk that job forward turns an explicit
+    ``POST /processors/{name}/run`` into a scheduled one, which is what a
+    caller asking for a run right now is entitled not to get.
     """
 
     parts = reason.split(":")
@@ -331,7 +338,8 @@ async def enqueue_derive_tx(
           where kind = 'derive' and done_at is null and dead_at is null
         do update set payload = job.payload || excluded.payload,
                       run_after = case
-                        when %s then greatest(job.run_after, excluded.run_after)
+                        when %s and not jsonb_exists(job.payload, 'manual')
+                          then greatest(job.run_after, excluded.run_after)
                         else least(job.run_after, excluded.run_after)
                       end
         returning id, run_after, (xmax = 0) as inserted

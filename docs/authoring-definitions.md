@@ -414,6 +414,14 @@ contract. Use one of these paths in an upload:
 | `artifacts/*.yaml` | `artifacts: [...]` | Deterministic prompt/report renderers and lifecycle policy. |
 | `packages/*.yaml` | one package mapping | Exact dependency manifest and the package identity uploaded to a workspace. |
 
+Only `collections/*.yaml`, `packages/*.yaml`, and the `conf/` files your
+collections actually reference are required. An upload declares its whole
+catalog, so a section it omits is simply absent: a workspace that writes and
+searches records needs no derivation, view, or artifact, and the smallest
+publishable catalog is one collection plus its package manifest. Omitting a
+section a package *references* is still an error, reported against that
+reference.
+
 ### Collections are durable contracts
 
 Collection `name` and integer `version` identify a contract. The service also
