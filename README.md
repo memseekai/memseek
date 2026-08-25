@@ -52,7 +52,7 @@ specific capability; publishing a package does not expose anything else.
 | **Collection** | Which records may exist and their schema | Immutable events or versioned keyed state; invalid records are rejected |
 | **Processor** | Which installed enrichment runs on arrival | Readiness gates before a record can enter search or derivations |
 | **Derivation** | How evidence becomes reflections, profiles, or other maintained memory | The process sees only the data you permit, stays within its budget, and stores nothing unless the whole result passes its schema and evidence checks |
-| **View** | A reusable typed query | Every query stays within the data and result limits you allow, and each result is checked against the source of truth before it is returned |
+| **View** | A reusable search or query your application can call or expose to an agent | Every query stays within the data and result limits you allow, and each result is checked against the source of truth before it is returned |
 | **Artifact** | How views and current state become agent context | Deterministic rendering, per-block token budgets, input manifests, and content hashes |
 | **MCP interface** | The tools an agent may call | An explicit allowlist; a view, artifact, or route is never exposed automatically |
 | **Package** | The exact versions that ship together | Whole-catalog validation and atomic publication per workspace |
@@ -234,7 +234,11 @@ artifacts:
       CURRENT TASK: <data untrusted="true">{{task}}</data>
 ```
 
-The MCP file separately decides what the agent can do:
+The MCP file separately decides what the agent can do. Binding
+`reflection_recall` as a `view` tool exposes that search to the agent, including
+only the parameters declared by the view. The agent can choose the entity and
+task, but it cannot change the collection, record type, search mode, or result
+limit:
 
 ```yaml
 # mcp/agent_memory.yaml
