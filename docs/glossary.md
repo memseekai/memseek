@@ -20,6 +20,7 @@ that sound related but are not.
 | **Definition version** | **Record successor** | A new version changes a contract. A successor changes a stored value. Data changing never needs a new version. |
 | **Ready** | **Active** | Ready means enrichment finished. Active means not a draft. A record can be one without the other. |
 | **Draft** | **Tombstone** | A draft proposes a value that isn't live yet. A tombstone withdraws one that was. |
+| **Program** | **Agent** | Both run in a Computer. A Program is fixed code with no model. An Agent is a model taking steps with tools. |
 
 ## Start with the data
 
@@ -228,6 +229,25 @@ tools an AI agent may call. A view, artifact, or endpoint is invisible to an
 agent unless the interface names it. `GET /tools` publishes that allowlist, and
 `POST /mcp` serves it remotely over Streamable HTTP; `memseek mcp` serves the
 same contract locally over stdio.
+
+### Computer, Program, and Agent
+
+A **Computer** is a sandboxed workspace where something can actually run over
+memory: a filesystem, no credentials, and one declared way to hand results back.
+A **Program** is versioned code that ships in the catalog and runs there with no
+model involved. An **Agent** is a model plus versioned instructions, tools, and
+step limits, running the same way. All three are catalog definitions, referenced
+by exact version, and none of them can write a record. See
+[Computers, Programs & Agents](computers.md).
+
+### Session and invocation
+
+A **session** is one physical workspace — the files a run works in. It is
+created per run, and can be resumed or forked; the entity, not the session, is
+the stable identity, so several sessions can work on one account at once. An
+**invocation** is one durable run tied to an entity: it survives restarts, can
+pause to ask a person a question, streams its events, and ends in exactly one
+final state.
 
 ## Trust, history, and change
 

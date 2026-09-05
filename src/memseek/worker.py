@@ -56,6 +56,7 @@ class WorkerPassResult:
     derivation_jobs: int
     retention_jobs: int
     not_ready_jobs: int
+    invocation_jobs: int = 0
     expired_artifact_uses: int = 0
     backfill_batches: int = 0
     backfilled_annotations: int = 0
@@ -73,6 +74,7 @@ class WorkerPassResult:
                 self.derivation_jobs,
                 self.retention_jobs,
                 self.not_ready_jobs,
+                self.invocation_jobs,
                 # A purged page did work, so the next pass runs without a poll
                 # delay until the expired backlog is drained.
                 self.expired_artifact_uses,
@@ -497,6 +499,77 @@ async def _drain_derivation_jobs(
                         claimed,
                         error_kind=exc.kind,
                         error=f"derive: {exc.kind}",
+                    )
+                else:
+                    await _retry_claim(runtime, claimed, exc)
+            except LeaseLost:
+                continue
+        except Exception as exc:
+            try:
+                await _retry_claim(runtime, claimed, exc)
+            except LeaseLost:
+                continue
+
+
+async def _drain_invocation_jobs(runtime: WorkerRuntime, *, worker_id: str) -> int:
+    """Run durable Agent/Program invocations through their own queue lane."""
+
+    if runtime.catalog_registry is None and not getattr(runtime.catalog, "computers", None):
+        return 0
+
+    from memseek.invocations import InvocationError, execute_invocation
+    from memseek.jobs import claim_job, complete_job, dead_letter_job
+    from memseek.models import LeaseLost
+
+    completed = 0
+    while True:
+        claimed = await claim_job(
+            runtime.pool,
+            worker_id=worker_id,
+            kinds=("invocation",),
+            lease_s=runtime.settings.job_lease_s,
+            max_attempts=runtime.settings.job_max_attempts,
+        )
+        if claimed is None:
+            return completed
+        raw_id = claimed.payload.get("invocation_id")
+        try:
+            invocation_id = UUID(str(raw_id))
+        except TypeError, ValueError:
+            with suppress(LeaseLost):
+                await dead_letter_job(
+                    runtime.pool,
+                    claimed,
+                    error_kind="config",
+                    error="invocation: invalid invocation id",
+                )
+            continue
+        try:
+            catalog = await _catalog_for(runtime, claimed.workspace)
+            await _with_heartbeat(
+                runtime,
+                claimed,
+                execute_invocation(
+                    runtime.pool,
+                    workspace=claimed.workspace,
+                    invocation_id=invocation_id,
+                    catalog=catalog,
+                    settings=runtime.settings,
+                    final_attempt=claimed.attempts >= runtime.settings.job_max_attempts,
+                ),
+            )
+            await complete_job(runtime.pool, claimed)
+            completed += 1
+        except LeaseLost:
+            continue
+        except InvocationError as exc:
+            try:
+                if exc.status in {404, 409, 422}:
+                    await dead_letter_job(
+                        runtime.pool,
+                        claimed,
+                        error_kind=exc.code,
+                        error=f"invocation: {exc.code}",
                     )
                 else:
                     await _retry_claim(runtime, claimed, exc)
@@ -1191,6 +1264,11 @@ async def run_worker_once(
         _drain_derivation_jobs(runtime, worker_id=identity),
         (0, 0),
     )
+    invocation_jobs = await lanes.run(
+        "invocation_jobs",
+        _drain_invocation_jobs(runtime, worker_id=identity),
+        0,
+    )
     # Backfills run after ingest-path enrichment so improving history never
     # delays admitting new records.
     backfill_batches, backfilled = await lanes.run(
@@ -1210,6 +1288,7 @@ async def run_worker_once(
         derivation_jobs=derivation_jobs,
         retention_jobs=retention_jobs,
         not_ready_jobs=not_ready_jobs,
+        invocation_jobs=invocation_jobs,
         expired_artifact_uses=expired_artifact_uses,
         backfill_batches=backfill_batches,
         backfilled_annotations=backfilled,
@@ -1224,6 +1303,7 @@ async def run_worker_once(
         enrichment_ready=result.enrichment_ready,
         projection_jobs=result.projection_jobs,
         derivation_jobs=result.derivation_jobs,
+        invocation_jobs=result.invocation_jobs,
         retention_jobs=result.retention_jobs,
         not_ready_jobs=result.not_ready_jobs,
         expired_artifact_uses=result.expired_artifact_uses,

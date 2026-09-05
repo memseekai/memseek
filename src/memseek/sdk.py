@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 from collections.abc import AsyncIterator, Mapping, Sequence
 from contextlib import asynccontextmanager, nullcontext
 from dataclasses import dataclass
@@ -347,6 +348,130 @@ class _FeedbackClient:
         )
 
 
+class _InvocationsClient:
+    """Start, resume, fork, and inspect durable Computer work."""
+
+    def __init__(self, client: MemseekClient) -> None:
+        self._client = client
+
+    async def start(
+        self,
+        *,
+        entity: str,
+        computer: str,
+        executor: Mapping[str, Any],
+        task: Mapping[str, Any],
+        session: Mapping[str, Any] | None = None,
+        idempotency_key: str | None = None,
+    ) -> dict[str, Any]:
+        payload: dict[str, Any] = {
+            "entity": entity,
+            "computer": computer,
+            "executor": dict(executor),
+            "task": dict(task),
+            "session": dict(session or {"mode": "new"}),
+        }
+        if idempotency_key is not None:
+            payload["idempotency_key"] = idempotency_key
+        return await self._client._request("POST", "/invocations", json=payload)
+
+    async def retrieve(self, invocation_id: str) -> dict[str, Any]:
+        return await self._client._request("GET", f"/invocations/{invocation_id}")
+
+    async def events(
+        self, invocation_id: str, *, after: int = 0, limit: int = 100
+    ) -> dict[str, Any]:
+        return await self._client._request(
+            "GET",
+            f"/invocations/{invocation_id}/events",
+            params={"after": after, "limit": limit},
+        )
+
+    async def stream(self, invocation_id: str, *, after: int = 0) -> AsyncIterator[dict[str, Any]]:
+        """Yield journal events as the server appends them.
+
+        The same ordered journal `events()` pages through, pushed over
+        server-sent events instead of polled. The stream closes when the
+        invocation reaches a terminal state, so a caller that only wants to
+        watch one turn should stop at `awaiting_input` itself.
+        """
+
+        headers = dict(self._client._headers)
+        headers["Accept"] = "text/event-stream"
+        async with self._client._client.stream(
+            "GET",
+            f"/invocations/{invocation_id}/events/stream",
+            params={"after": after},
+            headers=headers,
+            timeout=httpx.Timeout(5.0, read=None),
+        ) as response:
+            if response.is_error:
+                await response.aread()
+                raise MemseekHTTPError(response)
+            async for line in response.aiter_lines():
+                # Only `data:` carries the event; `id:` and `event:` repeat what
+                # the payload already names, and blank lines close a frame.
+                if not line.startswith("data:"):
+                    continue
+                yield json.loads(line[5:].strip())
+
+    async def continue_(self, invocation_id: str, *, prompt: str) -> dict[str, Any]:
+        return await self._client._request(
+            "POST", f"/invocations/{invocation_id}/turns", json={"prompt": prompt}
+        )
+
+    async def cancel(self, invocation_id: str) -> dict[str, Any]:
+        return await self._client._request("POST", f"/invocations/{invocation_id}/cancel")
+
+    async def fork(
+        self,
+        invocation_id: str,
+        *,
+        entity: str,
+        computer: str,
+        executor: Mapping[str, Any],
+        task: Mapping[str, Any],
+        idempotency_key: str | None = None,
+    ) -> dict[str, Any]:
+        payload: dict[str, Any] = {
+            "entity": entity,
+            "computer": computer,
+            "executor": dict(executor),
+            "task": dict(task),
+            "session": {"mode": "new"},
+        }
+        if idempotency_key is not None:
+            payload["idempotency_key"] = idempotency_key
+        return await self._client._request(
+            "POST", f"/invocations/{invocation_id}/fork", json=payload
+        )
+
+    async def artifacts(self, invocation_id: str) -> dict[str, Any]:
+        return await self._client._request("GET", f"/invocations/{invocation_id}/artifacts")
+
+    async def artifact(self, invocation_id: str, artifact_id: str) -> dict[str, Any]:
+        return await self._client._request(
+            "GET", f"/invocations/{invocation_id}/artifacts/{artifact_id}"
+        )
+
+    async def memory(
+        self, invocation_id: str, *, kind: str | None = None, limit: int = 50
+    ) -> dict[str, Any]:
+        params: dict[str, Any] = {"limit": limit}
+        if kind is not None:
+            params["kind"] = kind
+        return await self._client._request(
+            "GET", f"/invocations/{invocation_id}/memory", params=params
+        )
+
+    async def recall(self, invocation_id: str, *, query: str, limit: int = 20) -> dict[str, Any]:
+        return await self._client._request(
+            "GET",
+            f"/invocations/{invocation_id}/recall",
+            params={"q": query, "limit": limit},
+        )
+
+
 class MemseekClient:
     """Minimal async SDK covering catalog publication, ingest, document, and search."""
 
@@ -364,6 +489,7 @@ class MemseekClient:
         self.records = _RecordsClient(self)
         self.feedback = _FeedbackClient(self)
         self.backfill = _BackfillClient(self)
+        self.invocations = _InvocationsClient(self)
 
     def artifact(self, name: str) -> ArtifactHandle:
         """A reusable handle for rendering and binding one named artifact."""

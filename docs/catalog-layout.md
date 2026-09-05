@@ -25,6 +25,7 @@ Start from what you want to say, in words:
 | …control when that reasoning runs | an inline `trigger:`, or `triggers/*.yaml` | [Triggers](triggers.md) |
 | …save a search my whole app can reuse | `views/*.yaml` | [Views & search](views-search.md) |
 | …assemble prompts or briefings from memory | `artifacts/*.yaml` | [Artifacts](artifacts.md) |
+| …run code or a working agent in a sandbox over memory | `computers/`, `programs/`, `agents/`, `context_policies/` | [Computers, Programs & Agents](computers.md) |
 | …choose exactly which tools an agent may call | `mcp/*.yaml` | [MCP](mcp.md) |
 | …ship all of the above as one installable unit | `packages/*.yaml` | [Packages](packages.md) |
 
@@ -49,6 +50,14 @@ my-memory/
 │   └── customer_context.yaml
 ├── artifacts/
 │   └── customer_brief.yaml
+├── computers/                          # optional, sandboxed execution
+│   └── research_workspace.yaml
+├── programs/                           # optional, versioned deterministic code
+│   └── contract_extract.yaml
+├── agents/                             # optional, model-driven working agents
+│   └── renewal_analyst.yaml
+├── context_policies/                   # optional, an agent's token budget
+│   └── evidence_spine.yaml
 ├── mcp/
 │   └── customer_memory.yaml            # optional, agent tool allowlist
 └── packages/
@@ -60,8 +69,8 @@ depends on how your filesystem happens to be sorted.
 
 How much can go in one file depends on the kind:
 
-- **Several per file** — collections, views, artifacts, and processors. Group
-  them however reads best.
+- **Several per file** — collections, views, artifacts, processors, computers,
+  programs, agents, and context policies. Group them however reads best.
 - **One per file** — each derivation, each standalone trigger, and each MCP
   interface.
 - **Either** — a package file holds one package, or several under a
@@ -83,6 +92,10 @@ How much can go in one file depends on the kind:
 | `triggers/*.yaml` | one mapping | A reusable trigger pointing at a derivation |
 | `views/*.yaml` | `views: [...]` | Saved, named, typed searches |
 | `artifacts/*.yaml` | `artifacts: [...]` | Recipes that render memory into text |
+| `computers/*.yaml` | `computers: [...]` | Sandbox policies: what may be mounted, written, and returned |
+| `programs/*.yaml` | `programs: [...]` | Versioned deterministic code, with input and output schemas |
+| `agents/*.yaml` | `agents: [...]` | Model, instructions, tools, and limits for a working agent |
+| `context_policies/*.yaml` | `context_policies: [...]` | How an agent's context budget is managed as it fills |
 | `mcp/*.yaml` | one mapping | The allowlist of tools an agent may call |
 | `packages/*.yaml` | one mapping | The exact versions that ship together |
 
@@ -116,7 +129,8 @@ that silently does nothing until a user notices.
   `[a-z][a-z0-9._-]{0,63}`; processor names are stricter, matching
   `[a-z][a-z0-9_]{0,31}`.
 - **References to collections, views, and artifacts use exact versions** —
-  `name@1`.
+  `name@1`. Computers, programs, agents, and context policies are *always*
+  referenced this way, everywhere.
 - **Package versions use three-part versions** — `name@1.0.0`.
 - **Uploaded paths are relative**, end in `.yaml` or `.yml`, and must sit in the
   layout above.

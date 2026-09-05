@@ -25,7 +25,9 @@ from jsonschema import Draft202012Validator, FormatChecker
 from psycopg.types.json import Jsonb
 
 from memseek import __version__
+from memseek.artifacts import render_artifact
 from memseek.canonical_records import CanonicalRecordWrite, insert_canonical_record_tx
+from memseek.computers import ComputerExecutionError, execute_agent, execute_program
 from memseek.config import Settings
 from memseek.db import DatabaseConnection, DatabasePool
 from memseek.definitions import DefinitionCatalog
@@ -59,6 +61,7 @@ from memseek.derive.tasks import (
     TaskResult,
     task_adapter,
 )
+from memseek.derive.tasks_computer import AgentTaskConfig, ComputerTaskConfig
 from memseek.enrichment import SYSTEM_COLLECTION_HASH, SYSTEM_COLLECTION_VERSION
 from memseek.graph import GraphTraversalError, GraphTraversalRequest, traverse_graph
 from memseek.llm.registry import CompletionOutput, LLMTransportError
@@ -126,6 +129,8 @@ class _Execution:
     retrieval_trace: list[dict[str, Any]] | None = None
     context_trace: list[dict[str, Any]] | None = None
     task_trace: list[dict[str, Any]] | None = None
+    computer_trace: list[dict[str, Any]] | None = None
+    computer_runs: int = 0
     output: Any = None
     outputs: tuple[CandidateRecord, ...] = ()
     candidate_set: CandidateSet | None = None
@@ -901,6 +906,149 @@ class _RuntimeTaskContext(TaskContext):
             citation_ids=citation_ids,
         )
 
+    def _computer_run_key(self) -> str:
+        if self._execution.job_id is not None:
+            return str(self._execution.job_id)
+        return hashlib.sha256(
+            (
+                f"{self._execution.definition.name}\0{self.entity}\0"
+                f"{self._execution.wm_before}\0{self._execution.high_seq}"
+            ).encode()
+        ).hexdigest()
+
+    def _reserve_computer_run(self) -> None:
+        if self._execution.computer_runs >= self._execution.limits.max_computer_runs:
+            raise DerivationError("budget", "run exceeds max_computer_runs")
+        self._execution.computer_runs += 1
+
+    def _record_computer_receipt(self, receipt: Mapping[str, Any], *, executor: str) -> None:
+        if self._execution.computer_trace is None:
+            self._execution.computer_trace = []
+        self._execution.computer_trace.append(
+            {"task": self._task_id, "executor": executor, **dict(receipt)}
+        )
+
+    async def run_computer(self, value: Any, config: Any) -> TaskResult[Any]:
+        if not isinstance(config, ComputerTaskConfig):
+            raise DerivationError("validation", "computer Task received invalid configuration")
+        self._reserve_computer_run()
+        try:
+            result = await execute_program(
+                settings=self._settings,
+                catalog=self._catalog,
+                workspace=self._execution.workspace,
+                entity=self.entity,
+                run_key=self._computer_run_key(),
+                task_id=self._task_id,
+                computer_ref=config.computer,
+                program_ref=config.program,
+                input_value=value,
+                source_ids=self._config_source_ids,
+                citation_ids=self._config_citation_ids,
+                output_path=config.output,
+                max_output_bytes=self._execution.limits.max_computer_output_bytes,
+            )
+        except ComputerExecutionError as exc:
+            raise DerivationError(exc.code, exc.detail, wm=self._execution.wm_before) from exc
+        self._record_computer_receipt(result.receipt, executor=config.program)
+        return TaskResult(
+            result.value,
+            source_ids=self._config_source_ids,
+            citation_ids=result.citation_ids,
+        )
+
+    async def _render_context_artifact(self, reference: str) -> tuple[str, frozenset[UUID]]:
+        artifact = self._catalog.resolve_artifact(reference)
+        parameters = {"entity": self.entity} if "entity" in artifact.parameters else {}
+        rendered = await render_artifact(
+            self._pool,
+            workspace=self._execution.workspace,
+            name=reference,
+            parameters=parameters,
+            catalog=self._catalog,
+            settings=self._settings,
+        )
+        manifest = rendered["manifest"]
+        ids = frozenset(UUID(str(value)) for value in manifest["input_record_ids"])
+        return str(rendered["rendered"]), ids
+
+    async def _agent_context_files(
+        self, config: AgentTaskConfig
+    ) -> tuple[dict[str, str], frozenset[UUID]]:
+        agent = self._catalog.resolve_agent(config.agent)
+        computer = self._catalog.resolve_computer(config.computer)
+        targets = [
+            ("/.memseek/instructions.md", agent.instructions),
+            *(
+                (f"/.memseek/skills/{index:02d}.md", reference)
+                for index, reference in enumerate(agent.skills, start=1)
+            ),
+            *((mount.path, mount.artifact) for mount in computer.context),
+        ]
+        files: dict[str, str] = {}
+        source_ids: set[UUID] = set()
+        for path, reference in targets:
+            if path in files:
+                raise DerivationError("validation", f"duplicate materialized path {path!r}")
+            text, ids = await self._render_context_artifact(reference)
+            files[path] = text
+            source_ids.update(ids)
+        new_ids = source_ids - self._execution.visible_ids
+        if (
+            len(self._execution.visible_ids) + len(new_ids)
+            > self._execution.limits.max_visible_records
+        ):
+            raise DerivationError("budget", "agent context exceeds max_visible_records")
+        self._execution.visible_ids.update(new_ids)
+        return files, frozenset(source_ids)
+
+    async def run_agent(self, value: Any, config: Any) -> TaskResult[Any]:
+        if not isinstance(config, AgentTaskConfig):
+            raise DerivationError("validation", "agent Task received invalid configuration")
+        self._reserve_computer_run()
+        context_files, context_ids = await self._agent_context_files(config)
+        available_sources = self._config_source_ids | context_ids
+        available_citations = self._config_citation_ids | context_ids
+        agent = self._catalog.resolve_agent(config.agent)
+        max_steps = min(
+            config.max_steps or self._execution.limits.max_agent_steps,
+            self._execution.limits.max_agent_steps,
+            agent.limits.max_steps,
+        )
+        try:
+            result = await execute_agent(
+                settings=self._settings,
+                catalog=self._catalog,
+                workspace=self._execution.workspace,
+                entity=self.entity,
+                run_key=self._computer_run_key(),
+                task_id=self._task_id,
+                computer_ref=config.computer,
+                agent_ref=config.agent,
+                context_policy_ref=config.context_policy,
+                input_value=value,
+                source_ids=available_sources,
+                citation_ids=available_citations,
+                output_path=config.output,
+                output_schema=config.output_schema,
+                context_files=context_files,
+                max_output_bytes=min(
+                    self._execution.limits.max_computer_output_bytes,
+                    agent.limits.max_output_bytes,
+                ),
+                max_steps=max_steps,
+            )
+        except ComputerExecutionError as exc:
+            raise DerivationError(exc.code, exc.detail, wm=self._execution.wm_before) from exc
+        self.tool_source_ids |= context_ids
+        self.tool_citation_ids |= context_ids
+        self._record_computer_receipt(result.receipt, executor=config.agent)
+        return TaskResult(
+            result.value,
+            source_ids=available_sources,
+            citation_ids=result.citation_ids,
+        )
+
     def render(self, template: str) -> TaskResult[str]:
         rendered = render_prompt(template, self._variables)
         return TaskResult(
@@ -1207,6 +1355,7 @@ def _run_content(
         "retrieval_trace": execution.retrieval_trace or [],
         "context_trace": execution.context_trace or [],
         "task_trace": execution.task_trace or [],
+        "computer_trace": execution.computer_trace or [],
         "usage": {
             "prompt_tokens": execution.prompt_tokens,
             "completion_tokens": execution.completion_tokens,

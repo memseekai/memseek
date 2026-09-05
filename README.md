@@ -54,6 +54,7 @@ specific capability; publishing a package does not expose anything else.
 | **Derivation** | How evidence becomes reflections, profiles, or other maintained memory | The process sees only the data you permit, stays within its budget, and stores nothing unless the whole result passes its schema and evidence checks |
 | **View** | A reusable search or query your application can call or expose to an agent | Every query stays within the data and result limits you allow, and each result is checked against the source of truth before it is returned |
 | **Artifact** | How views and current state become agent context | Deterministic rendering, per-block token budgets, input manifests, and content hashes |
+| **Computer, Program, Agent, context policy** | Which versioned code or reasoning loop may use a controlled filesystem | Exact resource closure, bounded capabilities, durable sessions, audited files/commands, typed results, and explicit writeback |
 | **MCP interface** | The tools an agent may call | An explicit allowlist; a view, artifact, or route is never exposed automatically |
 | **Package** | The exact versions that ship together | Whole-catalog validation and atomic publication per workspace |
 
@@ -70,12 +71,19 @@ The boundary is deliberate:
 - An MCP agent sees only the declared tools. The sole write tool, `ingest`,
   appends to one fixed collection and cannot set provenance, scores, status, or
   tombstones.
-- Your application still owns business permissions and actions. Memseek is the
-  memory and context layer, not an autonomous action runtime.
+- Your application still owns business permissions and actions. A Memseek
+  Computer is a controlled analysis workspace: it receives no database writer,
+  workspace credential, or ambient business authority.
 
 These constraints make model behavior configurable without making it
 unbounded. If a run exceeds its budget, invents a citation, races a newer value,
 or fails schema validation, it commits nothing.
+
+For durable filesystem-backed work, see
+[Computer resources, derivations, and durable agents](https://memseekai.github.io/memseek/computer-resources-and-durable-agents/)
+and the deterministic `examples/computer_renewal_catalog` fixture. Computers
+are reusable resources selected per run; the entity remains the stable identity
+and controlled front door.
 
 ## A mini catalog with reflection
 

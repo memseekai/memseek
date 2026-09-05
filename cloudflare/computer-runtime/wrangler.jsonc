@@ -1,0 +1,36 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "memseek-computer-runtime",
+  "main": "src/index.ts",
+  "workers_dev": true,
+  "compatibility_date": "2026-08-27",
+  "compatibility_flags": ["nodejs_compat"],
+  "worker_loaders": [{ "binding": "LOADER" }],
+  "ai": { "binding": "AI" },
+  "containers": [
+    {
+      "class_name": "MemSeekComputer",
+      "image": "./Dockerfile",
+      "instance_type": "standard-2",
+      "max_instances": 10,
+      "rollout_active_grace_period": 0,
+      "rollout_step_percentage": [100]
+    }
+  ],
+  "durable_objects": {
+    "bindings": [
+      { "name": "COMPUTER", "class_name": "MemSeekComputer" },
+      { "name": "AGENT", "class_name": "MemSeekAgent" }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["MemSeekComputer", "MemSeekAgent"]
+    }
+  ],
+  "observability": {
+    "enabled": true,
+    "traces": { "enabled": true }
+  }
+}

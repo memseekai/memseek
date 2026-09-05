@@ -71,14 +71,14 @@ def _tool_annotations(kind: str) -> mcp_types.ToolAnnotations:
     whole point of annotating it honestly.
     """
 
-    writes = kind == "ingest"
+    writes = kind in {"ingest", "invocation"}
     return mcp_types.ToolAnnotations(
         read_only_hint=not writes,
         destructive_hint=False,
         # Answering is read-only but can call a nondeterministic model.  The
         # pure reads/renders are safe to retry as idempotent operations, and an
         # ingest is only replay-safe when the caller supplies a dedupe key.
-        idempotent_hint=kind not in {"answer", "ingest"},
+        idempotent_hint=kind not in {"answer", "ingest", "invocation"},
         open_world_hint=False,
     )
 
@@ -182,6 +182,44 @@ class MemseekMcpBridge:
             arguments.pop("collection_version", None)
             record = {**arguments, "collection": name, "collection_version": int(version)}
             return await self._request("POST", "/records", json={"records": [record]})
+        if kind == "invocation":
+            if bound.get("kind") != "invocation":
+                raise McpBridgeError("MCP invocation binding is invalid")
+            computer = _object(bound.get("computer"), label="Computer binding")
+            executor = _object(bound.get("executor"), label="executor binding")
+            computer_ref = computer.get("reference")
+            executor_ref = executor.get("reference")
+            task_kind = bound.get("task_kind")
+            if not isinstance(computer_ref, str) or not isinstance(executor_ref, str):
+                raise McpBridgeError("MCP invocation binding has no exact references")
+            entity = arguments.get("entity")
+            if not isinstance(entity, str) or not entity:
+                raise McpBridgeError("invocation tool requires entity")
+            if executor.get("kind") == "agent":
+                policy = _object(executor.get("context_policy"), label="context policy binding")
+                policy_ref = policy.get("reference")
+                if not isinstance(policy_ref, str):
+                    raise McpBridgeError("agent invocation binding has no context policy")
+                executor_payload = {
+                    "kind": "agent",
+                    "agent": executor_ref,
+                    "context_policy": policy_ref,
+                }
+                task = {"kind": task_kind, "prompt": arguments.get("prompt")}
+            else:
+                executor_payload = {"kind": "program", "program": executor_ref}
+                task = {"kind": task_kind, "input": arguments.get("input")}
+            payload = {
+                "entity": entity,
+                "computer": computer_ref,
+                "executor": executor_payload,
+                "task": task,
+                "session": {"mode": "new"},
+            }
+            idempotency_key = arguments.get("idempotency_key")
+            if idempotency_key is not None:
+                payload["idempotency_key"] = idempotency_key
+            return await self._request("POST", "/invocations", json=payload)
         raise McpBridgeError(f"MCP tool {descriptor.get('name')!r} has unsupported kind {kind!r}")
 
     async def _request(self, method: str, path: str, **kwargs: Any) -> dict[str, Any]:

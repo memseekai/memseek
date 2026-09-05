@@ -55,6 +55,7 @@ code and a human-readable `detail`, for example:
 | Assemble prompt-ready text | `POST /artifacts/{name}/render` | A deterministic artifact render. |
 | Let an agent call a limited tool set | `POST /mcp` (or local `memseek mcp`) | The package's MCP allowlist over Streamable HTTP or stdio. |
 | Run a derivation or inspect background work | `POST /processors/{name}/run` then `GET /jobs/{id}` | A queued job and its status. |
+| Start long-running, sandboxed work an agent can pause and resume | `POST /invocations` then `GET /invocations/{id}/events` | A durable run handle and its ordered journal. |
 | Remove an entity and its derived records | `POST /erase` | An irreversible erasure audit. |
 
 The sections below cover every public endpoint, including operational and
@@ -608,6 +609,110 @@ including expected active heads, inferred effect/coverage, keyed divergence,
 visible sources, citations, output IDs, status, and failure classification. It
 does not expose prompts or model responses.
 
+### Durable agent runs
+
+A **durable invocation** is the other kind of queued work: a long-running,
+sandboxed job for one entity that survives restarts, can pause to ask a person
+a question, and streams what it did as it goes. These routes exist only when
+the catalog defines a [Computer](computers.md); a design without one exposes
+nothing here.
+
+Start one with `POST /invocations`. The body names the entity, the exact
+Computer, the exact executor, and the task:
+
+```console
+curl -sS -X POST http://127.0.0.1:8000/invocations \
+  -H "$MEMSEEK_AUTH" -H 'Content-Type: application/json' \
+  -d '{"entity":"account:acme",
+       "computer":"research_workspace@1",
+       "executor":{"kind":"agent","agent":"renewal_analyst@1",
+                   "context_policy":"evidence_spine@1"},
+       "task":{"kind":"answer","prompt":"Prepare the renewal position."},
+       "idempotency_key":"acme-renewal-2026"}'
+```
+
+| Field | Required | Notes |
+| --- | --- | --- |
+| `entity` | yes | 1–255 characters, non-blank. `*` is rejected. |
+| `computer` | yes | Exact `name@version`. |
+| `executor` | yes | `{"kind":"agent","agent":…,"context_policy":…}` or `{"kind":"program","program":…}`. All references exact. An Agent must list this Computer in its own `computers:`, or the call fails `422 computer_capability`. |
+| `task` | yes | For an Agent, `{"kind":"answer","prompt":…}` — `kind` is `answer` or `task`, and `prompt` is 1–32 768 characters. For a Program, `{"kind":"compute","input":…}`. |
+| `session` | no | `{"mode":"new"}` by default. To continue or branch an existing workspace, `{"mode":"resume","session_id":…}` or `{"mode":"fork","session_id":…}` — `new` forbids `session_id`, and the other two require it. |
+| `idempotency_key` | no | 1–128 characters. Replaying a key returns the original invocation instead of starting a second one. |
+
+Unknown fields are rejected rather than ignored. The response is `202` with the
+invocation handle — `invocation_id`, `session_id`, `parent_session_id`, the
+pinned `definition_refs` with their definition hashes, `status`,
+`event_cursor`, and `result`/`error` once there is one. Nothing runs inside the
+request: the invocation is `queued` and a worker picks it up.
+
+`GET /invocations/{id}` returns that same handle at any time. `status` moves
+`queued` → `running` → one of `succeeded`, `failed`, `cancelled`,
+`context_exhausted`, or pauses at `awaiting_input`; the four terminal states
+never change again.
+
+`GET /invocations/{id}/events?after=N&limit=100` reads the ordered journal.
+`after` is a plain counter (`0` means "from the beginning") and `limit` is
+1–500, so you can always ask only for what you have not seen:
+
+```console
+curl -sS 'http://127.0.0.1:8000/invocations/<id>/events?after=0&limit=100' \
+  -H "$MEMSEEK_AUTH"
+```
+
+Each entry carries `ordinal`, `kind`, `payload`, `payload_sha256`, and
+`created_at`, and the response repeats the highest `ordinal` as `cursor`. The
+kinds are `queued`, `started`, `user_turn`, the provider's own `command`,
+`file_change`, `model_request`, `model_step`, `tool_call` and `tool_result`
+entries, then `awaiting_input`, `execution_interrupted`, `context_exhausted`,
+`writeback_ingested`, `completed`, `failed`, or `cancelled`.
+
+`GET /invocations/{id}/events/stream?after=N` is the same journal over SSE, not
+a second feed: each message carries the ordinal as its `id`, the event kind as
+its `event`, and the same JSON as `data`. The stream closes on its own once the
+run is in a terminal state and nothing is left to send.
+
+`POST /invocations/{id}/turns` answers a run that paused. It takes one field,
+`prompt` (1–32 768 characters), appends a `user_turn` event, and returns `202`
+with the invocation back in `queued` — the sandbox and the conversation so far
+are intact. A run that is not `awaiting_input` returns `409 state`.
+
+`POST /invocations/{id}/cancel` stops a `queued`, `running`, or
+`awaiting_input` run and returns `200`. On an already-terminal run it changes
+nothing and returns the current handle.
+
+`POST /invocations/{id}/fork` starts a **child** run from this one's preserved
+files. The body is the same shape as `POST /invocations`, minus the session
+block: the parent is filled in for you, so a fork may pin different definition
+versions but always starts from the parent's `retention.preserve` paths.
+
+`GET /invocations/{id}/artifacts` lists the files the run preserved — `id`,
+`path`, `sha256`, `size_bytes`, `mime_type`, `preserved`, `created_at` — and
+`GET /invocations/{id}/artifacts/{artifact_id}` returns one descriptor, with
+the parsed `content` inlined for the run's own final result. A provider storage
+address is deliberately never returned from this boundary; a descriptor is not
+a storage credential.
+
+`GET /invocations/{id}/memory?kind=…&limit=50` reads the run's own notes: its
+`working_brief` and `episode_receipt` nodes, newest first, `limit` 1–200,
+optionally filtered by `kind`. Each node keeps the ordinal range and the
+citations it came from, because a brief is a navigation aid — you follow it back
+to the event or the records it names rather than treating it as evidence.
+
+`GET /invocations/{id}/recall?q=…&limit=20` searches that one run's journal and
+notes — `q` is 1–512 characters, `limit` is 1–50 — and returns `event` and
+`memory_node` hits with their payloads and hashes. It cannot reach another
+invocation, another entity, or the rest of the workspace.
+
+Failures name themselves in the usual `{"error": …, "detail": …}` shape:
+`404 not_found` for an unknown invocation or artifact; `409` for
+`session_inactive`, `session_version_conflict` (resume after a definition
+changed — fork instead), `idempotency_conflict`, `state`, and
+`context_exhausted`; `422` for `reference`, `computer_capability`,
+`validation`, `budget`, `provenance`, `writeback`, `provider_receipt`, and
+`request_schema`. [Computers, Programs & Agents](computers.md#the-error-codes)
+explains what each one means and what to do about it.
+
 ### Prompt-ready context assembly
 
 `GET /context` is a convenience assembler for applications that need one
@@ -908,6 +1013,25 @@ bounded snapshots.
 | `GET /processors` | Discover processor and derivation summaries. |
 | `GET /triggers` | Discover which derivations can be queued automatically. |
 | `GET /tools` | Discover the package's explicit MCP tool allowlist. |
+
+### Durable agent runs
+
+These exist only when the catalog defines a [Computer](computers.md); a design
+without one exposes nothing here.
+
+| Endpoint | Use it to… |
+| --- | --- |
+| `POST /invocations` | Start durable, sandboxed work for one entity — a new run, or a resume/fork of an existing workspace. |
+| `GET /invocations/{id}` | Check its status, pinned definitions, and result. |
+| `GET /invocations/{id}/events` | Read its ordered journal from a cursor. |
+| `GET /invocations/{id}/events/stream` | Follow the same journal over SSE. |
+| `POST /invocations/{id}/turns` | Answer a run that paused to ask a question. |
+| `POST /invocations/{id}/cancel` | Stop a queued, running, or waiting run. |
+| `POST /invocations/{id}/fork` | Start a child run from this one's preserved files. |
+| `GET /invocations/{id}/artifacts` | List the files the run preserved. |
+| `GET /invocations/{id}/artifacts/{artifact_id}` | Fetch one of them by id. |
+| `GET /invocations/{id}/memory` | Read the run's working brief and episode receipts. |
+| `GET /invocations/{id}/recall` | Search the run's own journal and receipts. |
 
 ### Artifacts, review, and erasure
 

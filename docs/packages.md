@@ -45,6 +45,14 @@ views:
   - customer_context@1
 artifacts:
   - customer_brief@1
+computers:                     # only if the design runs sandboxed work
+  - research_workspace@1
+programs:
+  - contract_extract@3
+agents:
+  - renewal_analyst@1
+context_policies:
+  - evidence_spine@1
 mcp: customer_memory@1
 search_profiles:
   - pg_default
@@ -79,6 +87,12 @@ retentions:
   load, but nothing will ever queue it automatically.
 - **`views`** / **`artifacts`** — exact `name@version` references, same rules
   as collections.
+- **`computers`** / **`programs`** / **`agents`** / **`context_policies`** —
+  exact `name@version` references to the sandboxed-execution families, when the
+  design uses them. They are optional: a package with none of them simply
+  cannot run code. See [Computers, Programs & Agents](computers.md). Program
+  source is part of the package hash, so the same package always means the same
+  code.
 - **`mcp`** — optional exact `name@integer-version` reference to the package's
   curated MCP interface. It is an allowlist, not an automatic export of the
   package's views, artifacts, or HTTP routes. See [Declared MCP
@@ -233,14 +247,21 @@ package
  ├─ view ─────── query fields, scopes, capabilities, search profiles
  ├─ artifact ─── blocks ──> the views and documents they read
  │              └─ learning target ──> the reviewed artifact it names
- └─ mcp ──────── explicit tools ──> package-listed views and artifacts
+ ├─ computer ─── mounted artifacts and writeback collections
+ ├─ agent ────── instructions and skill artifacts, allowed computers,
+ │              context policy
+ └─ mcp ──────── explicit tools ──> package-listed views, artifacts,
+                 computers, programs and agents
 ```
 
 In practice this means: if you add a view to the package, also add the
 collections it searches; if you add a derivation, also add its trigger, source
 and emission collections, and any score processor its trigger accumulates; and
 if an artifact declares a [learning target](artifact-uses.md), also add the
-reviewed artifact it names — plus the collection its feedback lands in. The
+reviewed artifact it names — plus the collection its feedback lands in; and if a
+derivation runs a [sandboxed task](computers.md), also add the computer,
+program, agent, and context policy it names, together with every artifact
+mounted as context and every collection its writeback targets. The
 error messages name the missing reference, so the fastest workflow is simply
 to upload and read the first error.
 

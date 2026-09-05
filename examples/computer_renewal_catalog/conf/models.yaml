@@ -1,0 +1,23 @@
+providers:
+  workers_ai:
+    adapter: fake
+    base_url: https://api.cloudflare.com/client/v4/accounts/example/ai/run
+    api_key_env: CLOUDFLARE_API_TOKEN
+
+aliases:
+  renewal_reasoner:
+    targets: ["workers_ai:@cf/meta/llama-3.3-70b-instruct-fp8-fast"]
+    params: {temperature: 0, max_output_tokens: 2400}
+    context_tokens: 24000
+
+embedding:
+  provider: workers_ai
+  model: fake-embedding
+  dimensions: 1536
+  space: renewal-demo-v1
+  batch: 16
+  max_text_chars: 16000
+
+defaults:
+  derivation: renewal_reasoner
+  fold: renewal_reasoner

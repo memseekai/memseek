@@ -1,0 +1,41 @@
+name: contract_extract
+trigger:
+  write:
+    collections: [renewal_evidence]
+    types: [evidence]
+    statuses: [active]
+    where: {kind: {eq: contract}}
+sources:
+  new_contracts:
+    kind: changes
+    collections: [renewal_evidence]
+    types: [evidence]
+    statuses: [active]
+    keyed: false
+    max_records: 20
+    max_tokens: 12000
+    allow_empty: false
+limits:
+  max_tasks: 1
+  max_llm_calls: 0
+  max_retrieved_records: 0
+  max_visible_records: 20
+  max_total_tokens: 16000
+  max_wall_s: 60
+  max_computer_runs: 1
+  max_computer_output_bytes: 1048576
+  max_preserved_bytes: 2097152
+tasks:
+  - id: extracted_terms
+    use: computer
+    input: {contracts: "{{new_contracts.records}}"}
+    with:
+      computer: fast_workspace@1
+      program: contract_extract@3
+      output: /outbox/result.json
+emit:
+  from: "{{extracted_terms.records}}"
+  collection: contract_terms
+  type: contract_term
+  max_records: 20
+

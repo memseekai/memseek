@@ -1,0 +1,12 @@
+agents:
+  - name: renewal_analyst
+    version: 1
+    active: true
+    model: renewal_reasoner
+    instructions: renewal_instructions@1
+    skills: [renewal_research_skill@1]
+    tools: [computer, recall]
+    computers: [research_workspace@1]
+    context_policy: evidence_spine@1
+    limits: {max_steps: 24, max_wall_s: 300, max_output_bytes: 1048576}
+

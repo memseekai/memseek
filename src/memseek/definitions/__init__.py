@@ -11,15 +11,19 @@ from .errors import (
     DefinitionValidationError,
 )
 from .models import (
+    AgentDefinition,
     ArtifactDefinition,
     ArtifactLearning,
     CollectionDefinition,
+    ComputerDefinition,
+    ContextPolicyDefinition,
     GraphProjection,
     McpDefinition,
     McpToolDefinition,
     PackageDefinition,
     ParameterDefinition,
     ProcessorDefinition,
+    ProgramDefinition,
     SearchProfileDefinition,
     TombstoneRetention,
     ViewDefinition,
@@ -62,10 +66,13 @@ def __dir__() -> list[str]:
 
 
 __all__ = [
+    "AgentDefinition",
     "ArtifactDefinition",
     "ArtifactLearning",
     "CollectionDefinition",
     "CollectionDefinitionMismatch",
+    "ComputerDefinition",
+    "ContextPolicyDefinition",
     "DefinitionCatalog",
     "DefinitionError",
     "DefinitionSources",
@@ -76,6 +83,7 @@ __all__ = [
     "PackageDefinition",
     "ParameterDefinition",
     "ProcessorDefinition",
+    "ProgramDefinition",
     "SearchProfileDefinition",
     "TombstoneRetention",
     "ViewDefinition",

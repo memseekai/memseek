@@ -6,6 +6,7 @@ import math
 import re
 from collections.abc import Mapping
 from datetime import datetime
+from pathlib import PurePosixPath
 from typing import Any, Literal
 from urllib.parse import urlsplit
 
@@ -853,6 +854,245 @@ class ArtifactDefinition(VersionedDefinition):
         return self
 
 
+ComputerRuntimeName = Literal["worker-javascript", "container"]
+ComputerCapabilityName = Literal["filesystem", "exec", "network"]
+
+
+def _absolute_computer_path(value: str, label: str) -> str:
+    path = PurePosixPath(value)
+    if not path.is_absolute() or ".." in path.parts or value == "/":
+        raise ValueError(f"{label} must be a safe absolute path below root")
+    return str(path)
+
+
+def _relative_program_path(value: str, label: str) -> str:
+    path = PurePosixPath(value)
+    if path.is_absolute() or ".." in path.parts or str(path) in {"", "."}:
+        raise ValueError(f"{label} must be a safe relative path")
+    return str(path)
+
+
+class ComputerContextMount(StrictModel):
+    path: str
+    artifact: str
+    mode: Literal["read_only"] = "read_only"
+
+    @model_validator(mode="after")
+    def validate_mount(self) -> ComputerContextMount:
+        _absolute_computer_path(self.path, "context path")
+        if not self.path.startswith("/.memseek/"):
+            raise ValueError("context paths must live below /.memseek")
+        _require_exact_definition_reference(self.artifact, "context artifact")
+        return self
+
+
+class ComputerRuntime(StrictModel):
+    default: ComputerRuntimeName = "worker-javascript"
+    fallback: ComputerRuntimeName | None = None
+    fallback_requires: Literal["explicit_policy"] | None = None
+
+    @model_validator(mode="after")
+    def validate_fallback(self) -> ComputerRuntime:
+        if self.fallback == self.default:
+            raise ValueError("runtime fallback must differ from default")
+        if (self.fallback is None) != (self.fallback_requires is None):
+            raise ValueError("runtime fallback and fallback_requires must be declared together")
+        return self
+
+
+class ComputerCapabilities(StrictModel):
+    filesystem: bool = True
+    exec: bool = False
+    network: bool = False
+
+    @property
+    def enabled(self) -> frozenset[str]:
+        return frozenset(
+            name for name in ("filesystem", "exec", "network") if bool(getattr(self, name))
+        )
+
+
+class ComputerWriteback(StrictModel):
+    path: str
+    type: Literal["observations", "maintained_state", "final_result"]
+    review: bool
+    collection: str | None = None
+    record_type: PublicName | None = None
+
+    @model_serializer(mode="wrap")
+    def _serialize(self, handler: Any) -> dict[str, Any]:
+        dumped = dict(handler(self))
+        if self.collection is None:
+            dumped.pop("collection", None)
+        if self.record_type is None:
+            dumped.pop("record_type", None)
+        return dumped
+
+    @model_validator(mode="after")
+    def validate_writeback(self) -> ComputerWriteback:
+        _absolute_computer_path(self.path, "writeback path")
+        if not self.path.startswith("/outbox/"):
+            raise ValueError("writeback paths must live below /outbox")
+        if self.type == "maintained_state" and not self.review:
+            raise ValueError("maintained_state writeback requires review")
+        if self.type == "observations" and self.review:
+            raise ValueError("observations writeback cannot require review")
+        if self.type == "final_result":
+            if self.collection is not None or self.record_type is not None:
+                raise ValueError("final_result writeback forbids collection and record_type")
+        else:
+            if self.collection is None or self.record_type is None:
+                raise ValueError(
+                    "observations and maintained_state writeback require collection and record_type"
+                )
+            _require_exact_definition_reference(self.collection, "writeback collection")
+        return self
+
+
+class ComputerRetention(StrictModel):
+    workspace_days: int = Field(default=30, ge=1, le=365)
+    preserve: tuple[str, ...] = ()
+
+    @model_validator(mode="after")
+    def validate_preserve(self) -> ComputerRetention:
+        ensure_unique(self.preserve, "preserve paths")
+        for value in self.preserve:
+            _absolute_computer_path(value, "preserve path")
+        return self
+
+
+class ComputerDefinition(VersionedDefinition):
+    """Reusable execution policy; physical instances are session scoped."""
+
+    provider: ProviderName
+    context: tuple[ComputerContextMount, ...] = ()
+    writable: tuple[str, ...] = ("/workspace", "/outbox")
+    runtime: ComputerRuntime = Field(default_factory=ComputerRuntime)
+    capabilities: ComputerCapabilities = Field(default_factory=ComputerCapabilities)
+    writeback: tuple[ComputerWriteback, ...] = ()
+    retention: ComputerRetention = Field(default_factory=ComputerRetention)
+
+    @model_validator(mode="after")
+    def validate_computer(self) -> ComputerDefinition:
+        ensure_unique([item.path for item in self.context], "computer context paths")
+        ensure_unique(self.writable, "computer writable paths")
+        ensure_unique([item.path for item in self.writeback], "computer writeback paths")
+        for value in self.writable:
+            _absolute_computer_path(value, "writable path")
+            if value.startswith(("/.memseek", "/inputs")):
+                raise ValueError("/.memseek and /inputs are always read-only")
+        for item in self.writeback:
+            if not any(
+                item.path == root or item.path.startswith(f"{root}/") for root in self.writable
+            ):
+                raise ValueError(f"writeback path {item.path!r} is outside writable roots")
+        return self
+
+
+class ExternalProgramBundle(StrictModel):
+    uri: NonBlank
+    sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+
+
+class ProgramDefinition(VersionedDefinition):
+    """Immutable executable bundle accepted by a Computer provider."""
+
+    runtime: ComputerRuntimeName
+    entrypoint: str
+    command: tuple[NonBlank, ...] | None = None
+    files: dict[str, str] = Field(default_factory=dict)
+    bundle: ExternalProgramBundle | None = None
+    input_schema: dict[str, Any]
+    output_schema: dict[str, Any]
+    capabilities: tuple[ComputerCapabilityName, ...] = ("filesystem",)
+
+    @model_validator(mode="after")
+    def validate_program(self) -> ProgramDefinition:
+        entrypoint = _relative_program_path(self.entrypoint, "program entrypoint")
+        if bool(self.files) == (self.bundle is not None):
+            raise ValueError("program requires exactly one of files or bundle")
+        if self.files:
+            normalized: set[str] = set()
+            total = 0
+            for raw_path, content in self.files.items():
+                path = _relative_program_path(raw_path, "program file path")
+                if path in normalized:
+                    raise ValueError(f"duplicate normalized program path {path!r}")
+                normalized.add(path)
+                total += len(content.encode("utf-8"))
+            if entrypoint not in normalized:
+                raise ValueError("program entrypoint must name an embedded file")
+            if total > 1_048_576:
+                raise ValueError("embedded program bundle exceeds 1 MiB")
+        if self.runtime == "container" and not self.command:
+            raise ValueError("container programs require an immutable command argv")
+        if self.runtime != "container" and self.command is not None:
+            raise ValueError("command is only valid for container programs")
+        ensure_unique(self.capabilities, "program capabilities")
+        if "exec" not in self.capabilities and self.runtime == "container":
+            raise ValueError("container programs require the exec capability")
+        return self
+
+
+class AgentLimits(StrictModel):
+    max_steps: int = Field(default=32, ge=1, le=128)
+    max_wall_s: int = Field(default=300, ge=1, le=3_600)
+    max_output_bytes: int = Field(default=10_485_760, ge=1, le=67_108_864)
+
+
+class AgentDefinition(VersionedDefinition):
+    model: ProcessorName
+    instructions: str
+    skills: tuple[str, ...] = ()
+    tools: tuple[Literal["computer", "recall"], ...] = ("computer", "recall")
+    computers: tuple[str, ...]
+    context_policy: str
+    limits: AgentLimits = Field(default_factory=AgentLimits)
+
+    @model_validator(mode="after")
+    def validate_agent(self) -> AgentDefinition:
+        _require_exact_definition_reference(self.instructions, "agent instructions artifact")
+        for skill in self.skills:
+            _require_exact_definition_reference(skill, "agent skill artifact")
+        for computer in self.computers:
+            _require_exact_definition_reference(computer, "agent computer")
+        _require_exact_definition_reference(self.context_policy, "agent context policy")
+        ensure_unique(self.skills, "agent skills")
+        ensure_unique(self.tools, "agent tools")
+        ensure_unique(self.computers, "agent computers")
+        if not self.computers:
+            raise ValueError("agent requires at least one allowed computer")
+        return self
+
+
+class ContextThresholds(StrictModel):
+    pointerize: float = Field(default=0.70, gt=0, lt=1)
+    compact: float = Field(default=0.82, gt=0, lt=1)
+    pause: float = Field(default=0.92, gt=0, lt=1)
+
+    @model_validator(mode="after")
+    def validate_order(self) -> ContextThresholds:
+        if not self.pointerize < self.compact < self.pause:
+            raise ValueError("context thresholds must be strictly increasing")
+        return self
+
+
+class ContextPolicyDefinition(VersionedDefinition):
+    max_input_tokens: int = Field(default=50_000, ge=4_096)
+    reserve_output_tokens: int = Field(default=4_000, ge=256)
+    thresholds: ContextThresholds = Field(default_factory=ContextThresholds)
+    max_recall_pages: int = Field(default=5, ge=1, le=20)
+    max_recall_hits: int = Field(default=50, ge=1, le=200)
+    max_exposed_bytes: int = Field(default=262_144, ge=1, le=4_194_304)
+    receipt_fanout: int = Field(default=8, ge=2, le=32)
+
+    @model_validator(mode="after")
+    def validate_budget(self) -> ContextPolicyDefinition:
+        if self.reserve_output_tokens >= self.max_input_tokens:
+            raise ValueError("reserve_output_tokens must be below max_input_tokens")
+        return self
+
+
 class TombstoneRetention(StrictModel):
     """A bounded scheduled physical-erasure policy for keyed tombstones.
 
@@ -877,7 +1117,7 @@ class McpToolDefinition(StrictModel):
     """
 
     name: PublicName
-    kind: Literal["view", "artifact", "answer", "record", "ingest"]
+    kind: Literal["view", "artifact", "answer", "record", "ingest", "invocation"]
     description: NonBlank
     title: NonBlank | None = None
     view: str | None = None
@@ -886,6 +1126,11 @@ class McpToolDefinition(StrictModel):
     # named here rather than chosen by the caller: an agent can add evidence to
     # exactly the drawer the package opened for it, and to no other.
     collection: str | None = None
+    computer: str | None = None
+    agent: str | None = None
+    program: str | None = None
+    context_policy: str | None = None
+    invocation_task: Literal["answer", "task", "compute"] | None = None
 
     @model_serializer(mode="wrap")
     def _serialize(self, handler: Any) -> dict[str, Any]:
@@ -902,30 +1147,85 @@ class McpToolDefinition(StrictModel):
         dumped = dict(handler(self))
         if self.collection is None:
             dumped.pop("collection", None)
+        for field_name in ("computer", "agent", "program", "context_policy", "invocation_task"):
+            if getattr(self, field_name) is None:
+                dumped.pop(field_name, None)
         return dumped
 
     @model_validator(mode="after")
     def validate_target(self) -> McpToolDefinition:
+        invocation_fields = (
+            self.computer,
+            self.agent,
+            self.program,
+            self.context_policy,
+            self.invocation_task,
+        )
         if self.kind == "view":
             if self.view is None:
                 raise ValueError("view MCP tool requires view")
-            if self.artifact is not None or self.collection is not None:
-                raise ValueError("view MCP tool forbids artifact and collection")
+            if (
+                self.artifact is not None
+                or self.collection is not None
+                or any(value is not None for value in invocation_fields)
+            ):
+                raise ValueError("view MCP tool forbids other resource bindings")
             _require_exact_definition_reference(self.view, "view")
         elif self.kind == "artifact":
             if self.artifact is None:
                 raise ValueError("artifact MCP tool requires artifact")
-            if self.view is not None or self.collection is not None:
-                raise ValueError("artifact MCP tool forbids view and collection")
+            if (
+                self.view is not None
+                or self.collection is not None
+                or any(value is not None for value in invocation_fields)
+            ):
+                raise ValueError("artifact MCP tool forbids other resource bindings")
             _require_exact_definition_reference(self.artifact, "artifact")
         elif self.kind == "ingest":
             if self.collection is None:
                 raise ValueError("ingest MCP tool requires collection")
-            if self.view is not None or self.artifact is not None:
-                raise ValueError("ingest MCP tool forbids view and artifact")
+            if (
+                self.view is not None
+                or self.artifact is not None
+                or any(value is not None for value in invocation_fields)
+            ):
+                raise ValueError("ingest MCP tool forbids other resource bindings")
             _require_exact_definition_reference(self.collection, "collection")
-        elif self.view is not None or self.artifact is not None or self.collection is not None:
-            raise ValueError(f"{self.kind} MCP tool forbids view, artifact and collection")
+        elif self.kind == "invocation":
+            if self.computer is None or self.invocation_task is None:
+                raise ValueError("invocation MCP tool requires computer and invocation_task")
+            if (self.agent is None) == (self.program is None):
+                raise ValueError("invocation MCP tool requires exactly one of agent or program")
+            if (self.agent is None) != (self.context_policy is None):
+                raise ValueError("agent invocation requires context_policy; Program forbids it")
+            if self.agent is not None and self.invocation_task == "compute":
+                raise ValueError("agent invocation task must be answer or task")
+            if self.program is not None and self.invocation_task != "compute":
+                raise ValueError("Program invocation task must be compute")
+            _require_exact_definition_reference(self.computer, "computer")
+            if self.agent is not None:
+                _require_exact_definition_reference(self.agent, "agent")
+                assert self.context_policy is not None
+                _require_exact_definition_reference(self.context_policy, "context_policy")
+            else:
+                assert self.program is not None
+                _require_exact_definition_reference(self.program, "program")
+            if self.view is not None or self.artifact is not None or self.collection is not None:
+                raise ValueError("invocation MCP tool forbids view, artifact and collection")
+        elif any(
+            value is not None
+            for value in (
+                self.view,
+                self.artifact,
+                self.collection,
+                self.computer,
+                self.agent,
+                self.program,
+                self.context_policy,
+                self.invocation_task,
+            )
+        ):
+            raise ValueError(f"{self.kind} MCP tool forbids resource bindings")
         return self
 
 
@@ -961,6 +1261,10 @@ class PackageDefinition(DefinitionModel):
     triggers: tuple[str, ...] = ()
     views: tuple[str, ...] = ()
     artifacts: tuple[str, ...] = ()
+    computers: tuple[str, ...] = ()
+    programs: tuple[str, ...] = ()
+    agents: tuple[str, ...] = ()
+    context_policies: tuple[str, ...] = ()
     search_profiles: tuple[PublicName, ...] = ()
     optional_search_profiles: tuple[PublicName, ...] = ()
     retentions: tuple[TombstoneRetention, ...] = ()
@@ -977,6 +1281,10 @@ class PackageDefinition(DefinitionModel):
             "triggers",
             "views",
             "artifacts",
+            "computers",
+            "programs",
+            "agents",
+            "context_policies",
             "search_profiles",
             "optional_search_profiles",
         ):

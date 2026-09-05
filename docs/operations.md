@@ -18,11 +18,12 @@ The main settings groups are:
 | --- | --- |
 | Database | `DATABASE_URL`, pool sizes, migration settings |
 | LLM | provider API keys, `LLM_FAKE`, concurrency, context/prompt/output limits |
-| Catalog | `COLLECTIONS_DIR`, `DERIVATIONS_DIR`, `TRIGGERS_DIR`, `VIEWS_DIR`, `ARTIFACTS_DIR`, `PACKAGES_DIR` and the `*_FILE` paths under `conf/` |
+| Catalog | `COLLECTIONS_DIR`, `DERIVATIONS_DIR`, `TRIGGERS_DIR`, `VIEWS_DIR`, `ARTIFACTS_DIR`, `COMPUTERS_DIR`, `PROGRAMS_DIR`, `AGENTS_DIR`, `CONTEXT_POLICIES_DIR`, `MCP_DIR`, `PACKAGES_DIR` and the `*_FILE` paths under `conf/` |
 | Search | `SEARCH_BACKEND`, profile overrides, Turbopuffer credentials/layout/consistency, candidate and concurrency limits |
 | Derivation | batch sizes, text/content limits, maximum depth, artifact/run limits |
 | Contradiction detection | `derivations/contradiction.yaml` and `collections/relations.yaml` — see [Contradiction detection](contradiction-detection.md) |
 | Artifact uses & feedback | `ARTIFACT_USE_RETENTION_DAYS`, `ARTIFACT_USE_PURGE_BATCH`, `MAX_FEEDBACK_COMMENT_CHARS`, `MAX_FEEDBACK_EVIDENCE_CHARS` — see [Artifact uses & feedback](artifact-uses.md) |
+| Computers & durable agents | `COMPUTER_RUNTIME_URL`, `COMPUTER_RUNTIME_TOKEN`, `COMPUTER_REQUEST_TIMEOUT_S`, `COMPUTER_RESPONSE_MAX_BYTES` — needed only when a Computer sets `provider: cloudflare`; see [The Cloudflare Computer runtime](computer-cloudflare.md#configuring-memseeks-side) |
 | Safety | workspace auth, `API_CORS_ORIGINS`, MCP Origin validation, workspace locks, erasure and projection settings |
 
 Use `.env.example` and `src/memseek/config.py` as the authoritative environment-name reference for the current release. Secrets belong in process configuration, not catalog YAML.

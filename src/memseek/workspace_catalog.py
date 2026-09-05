@@ -38,13 +38,17 @@ _MAX_FILES = 256
 _MAX_FILE_BYTES = 512 * 1024
 _MAX_TOTAL_BYTES = 4 * 1024 * 1024
 _CATALOG_DIRECTORIES = {
+    "agents",
     "collections",
+    "computers",
+    "context_policies",
     "derivations",
     "triggers",
     "views",
     "artifacts",
     "mcp",
     "packages",
+    "programs",
 }
 
 
@@ -207,6 +211,10 @@ def _compile_overlay(settings: Settings, files: Mapping[str, str]) -> Definition
             ("triggers_dir", "triggers"),
             ("views_dir", "views"),
             ("artifacts_dir", "artifacts"),
+            ("computers_dir", "computers"),
+            ("programs_dir", "programs"),
+            ("agents_dir", "agents"),
+            ("context_policies_dir", "context_policies"),
             ("mcp_dir", "mcp"),
             ("packages_dir", "packages"),
         ):

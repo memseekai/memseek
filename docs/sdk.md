@@ -506,6 +506,53 @@ raises `MemseekHTTPError` with status `410`. See
 [Artifact uses & feedback](artifact-uses.md) for every field, the learning-target
 contract, and what snapshot provenance can honestly claim.
 
+## Starting a durable agent run
+
+When the catalog defines a [Computer](computers.md), `client.invocations` starts
+and follows long-running sandboxed work. Unlike a derivation, it survives
+restarts, can pause to ask a question, and can be resumed or forked:
+
+```python
+run = await client.invocations.start(
+    entity="account:acme",
+    computer="research_workspace@1",
+    executor={
+        "kind": "agent",
+        "agent": "renewal_analyst@1",
+        "context_policy": "evidence_spine@1",
+    },
+    task={"kind": "answer", "prompt": "Prepare the renewal strategy."},
+    idempotency_key="acme-renewal-2026",
+)
+
+page = await client.invocations.events(run["id"], after=0)
+state = await client.invocations.retrieve(run["id"])
+
+if state["status"] == "awaiting_input":
+    await client.invocations.continue_(run["id"], prompt="Yes, offer 12%.")
+```
+
+To watch the work instead of polling for its result, `stream` follows the same
+ordered journal over server-sent events, yielding each entry as the server
+appends it:
+
+```python
+async for event in client.invocations.stream(run["id"]):
+    print(event["ordinal"], event["kind"])
+    if event["kind"] == "awaiting_input":
+        break          # a pause is not terminal, so the server holds the stream open
+```
+
+The stream closes on its own when the invocation reaches a terminal state. A
+pause is not terminal — the invocation is waiting on a person, and the journal
+will keep growing once someone answers — so a caller that wants to hand control
+back at a question has to stop reading itself.
+
+The rest of the client mirrors the endpoints one for one: `cancel`, `fork`,
+`artifacts`, `artifact`, `memory`, and `recall`. Passing the same
+`idempotency_key` twice returns the original run rather than starting a second
+one — the safe way to retry a start.
+
 ## Listing audited runs
 
 `runs` lists an entity's past runs, newest first, for audit and debugging:

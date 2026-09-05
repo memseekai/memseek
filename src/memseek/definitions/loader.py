@@ -40,6 +40,7 @@ from memseek.derive.tasks import (
     task_adapter,
     task_implementation_hashes,
 )
+from memseek.derive.tasks_computer import AgentTaskConfig, ComputerTaskConfig
 from memseek.llm.registry import provider_descriptor, validate_generation_params
 from memseek.search.rank import RankValidationError, validate_rank_expression
 from memseek.search.registry import backend_descriptor, required_capabilities
@@ -56,8 +57,11 @@ from .hashing import (
     sha256_canonical,
 )
 from .models import (
+    AgentDefinition,
     ArtifactDefinition,
     CollectionDefinition,
+    ComputerDefinition,
+    ContextPolicyDefinition,
     DeclaredField,
     DeploymentOverrides,
     McpDefinition,
@@ -66,6 +70,7 @@ from .models import (
     PackageDefinition,
     ParameterDefinition,
     ProcessorDefinition,
+    ProgramDefinition,
     RankDefaults,
     SearchProfileDefinition,
     ViewDefinition,
@@ -141,6 +146,10 @@ class DefinitionSources:
     views: tuple[BaseModel | Mapping[str, Any], ...]
     artifacts: tuple[BaseModel | Mapping[str, Any], ...]
     packages: tuple[BaseModel | Mapping[str, Any], ...]
+    computers: tuple[BaseModel | Mapping[str, Any], ...] = ()
+    programs: tuple[BaseModel | Mapping[str, Any], ...] = ()
+    agents: tuple[BaseModel | Mapping[str, Any], ...] = ()
+    context_policies: tuple[BaseModel | Mapping[str, Any], ...] = ()
     mcps: tuple[BaseModel | Mapping[str, Any], ...] = ()
     triggers: tuple[BaseModel | Mapping[str, Any], ...] = ()
     deployment_overrides: BaseModel | Mapping[str, Any] | None = None
@@ -163,6 +172,10 @@ class DefinitionSources:
             derivations=tuple(catalog.derivations.values()),
             views=tuple(catalog.views.values()),
             artifacts=tuple(catalog.artifacts.values()),
+            computers=tuple(catalog.computers.values()),
+            programs=tuple(catalog.programs.values()),
+            agents=tuple(catalog.agents.values()),
+            context_policies=tuple(catalog.context_policies.values()),
             packages=tuple(catalog.packages.values()),
             mcps=tuple(catalog.mcps.values()),
             triggers=tuple(
@@ -214,6 +227,18 @@ class DefinitionSources:
                 write(root / "triggers" / f"{name}.yaml", trigger)
             write(root / "views" / "python.yaml", {"views": list(self.views)})
             write(root / "artifacts" / "python.yaml", {"artifacts": list(self.artifacts)})
+            optional_families = {
+                "computers": self.computers,
+                "programs": self.programs,
+                "agents": self.agents,
+                "context_policies": self.context_policies,
+            }
+            for family, definitions in optional_families.items():
+                if not definitions:
+                    continue
+                directory = root / family
+                directory.mkdir(parents=True, exist_ok=True)
+                write(directory / "python.yaml", {family: list(definitions)})
             for definition in self.mcps:
                 name = _programmatic_value(definition).get("name")
                 write(root / "mcp" / f"{name}.yaml", definition)
@@ -234,6 +259,12 @@ class DefinitionSources:
                     "triggers_dir": root / "triggers",
                     "views_dir": root / "views",
                     "artifacts_dir": root / "artifacts",
+                    "computers_dir": root / "computers" if self.computers else None,
+                    "programs_dir": root / "programs" if self.programs else None,
+                    "agents_dir": root / "agents" if self.agents else None,
+                    "context_policies_dir": (
+                        root / "context_policies" if self.context_policies else None
+                    ),
                     "mcp_dir": root / "mcp",
                     "packages_dir": root / "packages",
                     "search_profile_overrides_file": overrides_path,
@@ -333,12 +364,20 @@ class DefinitionCatalog:
     triggers: Mapping[str, StandaloneTrigger]
     views: Mapping[tuple[str, int], ViewDefinition]
     artifacts: Mapping[tuple[str, int], ArtifactDefinition]
+    computers: Mapping[tuple[str, int], ComputerDefinition]
+    programs: Mapping[tuple[str, int], ProgramDefinition]
+    agents: Mapping[tuple[str, int], AgentDefinition]
+    context_policies: Mapping[tuple[str, int], ContextPolicyDefinition]
     mcps: Mapping[tuple[str, int], McpDefinition]
     packages: Mapping[tuple[str, str], PackageDefinition]
     deployment_bindings: Mapping[str, str]
     active_collections: Mapping[str, int]
     active_views: Mapping[str, int]
     active_artifacts: Mapping[str, int]
+    active_computers: Mapping[str, int]
+    active_programs: Mapping[str, int]
+    active_agents: Mapping[str, int]
+    active_context_policies: Mapping[str, int]
     processor_config_hashes: Mapping[str, str]
     catalog_hash: str
 
@@ -412,6 +451,44 @@ class DefinitionCatalog:
             return self.artifacts[(name, resolved_version)]
         except KeyError as exc:
             raise KeyError(f"unknown artifact {name}@{resolved_version}") from exc
+
+    def resolve_computer(self, reference: str, version: int | None = None) -> ComputerDefinition:
+        name, resolved_version = self._resolve_version_ref(
+            reference, version, self.active_computers, "computer"
+        )
+        try:
+            return self.computers[(name, resolved_version)]
+        except KeyError as exc:
+            raise KeyError(f"unknown computer {name}@{resolved_version}") from exc
+
+    def resolve_program(self, reference: str, version: int | None = None) -> ProgramDefinition:
+        name, resolved_version = self._resolve_version_ref(
+            reference, version, self.active_programs, "program"
+        )
+        try:
+            return self.programs[(name, resolved_version)]
+        except KeyError as exc:
+            raise KeyError(f"unknown program {name}@{resolved_version}") from exc
+
+    def resolve_agent(self, reference: str, version: int | None = None) -> AgentDefinition:
+        name, resolved_version = self._resolve_version_ref(
+            reference, version, self.active_agents, "agent"
+        )
+        try:
+            return self.agents[(name, resolved_version)]
+        except KeyError as exc:
+            raise KeyError(f"unknown agent {name}@{resolved_version}") from exc
+
+    def resolve_context_policy(
+        self, reference: str, version: int | None = None
+    ) -> ContextPolicyDefinition:
+        name, resolved_version = self._resolve_version_ref(
+            reference, version, self.active_context_policies, "context policy"
+        )
+        try:
+            return self.context_policies[(name, resolved_version)]
+        except KeyError as exc:
+            raise KeyError(f"unknown context policy {name}@{resolved_version}") from exc
 
     def resolve_mcp(self, reference: str, version: int | None = None) -> McpDefinition:
         """Resolve an exact MCP interface version.
@@ -502,12 +579,20 @@ class _CatalogBuilder:
         self.triggers: dict[str, StandaloneTrigger] = {}
         self.views: dict[tuple[str, int], ViewDefinition] = {}
         self.artifacts: dict[tuple[str, int], ArtifactDefinition] = {}
+        self.computers: dict[tuple[str, int], ComputerDefinition] = {}
+        self.programs: dict[tuple[str, int], ProgramDefinition] = {}
+        self.agents: dict[tuple[str, int], AgentDefinition] = {}
+        self.context_policies: dict[tuple[str, int], ContextPolicyDefinition] = {}
         self.mcps: dict[tuple[str, int], McpDefinition] = {}
         self.packages: dict[tuple[str, str], PackageDefinition] = {}
         self.paths: dict[tuple[str, Any], Path] = {}
         self.active_collections: dict[str, int] = {}
         self.active_views: dict[str, int] = {}
         self.active_artifacts: dict[str, int] = {}
+        self.active_computers: dict[str, int] = {}
+        self.active_programs: dict[str, int] = {}
+        self.active_agents: dict[str, int] = {}
+        self.active_context_policies: dict[str, int] = {}
         self.bindings: dict[str, str] = {}
         self.processor_config_hashes: dict[str, str] = {}
 
@@ -521,6 +606,11 @@ class _CatalogBuilder:
         self._load_standalone_triggers()
         self._load_views()
         self._load_artifacts()
+        self._load_computers()
+        self._load_programs()
+        self._load_context_policies()
+        self._load_agents()
+        self._validate_computer_task_references()
         self._load_mcps()
         self._load_packages()
         self._load_overrides()
@@ -1202,6 +1292,7 @@ class _CatalogBuilder:
 
         retrieval_bound = 0
         llm_calls = 0
+        computer_runs = 0
         for index, task in enumerate(definition.tasks):
             try:
                 adapter = task_adapter(task.use)
@@ -1220,6 +1311,28 @@ class _CatalogBuilder:
                     file=path,
                     path=f"tasks[{index}].input",
                 )
+            if isinstance(config, ComputerTaskConfig | AgentTaskConfig):
+                computer_runs += 1
+                if task.input is None:
+                    raise DefinitionError(
+                        "task_input",
+                        f"Computer-backed Task {task.use!r} requires explicit input",
+                        file=path,
+                        path=f"tasks[{index}].input",
+                    )
+                if isinstance(config, AgentTaskConfig):
+                    _check_json_schema(
+                        config.output_schema,
+                        path,
+                        f"tasks[{index}].with.output_schema",
+                    )
+                    if config.max_steps is not None and config.max_steps > limits.max_agent_steps:
+                        raise DefinitionError(
+                            "budget",
+                            "Task max_steps exceeds limits.max_agent_steps",
+                            file=path,
+                            path=f"tasks[{index}].with.max_steps",
+                        )
             if isinstance(config, LLMTaskConfig):
                 _check_json_schema(
                     config.output_schema,
@@ -1318,6 +1431,13 @@ class _CatalogBuilder:
             )
         if llm_calls > limits.max_llm_calls:
             raise DefinitionError("budget", "pipeline exceeds max_llm_calls", file=path)
+        if computer_runs > limits.max_computer_runs:
+            raise DefinitionError(
+                "budget",
+                "Computer-backed Tasks exceed limits.max_computer_runs; opt in explicitly",
+                file=path,
+                path="limits.max_computer_runs",
+            )
 
     def _alias(self, name: str, path: Path, field: str) -> ModelAlias:
         assert self.models is not None
@@ -2610,6 +2730,240 @@ class _CatalogBuilder:
                     file=path,
                 )
 
+    def _load_computers(self) -> None:
+        for path in _optional_yaml_files(self.settings.computers_dir):
+            root = _mapping(load_yaml_file(path), path, "computer file")
+            for index, raw in enumerate(_sequence(root, "computers", path)):
+                definition = _parse(ComputerDefinition, raw, path, context=f"computers[{index}]")
+                key = (definition.name, definition.version)
+                self._duplicate("computer", key, path)
+                for mount_index, mount in enumerate(definition.context):
+                    name, version = split_exact_reference(mount.artifact)
+                    if (name, int(version)) not in self.artifacts:
+                        raise DefinitionError(
+                            "reference",
+                            f"computer references unknown artifact {mount.artifact!r}",
+                            file=path,
+                            path=f"computers[{index}].context[{mount_index}].artifact",
+                        )
+                for writeback_index, writeback in enumerate(definition.writeback):
+                    if writeback.collection is None:
+                        continue
+                    name, version = split_exact_reference(writeback.collection)
+                    if (name, int(version)) not in self.collections:
+                        raise DefinitionError(
+                            "reference",
+                            f"computer writeback references unknown collection "
+                            f"{writeback.collection!r}",
+                            file=path,
+                            path=f"computers[{index}].writeback[{writeback_index}].collection",
+                        )
+                self.computers[key] = _hashed(definition)
+                if definition.active:
+                    self._set_active(
+                        self.active_computers,
+                        definition.name,
+                        definition.version,
+                        "computer",
+                        path,
+                    )
+        if not self.computers and self.settings.computers_dir is not None:
+            raise DefinitionError(
+                "empty_catalog", "no computers found", file=self.settings.computers_dir
+            )
+
+    def _load_programs(self) -> None:
+        for path in _optional_yaml_files(self.settings.programs_dir):
+            root = _mapping(load_yaml_file(path), path, "program file")
+            for index, raw in enumerate(_sequence(root, "programs", path)):
+                definition = _parse(ProgramDefinition, raw, path, context=f"programs[{index}]")
+                key = (definition.name, definition.version)
+                self._duplicate("program", key, path)
+                _check_json_schema(definition.input_schema, path, f"programs[{index}].input_schema")
+                _check_json_schema(
+                    definition.output_schema, path, f"programs[{index}].output_schema"
+                )
+                if definition.output_schema.get("type") != "object":
+                    raise DefinitionError(
+                        "output_schema",
+                        "program output_schema must describe an object",
+                        file=path,
+                        path=f"programs[{index}].output_schema.type",
+                    )
+                self.programs[key] = _hashed(definition)
+                if definition.active:
+                    self._set_active(
+                        self.active_programs,
+                        definition.name,
+                        definition.version,
+                        "program",
+                        path,
+                    )
+        if not self.programs and self.settings.programs_dir is not None:
+            raise DefinitionError(
+                "empty_catalog", "no programs found", file=self.settings.programs_dir
+            )
+
+    def _load_context_policies(self) -> None:
+        for path in _optional_yaml_files(self.settings.context_policies_dir):
+            root = _mapping(load_yaml_file(path), path, "context policy file")
+            for index, raw in enumerate(_sequence(root, "context_policies", path)):
+                definition = _parse(
+                    ContextPolicyDefinition,
+                    raw,
+                    path,
+                    context=f"context_policies[{index}]",
+                )
+                key = (definition.name, definition.version)
+                self._duplicate("context_policy", key, path)
+                self.context_policies[key] = _hashed(definition)
+                if definition.active:
+                    self._set_active(
+                        self.active_context_policies,
+                        definition.name,
+                        definition.version,
+                        "context policy",
+                        path,
+                    )
+        if not self.context_policies and self.settings.context_policies_dir is not None:
+            raise DefinitionError(
+                "empty_catalog",
+                "no context policies found",
+                file=self.settings.context_policies_dir,
+            )
+
+    def _load_agents(self) -> None:
+        assert self.models is not None
+        for path in _optional_yaml_files(self.settings.agents_dir):
+            root = _mapping(load_yaml_file(path), path, "agent file")
+            for index, raw in enumerate(_sequence(root, "agents", path)):
+                definition = _parse(AgentDefinition, raw, path, context=f"agents[{index}]")
+                key = (definition.name, definition.version)
+                self._duplicate("agent", key, path)
+                if definition.model not in self.models.aliases:
+                    raise DefinitionError(
+                        "reference",
+                        f"agent references unknown model alias {definition.model!r}",
+                        file=path,
+                        path=f"agents[{index}].model",
+                    )
+                artifact_refs = (definition.instructions, *definition.skills)
+                for field_index, reference in enumerate(artifact_refs):
+                    name, version = split_exact_reference(reference)
+                    artifact = self.artifacts.get((name, int(version)))
+                    if artifact is None:
+                        raise DefinitionError(
+                            "reference",
+                            f"agent references unknown artifact {reference!r}",
+                            file=path,
+                            path=f"agents[{index}]",
+                        )
+                    if field_index > 0 and artifact.kind != "skill":
+                        raise DefinitionError(
+                            "reference",
+                            f"agent skill {reference!r} is not a skill artifact",
+                            file=path,
+                            path=f"agents[{index}].skills[{field_index - 1}]",
+                        )
+                for computer_index, reference in enumerate(definition.computers):
+                    name, version = split_exact_reference(reference)
+                    if (name, int(version)) not in self.computers:
+                        raise DefinitionError(
+                            "reference",
+                            f"agent references unknown computer {reference!r}",
+                            file=path,
+                            path=f"agents[{index}].computers[{computer_index}]",
+                        )
+                policy_name, policy_version = split_exact_reference(definition.context_policy)
+                if (policy_name, int(policy_version)) not in self.context_policies:
+                    raise DefinitionError(
+                        "reference",
+                        f"agent references unknown context policy {definition.context_policy!r}",
+                        file=path,
+                        path=f"agents[{index}].context_policy",
+                    )
+                self.agents[key] = _hashed(definition)
+                if definition.active:
+                    self._set_active(
+                        self.active_agents,
+                        definition.name,
+                        definition.version,
+                        "agent",
+                        path,
+                    )
+        if not self.agents and self.settings.agents_dir is not None:
+            raise DefinitionError("empty_catalog", "no agents found", file=self.settings.agents_dir)
+
+    def _validate_computer_task_references(self) -> None:
+        """Resolve Computer-backed Tasks after all four execution families load."""
+
+        for derivation in self.derivations.values():
+            path = self.paths[("processor", derivation.name)]
+            for index, task in enumerate(derivation.tasks):
+                config = task_adapter(task.use).validate_config(task.config)
+                if not isinstance(config, ComputerTaskConfig | AgentTaskConfig):
+                    continue
+                computer_name, computer_version = split_exact_reference(config.computer)
+                computer = self.computers.get((computer_name, int(computer_version)))
+                if computer is None:
+                    raise DefinitionError(
+                        "reference",
+                        f"Task references unknown computer {config.computer!r}",
+                        file=path,
+                        path=f"tasks[{index}].with.computer",
+                    )
+                if isinstance(config, ComputerTaskConfig):
+                    program_name, program_version = split_exact_reference(config.program)
+                    program = self.programs.get((program_name, int(program_version)))
+                    if program is None:
+                        raise DefinitionError(
+                            "reference",
+                            f"Task references unknown program {config.program!r}",
+                            file=path,
+                            path=f"tasks[{index}].with.program",
+                        )
+                    if program.runtime not in {computer.runtime.default, computer.runtime.fallback}:
+                        raise DefinitionError(
+                            "computer_capability",
+                            f"computer {config.computer!r} does not allow runtime "
+                            f"{program.runtime!r}",
+                            file=path,
+                            path=f"tasks[{index}]",
+                        )
+                    missing = set(program.capabilities) - set(computer.capabilities.enabled)
+                    if missing:
+                        raise DefinitionError(
+                            "computer_capability",
+                            f"computer {config.computer!r} lacks {sorted(missing)}",
+                            file=path,
+                            path=f"tasks[{index}]",
+                        )
+                    continue
+                agent_name, agent_version = split_exact_reference(config.agent)
+                agent = self.agents.get((agent_name, int(agent_version)))
+                if agent is None:
+                    raise DefinitionError(
+                        "reference",
+                        f"Task references unknown agent {config.agent!r}",
+                        file=path,
+                        path=f"tasks[{index}].with.agent",
+                    )
+                if config.computer not in agent.computers:
+                    raise DefinitionError(
+                        "computer_capability",
+                        f"agent {config.agent!r} does not allow {config.computer!r}",
+                        file=path,
+                        path=f"tasks[{index}].with.computer",
+                    )
+                policy_name, policy_version = split_exact_reference(config.context_policy)
+                if (policy_name, int(policy_version)) not in self.context_policies:
+                    raise DefinitionError(
+                        "reference",
+                        f"Task references unknown context policy {config.context_policy!r}",
+                        file=path,
+                        path=f"tasks[{index}].with.context_policy",
+                    )
+
     def _load_mcps(self) -> None:
         """Load package-curated MCP interfaces from their own definition family."""
 
@@ -2682,6 +3036,10 @@ class _CatalogBuilder:
             ("collection", definition.collections, self.collections),
             ("view", definition.views, self.views),
             ("artifact", definition.artifacts, self.artifacts),
+            ("computer", definition.computers, self.computers),
+            ("program", definition.programs, self.programs),
+            ("agent", definition.agents, self.agents),
+            ("context policy", definition.context_policies, self.context_policies),
         )
         for kind, references, catalog in exact_groups:
             for reference in references:
@@ -2787,6 +3145,42 @@ class _CatalogBuilder:
                         file=path,
                         path=f"mcp.tools[{index}].artifact",
                     )
+            elif tool.kind == "invocation":
+                assert tool.computer is not None
+                if tool.computer not in package.computers:
+                    raise DefinitionError(
+                        "package_dependency",
+                        f"MCP tool {tool.name!r} targets Computer {tool.computer!r} "
+                        "omitted from its package",
+                        file=path,
+                        path=f"mcp.tools[{index}].computer",
+                    )
+                if tool.agent is not None and tool.agent not in package.agents:
+                    raise DefinitionError(
+                        "package_dependency",
+                        f"MCP tool {tool.name!r} targets Agent {tool.agent!r} omitted from its package",
+                        file=path,
+                        path=f"mcp.tools[{index}].agent",
+                    )
+                if tool.program is not None and tool.program not in package.programs:
+                    raise DefinitionError(
+                        "package_dependency",
+                        f"MCP tool {tool.name!r} targets Program {tool.program!r} "
+                        "omitted from its package",
+                        file=path,
+                        path=f"mcp.tools[{index}].program",
+                    )
+                if (
+                    tool.context_policy is not None
+                    and tool.context_policy not in package.context_policies
+                ):
+                    raise DefinitionError(
+                        "package_dependency",
+                        f"MCP tool {tool.name!r} targets context policy "
+                        f"{tool.context_policy!r} omitted from its package",
+                        file=path,
+                        path=f"mcp.tools[{index}].context_policy",
+                    )
 
     def _validate_package_closure(self, package: PackageDefinition, path: Path) -> None:
         collection_keys = {
@@ -2802,6 +3196,26 @@ class _CatalogBuilder:
         artifact_keys = {
             (name, int(version))
             for reference in package.artifacts
+            for name, version in [split_exact_reference(reference)]
+        }
+        computer_keys = {
+            (name, int(version))
+            for reference in package.computers
+            for name, version in [split_exact_reference(reference)]
+        }
+        program_keys = {
+            (name, int(version))
+            for reference in package.programs
+            for name, version in [split_exact_reference(reference)]
+        }
+        agent_keys = {
+            (name, int(version))
+            for reference in package.agents
+            for name, version in [split_exact_reference(reference)]
+        }
+        context_policy_keys = {
+            (name, int(version))
+            for reference in package.context_policies
             for name, version in [split_exact_reference(reference)]
         }
         processors = set(package.processors)
@@ -2831,6 +3245,20 @@ class _CatalogBuilder:
                 raise DefinitionError(
                     "package_dependency",
                     f"package omits search profile {name!r} required by {reason}",
+                    file=path,
+                )
+
+        def require_exact(
+            reference: str,
+            available: set[tuple[str, int]],
+            kind: str,
+            reason: str,
+        ) -> None:
+            name, version = split_exact_reference(reference)
+            if (name, int(version)) not in available:
+                raise DefinitionError(
+                    "package_dependency",
+                    f"package omits {kind} {reference!r} required by {reason}",
                     file=path,
                 )
 
@@ -2887,6 +3315,40 @@ class _CatalogBuilder:
                 (derivation.emit.collection, derivation.emit.collection_version),
                 f"processor {name!r} emission",
             )
+            for task in derivation.tasks:
+                config = task_adapter(task.use).validate_config(task.config)
+                if isinstance(config, ComputerTaskConfig):
+                    require_exact(
+                        config.computer,
+                        computer_keys,
+                        "computer",
+                        f"processor {name!r} Task {task.id!r}",
+                    )
+                    require_exact(
+                        config.program,
+                        program_keys,
+                        "program",
+                        f"processor {name!r} Task {task.id!r}",
+                    )
+                elif isinstance(config, AgentTaskConfig):
+                    require_exact(
+                        config.computer,
+                        computer_keys,
+                        "computer",
+                        f"processor {name!r} Task {task.id!r}",
+                    )
+                    require_exact(
+                        config.agent,
+                        agent_keys,
+                        "agent",
+                        f"processor {name!r} Task {task.id!r}",
+                    )
+                    require_exact(
+                        config.context_policy,
+                        context_policy_keys,
+                        "context policy",
+                        f"processor {name!r} Task {task.id!r}",
+                    )
 
         for name in triggers:
             trigger = self.triggers[name]
@@ -2983,6 +3445,53 @@ class _CatalogBuilder:
                         f"learning target of {artifact.name}@{artifact.version}",
                         file=path,
                     )
+
+        for key in computer_keys:
+            computer = self.computers[key]
+            for mount in computer.context:
+                require_exact(
+                    mount.artifact,
+                    artifact_keys,
+                    "artifact",
+                    f"computer {computer.name}@{computer.version}",
+                )
+            for writeback in computer.writeback:
+                if writeback.collection is None:
+                    continue
+                name, version = split_exact_reference(writeback.collection)
+                require_collection(
+                    (name, int(version)),
+                    f"computer {computer.name}@{computer.version} writeback",
+                )
+
+        for key in agent_keys:
+            agent = self.agents[key]
+            require_exact(
+                agent.instructions,
+                artifact_keys,
+                "artifact",
+                f"agent {agent.name}@{agent.version}",
+            )
+            for skill in agent.skills:
+                require_exact(
+                    skill,
+                    artifact_keys,
+                    "artifact",
+                    f"agent {agent.name}@{agent.version}",
+                )
+            for computer in agent.computers:
+                require_exact(
+                    computer,
+                    computer_keys,
+                    "computer",
+                    f"agent {agent.name}@{agent.version}",
+                )
+            require_exact(
+                agent.context_policy,
+                context_policy_keys,
+                "context policy",
+                f"agent {agent.name}@{agent.version}",
+            )
 
         used_profiles = {
             profile
@@ -3429,12 +3938,22 @@ class _CatalogBuilder:
             ],
             "views": [_dump(self.views[key]) for key in sorted(self.views)],
             "artifacts": [_dump(self.artifacts[key]) for key in sorted(self.artifacts)],
+            "computers": [_dump(self.computers[key]) for key in sorted(self.computers)],
+            "programs": [_dump(self.programs[key]) for key in sorted(self.programs)],
+            "agents": [_dump(self.agents[key]) for key in sorted(self.agents)],
+            "context_policies": [
+                _dump(self.context_policies[key]) for key in sorted(self.context_policies)
+            ],
             "mcps": [_dump(self.mcps[key]) for key in sorted(self.mcps)],
             "packages": [_dump(self.packages[key]) for key in sorted(self.packages)],
             "active": {
                 "collections": dict(sorted(self.active_collections.items())),
                 "views": dict(sorted(self.active_views.items())),
                 "artifacts": dict(sorted(self.active_artifacts.items())),
+                "computers": dict(sorted(self.active_computers.items())),
+                "programs": dict(sorted(self.active_programs.items())),
+                "agents": dict(sorted(self.active_agents.items())),
+                "context_policies": dict(sorted(self.active_context_policies.items())),
             },
             "deployment_bindings": dict(sorted(self.bindings.items())),
             "task_implementations": task_implementation_hashes(
@@ -3450,6 +3969,12 @@ class _CatalogBuilder:
         frozen_triggers = {name: deep_freeze(value) for name, value in self.triggers.items()}
         frozen_views = {key: deep_freeze(value) for key, value in self.views.items()}
         frozen_artifacts = {key: deep_freeze(value) for key, value in self.artifacts.items()}
+        frozen_computers = {key: deep_freeze(value) for key, value in self.computers.items()}
+        frozen_programs = {key: deep_freeze(value) for key, value in self.programs.items()}
+        frozen_agents = {key: deep_freeze(value) for key, value in self.agents.items()}
+        frozen_context_policies = {
+            key: deep_freeze(value) for key, value in self.context_policies.items()
+        }
         frozen_mcps = {key: deep_freeze(value) for key, value in self.mcps.items()}
         frozen_packages = {key: deep_freeze(value) for key, value in self.packages.items()}
         return DefinitionCatalog(
@@ -3465,12 +3990,20 @@ class _CatalogBuilder:
             triggers=MappingProxyType(frozen_triggers),
             views=MappingProxyType(frozen_views),
             artifacts=MappingProxyType(frozen_artifacts),
+            computers=MappingProxyType(frozen_computers),
+            programs=MappingProxyType(frozen_programs),
+            agents=MappingProxyType(frozen_agents),
+            context_policies=MappingProxyType(frozen_context_policies),
             mcps=MappingProxyType(frozen_mcps),
             packages=MappingProxyType(frozen_packages),
             deployment_bindings=MappingProxyType(dict(self.bindings)),
             active_collections=MappingProxyType(dict(self.active_collections)),
             active_views=MappingProxyType(dict(self.active_views)),
             active_artifacts=MappingProxyType(dict(self.active_artifacts)),
+            active_computers=MappingProxyType(dict(self.active_computers)),
+            active_programs=MappingProxyType(dict(self.active_programs)),
+            active_agents=MappingProxyType(dict(self.active_agents)),
+            active_context_policies=MappingProxyType(dict(self.active_context_policies)),
             processor_config_hashes=MappingProxyType(dict(self.processor_config_hashes)),
             catalog_hash=sha256_canonical(payload),
         )

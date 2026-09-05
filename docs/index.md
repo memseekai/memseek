@@ -72,11 +72,13 @@ New here? This path introduces the ideas before the configuration details.
    memory design, write a record, and read it back.
 2. [Core concepts](concepts.md) — the data model: records, collections,
    entities, current facts, and history.
-3. [Glossary](glossary.md) — the shared terms used throughout these guides,
+3. [Architecture](architecture.md) — the running system: which processes exist,
+   where state lives, and what is trusted with what.
+4. [Glossary](glossary.md) — the shared terms used throughout these guides,
    including the difference between a processor and a derivation.
-4. [Catalog layout](catalog-layout.md) — build your own memory design, in the
+5. [Catalog layout](catalog-layout.md) — build your own memory design, in the
    order the files depend on each other.
-5. [Python SDK](sdk.md) or [HTTP API guide](api-surface.md) — connect the
+6. [Python SDK](sdk.md) or [HTTP API guide](api-surface.md) — connect the
    running service to your application.
 
 If you are building an agent, read [MCP](mcp.md) after the API guide. It
@@ -89,6 +91,7 @@ explains how to expose only the tools that agent should have.
 | Run the service locally | [Getting started](getting-started.md) |
 | Understand a term used in these docs | [Glossary](glossary.md) |
 | Understand the data model | [Core concepts](concepts.md) |
+| See how the running system fits together | [Architecture](architecture.md) |
 | Lay out your own memory design | [Catalog layout](catalog-layout.md) |
 | Decide what a valid record looks like | [Collections](collections.md) |
 | Configure LLMs, embeddings, and scores | [Model aliases](models.md) and [Processors](processors.md) |
@@ -100,6 +103,8 @@ explains how to expose only the tools that agent should have.
 | Model dependencies or relationships | [Graph data](graph-data.md) |
 | Render prompts and reviewed snapshots | [Artifacts](artifacts.md) |
 | Learn from what the agent actually did in production | [Artifact uses & feedback](artifact-uses.md) |
+| Run code or a working agent in a sandbox over memory | [Computers, Programs & Agents](computers.md) |
+| Deploy the sandbox runtime that actually executes it | [The Cloudflare Computer runtime](computer-cloudflare.md) |
 | Ship a complete, versioned memory design | [Packages](packages.md) |
 | Integrate over HTTP | [HTTP API guide](api-surface.md) |
 | Give an agent a curated set of tools | [MCP](mcp.md) |

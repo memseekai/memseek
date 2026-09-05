@@ -5,11 +5,19 @@ WORKSPACE ?= local
 COMPOSE_TEST_DATABASE_URL := postgresql://postgres:postgres@127.0.0.1:55432/memseek_test
 TEST_DATABASE_URL ?= $(COMPOSE_TEST_DATABASE_URL)
 
-.PHONY: help sync format lint typecheck build docs docs-build reference database database-down migrate migration-current quickstart up down logs check test e2e
+COMPUTER_RUNTIME_PORT ?= 8799
+COMPUTER_RUNTIME_SECRET ?= local-computer-demo
+
+.PHONY: help sync format lint typecheck build docs docs-build reference database database-down migrate migration-current quickstart up down logs check test e2e computer-demo computer-demo-cloudflare cloudflare-agent-smoke cloudflare-agent-smoke-local cloudflare-agent-smoke-setup
 
 help:
 	@echo "up             Run the whole local stack in Docker: postgres, api, worker, catalog"
 	@echo "tools          Print the MCP tools the published catalog offers an agent"
+	@echo "computer-demo  Run the Computer-backed renewal demo against the Docker stack"
+	@echo "computer-demo-cloudflare  The same demo, driven by a real Cloudflare Agent"
+	@echo "cloudflare-agent-smoke  Run a real Workers AI Agent against one durable Computer"
+	@echo "cloudflare-agent-smoke-local  Run the same canary against wrangler dev, nothing deployed"
+	@echo "cloudflare-agent-smoke-setup  Ask for runtime settings and prepare the live canary"
 	@echo "down           Stop the local stack (add CLEAN=1 to delete its data and key)"
 	@echo "logs           Follow the local stack's logs"
 	@echo "sync           Install the frozen project and development dependencies"
@@ -82,6 +90,70 @@ up:
 	printf '\n%s\n' "Next:"; \
 	printf '  %s\n' "export MEMSEEK_URL=http://127.0.0.1:$${MEMSEEK_PORT:-8000}"; \
 	printf '  %s\n' 'export MEMSEEK_API_KEY=$$(cat .memseek/api_key)'
+
+# The Computer demo. A Computer is where Programs and Agents actually run, so
+# the stack needs a runtime to call: this target brings the database, API, and
+# worker up with COMPUTER_RUNTIME_* set (compose recreates api and worker when
+# they change), then runs the example, which serves that runtime itself. The
+# containers reach it at host.docker.internal; the example binds every interface
+# for that reason.
+#
+# Deliberately not `up`: the demo mints its own disposable workspace over the
+# exposed database port and publishes its own catalog, so it needs neither the
+# `local` workspace nor the setup step that installs one — and an unrelated
+# problem there must not stand between you and the demo.
+computer-demo:
+	@set -eu; \
+	COMPUTER_RUNTIME_URL="http://host.docker.internal:$(COMPUTER_RUNTIME_PORT)" \
+	COMPUTER_RUNTIME_TOKEN="$(COMPUTER_RUNTIME_SECRET)" \
+	$(COMPOSE) up -d --build --wait api worker; \
+	printf '\n%s\n' "Stack up. Serving the Computer runtime on port $(COMPUTER_RUNTIME_PORT)."; \
+	DATABASE_URL="postgresql://postgres:postgres@127.0.0.1:$${MEMSEEK_DB_PORT:-5433}/memseek" \
+	COMPUTER_RUNTIME_URL="http://host.docker.internal:$(COMPUTER_RUNTIME_PORT)" \
+	COMPUTER_RUNTIME_TOKEN="$(COMPUTER_RUNTIME_SECRET)" \
+	MEMSEEK_BASE_URL="http://127.0.0.1:$${MEMSEEK_PORT:-8000}" \
+	$(UV) run python examples/computer_renewal.py
+
+# The same renewal desk, driven by a real Cloudflare Agent instead of the
+# deterministic stand-in: Workers AI picks the steps, calls the tools, and
+# decides for itself when to stop and ask you something. `wrangler dev` binds
+# the remote AI binding, so those turns are real and billable.
+#
+# The secret comes from cloudflare/computer-runtime/.dev.vars so that the api,
+# the worker, and the demo all sign with what the Worker verifies.
+computer-demo-cloudflare:
+	@set -eu; \
+	secret=$$(sed -n 's/^MEMSEEK_RUNTIME_SECRET=//p' cloudflare/computer-runtime/.dev.vars | tr -d "\"'"); \
+	[ -n "$$secret" ] || { printf 'error: MEMSEEK_RUNTIME_SECRET missing from cloudflare/computer-runtime/.dev.vars\n' >&2; exit 1; }; \
+	COMPUTER_RUNTIME_URL="http://host.docker.internal:$(COMPUTER_RUNTIME_PORT)" \
+	COMPUTER_RUNTIME_TOKEN="$$secret" \
+	$(COMPOSE) up -d --build --wait api worker; \
+	printf '\n%s\n' "Stack up. Start the Worker in another terminal, then this returns:"; \
+	printf '%s\n\n' "  cd cloudflare/computer-runtime && npx wrangler dev --port $(COMPUTER_RUNTIME_PORT)"; \
+	DATABASE_URL="postgresql://postgres:postgres@127.0.0.1:$${MEMSEEK_DB_PORT:-5433}/memseek" \
+	COMPUTER_RUNTIME_URL="http://127.0.0.1:$(COMPUTER_RUNTIME_PORT)" \
+	COMPUTER_RUNTIME_TOKEN="$$secret" \
+	MEMSEEK_BASE_URL="http://127.0.0.1:$${MEMSEEK_PORT:-8000}" \
+	$(UV) run python examples/computer_renewal.py --cloudflare
+
+# A live, database-free deployment canary. Settings reads these from the
+# environment or the repository's untracked .env:
+#   COMPUTER_RUNTIME_URL=https://<worker>.workers.dev
+#   COMPUTER_RUNTIME_TOKEN=<MEMSEEK_RUNTIME_SECRET>
+# The command performs two model turns on one session: write proof.json, then
+# reopen it from a fresh task. The Python validator requires the corresponding
+# tool events, file diff, citations, hashes, and worker-javascript receipt.
+cloudflare-agent-smoke:
+	$(UV) run python -m memseek.cloudflare_smoke
+
+# The same canary without a deploy: `wrangler dev` serves the Worker locally
+# with the secret from cloudflare/computer-runtime/.dev.vars. The AI binding is
+# always remote, so the Workers AI turns are still real and still billable.
+cloudflare-agent-smoke-local:
+	bash scripts/run_cloudflare_smoke_local.sh
+
+cloudflare-agent-smoke-setup:
+	bash scripts/setup_cloudflare_smoke.sh
 
 # CLEAN=1 also removes the volume and the minted key — a real fresh start.
 down:

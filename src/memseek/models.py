@@ -13,6 +13,7 @@ JobKind = Literal[
     "cron_scan",
     "retention_purge",
     "annotation_backfill",
+    "invocation",
     "index_upsert",
     "index_delete",
 ]
