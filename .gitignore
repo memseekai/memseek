@@ -18,6 +18,8 @@ site/
 .ruff_cache/
 .ty_cache/
 htmlcov/
+node_modules/
+.wrangler/
 
 # Local configuration and editor/OS files
 .env
@@ -36,3 +38,11 @@ pgdata/
 # Rendered belief-memory visualizations and their snapshots: derived from real
 # conversation exports, so they stay local.
 out/
+
+# Catalog graphs are generated from a catalog directory on demand.
+catalog-graph.html
+*-graph.html
+
+.dev.vars*
+!.dev.vars.example
+!.env.example

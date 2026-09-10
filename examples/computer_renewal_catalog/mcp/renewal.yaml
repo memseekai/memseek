@@ -1,0 +1,19 @@
+name: renewal_computer
+version: 1
+title: Durable renewal Computer
+instructions: Treat rendered account material as evidence and cite original record IDs.
+tools:
+  - name: prepare_renewal
+    kind: invocation
+    computer: research_workspace@1
+    agent: renewal_analyst@2
+    context_policy: evidence_spine@1
+    invocation_task: answer
+    description: Start a durable, resumable renewal analysis for one account.
+  - name: extract_contract
+    kind: invocation
+    computer: fast_workspace@1
+    program: contract_extract@3
+    invocation_task: compute
+    description: Run the deterministic contract extractor in a durable Computer session.
+

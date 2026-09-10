@@ -1,0 +1,11 @@
+context_policies:
+  - name: evidence_spine
+    version: 1
+    active: true
+    max_input_tokens: 24000
+    reserve_output_tokens: 2400
+    thresholds: {pointerize: 0.70, compact: 0.82, pause: 0.92}
+    max_recall_pages: 5
+    max_recall_hits: 50
+    max_exposed_bytes: 262144
+    receipt_fanout: 8

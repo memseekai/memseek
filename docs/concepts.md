@@ -379,6 +379,7 @@ Two properties hold everywhere:
 
 ## Where to go next
 
+- See how the running system fits together: [Architecture](architecture.md)
 - Define what you store: [Collections](collections.md)
 - Enrich records as they arrive: [Models & processors](processors.md)
 - Turn evidence into profiles and reflections: [Derivations](derivations.md)

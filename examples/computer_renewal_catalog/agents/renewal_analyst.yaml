@@ -1,0 +1,28 @@
+agents:
+  # Version 1 in the original spelling. Still published, because a definition is
+  # immutable and a receipt from a past run has to keep resolving; no longer the
+  # active default.
+  - name: renewal_analyst
+    version: 1
+    active: false
+    model: renewal_reasoner
+    instructions: renewal_instructions@1
+    skills: [renewal_research_skill@1]
+    tools: [computer, recall]
+    computers: [research_workspace@1]
+    context_policy: evidence_spine@1
+    limits: {max_steps: 24, max_wall_s: 300, max_output_bytes: 1048576}
+
+  # Version 2 is version 1 restated in the declarative tool language: the same
+  # instructions and the same skill, now reached through a named surface the
+  # catalog can show and a package can bound. Version 1 stays published because
+  # a definition is immutable — this is what changing one costs.
+  - name: renewal_analyst
+    version: 2
+    active: true
+    model: renewal_reasoner
+    instructions: renewal_instructions@1
+    toolset: renewal@1
+    computers: [research_workspace@1]
+    context_policy: evidence_spine@1
+    limits: {max_steps: 24, max_wall_s: 300, max_output_bytes: 1048576}

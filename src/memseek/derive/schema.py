@@ -330,6 +330,10 @@ class PipelineLimits(StrictModel):
     max_visible_records: int = Field(default=250, ge=1)
     max_total_tokens: int = Field(default=50_000, ge=1)
     max_wall_s: int = Field(default=120, ge=1)
+    max_computer_runs: int = Field(default=0, ge=0, le=20)
+    max_agent_steps: int = Field(default=32, ge=1, le=128)
+    max_computer_output_bytes: int = Field(default=10_485_760, ge=1, le=67_108_864)
+    max_preserved_bytes: int = Field(default=52_428_800, ge=0, le=536_870_912)
 
 
 class TaskCall(StrictModel):

@@ -62,12 +62,7 @@ def load_yaml_file(path: Path, *, required: bool = True) -> Any:
         if required:
             raise DefinitionError("yaml_empty", "definition file is empty", file=path)
         return None
-    try:
-        return yaml.load(text, Loader=_UniqueKeyLoader)
-    except yaml.YAMLError as exc:
-        mark = getattr(exc, "problem_mark", None)
-        location = f"line {mark.line + 1}, column {mark.column + 1}" if mark else ""
-        raise DefinitionError("yaml", str(exc), file=path, path=location) from exc
+    return load_yaml_text(text, source=str(path))
 
 
 def load_yaml_text(text: str, *, source: str = "<request>") -> Any:

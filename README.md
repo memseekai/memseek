@@ -54,6 +54,7 @@ specific capability; publishing a package does not expose anything else.
 | **Derivation** | How evidence becomes reflections, profiles, or other maintained memory | The process sees only the data you permit, stays within its budget, and stores nothing unless the whole result passes its schema and evidence checks |
 | **View** | A reusable search or query your application can call or expose to an agent | Every query stays within the data and result limits you allow, and each result is checked against the source of truth before it is returned |
 | **Artifact** | How views and current state become agent context | Deterministic rendering, per-block token budgets, input manifests, and content hashes |
+| **Computer, Program, Agent, context policy** | Which versioned code or reasoning loop may use a controlled filesystem | Exact resource closure, bounded capabilities, durable sessions, audited files/commands, typed results, and explicit writeback |
 | **MCP interface** | The tools an agent may call | An explicit allowlist; a view, artifact, or route is never exposed automatically |
 | **Package** | The exact versions that ship together | Whole-catalog validation and atomic publication per workspace |
 
@@ -70,12 +71,26 @@ The boundary is deliberate:
 - An MCP agent sees only the declared tools. The sole write tool, `ingest`,
   appends to one fixed collection and cannot set provenance, scores, status, or
   tombstones.
-- Your application still owns business permissions and actions. Memseek is the
-  memory and context layer, not an autonomous action runtime.
+- Your application still owns business permissions and actions. A Memseek
+  Computer is a controlled analysis workspace: it receives no database writer,
+  workspace credential, or ambient business authority.
 
 These constraints make model behavior configurable without making it
 unbounded. If a run exceeds its budget, invents a citation, races a newer value,
 or fails schema validation, it commits nothing.
+
+For durable filesystem-backed work, see
+[Computer resources, derivations, and durable agents](https://memseekai.github.io/memseek/computer-resources-and-durable-agents/)
+and the deterministic `examples/computer_renewal_catalog` fixture. Computers
+are reusable resources selected per run; the entity remains the stable identity
+and controlled front door.
+
+Run the short Computer example with `make computer-demo` (Docker Compose and
+`uv` required), or `make computer-demo SCRIPTED=1` for fixed replies and verified
+outcomes. Local mode needs no model credentials. `MODE=cloudflare` selects real
+execution explicitly; `ADVANCED=1` opens the full interactive desk. See the
+[example setup README](examples/README.md) for setup and the
+`client.invocations.bind(...)` SDK interface.
 
 ## A mini catalog with reflection
 
@@ -359,9 +374,23 @@ surface to match your application:
 | Catalog | What it demonstrates |
 | --- | --- |
 | [`agent_memory_catalog`](examples/agent_memory_catalog/) | Four layers from raw messages to atomic memories, scenes, persona, and maintained procedures |
-| [`workspace_wiki_catalog`](examples/workspace_wiki_catalog/) | Codex session reports maintained as a small, cited workspace wiki with a slower hygiene pass |
 | [`crm_profile_catalog`](examples/crm_profile_catalog/) | Current customer facts and summaries derived from CRM history |
 | [`gbrain_catalog`](examples/gbrain_catalog/) | A larger knowledge catalog with facts, graph edges, concepts, patterns, synthesis, and repair |
+
+Draw any of them before you read the files. `catalog-graph` compiles a catalog
+directory through the same validation a publish runs and writes one
+self-contained page of the compiled result:
+
+```sh
+make catalog-graph                                     # the renewal fixture
+make catalog-graph CATALOG=examples/gbrain_catalog     # or any other catalog
+uv run memseek catalog-graph --dir ./my-catalog --out my-catalog.html
+```
+
+Parts are laid out left to right in flow order — what a Pipeline reads sits to
+its left, what it writes to its right — and clicking one shows its compiled
+definition, the budgets and paths it commits to, and every reference into and
+out of it. It needs no database, no workspace, and no server.
 
 Publish the finished package atomically to a workspace. Every request then
 resolves against that exact catalog, so schemas, processing rules, retrieval
@@ -450,6 +479,7 @@ before operating a long-lived or Internet-facing deployment.
 | Give Claude Code project memory | [Claude Code plugin](https://memseekai.github.io/memseek/claude-code-plugin/) |
 | Use the SDK or HTTP API | [SDK](https://memseekai.github.io/memseek/sdk/) and [API surface](https://memseekai.github.io/memseek/api-surface/) |
 | Operate and evolve a catalog | [Operations](https://memseekai.github.io/memseek/operations/) and [Changing definitions](https://memseekai.github.io/memseek/changing-definitions/) |
+| See what a package actually wires together | [Packages](https://memseekai.github.io/memseek/packages/#seeing-the-package) |
 
 The complete documentation site is available at
 [memseekai.github.io/memseek](https://memseekai.github.io/memseek/). To preview

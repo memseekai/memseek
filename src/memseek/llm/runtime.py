@@ -14,8 +14,9 @@ from types import MappingProxyType
 from memseek.config import Settings
 from memseek.definitions import DefinitionCatalog
 from memseek.logging import log_llm_debug
+from memseek.render import estimate_tokens
 
-from .fake import estimate_tokens, fake
+from .fake import fake
 from .openai_compat import openai_compat
 from .registry import (
     PROVIDERS,

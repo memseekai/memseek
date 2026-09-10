@@ -71,6 +71,16 @@ services:
       #   API_CORS_ORIGINS=http://localhost:4321
       #
       API_CORS_ORIGINS: ${API_CORS_ORIGINS:-[]}
+      # Where Computer-backed Programs and Agents actually run. A catalog
+      # without Computers never reaches this, so both stay empty by default.
+      # `make computer-demo` sets them and serves the runtime on the host;
+      # host.docker.internal is how a container reaches it.
+      COMPUTER_RUNTIME_URL: ${COMPUTER_RUNTIME_URL:-}
+      COMPUTER_RUNTIME_TOKEN: ${COMPUTER_RUNTIME_TOKEN:-}
+    # Docker Desktop resolves this name already; the mapping is what makes the
+    # same compose file work on Linux.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     ports:
       - "${MEMSEEK_PORT:-8000}:8000"
     healthcheck:
@@ -90,6 +100,12 @@ services:
       DATABASE_URL: postgresql://postgres:postgres@postgres:5432/memseek
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       LLM_FAKE: ${LLM_FAKE:-0}
+      # The worker is the process that runs derivations and durable
+      # invocations, so it is the one that talks to the Computer runtime.
+      COMPUTER_RUNTIME_URL: ${COMPUTER_RUNTIME_URL:-}
+      COMPUTER_RUNTIME_TOKEN: ${COMPUTER_RUNTIME_TOKEN:-}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       migrate:
         condition: service_completed_successfully

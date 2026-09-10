@@ -1,0 +1,10 @@
+processors:
+  - name: embedding_v1
+    kind: embedding
+    input: {collections: [renewal_evidence, contract_terms, renewal_risks, task_observations, renewal_proposals]}
+  - name: importance
+    kind: score
+    source: constant
+    input: {collections: [renewal_evidence, contract_terms, renewal_risks, task_observations, renewal_proposals]}
+    scale: [1, 10]
+    value: 5

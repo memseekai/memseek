@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import AsyncIterator, Mapping, Sequence
+import json
+import math
+from collections.abc import AsyncGenerator, AsyncIterator, Mapping, Sequence
 from contextlib import asynccontextmanager, nullcontext
 from dataclasses import dataclass
 from pathlib import Path
@@ -347,6 +349,235 @@ class _FeedbackClient:
         )
 
 
+_UNSET = object()
+_INVOCATION_RESTING = frozenset(
+    {"awaiting_input", "succeeded", "failed", "cancelled", "context_exhausted"}
+)
+
+
+@dataclass(frozen=True, slots=True)
+class InvocationHandle:
+    """A durable invocation ID; closing the client never cancels server work."""
+
+    _invocations: _InvocationsClient
+    id: str
+
+    async def retrieve(self) -> dict[str, Any]:
+        return await self._invocations.retrieve(self.id)
+
+    async def wait(self, *, timeout_s: float = 300) -> dict[str, Any]:
+        """Wait for this turn to rest, with a deadline covering HTTP requests too."""
+        if not math.isfinite(timeout_s) or timeout_s <= 0:
+            raise ValueError("timeout_s must be finite and positive")
+        try:
+            async with asyncio.timeout(timeout_s):
+                while True:
+                    state = await self.retrieve()
+                    if state["status"] in _INVOCATION_RESTING:
+                        return state
+                    await asyncio.sleep(0.4)
+        except TimeoutError as exc:
+            raise TimeoutError(f"Invocation {self.id} did not rest within {timeout_s}s") from exc
+
+    async def reply(self, prompt: str) -> dict[str, Any]:
+        return await self._invocations.continue_(self.id, prompt=prompt)
+
+    async def events(self, *, after: int = 0, limit: int = 100) -> dict[str, Any]:
+        return await self._invocations.events(self.id, after=after, limit=limit)
+
+    async def cancel(self) -> dict[str, Any]:
+        return await self._invocations.cancel(self.id)
+
+
+@dataclass(frozen=True, slots=True)
+class InvocationBinding:
+    """Exact execution references configured once; no server resource is created."""
+
+    _invocations: _InvocationsClient
+    computer: str
+    agent: str | None = None
+    context_policy: str | None = None
+    program: str | None = None
+
+    def __post_init__(self) -> None:
+        from memseek.definitions.base import split_exact_reference
+
+        if (self.agent is None) == (self.program is None):
+            raise ValueError("bind requires exactly one of agent or program")
+        if self.agent is not None and self.context_policy is None:
+            raise ValueError("agent binding requires context_policy")
+        if self.program is not None and self.context_policy is not None:
+            raise ValueError("program binding forbids context_policy")
+        for reference in (self.computer, self.agent, self.context_policy, self.program):
+            if reference is not None:
+                split_exact_reference(reference)
+
+    async def start(
+        self,
+        *,
+        entity: str,
+        prompt: str | None = None,
+        input: Any = _UNSET,
+        idempotency_key: str | None = None,
+    ) -> InvocationHandle:
+        if self.agent is not None:
+            if not prompt or input is not _UNSET:
+                raise ValueError("agent start requires prompt and forbids input")
+            executor = {"kind": "agent", "agent": self.agent, "context_policy": self.context_policy}
+            task = {"kind": "answer", "prompt": prompt}
+        else:
+            if input is _UNSET or input is None or prompt is not None:
+                raise ValueError("program start requires non-null input and forbids prompt")
+            executor = {"kind": "program", "program": self.program}
+            task = {"kind": "compute", "input": input}
+        started = await self._invocations.start(
+            entity=entity,
+            computer=self.computer,
+            executor=executor,
+            task=task,
+            idempotency_key=idempotency_key,
+        )
+        return self._invocations.attach(started["invocation_id"])
+
+
+class _InvocationsClient:
+    """Start, resume, fork, and inspect durable Computer work."""
+
+    def __init__(self, client: MemseekClient) -> None:
+        self._client = client
+
+    def bind(
+        self,
+        *,
+        computer: str,
+        agent: str | None = None,
+        context_policy: str | None = None,
+        program: str | None = None,
+    ) -> InvocationBinding:
+        return InvocationBinding(self, computer, agent, context_policy, program)
+
+    def attach(self, invocation_id: str) -> InvocationHandle:
+        """Construct a handle without an HTTP call; authorization happens on use."""
+        return InvocationHandle(self, invocation_id)
+
+    async def start(
+        self,
+        *,
+        entity: str,
+        computer: str,
+        executor: Mapping[str, Any],
+        task: Mapping[str, Any],
+        session: Mapping[str, Any] | None = None,
+        idempotency_key: str | None = None,
+    ) -> dict[str, Any]:
+        payload: dict[str, Any] = {
+            "entity": entity,
+            "computer": computer,
+            "executor": dict(executor),
+            "task": dict(task),
+            "session": dict(session or {"mode": "new"}),
+        }
+        if idempotency_key is not None:
+            payload["idempotency_key"] = idempotency_key
+        return await self._client._request("POST", "/invocations", json=payload)
+
+    async def retrieve(self, invocation_id: str) -> dict[str, Any]:
+        return await self._client._request("GET", f"/invocations/{invocation_id}")
+
+    async def events(
+        self, invocation_id: str, *, after: int = 0, limit: int = 100
+    ) -> dict[str, Any]:
+        return await self._client._request(
+            "GET",
+            f"/invocations/{invocation_id}/events",
+            params={"after": after, "limit": limit},
+        )
+
+    async def stream(self, invocation_id: str, *, after: int = 0) -> AsyncGenerator[dict[str, Any]]:
+        """Yield journal events as the server appends them.
+
+        The same ordered journal `events()` pages through, pushed over
+        server-sent events instead of polled. The stream closes when the
+        invocation reaches a terminal state, so a caller that only wants to
+        watch one turn should stop at `awaiting_input` itself.
+        """
+
+        headers = dict(self._client._headers)
+        headers["Accept"] = "text/event-stream"
+        async with self._client._client.stream(
+            "GET",
+            f"/invocations/{invocation_id}/events/stream",
+            params={"after": after},
+            headers=headers,
+            timeout=httpx.Timeout(5.0, read=None),
+        ) as response:
+            if response.is_error:
+                await response.aread()
+                raise MemseekHTTPError(response)
+            async for line in response.aiter_lines():
+                # Only `data:` carries the event; `id:` and `event:` repeat what
+                # the payload already names, and blank lines close a frame.
+                if not line.startswith("data:"):
+                    continue
+                yield json.loads(line[5:].strip())
+
+    async def continue_(self, invocation_id: str, *, prompt: str) -> dict[str, Any]:
+        return await self._client._request(
+            "POST", f"/invocations/{invocation_id}/turns", json={"prompt": prompt}
+        )
+
+    async def cancel(self, invocation_id: str) -> dict[str, Any]:
+        return await self._client._request("POST", f"/invocations/{invocation_id}/cancel")
+
+    async def fork(
+        self,
+        invocation_id: str,
+        *,
+        entity: str,
+        computer: str,
+        executor: Mapping[str, Any],
+        task: Mapping[str, Any],
+        idempotency_key: str | None = None,
+    ) -> dict[str, Any]:
+        payload: dict[str, Any] = {
+            "entity": entity,
+            "computer": computer,
+            "executor": dict(executor),
+            "task": dict(task),
+            "session": {"mode": "new"},
+        }
+        if idempotency_key is not None:
+            payload["idempotency_key"] = idempotency_key
+        return await self._client._request(
+            "POST", f"/invocations/{invocation_id}/fork", json=payload
+        )
+
+    async def artifacts(self, invocation_id: str) -> dict[str, Any]:
+        return await self._client._request("GET", f"/invocations/{invocation_id}/artifacts")
+
+    async def artifact(self, invocation_id: str, artifact_id: str) -> dict[str, Any]:
+        return await self._client._request(
+            "GET", f"/invocations/{invocation_id}/artifacts/{artifact_id}"
+        )
+
+    async def memory(
+        self, invocation_id: str, *, kind: str | None = None, limit: int = 50
+    ) -> dict[str, Any]:
+        params: dict[str, Any] = {"limit": limit}
+        if kind is not None:
+            params["kind"] = kind
+        return await self._client._request(
+            "GET", f"/invocations/{invocation_id}/memory", params=params
+        )
+
+    async def recall(self, invocation_id: str, *, query: str, limit: int = 20) -> dict[str, Any]:
+        return await self._client._request(
+            "GET",
+            f"/invocations/{invocation_id}/recall",
+            params={"q": query, "limit": limit},
+        )
+
+
 class MemseekClient:
     """Minimal async SDK covering catalog publication, ingest, document, and search."""
 
@@ -364,6 +595,7 @@ class MemseekClient:
         self.records = _RecordsClient(self)
         self.feedback = _FeedbackClient(self)
         self.backfill = _BackfillClient(self)
+        self.invocations = _InvocationsClient(self)
 
     def artifact(self, name: str) -> ArtifactHandle:
         """A reusable handle for rendering and binding one named artifact."""
@@ -611,4 +843,11 @@ class MemseekClient:
         return value
 
 
-__all__ = ["ArtifactHandle", "BoundArtifact", "MemseekClient", "MemseekHTTPError"]
+__all__ = [
+    "ArtifactHandle",
+    "BoundArtifact",
+    "InvocationBinding",
+    "InvocationHandle",
+    "MemseekClient",
+    "MemseekHTTPError",
+]

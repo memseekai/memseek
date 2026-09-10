@@ -138,6 +138,24 @@ def _record_input_schema() -> dict[str, Any]:
     }
 
 
+def _invocation_input_schema(kind: str) -> dict[str, Any]:
+    task_field = "input" if kind == "compute" else "prompt"
+    task_schema: dict[str, Any] = (
+        {} if kind == "compute" else {"type": "string", "minLength": 1, "maxLength": 32_768}
+    )
+    return {
+        "$schema": _JSON_SCHEMA_DRAFT,
+        "type": "object",
+        "required": ["entity", task_field],
+        "properties": {
+            "entity": {"type": "string", "minLength": 1, "maxLength": 255},
+            task_field: task_schema,
+            "idempotency_key": {"type": "string", "minLength": 1, "maxLength": 128},
+        },
+        "additionalProperties": False,
+    }
+
+
 def _parameters_input_schema(parameters: Any) -> dict[str, Any]:
     """Add the schema dialect marker to a shared parameter object schema."""
 
@@ -283,6 +301,48 @@ def _tool_payload(
                 "input_schema": _ingest_input_schema(collection),
                 "output_schema": _object_output_schema(
                     "The committed record ids, and whether each was already present."
+                ),
+            }
+        )
+        return payload
+
+    if kind == "invocation":
+        computer_ref = declaration.computer
+        assert computer_ref is not None
+        computer = catalog.resolve_computer(computer_ref)
+        binding: dict[str, Any] = {
+            "kind": "invocation",
+            "computer": {"reference": computer_ref, "hash": computer.definition_hash},
+            "task_kind": declaration.invocation_task,
+        }
+        if declaration.agent is not None:
+            agent = catalog.resolve_agent(declaration.agent)
+            assert declaration.context_policy is not None
+            policy = catalog.resolve_context_policy(declaration.context_policy)
+            binding["executor"] = {
+                "kind": "agent",
+                "reference": declaration.agent,
+                "hash": agent.definition_hash,
+                "context_policy": {
+                    "reference": declaration.context_policy,
+                    "hash": policy.definition_hash,
+                },
+            }
+        else:
+            assert declaration.program is not None
+            program = catalog.resolve_program(declaration.program)
+            binding["executor"] = {
+                "kind": "program",
+                "reference": declaration.program,
+                "hash": program.definition_hash,
+            }
+        payload.update(
+            {
+                "binding": binding,
+                "endpoint": {"method": "POST", "path": "/invocations"},
+                "input_schema": _invocation_input_schema(str(declaration.invocation_task)),
+                "output_schema": _object_output_schema(
+                    "A durable invocation handle with pinned definitions and event cursor."
                 ),
             }
         )

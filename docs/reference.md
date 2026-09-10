@@ -92,9 +92,23 @@ the [Glossary](glossary.md) when a checklist term is unfamiliar.
 - [ ] No processor depends on fetching an `execution_refs` target.
 - [ ] Telemetry attributes carry only the reserved `memseek.*` scalars; no prompt, record content, model output, or customer identifier.
 
+## Computers, Programs, and Agents
+
+- [ ] Every computer, program, agent, and context policy is referenced by exact `name@version` — there is no floating reference for these.
+- [ ] Context mounts live under `/.memseek/`; writeback paths live under `/outbox/` and inside a writable root.
+- [ ] `observations` writeback has `review: false`, `maintained_state` has `review: true`, and both name a collection and record type; `final_result` names neither.
+- [ ] A Program's runtime is allowed by the Computer, and its capabilities are a subset of the Computer's.
+- [ ] Container Programs declare `command` and the `exec` capability; JavaScript Programs are single-file.
+- [ ] The Agent's model alias exists, its skills are artifacts of `kind: skill`, and it lists every Computer it is asked to run in.
+- [ ] Context policy thresholds are strictly increasing, and `reserve_output_tokens` is below `max_input_tokens`.
+- [ ] Any derivation using `use: computer` or `use: agent` raises `limits.max_computer_runs` above its default of `0`.
+- [ ] The instructions artifact tells the model to return the `{"value": …, "citation_ids": […]}` envelope.
+- [ ] `retention.preserve` names everything a fork or an audit will need later.
+
 ## Package and release
 
 - [ ] The package lists every exact collection, processor, trigger, view, artifact, and required search profile it uses.
+- [ ] It also lists every computer, program, agent, and context policy referenced by a task, an MCP invocation tool, or another definition.
 - [ ] Required and optional search profiles do not overlap.
 - [ ] The uploaded request package matches the manifest file.
 - [ ] The new package preserves collection contracts needed by existing records.
@@ -109,6 +123,7 @@ When this guide and the implementation differ, verify the current release agains
 - `src/memseek/artifact_uses.py` for the artifact-use, telemetry, and feedback contracts.
 - `src/memseek/derive/schema.py` for derivation/trigger fields.
 - `src/memseek/derive/tasks.py` for the trusted task task type Interface and built-ins.
+- `src/memseek/computers.py` and `src/memseek/invocations.py` for Computer execution and durable runs.
 - `src/memseek/search/spec.py` for SearchSpec fields and limits.
 - `src/memseek/config.py` for runtime settings and environment names.
 - `examples/crm_profile_catalog/` for a complete package.

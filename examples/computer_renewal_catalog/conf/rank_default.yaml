@@ -1,0 +1,7 @@
+candidates: 100
+variants:
+  hybrid: [sum, [[normalize, [max, [[similarity], [text_match]]]]]]
+  vector: [sum, [[normalize, [similarity]]]]
+  text: [sum, [[normalize, [text_match]]]]
+  recent: [sum, [[decay, [age_hours, occurred_at], {midpoint: 168, exponent: 1}]]]
+

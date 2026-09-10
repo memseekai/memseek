@@ -604,6 +604,36 @@ deterministic composition or as a small stand-in in tests. The emitted value
 must still resolve to a JSON record list, so custom code is normally more
 useful for deterministic structured output.
 
+### Built-in `computer` and `agent`
+
+Two more built-ins hand the work to a sandboxed workspace instead of doing it
+in-process: `computer` runs a versioned [Program](computers.md) — deterministic
+code that ships with the catalog, no model involved — and `agent` runs a
+model-driven agent that can write files, run commands, and take several steps.
+
+```yaml
+limits:
+  max_computer_runs: 1               # default 0 — nothing sandboxed runs without this
+
+tasks:
+  - id: extracted_terms
+    use: computer
+    input: {contracts: "{{new_contracts.records}}"}
+    with:
+      computer: fast_workspace@1
+      program: contract_extract@3
+      output: /outbox/result.json
+```
+
+They behave like any other task: the result is a value, it may cite only the
+evidence the task was given, and it still passes through `emit`. What they add
+is a filesystem, a code bundle or a tool loop, and a receipt of everything that
+happened inside.
+
+Both are off unless the derivation raises `max_computer_runs`, which defaults to
+`0`. Every field, and the four catalog files behind them, are documented in
+[Computers, Programs & Agents](computers.md#running-one-from-a-derivation).
+
 ## Installing a custom task
 
 The built-in `llm`, `search`, and `template` tasks cover reasoning, retrieval,
@@ -1017,6 +1047,14 @@ limits:
   and searched canonical records.
 - `max_total_tokens` bounds prompt plus completion usage for the run.
 - `max_wall_s` bounds task execution wall time.
+
+Three more limits apply only to [sandboxed tasks](computers.md):
+
+- `max_computer_runs` bounds how many `computer`/`agent` tasks may run, up to
+  20. It **defaults to `0`**, so sandboxed execution is always opt-in.
+- `max_agent_steps` bounds an agent's tool loop, up to 128; the agent's own
+  limit and the task's `max_steps` can only lower it further.
+- `max_computer_output_bytes` bounds the size of a returned result.
 
 Catalog compilation also verifies task-specific static bounds where possible.
 Installed tasks are trusted async deployment code; they remain unable to

@@ -23,6 +23,62 @@ from memseek.derive.schema import CurrentSource, PipelineDefinition
 from memseek.search.rank import RankValidationError, validate_rank_expression
 from memseek.templates import TemplateError, render_object, resolve_value
 
+REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
+RENEWAL_ROOT = REPOSITORY_ROOT / "examples" / "computer_renewal_catalog"
+
+# `catalog_hash` is not a convenience: `WorkspaceCatalog` recompiles stored YAML
+# on every cache miss and 503s when the recompiled hash differs from the stored
+# one. So a change to the *shape* of the compiled payload — a new family key, a
+# new field that dumps as null — strands every published catalog, including ones
+# that never opted into the new feature. These constants are the cheap proof
+# that a change is hash-neutral. Update one only alongside a deliberate edit to
+# the catalog it covers, and say so in the commit.
+REFERENCE_CATALOG_HASH = "9a23acb2e11cb6b9aa070f8538a3097cd6272f2251d695af70a30b2a76f5e8ee"
+# Moved once, deliberately, when the renewal catalog adopted a toolset. The
+# reference constant above did not move, which is the actual proof: a catalog
+# that declares no toolsets hashes exactly as it did before the family existed.
+RENEWAL_CATALOG_HASH = "2ffe917780b238732750f2adb89a74db557ffc45ccd33edeb46456ce1d5f6e54"
+
+
+def _renewal_settings(bare_settings: Settings) -> Settings:
+    return bare_settings.model_copy(
+        update={
+            "models_file": RENEWAL_ROOT / "conf/models.yaml",
+            "processors_file": RENEWAL_ROOT / "conf/processors.yaml",
+            "collections_dir": RENEWAL_ROOT / "collections",
+            "derivations_dir": RENEWAL_ROOT / "derivations",
+            "views_dir": None,
+            "artifacts_dir": RENEWAL_ROOT / "artifacts",
+            "computers_dir": RENEWAL_ROOT / "computers",
+            "programs_dir": RENEWAL_ROOT / "programs",
+            "agents_dir": RENEWAL_ROOT / "agents",
+            "context_policies_dir": RENEWAL_ROOT / "context_policies",
+            "toolsets_dir": RENEWAL_ROOT / "toolsets",
+            "mcp_dir": RENEWAL_ROOT / "mcp",
+            "packages_dir": RENEWAL_ROOT / "packages",
+            "triggers_dir": None,
+            "search_profiles_file": RENEWAL_ROOT / "conf/search_profiles.yaml",
+            "rank_default_file": RENEWAL_ROOT / "conf/rank_default.yaml",
+        }
+    )
+
+
+def test_catalog_hash_survives_a_family_a_catalog_does_not_use(
+    settings: Settings, bare_settings: Settings
+) -> None:
+    """Published catalogs keep their identity across compiler changes.
+
+    The reference catalog declares no toolsets, so adding the family must leave
+    its hash untouched: the compiled payload may only gain a key when something
+    actually uses it, and a new optional field may only be dumped when it is
+    set. The renewal catalog does declare one, and is pinned separately so its
+    hash cannot drift by accident.
+    """
+
+    assert load_definition_catalog(settings).catalog_hash == REFERENCE_CATALOG_HASH
+    renewal = load_definition_catalog(_renewal_settings(bare_settings))
+    assert renewal.catalog_hash == RENEWAL_CATALOG_HASH
+
 
 def test_reference_catalog_loads_deterministically_and_resolves(settings: Settings) -> None:
     first = load_definition_catalog(settings)
@@ -253,3 +309,22 @@ def test_template_renderer_preserves_exact_typed_values_and_rejects_missing() ->
     assert render_object({"entities": ["{{entity}}"]}, variables) == {"entities": ["maria"]}
     with pytest.raises(TemplateError, match="missing"):
         resolve_value("{{missing.path}}", variables)
+
+
+def test_python_compile_matches_disk_hash_without_filesystem_round_trip(
+    settings: Settings,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    base = load_definition_catalog(settings)
+    source = DefinitionSources.from_catalog(base)
+
+    def no_file_io(*args: object, **kwargs: object) -> None:
+        pytest.fail("Python catalog compilation must not read or write files")
+
+    monkeypatch.setattr(Path, "write_text", no_file_io)
+    monkeypatch.setattr(Path, "read_text", no_file_io)
+    monkeypatch.setattr(Path, "mkdir", no_file_io)
+    compiled = compile_definition_catalog(settings, source)
+    assert compiled.catalog_hash == base.catalog_hash
+    assert compiled.processor_config_hashes == base.processor_config_hashes
+    assert compiled.collections == base.collections

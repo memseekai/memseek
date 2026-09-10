@@ -19,11 +19,20 @@ import math
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 from uuid import UUID
 
-from memseek.definitions import DefinitionCatalog
 from memseek.definitions.base import FenceDeclaration
+
+if TYPE_CHECKING:
+    from memseek.definitions import DefinitionCatalog
+
+
+def estimate_tokens(text: str) -> int:
+    """Deterministic UTF-8 byte estimate shared by rendering and model usage."""
+
+    return max(1, (len(text.encode("utf-8")) + 3) // 4)
+
 
 TRUNCATION_SENTINEL = "\n[...] truncated [...]\n"
 COMPACT_CONTENT_CHARS = 500
@@ -172,6 +181,7 @@ __all__ = [
     "RenderProfile",
     "RenderableRecord",
     "escape_untrusted",
+    "estimate_tokens",
     "fence_overhead_tokens",
     "render_record",
     "render_records",

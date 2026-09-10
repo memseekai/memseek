@@ -45,6 +45,14 @@ views:
   - customer_context@1
 artifacts:
   - customer_brief@1
+computers:                     # only if the design runs sandboxed work
+  - research_workspace@1
+programs:
+  - contract_extract@3
+agents:
+  - renewal_analyst@1
+context_policies:
+  - evidence_spine@1
 mcp: customer_memory@1
 search_profiles:
   - pg_default
@@ -79,6 +87,12 @@ retentions:
   load, but nothing will ever queue it automatically.
 - **`views`** / **`artifacts`** — exact `name@version` references, same rules
   as collections.
+- **`computers`** / **`programs`** / **`agents`** / **`context_policies`** —
+  exact `name@version` references to the sandboxed-execution families, when the
+  design uses them. They are optional: a package with none of them simply
+  cannot run code. See [Computers, Programs & Agents](computers.md). Program
+  source is part of the package hash, so the same package always means the same
+  code.
 - **`mcp`** — optional exact `name@integer-version` reference to the package's
   curated MCP interface. It is an allowlist, not an automatic export of the
   package's views, artifacts, or HTTP routes. See [Declared MCP
@@ -233,19 +247,103 @@ package
  ├─ view ─────── query fields, scopes, capabilities, search profiles
  ├─ artifact ─── blocks ──> the views and documents they read
  │              └─ learning target ──> the reviewed artifact it names
- └─ mcp ──────── explicit tools ──> package-listed views and artifacts
+ ├─ computer ─── mounted artifacts and writeback collections
+ ├─ agent ────── instructions and skill artifacts, allowed computers,
+ │              context policy
+ └─ mcp ──────── explicit tools ──> package-listed views, artifacts,
+                 computers, programs and agents
 ```
 
 In practice this means: if you add a view to the package, also add the
 collections it searches; if you add a derivation, also add its trigger, source
 and emission collections, and any score processor its trigger accumulates; and
 if an artifact declares a [learning target](artifact-uses.md), also add the
-reviewed artifact it names — plus the collection its feedback lands in. The
+reviewed artifact it names — plus the collection its feedback lands in; and if a
+derivation runs a [sandboxed task](computers.md), also add the computer,
+program, agent, and context policy it names, together with every artifact
+mounted as context and every collection its writeback targets. The
 error messages name the missing reference, so the fastest workflow is simply
 to upload and read the first error.
 
 Definitions may exist in the catalog without being listed — they are simply
 not part of the selected package and not active for the workspace.
+
+## Seeing the package
+
+The closure above is a graph, and past a handful of definitions it stops being
+readable as a directory listing. `catalog-graph` compiles a catalog directory
+through the same validation a publish runs, then writes one self-contained page
+that draws the compiled result:
+
+```console
+uv run memseek catalog-graph --dir examples/computer_renewal_catalog \
+    --out renewal-graph.html
+```
+
+From this repository, `make catalog-graph` does the same for the renewal
+fixture, and `make catalog-graph CATALOG=examples/gbrain_catalog GRAPH_OUT=gbrain.html`
+for any other catalog directory.
+
+| Option | Effect |
+| --- | --- |
+| `--dir` | The catalog directory to compile. Required. |
+| `--package` | The `name@semver` manifest to draw. Omitted, the directory's only package is used; a directory declaring several names them in the error. |
+| `--out` | Where to write. Omitted, the page goes to stdout, so it pipes. |
+| `--json` | Emit the projected nodes and edges instead of the page — for a review diff, a CI check, or a visualization of your own. |
+
+The command needs no database, no workspace, and no running service, and it
+changes nothing: it is safe on a candidate catalog before
+[`catalog-check`](changing-definitions.md) ever runs.
+
+### What the page shows
+
+Parts are laid out left to right in flow order — what a Pipeline reads sits to
+its left, what it writes to its right — and colored by family: canonical memory
+(collections, views, search profiles), computation (pipelines, triggers,
+processors), execution (computers, programs, agents, and the toolsets and
+individual tools an Agent may reach), authored text (artifacts, context
+policies), and the MCP interface. Arrows carry the reference vocabulary from the
+closure rule:
+
+| Arrow | Reads as |
+| --- | --- |
+| `triggers` | A write to this Collection starts that Pipeline. |
+| `reads` | Those records reach that Pipeline source, view, or Artifact block. |
+| `writes` | That emission or declared writeback lands in this Collection. |
+| `runs` | This Pipeline, Agent, trigger, or MCP tool starts that Computer, Program, Agent, or Processor. |
+| `mounts` | This Artifact is mounted into that Computer's workspace, at the path on the arrow. |
+| `uses` | A binding — the model alias, context policy, instructions, or toolset a part selects. |
+| `annotates` | That Processor is required or optional enrichment for this Collection. |
+| `routes` | This Collection searches through that profile. |
+| `exposes` | The MCP interface offers that tool. |
+
+`uses`, `annotates`, and `routes` are bindings rather than steps, so they draw
+but do not order the columns — otherwise a shared search profile or model alias
+would drag unrelated parts across the canvas.
+
+Clicking a part opens its compiled definition alongside the commitments worth
+reading first: a Collection's mode, schema, and declared fields; a Pipeline's
+trigger, sources, tasks, emission, and budgets; a Computer's provider, runtime
+fallback, capabilities, writeback paths and review gates, and retention; an
+Agent's model, tools, allowed Computers, and step, wall-clock, and byte limits;
+and each tool in a toolset with the root, modes, path, or artifact it is bound
+to — which is how you check a tool surface without reading seven YAML blocks.
+Its upstream and downstream references are listed and clickable, so you can walk
+the graph from the panel.
+
+| Control | What it does |
+| --- | --- |
+| Kind and relation chips | Hide a family of parts or a kind of reference to answer one question at a time. The graph re-lays out around what is left. |
+| **Isolate** | Reduce the graph to what the selected part reaches, in both directions. |
+| **Fit** | Zoom out to the whole package. The opening view keeps labels legible instead, and starts at the left. |
+| Search (`/`) | Match on name, kind, summary, or any declared fact; `Enter` selects the first hit. |
+| Drag, scroll, `Esc` | Pan, zoom, and clear the selection. |
+
+Because it reads the compiled catalog rather than the YAML text, the versions,
+defaults, and hashes on the page are the ones the runtime will use, and the
+catalog and package hashes are printed with them. A definition the manifest
+forgot never appears — the compile fails first, naming the missing reference,
+which is the same answer `catalog-check` would give you later.
 
 ## Publish over HTTP
 

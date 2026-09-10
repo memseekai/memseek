@@ -14,6 +14,9 @@ use_directory_urls: true
 # file from here publishes it — check before you do.
 exclude_docs: |
   agent-memory-l0-l3-plan.md
+  membukkit-integration-plan.md
+  archil-integration-decision.md
+  computer-ergonomics-plan.md
   cost-tracking-plan.md
   gbrain-plan.md
   inngest-execution-review.md
@@ -142,6 +145,7 @@ nav:
   - Start here:
       - Getting started: getting-started.md
       - Core concepts: concepts.md
+      - Architecture: architecture.md
       - Glossary: glossary.md
   - Build a memory catalog:
       - Catalog layout: catalog-layout.md
@@ -155,11 +159,15 @@ nav:
       - Graph data: graph-data.md
       - Artifacts: artifacts.md
       - Artifact uses & feedback: artifact-uses.md
+      - Computers, Programs & Agents: computers.md
+      - Toolsets: toolsets.md
       - Packages: packages.md
   - Using Memseek:
       - Python SDK: sdk.md
       - HTTP API guide: api-surface.md
       - MCP: mcp.md
+      - How a Computer stays trustworthy: computer-resources-and-durable-agents.md
+      - The Cloudflare Computer runtime: computer-cloudflare.md
       - Claude Code plugin: claude-code-plugin.md
       - Operations: operations.md
   - Evolve and operate:
@@ -174,6 +182,7 @@ nav:
       - SDK CRM profile quickstart: sdk-user-profile-quickstart.md
       - Real-LLM skill maintenance: skill-maintenance.md
       - Build an agent that remembers: generative-agents-example.md
+      - Run an agent inside a Computer: computer-renewal-example.md
       - The gbrain showcase: gbrain-showcase.md
       - The gbrain catalog, parameter by parameter: gbrain-catalog.md
       - The L0–L3 agent memory example: agent-memory-example.md

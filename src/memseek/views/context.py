@@ -14,7 +14,6 @@ rows are escaped, so they cannot close the element a caller puts around them.
 from __future__ import annotations
 
 import logging
-import math
 from typing import Any
 from uuid import UUID
 
@@ -32,6 +31,7 @@ from memseek.render import (
     render_record,
     render_rows,
 )
+from memseek.render import estimate_tokens as _tokens
 from memseek.search.engine import execute_search
 from memseek.search.spec import SearchSpec
 from memseek.views.delta import DeltaQuery, fetch_delta
@@ -91,10 +91,6 @@ class ContextRequestError(ValueError):
         self.code = code
         self.detail = detail
         super().__init__(detail)
-
-
-def _tokens(value: str) -> int:
-    return max(1, math.ceil(len(value.encode("utf-8")) / 4))
 
 
 def _renderable(row: dict[str, Any]) -> RenderableRecord:

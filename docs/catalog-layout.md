@@ -25,7 +25,9 @@ Start from what you want to say, in words:
 | …control when that reasoning runs | an inline `trigger:`, or `triggers/*.yaml` | [Triggers](triggers.md) |
 | …save a search my whole app can reuse | `views/*.yaml` | [Views & search](views-search.md) |
 | …assemble prompts or briefings from memory | `artifacts/*.yaml` | [Artifacts](artifacts.md) |
-| …choose exactly which tools an agent may call | `mcp/*.yaml` | [MCP](mcp.md) |
+| …run code or a working agent in a sandbox over memory | `computers/`, `programs/`, `agents/`, `context_policies/` | [Computers, Programs & Agents](computers.md) |
+| …choose exactly which tools an agent may call | `toolsets/*.yaml` | [Toolsets](toolsets.md) |
+| …publish tools to an external MCP client | `mcp/*.yaml` | [MCP](mcp.md) |
 | …ship all of the above as one installable unit | `packages/*.yaml` | [Packages](packages.md) |
 
 ## Recommended tree
@@ -49,6 +51,15 @@ my-memory/
 │   └── customer_context.yaml
 ├── artifacts/
 │   └── customer_brief.yaml
+├── computers/                          # optional, sandboxed execution
+│   └── research_workspace.yaml
+├── programs/                           # optional, versioned deterministic code
+│   └── contract_extract.yaml
+├── agents/                             # optional, model-driven working agents
+│   └── renewal_analyst.yaml
+├── context_policies/                   # optional, an agent's token budget
+├── toolsets/                           # optional, the tools an agent may call
+│   └── evidence_spine.yaml
 ├── mcp/
 │   └── customer_memory.yaml            # optional, agent tool allowlist
 └── packages/
@@ -60,8 +71,8 @@ depends on how your filesystem happens to be sorted.
 
 How much can go in one file depends on the kind:
 
-- **Several per file** — collections, views, artifacts, and processors. Group
-  them however reads best.
+- **Several per file** — collections, views, artifacts, processors, computers,
+  programs, agents, and context policies. Group them however reads best.
 - **One per file** — each derivation, each standalone trigger, and each MCP
   interface.
 - **Either** — a package file holds one package, or several under a
@@ -83,7 +94,12 @@ How much can go in one file depends on the kind:
 | `triggers/*.yaml` | one mapping | A reusable trigger pointing at a derivation |
 | `views/*.yaml` | `views: [...]` | Saved, named, typed searches |
 | `artifacts/*.yaml` | `artifacts: [...]` | Recipes that render memory into text |
-| `mcp/*.yaml` | one mapping | The allowlist of tools an agent may call |
+| `computers/*.yaml` | `computers: [...]` | Sandbox policies: what may be mounted, written, and returned |
+| `programs/*.yaml` | `programs: [...]` | Versioned deterministic code, with input and output schemas |
+| `agents/*.yaml` | `agents: [...]` | Model, instructions, tools, and limits for a working agent |
+| `context_policies/*.yaml` | `context_policies: [...]` | How an agent's context budget is managed as it fills |
+| `toolsets/*.yaml` | `toolsets: [...]` | The declared surface of tools and skills an agent may reach |
+| `mcp/*.yaml` | one mapping | The allowlist of operations this package publishes to MCP clients |
 | `packages/*.yaml` | one mapping | The exact versions that ship together |
 
 ## Two ways to publish a design
@@ -116,7 +132,8 @@ that silently does nothing until a user notices.
   `[a-z][a-z0-9._-]{0,63}`; processor names are stricter, matching
   `[a-z][a-z0-9_]{0,31}`.
 - **References to collections, views, and artifacts use exact versions** —
-  `name@1`.
+  `name@1`. Computers, programs, agents, and context policies are *always*
+  referenced this way, everywhere.
 - **Package versions use three-part versions** — `name@1.0.0`.
 - **Uploaded paths are relative**, end in `.yaml` or `.yml`, and must sit in the
   layout above.
@@ -149,6 +166,21 @@ path inside that file where possible. The codes you will meet:
 
 Treat this validation as a deployment gate — the same way you would treat a
 failing migration.
+
+## Seeing the tree as a graph
+
+The directories say where a definition lives; they do not say what references
+it. For that, compile the tree and draw it:
+
+```console
+uv run memseek catalog-graph --dir ./my-catalog --out my-catalog.html
+```
+
+The page lays the package out in flow order and makes each part's compiled
+definition, budgets, and references clickable. It is the fastest way to check a
+design against what you meant before publishing it, and it is often quicker than
+reading the files when you inherit someone else's catalog. Details in
+[Seeing the package](packages.md#seeing-the-package).
 
 ## Generating definitions from Python
 

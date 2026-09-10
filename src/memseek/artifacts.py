@@ -19,7 +19,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import math
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any, LiteralString, cast
@@ -36,6 +35,7 @@ from memseek.definitions.base import split_exact_reference
 from memseek.definitions.models import parameter_value_matches
 from memseek.locks import acquire_entity_locks, acquire_workspace_lock
 from memseek.render import RenderableRecord, escape_untrusted, render_record, render_rows
+from memseek.render import estimate_tokens as _tokens
 from memseek.search.named_views import execute_view
 from memseek.templates import (
     TemplateError,
@@ -98,10 +98,6 @@ class ArtifactResolution:
     package_ref: dict[str, Any] | None
     started_at: datetime
     learning_target: dict[str, Any] | None = None
-
-
-def _tokens(value: str) -> int:
-    return max(1, math.ceil(len(value.encode("utf-8")) / 4))
 
 
 def _canonical_json(value: Any) -> str:

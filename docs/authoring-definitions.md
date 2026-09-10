@@ -396,6 +396,25 @@ search_profiles: [pg_default]
 The package must include every exact collection, processor, trigger, view, and
 search-profile dependency. Its hash is included in run and artifact manifests.
 
+## Read the package back as a graph
+
+Once the manifest binds exact versions, the design stops being a directory and
+becomes a graph: a Pipeline reads Collections and runs Tasks, an Artifact
+renders Collections into context, a Computer mounts Artifacts, an MCP tool
+exposes some of the same parts again under tool names. `catalog-graph` compiles
+the directory and draws that graph:
+
+```console
+uv run memseek catalog-graph --dir my-memory --out my-memory.html
+```
+
+It uses the same validation a publish runs, so it fails on the same missing
+reference the loader would reject, and the versions, defaults, and hashes on the
+page are the ones the runtime will use. Nothing else is needed — no database, no
+workspace, no server. Add `--json` to get the projected nodes and edges instead
+of the page, for a review diff or a check of your own. See
+[Seeing the package](packages.md#seeing-the-package) for what the page shows.
+
 ## YAML reference and authoring rules
 
 All definition files are ordinary YAML, but each family has a deliberate

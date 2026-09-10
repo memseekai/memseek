@@ -216,6 +216,44 @@ tools:
     description: Append one message to this agent's memory, exactly as it was said.
 ```
 
+### Starting durable work
+
+An `invocation` tool lets a client kick off a long-running job in a
+[Computer](computers.md) — a sandboxed workspace that survives restarts, can
+pause to ask a question, and can be resumed or forked.
+
+```yaml
+tools:
+  - name: prepare_renewal
+    kind: invocation
+    computer: research_workspace@1
+    agent: renewal_analyst@1
+    context_policy: evidence_spine@1
+    invocation_task: answer
+    description: Start a durable, resumable renewal analysis for one account.
+
+  - name: extract_contract
+    kind: invocation
+    computer: fast_workspace@1
+    program: contract_extract@3
+    invocation_task: compute
+    description: Run the deterministic contract extractor in a durable workspace.
+```
+
+Declare exactly one of `agent` or `program`. An `agent` also requires a
+`context_policy` and an `invocation_task` of `answer` or `task`; a `program`
+forbids the policy and requires `compute`. Every reference is exact, and each
+must also be listed in the package.
+
+The caller supplies only `entity`, either `prompt` or `input` depending on the
+task kind, and an optional `idempotency_key`. It cannot pick the Computer, the
+agent, the model, or the policy — the declaration fixes all of them, exactly as
+`ingest` fixes its destination collection. It is annotated as a writing,
+non-idempotent operation, so hosts that prompt before a write will prompt here.
+
+The tool returns a handle; the run itself is then followed through
+`GET /invocations/{id}` and its event stream.
+
 The selected package is resolved per workspace: `GET /tools` reflects the
 package most recently published into the authenticated workspace. A workspace
 that has published nothing has no tools at all — and, on a service with no

@@ -1,0 +1,12 @@
+name: computer_renewal_demo
+version: 1.0.0
+collections: [renewal_evidence@1, contract_terms@1, renewal_risks@1, task_observations@1, renewal_proposals@1]
+processors: [embedding_v1, importance, contract_extract, renewal_assessment]
+artifacts: [renewal_instructions@1, renewal_research_skill@1]
+computers: [fast_workspace@1, research_workspace@1]
+programs: [contract_extract@3]
+agents: [renewal_analyst@1, renewal_analyst@2]
+toolsets: [renewal@1]
+context_policies: [evidence_spine@1]
+mcp: renewal_computer@1
+search_profiles: [pg_default]

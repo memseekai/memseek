@@ -350,6 +350,7 @@ async def test_worker_pass_logs_only_bounded_counters(
         "not_ready_jobs": 1,
         "projection_jobs": 3,
         "derivation_jobs": 1,
+        "invocation_jobs": 0,
         "retention_jobs": 0,
         "expired_artifact_uses": 0,
         "backfill_batches": 0,

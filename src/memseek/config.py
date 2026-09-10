@@ -74,6 +74,11 @@ class Settings(BaseSettings):
     triggers_dir: Path | None = None
     views_dir: Path | None = None
     artifacts_dir: Path | None = None
+    computers_dir: Path | None = None
+    programs_dir: Path | None = None
+    agents_dir: Path | None = None
+    context_policies_dir: Path | None = None
+    toolsets_dir: Path | None = None
     mcp_dir: Path | None = None
     packages_dir: Path | None = None
 
@@ -112,6 +117,11 @@ class Settings(BaseSettings):
                 self.derivations_dir,
                 self.views_dir,
                 self.artifacts_dir,
+                self.computers_dir,
+                self.programs_dir,
+                self.agents_dir,
+                self.context_policies_dir,
+                self.toolsets_dir,
                 self.packages_dir,
                 self.mcp_dir,
                 self.triggers_dir,
@@ -120,6 +130,7 @@ class Settings(BaseSettings):
         )
 
     task_modules: tuple[str, ...] = (
+        "memseek.derive.tasks_computer",
         "memseek.derive.tasks_graph",
         "memseek.derive.tasks_facts",
         "memseek.derive.tasks_repair",
@@ -148,6 +159,11 @@ class Settings(BaseSettings):
     max_step_concurrency: int = 5
     max_run_total_tokens: int = 100_000
     max_run_wall_s: int = 180
+
+    computer_runtime_url: str = ""
+    computer_runtime_token: str = ""
+    computer_request_timeout_s: int = 300
+    computer_response_max_bytes: int = 16_777_216
 
     worker_poll_ms: int = 500
     worker_concurrency: int = 4

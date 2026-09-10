@@ -11,7 +11,7 @@ from collections import defaultdict
 from collections.abc import Awaitable, Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from typing import Any, Literal
+from typing import Any, Literal, LiteralString
 from uuid import UUID, uuid4
 
 from jsonschema import Draft202012Validator, FormatChecker
@@ -131,16 +131,6 @@ def _render_record(record: _Record, text: str) -> str:
     return f'<record id="{record.id}">{escape_untrusted(text)}</record>'
 
 
-def _fence(rows: Sequence[tuple[_Record, str]]) -> str:
-    return render_rows(
-        [_render_record(record, text) for record, text in rows], fence=_ENRICHMENT_FENCE
-    )
-
-
-def _token_estimate(text: str) -> int:
-    return max(1, math.ceil(len(text.encode("utf-8")) / 4))
-
-
 def _model_prompt_limit(
     settings: Settings,
     catalog: DefinitionCatalog,
@@ -233,12 +223,12 @@ async def _snapshot_required(pool: DatabasePool, settings: Settings) -> list[_Re
             f"""
             select {_RECORD_COLUMNS}
             from record
-            where enriched_at is null and seq >= %s
+            where enriched_at is null and workspace = %s and seq >= %s
             order by seq
             limit %s
             for update skip locked
             """,
-            (first["seq"], settings.enrich_batch + 1),
+            (first["workspace"], first["seq"], settings.enrich_batch + 1),
         )
         rows = await batch.fetchall()
         public_rows: list[_Record] = []
@@ -252,48 +242,78 @@ async def _snapshot_required(pool: DatabasePool, settings: Settings) -> list[_Re
 
 
 async def _snapshot_optional(
-    pool: DatabasePool, settings: Settings, catalog: DefinitionCatalog
-) -> tuple[list[_Record], str | None]:
-    bindings: list[dict[str, object]] = []
-    for collection_key in sorted(catalog.collections):
-        collection = catalog.collections[collection_key]
-        for ordinal, name in enumerate(collection.optional_processors):
-            processor = catalog.processors[name]
-            if processor.source == "client":
-                continue
-            types = list(processor.input.types)
-            bindings.append(
-                {
-                    "collection": collection.name,
-                    "version": collection.version,
-                    "processor": name,
-                    "types": types,
-                    "ordinal": ordinal,
-                }
+    pool: DatabasePool,
+    settings: Settings,
+    catalog: DefinitionCatalog,
+    *,
+    catalog_for_workspace: Callable[[str], Awaitable[DefinitionCatalog]] | None = None,
+) -> tuple[list[_Record], str | None, DefinitionCatalog]:
+    catalogs: dict[str | None, DefinitionCatalog] = {None: catalog}
+    if catalog_for_workspace is not None:
+        # Resolve definitions before acquiring any record locks. Only workspaces
+        # with ready public records can have optional work.
+        async with pool.connection() as conn:
+            result = await conn.execute(
+                "select distinct workspace from record "
+                "where enriched_at is not null and collection <> '_system' order by workspace"
             )
+            workspaces = await result.fetchall()
+        catalogs = {}
+        for row in workspaces:
+            workspace = str(row["workspace"])
+            catalogs[workspace] = await catalog_for_workspace(workspace)
+    bindings: list[dict[str, object]] = []
+    for workspace, selected_catalog in catalogs.items():
+        for collection_key in sorted(selected_catalog.collections):
+            collection = selected_catalog.collections[collection_key]
+            for ordinal, name in enumerate(collection.optional_processors):
+                processor = selected_catalog.processors[name]
+                if processor.source == "client":
+                    continue
+                bindings.append(
+                    {
+                        "workspace": workspace,
+                        "collection": collection.name,
+                        "version": collection.version,
+                        "processor": name,
+                        "types": list(processor.input.types),
+                        "ordinal": ordinal,
+                    }
+                )
     if not bindings:
-        return [], None
+        return [], None, catalog
+    # An explicit backfill owns its target until it completes or is cancelled.
+    # Otherwise the opportunistic lane can consume its work without accounting
+    # for it in the backfill handle.
+    eligible: LiteralString = """
+        record_row.enriched_at is not null
+        and record_row.collection <> '_system'
+        and not record_row.annotations ? binding.processor
+        and coalesce(
+          record_row.enrichment_meta #>> array[binding.processor, 'terminal'], 'false'
+        ) <> 'true'
+        and (jsonb_array_length(binding.types) = 0 or binding.types ? record_row.type)
+        and not exists (
+          select 1 from backfill
+          where backfill.workspace = record_row.workspace
+            and backfill.collection = record_row.collection
+            and backfill.collection_version = record_row.collection_version
+            and backfill.processor = binding.processor
+            and backfill.state in ('queued', 'running')
+        )
+    """
     async with pool.connection() as conn, conn.transaction():
         first_result = await conn.execute(
-            """
-            select binding.processor
+            f"""
+            select record_row.workspace, binding.processor
             from record record_row
             join jsonb_to_recordset(%s::jsonb) as binding(
-              collection text, version int, processor text, types jsonb, ordinal int
+              workspace text, collection text, version int, processor text, types jsonb, ordinal int
             )
               on binding.collection = record_row.collection
              and binding.version = record_row.collection_version
-            where record_row.enriched_at is not null
-              and record_row.collection <> '_system'
-              and not record_row.annotations ? binding.processor
-              and coalesce(
-                record_row.enrichment_meta #>> array[binding.processor, 'terminal'],
-                'false'
-              ) <> 'true'
-              and (
-                jsonb_array_length(binding.types) = 0
-                or binding.types ? record_row.type
-              )
+             and (binding.workspace is null or binding.workspace = record_row.workspace)
+            where {eligible}
             order by record_row.seq, binding.ordinal
             limit 1
             """,
@@ -301,37 +321,29 @@ async def _snapshot_optional(
         )
         first = await first_result.fetchone()
         if first is None:
-            return [], None
+            return [], None, catalog
         selected_name = str(first["processor"])
+        selected_workspace = str(first["workspace"])
         result = await conn.execute(
             f"""
             select {_RECORD_COLUMNS_FROM_ROW}
             from record record_row
             join jsonb_to_recordset(%s::jsonb) as binding(
-              collection text, version int, processor text, types jsonb, ordinal int
+              workspace text, collection text, version int, processor text, types jsonb, ordinal int
             )
               on binding.collection = record_row.collection
              and binding.version = record_row.collection_version
+             and (binding.workspace is null or binding.workspace = record_row.workspace)
              and binding.processor = %s
-            where record_row.enriched_at is not null
-              and record_row.collection <> '_system'
-              and not record_row.annotations ? binding.processor
-              and coalesce(
-                record_row.enrichment_meta #>> array[binding.processor, 'terminal'],
-                'false'
-              ) <> 'true'
-              and (
-                jsonb_array_length(binding.types) = 0
-                or binding.types ? record_row.type
-              )
+            where record_row.workspace = %s and {eligible}
             order by record_row.seq
             limit %s
             for update of record_row skip locked
             """,
-            (Jsonb(bindings), selected_name, settings.enrich_batch),
+            (Jsonb(bindings), selected_name, selected_workspace, settings.enrich_batch),
         )
         rows = [_record_from_row(row) for row in await result.fetchall()]
-    return rows, selected_name
+    return rows, selected_name, catalogs.get(selected_workspace, catalog)
 
 
 def _required_names(record: _Record, catalog: DefinitionCatalog) -> tuple[str, ...]:
@@ -366,17 +378,20 @@ def _batch_rows(
     batches: list[list[_Record]] = []
     unpackable: list[_Record] = []
     current: list[_Record] = []
+    overhead = len((prefix + render_rows((), fence=_ENRICHMENT_FENCE)).encode("utf-8"))
+    used_bytes = overhead
     for record in records:
-        candidate = [*current, record]
-        fenced = _fence([(item, rendered[item.id]) for item in candidate])
-        if len(candidate) <= max_rows and _token_estimate(prefix + fenced) <= max_tokens:
-            current = candidate
+        size = len(rendered[record.id].encode("utf-8"))
+        candidate_bytes = used_bytes + size + bool(current)
+        if len(current) < max_rows and max(1, (candidate_bytes + 3) // 4) <= max_tokens:
+            current.append(record)
+            used_bytes = candidate_bytes
             continue
         if current:
             batches.append(current)
             current = []
-        fenced = _fence([(record, rendered[record.id])])
-        if _token_estimate(prefix + fenced) <= max_tokens:
+        used_bytes = overhead + size
+        if max(1, (used_bytes + 3) // 4) <= max_tokens:
             current = [record]
         else:
             unpackable.append(record)
@@ -520,7 +535,7 @@ async def _llm_scorer_results(
     truncated: dict[UUID, bool] = {}
     for record in records:
         value, was_truncated = truncate_middle(record.text, settings.scorer_text_chars)
-        rendered[record.id] = value
+        rendered[record.id] = _render_record(record, value)
         truncated[record.id] = was_truncated
     prefix = f"{scorer.prompt}\nDEFAULT {scorer.name}: {scorer.default}\n"
     batches, unpackable = _batch_rows(
@@ -546,7 +561,7 @@ async def _llm_scorer_results(
         )
     for batch_number, batch in enumerate(batches):
         batch_id = uuid4()
-        prompt = f"{prefix}{_fence([(record, rendered[record.id]) for record in batch])}"
+        prompt = f"{prefix}{render_rows([rendered[record.id] for record in batch], fence=_ENRICHMENT_FENCE)}"
         started_at = datetime.now(UTC)
         attempts: tuple[ModelAttempt, ...] = ()
         resolved_name: str | None = None
@@ -738,7 +753,7 @@ async def _generic_results(
     truncated: dict[UUID, bool] = {}
     for record in records:
         text, was_truncated = truncate_middle(record.text, settings.scorer_text_chars)
-        rendered[record.id] = text
+        rendered[record.id] = _render_record(record, text)
         truncated[record.id] = was_truncated
     schema = canonical_json(processor.effective_output_schema).decode("utf-8")
     prefix = (
@@ -782,7 +797,7 @@ async def _generic_results(
             )
         )
     for batch_number, batch in enumerate(batches):
-        prompt = f"{prefix}{_fence([(record, rendered[record.id]) for record in batch])}"
+        prompt = f"{prefix}{render_rows([rendered[record.id] for record in batch], fence=_ENRICHMENT_FENCE)}"
         batch_id = uuid4()
         started_at = datetime.now(UTC)
         attempts: tuple[ModelAttempt, ...] = ()
@@ -1383,19 +1398,21 @@ async def enrich_once(
             required=True,
         )
         return EnrichmentSweepResult("required", len(required_records), ready, written)
-    optional_records, processor = await _snapshot_optional(pool, settings, catalog)
+    optional_records, processor, effective_catalog = await _snapshot_optional(
+        pool, settings, catalog, catalog_for_workspace=catalog_for_workspace
+    )
     if optional_records and processor is not None:
         prepared = await _prepare(
             optional_records,
             settings,
-            catalog,
+            effective_catalog,
             required=False,
             optional_name=processor,
         )
         _ready, written = await _finalize(
             pool,
             settings,
-            catalog,
+            effective_catalog,
             optional_records,
             prepared,
             required=False,

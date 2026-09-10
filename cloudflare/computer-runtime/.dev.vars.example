@@ -1,0 +1,3 @@
+# Local development only. The demo launcher shares this value with API/worker.
+# Copy to .dev.vars; keep deployment secrets separate.
+MEMSEEK_RUNTIME_SECRET=local-computer-demo

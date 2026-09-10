@@ -1,0 +1,32 @@
+computers:
+  - name: fast_workspace
+    version: 1
+    active: true
+    provider: fake
+    writable: [/workspace, /outbox]
+    runtime: {default: worker-javascript}
+    capabilities: {filesystem: true, exec: true, network: false}
+    writeback:
+      - {path: /outbox/final-result.json, type: final_result, review: false}
+    retention: {workspace_days: 30, preserve: [/.memseek/manifest.json, /outbox]}
+
+  - name: research_workspace
+    version: 1
+    active: true
+    provider: fake
+    # No `context:`. An Agent's instructions and skills are the Agent's own
+    # declaration; a Computer mounts only what it provides regardless of which
+    # executor runs on it, and this one provides none.
+    writable: [/workspace, /outbox]
+    runtime:
+      default: worker-javascript
+      fallback: container
+      fallback_requires: explicit_policy
+    capabilities: {filesystem: true, exec: true, network: false}
+    writeback:
+      - {path: /outbox/observations.jsonl, type: observations, review: false, collection: task_observations@1, record_type: observation}
+      - {path: /outbox/proposals, type: maintained_state, review: true, collection: renewal_proposals@1, record_type: pricing_commitment}
+      - {path: /outbox/final-result.json, type: final_result, review: false}
+    retention:
+      workspace_days: 30
+      preserve: [/.memseek/manifest.json, /outbox, /workspace/final-result.json]

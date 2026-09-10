@@ -22,8 +22,8 @@ from memseek.migrations import (
 async def test_migration_is_idempotent_and_schema_is_present(
     settings: Settings, db_pool: DatabasePool
 ) -> None:
-    assert await apply_migrations(settings.database_url) == "0009_general_graph_indexes"
-    assert await apply_migrations(settings.database_url) == "0009_general_graph_indexes"
+    assert await apply_migrations(settings.database_url) == "0010_computer_invocations"
+    assert await apply_migrations(settings.database_url) == "0010_computer_invocations"
     async with db_pool.connection() as conn:
         result = await conn.execute(
             """
@@ -33,6 +33,8 @@ async def test_migration_is_idempotent_and_schema_is_present(
               to_regclass('public.record')::text as record,
               to_regclass('public.job')::text as job,
               to_regclass('public.artifact_use')::text as artifact_use,
+              to_regclass('public.computer_session')::text as computer_session,
+              to_regclass('public.invocation')::text as invocation,
               (select version_num from alembic_version) as revision,
               exists (select 1 from pg_extension where extname = 'vector') as vector
             """
@@ -44,7 +46,9 @@ async def test_migration_is_idempotent_and_schema_is_present(
         "record": "record",
         "job": "job",
         "artifact_use": "artifact_use",
-        "revision": "0009_general_graph_indexes",
+        "computer_session": "computer_session",
+        "invocation": "invocation",
+        "revision": "0010_computer_invocations",
         "vector": True,
     }
 
@@ -60,7 +64,7 @@ def test_normative_migration_checksum_drift_is_rejected(tmp_path: Path) -> None:
 def test_alembic_revision_graph_has_one_head(settings: Settings) -> None:
     config = build_alembic_config(settings.database_url)
     scripts = ScriptDirectory.from_config(config)
-    assert scripts.get_heads() == ["0009_general_graph_indexes"]
+    assert scripts.get_heads() == ["0010_computer_invocations"]
 
 
 def test_plain_postgresql_url_selects_installed_psycopg_driver() -> None:

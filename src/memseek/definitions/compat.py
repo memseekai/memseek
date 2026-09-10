@@ -359,6 +359,7 @@ _SIMPLE_FAMILIES: tuple[tuple[str, str, bool, str], ...] = (
     ("views", "view", True, "bump the view version if consumers pin it"),
     ("artifacts", "artifact", True, "bump the artifact version if consumers pin it"),
     ("mcps", "mcp", True, "bump the interface version"),
+    ("toolsets", "toolset", True, "bump the toolset version; Agents pin it exactly"),
     ("search_profiles", "search_profile", False, "none — routing only"),
 )
 
@@ -372,6 +373,7 @@ _MODIFIED_CLASS: Mapping[str, ChangeClass] = {
     "view": _INVISIBLE,
     "artifact": _INVISIBLE,
     "mcp": _INVISIBLE,
+    "toolset": _INVISIBLE,
     "search_profile": _INVISIBLE,
     "package": _INVISIBLE,
 }
@@ -388,6 +390,7 @@ _MODIFIED_DETAIL: Mapping[str, str] = {
     "view": "consumers see the new behavior immediately",
     "artifact": "past renders keep the hash they were produced under",
     "mcp": "declared interface changed",
+    "toolset": "the declared Agent tool surface changed",
     "search_profile": "affects routing for every collection that names it",
 }
 

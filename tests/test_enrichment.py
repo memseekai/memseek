@@ -11,6 +11,7 @@ from uuid import UUID
 import pytest
 from psycopg.types.json import Jsonb
 
+from memseek.auth import create_workspace
 from memseek.config import Settings
 from memseek.definitions import DefinitionCatalog, load_definition_catalog
 from memseek.definitions.models import ProcessorDefinition
@@ -772,3 +773,77 @@ async def test_derivation_group_accepts_fifty_outputs_and_rejects_fifty_one(
         )
     with pytest.raises(RuntimeError, match="50-output"):
         await enrich_once(db_pool, settings, catalog)
+
+
+async def test_required_batches_keep_interleaved_workspace_catalogs_separate(
+    db_pool: Any,
+    settings: Settings,
+) -> None:
+    base = load_definition_catalog(settings)
+    custom = _sentiment_catalog(base, required=True, client=True)
+    await create_workspace(db_pool, "first")
+    await create_workspace(db_pool, "second")
+    first = await _record(db_pool, custom, workspace="first", record_type="chat")
+    second = await _record(db_pool, base, workspace="second")
+    third = await _record(db_pool, custom, workspace="first", record_type="chat")
+    catalogs = {"first": custom, "second": base}
+
+    async def resolve(workspace: str) -> DefinitionCatalog:
+        return catalogs[workspace]
+
+    fake.reset()
+    result = await enrich_once(db_pool, settings, base, catalog_for_workspace=resolve)
+    assert (result.selected, result.ready) == (2, 2)
+    async with db_pool.connection() as conn:
+        rows = await (
+            await conn.execute(
+                "select id, annotations, enriched_at from record where id = any(%s::uuid[])",
+                ([first, second, third],),
+            )
+        ).fetchall()
+    by_id = {row["id"]: row for row in rows}
+    assert by_id[second]["enriched_at"] is None
+    assert all("sentiment_v1" in by_id[key]["annotations"] for key in (first, third))
+    result = await enrich_once(db_pool, settings, base, catalog_for_workspace=resolve)
+    assert (result.selected, result.ready) == (1, 1)
+
+
+async def test_optional_batches_use_workspace_bindings_and_global_eligible_order(
+    db_pool: Any,
+    settings: Settings,
+) -> None:
+    base = load_definition_catalog(settings)
+    custom = _sentiment_catalog(base, required=False)
+    for name in ("unconfigured", "first", "second"):
+        await create_workspace(db_pool, name)
+    # Neither an older row without a binding nor an ineligible type can starve work.
+    untouched = await _record(db_pool, base, workspace="unconfigured", enriched=True)
+    await _record(db_pool, custom, workspace="first", record_type="event", enriched=True)
+    oldest = await _record(db_pool, custom, workspace="second", record_type="chat", enriched=True)
+    later = await _record(db_pool, custom, workspace="first", record_type="chat", enriched=True)
+    same_workspace = await _record(
+        db_pool,
+        custom,
+        workspace="second",
+        record_type="message",
+        enriched=True,
+    )
+
+    async def resolve(workspace: str) -> DefinitionCatalog:
+        return base if workspace == "unconfigured" else custom
+
+    fake.reset()
+    result = await enrich_once(db_pool, settings, base, catalog_for_workspace=resolve)
+    assert (result.kind, result.selected, result.annotations_written) == ("optional", 2, 2)
+    async with db_pool.connection() as conn:
+        rows = await (
+            await conn.execute(
+                "select id, annotations from record where id = any(%s::uuid[])",
+                ([untouched, oldest, later, same_workspace],),
+            )
+        ).fetchall()
+    by_id = {row["id"]: row["annotations"] for row in rows}
+    assert by_id[untouched] == by_id[later] == {}
+    assert all("sentiment_v1" in by_id[key] for key in (oldest, same_workspace))
+    result = await enrich_once(db_pool, settings, base, catalog_for_workspace=resolve)
+    assert (result.selected, result.annotations_written) == (1, 1)

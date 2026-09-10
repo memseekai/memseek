@@ -1,0 +1,78 @@
+collections:
+  - name: renewal_evidence
+    version: 1
+    active: true
+    mode: mixed
+    schema:
+      type: object
+      required: [text, kind]
+      properties:
+        text: {type: string, minLength: 1}
+        kind: {type: string, enum: [contract, email, meeting, incident]}
+      additionalProperties: false
+    fields:
+      kind: {path: content.kind, type: string, filter: true, project: true}
+    required_processors: []
+    search_profile: pg_default
+    answerable: true
+
+  - name: contract_terms
+    version: 1
+    active: true
+    mode: event
+    schema:
+      type: object
+      required: [text, kind]
+      properties:
+        text: {type: string, minLength: 1}
+        kind: {const: contract_term}
+        value: {type: string}
+      additionalProperties: false
+    required_processors: [embedding_v1]
+    search_profile: pg_default
+    answerable: true
+
+  - name: renewal_risks
+    version: 1
+    active: true
+    mode: event
+    schema:
+      type: object
+      required: [text, kind, severity]
+      properties:
+        text: {type: string, minLength: 1}
+        kind: {const: renewal_risk}
+        severity: {type: string, enum: [low, medium, high]}
+      additionalProperties: false
+    required_processors: [embedding_v1, importance]
+    search_profile: pg_default
+    answerable: true
+
+  - name: task_observations
+    version: 1
+    active: true
+    mode: event
+    schema:
+      type: object
+      required: [text]
+      properties:
+        text: {type: string, minLength: 1}
+        kind: {const: observation}
+      additionalProperties: false
+    required_processors: [embedding_v1, importance]
+    search_profile: pg_default
+    answerable: true
+
+  - name: renewal_proposals
+    version: 1
+    active: true
+    mode: event
+    schema:
+      type: object
+      required: [text]
+      properties:
+        text: {type: string, minLength: 1}
+        kind: {const: pricing_commitment}
+      additionalProperties: false
+    required_processors: [embedding_v1, importance]
+    search_profile: pg_default

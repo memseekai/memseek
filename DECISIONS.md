@@ -4,6 +4,80 @@ This file records choices left open by the v3.2 specification. Normative require
 specification take precedence, except where a later dated entry below explicitly amends the
 specification's authoring surface.
 
+## The tool surface an Agent sees is declared — 2026-09-09
+
+An Agent's `tools:` field was a closed literal of two values, `computer` and `recall`, and
+one of them was not honored: the Cloudflare runtime installed the whole filesystem tool set
+unconditionally, so `tools: [recall]` still granted `write` and `delete`. `kind: skill` was
+checked once at catalog load and never again — a skill's whole body went into the system
+prompt whether or not the task needed it, at a numbered path carrying no identity. And the
+Computer carried `context:` mounts while the Agent carried `skills:`, so the same artifact
+could be, and in the shipped renewal example was, rendered into one prompt twice.
+
+### A new `toolsets/` family, and `mcp/` keeps its direction
+
+`mcp/*.yaml` publishes Memseek's operations *outward* to external clients. The new
+`toolsets/*.yaml` enumerates what an Agent may reach from *inside* a Computer. Extending
+`mcp:` to carry both was rejected: the two have different trust boundaries and different
+lifetimes, and conflating them would make one version bump mean two unrelated things.
+
+Toolsets have no `active:` alias, like MCP interfaces and for the same reason: an Agent binds
+one exact surface. A tool set that could change under a pinned Agent is not a surface. The
+cost is that rolling a toolset forward requires a new Agent version, which is correct — the
+tool surface is part of what the Agent is.
+
+### Tools are composed additively, never subtracted
+
+`@cloudflare/computer`'s `createAITools` returns a fixed set and appends a `publish` tool —
+which mints public asset URLs — whenever the workspace has an asset store. It is absent today
+only because this workspace has none. Any design that subtracts from that set therefore
+grants whatever the dependency adds next. The registry composes the package's granular
+factories per declared mode instead, so a surface can only contain what a catalog named.
+
+### Skills use the Agent SDK mechanism, and opt in through a description
+
+A skill artifact carrying a `description` materializes to
+`/.memseek/skills/<name>/SKILL.md` with frontmatter; only its name and description reach the
+prompt, and the procedure is loaded on demand. A skill artifact *without* one is inlined
+exactly as before. Requiring a description of every existing skill artifact was rejected:
+readback recompiles stored YAML, so a stricter validator turns a previously valid published
+catalog into a 503. The fallback is also the honest semantics — progressive disclosure needs
+something to offer, and without a description there is nothing to offer the skill by.
+
+Progressive disclosure is not unconditionally cheaper. A loaded skill's body re-enters
+context on every later step as tool-result history, while an inlined one appears once. It
+wins when skills are many and selectively relevant, and that guidance is in the docs.
+
+### `catalog_hash` neutrality is a tested property, not an intention
+
+`WorkspaceCatalog` recompiles stored YAML on every cache miss and 503s when the recompiled
+`catalog_hash` differs from the stored one. Adding a family key to the compiled payload would
+therefore strand every published catalog, including ones with no toolsets at all. The payload
+gains `toolsets` only when a catalog declares one, and every new optional field is omitted
+from its dump when unset. `tests/test_definitions.py` pins the reference catalog's hash as a
+literal constant; it did not move.
+
+`PackageDefinition.mcp` is deliberately *not* given the same treatment. It has dumped as an
+explicit null since it was added, and every package hash published since covers that null.
+
+### Live reads and staged writes are declared and refused
+
+`view` sources take `mode: snapshot | live` and `writeback` sources take
+`commit: outbox | staged`. Only the first value of each is executable. The second needs a host
+tool channel — an authenticated inbound endpoint, a grant ledger, and a staging table — that
+is a separate increment. Declaring the values now means adopting that channel changes an
+execution binding rather than re-authoring catalogs.
+
+`mcp_server` sources are validated and then refused. Tools execute in the Agent's Durable
+Object, which has unreviewed egress, while the Computer declares `capabilities.network:
+false`; an MCP source would be the first network path in a system that advertises none.
+
+### Known behavior change
+
+An Agent declaring `tools: [recall]` will stop receiving filesystem tools. That is the
+correct reading of the declaration and the point of the change, but it is a change: the
+runtime granted them regardless before. The one Agent in this repository declares both.
+
 ## Answer scope is declared, not a fixed vocabulary — 2026-08-03
 
 `POST /answer` resolved a hardcoded tuple of ten collection names — `main`, `pages`,

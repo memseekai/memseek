@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+import json
 import logging
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
@@ -11,7 +13,7 @@ from uuid import UUID
 
 from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
 from memseek.answer import AnswerError, AnswerRequest, answer_question
@@ -22,6 +24,7 @@ from memseek.auth import (
     authenticate_api_key,
     parse_bearer_header,
 )
+from memseek.computers import computer_provider_lifespan
 from memseek.config import Settings, get_settings
 from memseek.db import (
     DatabasePool,
@@ -31,6 +34,18 @@ from memseek.db import (
     verify_storage_compatibility,
 )
 from memseek.erase import ErasureError, ErasureRequest, erase
+from memseek.invocations import (
+    TERMINAL_INVOCATION_STATUSES,
+    InvocationCreate,
+    InvocationError,
+    InvocationTurn,
+    cancel_invocation,
+    continue_invocation,
+    create_invocation,
+    list_invocation_artifacts,
+    read_invocation,
+    read_invocation_events,
+)
 from memseek.logging import configure_logging, log_event
 from memseek.records import (
     DedupeConflict,
@@ -193,7 +208,7 @@ async def _authenticated_workspace(request: Request) -> str:
         raise _RequestRejected(401, "unauthorized", "invalid bearer credential")
     registry: WorkspaceCatalogRegistry = request.app.state.catalog_registry
     try:
-        request.state.catalog = await registry.get(workspace)
+        request.state.catalog, request.state.package = await registry.resolve(workspace)
     except WorkspaceCatalogError as exc:
         if exc.code != "no_catalog":
             raise
@@ -302,12 +317,10 @@ _ArtifactUseId = Annotated[
     UUID,
     Depends(_uuid_path("use_id", "use_id must be a UUID", code="request_schema")),
 ]
-
-
-def _load_catalog(settings: Settings) -> DefinitionCatalog:
-    from memseek.definitions import load_definition_catalog
-
-    return load_definition_catalog(settings)
+_InvocationId = Annotated[
+    UUID,
+    Depends(_uuid_path("invocation_id", "invocation id must be a UUID")),
+]
 
 
 def create_app(
@@ -332,7 +345,9 @@ def create_app(
         configure_logging(logging.DEBUG if runtime_settings.llm_debug else logging.INFO)
         runtime_pool = pool or create_pool(runtime_settings)
         try:
-            runtime_catalog = catalog or _load_catalog(runtime_settings)
+            from memseek.definitions import load_definition_catalog
+
+            runtime_catalog = catalog or load_definition_catalog(runtime_settings)
             await open_pool(runtime_pool)
             if verify_storage:
                 # Semantic compatibility is workspace-scoped once packages can
@@ -355,7 +370,7 @@ def create_app(
                 max_size=runtime_settings.api_key_cache_size,
             )
             assert mcp_http_runtime is not None
-            async with mcp_http_runtime.run():
+            async with mcp_http_runtime.run(), computer_provider_lifespan(runtime_settings):
                 log_event(LOGGER, "info", "api.started")
                 yield
         except BaseException as exc:
@@ -468,7 +483,7 @@ def create_app(
                 report, *_ = await registry.preflight(workspace, body)
                 return JSONResponse(status_code=200, content=report.as_json())
             result = await registry.install(workspace, body)
-            request.state.catalog = await registry.get(workspace)
+            request.state.catalog, request.state.package = await registry.resolve(workspace)
         except WorkspaceCatalogError as exc:
             return _catalog_error_response(exc)
         except Exception as exc:
@@ -562,6 +577,288 @@ def create_app(
                 return _error_response(409, "job_retry_conflict", str(exc))
             return _read_failure(exc, "jobs.retry_failed", workspace)
         return JSONResponse(status_code=200, content=status)
+
+    @application.post("/invocations")
+    async def start_invocation(
+        request: Request,
+        workspace: _AuthenticatedWorkspace,
+        body: InvocationCreate,
+    ) -> JSONResponse:
+        try:
+            result = await create_invocation(
+                request.app.state.pool,
+                workspace=workspace,
+                request=body,
+                catalog=_request_catalog(request),
+            )
+        except InvocationError as exc:
+            return _error_response(exc.status, exc.code, exc.detail)
+        except Exception as exc:
+            return _read_failure(exc, "invocations.create_failed", workspace)
+        return JSONResponse(status_code=202, content=result)
+
+    @application.get("/invocations/{invocation_id}")
+    async def get_invocation(
+        request: Request,
+        invocation_id: _InvocationId,
+        workspace: _AuthenticatedWorkspace,
+    ) -> JSONResponse:
+        try:
+            result = await read_invocation(
+                request.app.state.pool,
+                workspace=workspace,
+                invocation_id=invocation_id,
+            )
+        except InvocationError as exc:
+            return _error_response(exc.status, exc.code, exc.detail)
+        except Exception as exc:
+            return _read_failure(exc, "invocations.read_failed", workspace)
+        return JSONResponse(status_code=200, content=result)
+
+    @application.get("/invocations/{invocation_id}/events")
+    async def get_invocation_events(
+        request: Request,
+        invocation_id: _InvocationId,
+        workspace: _AuthenticatedWorkspace,
+        after: int = 0,
+        limit: int = 100,
+    ) -> JSONResponse:
+        try:
+            result = await read_invocation_events(
+                request.app.state.pool,
+                workspace=workspace,
+                invocation_id=invocation_id,
+                after=after,
+                limit=limit,
+            )
+        except InvocationError as exc:
+            return _error_response(exc.status, exc.code, exc.detail)
+        except Exception as exc:
+            return _read_failure(exc, "invocations.events_failed", workspace)
+        return JSONResponse(status_code=200, content=result)
+
+    @application.get("/invocations/{invocation_id}/events/stream", response_model=None)
+    async def stream_invocation_events(
+        request: Request,
+        invocation_id: _InvocationId,
+        workspace: _AuthenticatedWorkspace,
+        after: int = 0,
+    ) -> StreamingResponse | JSONResponse:
+        try:
+            await read_invocation(
+                request.app.state.pool,
+                workspace=workspace,
+                invocation_id=invocation_id,
+            )
+        except InvocationError as exc:
+            return _error_response(exc.status, exc.code, exc.detail)
+
+        async def event_stream() -> AsyncIterator[str]:
+            cursor = max(0, after)
+            while True:
+                if await request.is_disconnected():
+                    return
+                page = await read_invocation_events(
+                    request.app.state.pool,
+                    workspace=workspace,
+                    invocation_id=invocation_id,
+                    after=cursor,
+                    limit=100,
+                )
+                for event in page["events"]:
+                    cursor = int(event["ordinal"])
+                    yield (
+                        f"id: {cursor}\n"
+                        f"event: {event['kind']}\n"
+                        f"data: {json.dumps(event, separators=(',', ':'))}\n\n"
+                    )
+                current = await read_invocation(
+                    request.app.state.pool,
+                    workspace=workspace,
+                    invocation_id=invocation_id,
+                )
+                if current["status"] in TERMINAL_INVOCATION_STATUSES and not page["events"]:
+                    return
+                await asyncio.sleep(0.5)
+
+        return StreamingResponse(
+            event_stream(),
+            media_type="text/event-stream",
+            headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+        )
+
+    @application.post("/invocations/{invocation_id}/turns")
+    async def add_invocation_turn(
+        request: Request,
+        invocation_id: _InvocationId,
+        workspace: _AuthenticatedWorkspace,
+        body: InvocationTurn,
+    ) -> JSONResponse:
+        try:
+            result = await continue_invocation(
+                request.app.state.pool,
+                workspace=workspace,
+                invocation_id=invocation_id,
+                turn=body,
+            )
+        except InvocationError as exc:
+            return _error_response(exc.status, exc.code, exc.detail)
+        except Exception as exc:
+            return _read_failure(exc, "invocations.turn_failed", workspace)
+        return JSONResponse(status_code=202, content=result)
+
+    @application.post("/invocations/{invocation_id}/cancel")
+    async def stop_invocation(
+        request: Request,
+        invocation_id: _InvocationId,
+        workspace: _AuthenticatedWorkspace,
+    ) -> JSONResponse:
+        try:
+            result = await cancel_invocation(
+                request.app.state.pool,
+                workspace=workspace,
+                invocation_id=invocation_id,
+            )
+        except InvocationError as exc:
+            return _error_response(exc.status, exc.code, exc.detail)
+        except Exception as exc:
+            return _read_failure(exc, "invocations.cancel_failed", workspace)
+        return JSONResponse(status_code=200, content=result)
+
+    @application.post("/invocations/{invocation_id}/fork")
+    async def fork_invocation(
+        request: Request,
+        invocation_id: _InvocationId,
+        workspace: _AuthenticatedWorkspace,
+        body: InvocationCreate,
+    ) -> JSONResponse:
+        try:
+            parent = await read_invocation(
+                request.app.state.pool,
+                workspace=workspace,
+                invocation_id=invocation_id,
+            )
+            fork_payload = body.model_dump(mode="json")
+            fork_payload["session"] = {
+                "mode": "fork",
+                "session_id": parent["session_id"],
+            }
+            fork_request = InvocationCreate.model_validate(fork_payload)
+            result = await create_invocation(
+                request.app.state.pool,
+                workspace=workspace,
+                request=fork_request,
+                catalog=_request_catalog(request),
+            )
+        except (InvocationError, ValidationError) as exc:
+            if isinstance(exc, InvocationError):
+                return _error_response(exc.status, exc.code, exc.detail)
+            return _error_response(422, "request_schema", _validation_detail(exc))
+        except Exception as exc:
+            return _read_failure(exc, "invocations.fork_failed", workspace)
+        return JSONResponse(status_code=202, content=result)
+
+    @application.get("/invocations/{invocation_id}/artifacts")
+    async def get_invocation_artifacts(
+        request: Request,
+        invocation_id: _InvocationId,
+        workspace: _AuthenticatedWorkspace,
+    ) -> JSONResponse:
+        try:
+            await read_invocation(
+                request.app.state.pool,
+                workspace=workspace,
+                invocation_id=invocation_id,
+            )
+            result = await list_invocation_artifacts(
+                request.app.state.pool,
+                workspace=workspace,
+                invocation_id=invocation_id,
+            )
+        except InvocationError as exc:
+            return _error_response(exc.status, exc.code, exc.detail)
+        except Exception as exc:
+            return _read_failure(exc, "invocations.artifacts_failed", workspace)
+        return JSONResponse(status_code=200, content=result)
+
+    @application.get("/invocations/{invocation_id}/artifacts/{artifact_id}")
+    async def get_invocation_artifact(
+        request: Request,
+        invocation_id: _InvocationId,
+        artifact_id: UUID,
+        workspace: _AuthenticatedWorkspace,
+    ) -> JSONResponse:
+        from memseek.invocations import read_invocation_artifact
+
+        try:
+            result = await read_invocation_artifact(
+                request.app.state.pool,
+                workspace=workspace,
+                invocation_id=invocation_id,
+                artifact_id=artifact_id,
+            )
+        except InvocationError as exc:
+            return _error_response(exc.status, exc.code, exc.detail)
+        except Exception as exc:
+            return _read_failure(exc, "invocations.artifact_failed", workspace)
+        return JSONResponse(status_code=200, content=result)
+
+    @application.get("/invocations/{invocation_id}/memory")
+    async def get_invocation_memory(
+        request: Request,
+        invocation_id: _InvocationId,
+        workspace: _AuthenticatedWorkspace,
+        kind: Literal["working_brief", "episode_receipt"] | None = None,
+        limit: Annotated[int, Field(ge=1, le=200)] = 50,
+    ) -> JSONResponse:
+        from memseek.evidence_spine import read_memory_nodes
+
+        try:
+            await read_invocation(
+                request.app.state.pool,
+                workspace=workspace,
+                invocation_id=invocation_id,
+            )
+            result = await read_memory_nodes(
+                request.app.state.pool,
+                workspace=workspace,
+                invocation_id=invocation_id,
+                kind=kind,
+                limit=limit,
+            )
+        except InvocationError as exc:
+            return _error_response(exc.status, exc.code, exc.detail)
+        except ValueError as exc:
+            return _error_response(422, "request", str(exc))
+        except Exception as exc:
+            return _read_failure(exc, "invocations.memory_failed", workspace)
+        return JSONResponse(status_code=200, content=result)
+
+    @application.get("/invocations/{invocation_id}/recall")
+    async def recall_invocation_route(
+        request: Request,
+        invocation_id: _InvocationId,
+        workspace: _AuthenticatedWorkspace,
+        q: Annotated[str, Field(min_length=1, max_length=512)],
+        limit: Annotated[int, Field(ge=1, le=50)] = 20,
+    ) -> JSONResponse:
+        from memseek.evidence_spine import recall_invocation
+
+        try:
+            result = await recall_invocation(
+                request.app.state.pool,
+                workspace=workspace,
+                invocation_id=invocation_id,
+                query=q,
+                limit=limit,
+            )
+            if result.pop("not_found"):
+                return _error_response(404, "not_found", "invocation not found")
+        except ValueError as exc:
+            return _error_response(422, "request", str(exc))
+        except Exception as exc:
+            return _read_failure(exc, "invocations.recall_failed", workspace)
+        return JSONResponse(status_code=200, content=result)
 
     @application.post("/backfill")
     async def create_backfill(
@@ -1069,16 +1366,12 @@ def create_app(
     async def list_tools(request: Request, workspace: _AuthenticatedWorkspace) -> JSONResponse:
         from memseek.tools import tool_definitions_payload
 
-        registry: WorkspaceCatalogRegistry = request.app.state.catalog_registry
         return JSONResponse(
             status_code=200,
             content=tool_definitions_payload(
                 request.app.state.settings,
                 catalog=_request_catalog(request),
-                package=await registry.selected_package(
-                    workspace,
-                    catalog=_request_catalog(request),
-                ),
+                package=request.state.package,
             ),
         )
 
@@ -1326,15 +1619,14 @@ def _catalog_error_response(exc: WorkspaceCatalogError) -> JSONResponse:
 
 
 def _bounded_json(content: dict[str, Any], settings: Settings) -> JSONResponse:
-    from memseek.views.shared import json_size
-
-    if json_size(content) > settings.max_response_bytes:
+    response = JSONResponse(status_code=200, content=content)
+    if len(response.body) > settings.max_response_bytes:
         return _error_response(
             409,
             "response_too_large",
             "response exceeds MAX_RESPONSE_BYTES; reduce k, include, fields, or annotations",
         )
-    return JSONResponse(status_code=200, content=content)
+    return response
 
 
 def _artifact_failure(exc: Exception, event: str, workspace: str) -> JSONResponse:
