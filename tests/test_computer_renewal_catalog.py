@@ -299,9 +299,7 @@ async def test_interactive_outbox_auto_ingests_observation_and_stages_proposal(
             for item in json.loads(request.context_files["/.memseek/writeback-schemas.json"])
         }
         assert schemas["/outbox/observations.jsonl"]["additionalProperties"] is False
-        assert schemas["/outbox/proposals"]["properties"]["kind"] == {
-            "const": "pricing_commitment"
-        }
+        assert schemas["/outbox/proposals"]["properties"]["kind"] == {"const": "pricing_commitment"}
         proposal = {
             "text": "Offer a new 12% renewal discount.",
             "content": {"kind": "pricing_commitment"},
