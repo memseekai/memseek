@@ -374,7 +374,6 @@ surface to match your application:
 | Catalog | What it demonstrates |
 | --- | --- |
 | [`agent_memory_catalog`](examples/agent_memory_catalog/) | Four layers from raw messages to atomic memories, scenes, persona, and maintained procedures |
-| [`workspace_wiki_catalog`](examples/workspace_wiki_catalog/) | Codex session reports maintained as a small, cited workspace wiki with a slower hygiene pass |
 | [`crm_profile_catalog`](examples/crm_profile_catalog/) | Current customer facts and summaries derived from CRM history |
 | [`gbrain_catalog`](examples/gbrain_catalog/) | A larger knowledge catalog with facts, graph edges, concepts, patterns, synthesis, and repair |
 
