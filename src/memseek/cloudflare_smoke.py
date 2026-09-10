@@ -36,7 +36,7 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 CATALOG_ROOT = REPOSITORY_ROOT / "examples" / "computer_renewal_catalog"
 WORKSPACE = "cloudflare-agent-smoke"
 COMPUTER_REF = "research_workspace@1"
-AGENT_REF = "renewal_analyst@1"
+AGENT_REF = "renewal_analyst@2"
 CONTEXT_POLICY_REF = "evidence_spine@1"
 PROOF_PATH = "/workspace/proof.json"
 OUTPUT_PATH = "/outbox/final-result.json"
@@ -75,6 +75,7 @@ def _catalog_settings(settings: Settings) -> Settings:
             "programs_dir": root / "programs",
             "agents_dir": root / "agents",
             "context_policies_dir": root / "context_policies",
+            "toolsets_dir": root / "toolsets",
             "mcp_dir": root / "mcp",
             "packages_dir": root / "packages",
             "search_profiles_file": root / "conf/search_profiles.yaml",
@@ -350,15 +351,18 @@ async def run_cloudflare_agent_smoke(
         )
     plan = build_cloudflare_smoke_plan(settings, run_id)
     report = progress or (lambda _message: None)
-    report("[1/3] checking the deployed Cloudflare runtime")
+    report("[1/3] checking the Cloudflare runtime")
     await _check_health(settings)
     provider = RemoteComputerProvider(settings)
-    report("[2/3] asking Workers AI to write the durable proof file")
-    write_result = await provider.execute(plan.write_request)
-    write_summary = validate_cloudflare_smoke_result(write_result, plan, "write")
-    report("[3/3] starting a fresh task that must reopen the same proof file")
-    read_result = await provider.execute(plan.read_request)
-    read_summary = validate_cloudflare_smoke_result(read_result, plan, "read")
+    try:
+        report("[2/3] asking Workers AI to write the durable proof file")
+        write_result = await provider.execute(plan.write_request)
+        write_summary = validate_cloudflare_smoke_result(write_result, plan, "write")
+        report("[3/3] starting a fresh task that must reopen the same proof file")
+        read_result = await provider.execute(plan.read_request)
+        read_summary = validate_cloudflare_smoke_result(read_result, plan, "read")
+    finally:
+        await provider.aclose()
     return {
         "ok": True,
         "runtime": settings.computer_runtime_url.rstrip("/"),
@@ -402,7 +406,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     except (ComputerExecutionError, SmokeFailure) as exc:
         print(f"Cloudflare Agent smoke failed: {exc}", file=sys.stderr)
         print(
-            "Inspect the deployed Worker with wrangler tail for the underlying exception.",
+            "Inspect computer.execution_failed in the runtime log (or wrangler tail for a deployment).",
             file=sys.stderr,
         )
         return 1

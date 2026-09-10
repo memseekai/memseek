@@ -13,6 +13,7 @@ from urllib.parse import urlsplit
 from pydantic import Field, field_validator, model_serializer, model_validator
 
 from .base import (
+    SKILL_NAME_PATTERN,
     DefinitionModel,
     EmbeddingSpace,
     EnvVarName,
@@ -21,6 +22,7 @@ from .base import (
     ProviderName,
     PublicName,
     SemVer,
+    SkillName,
     StrictModel,
     VersionedDefinition,
     ensure_unique,
@@ -828,6 +830,10 @@ class ArtifactLearning(StrictModel):
 
 class ArtifactDefinition(VersionedDefinition):
     kind: Literal["prompt", "skill", "profile", "policy"]
+    # One line describing when this artifact applies.  A skill is disclosed to a
+    # model by name and description *before* its body is loaded, so a skill that
+    # is offered as a tool must carry one; everywhere else it is documentation.
+    description: NonBlank | None = None
     lifecycle: Literal["live", "reviewed"]
     parameters: dict[PublicName, ParameterDefinition] = Field(default_factory=dict)
     blocks: dict[PublicName, ArtifactBlock]
@@ -836,6 +842,13 @@ class ArtifactDefinition(VersionedDefinition):
     candidate_processor: ProcessorName | None = None
     complete_keys: tuple[str, ...] = ()
     learning: ArtifactLearning | None = None
+
+    @model_serializer(mode="wrap")
+    def _serialize(self, handler: Any) -> dict[str, Any]:
+        dumped = dict(handler(self))
+        if self.description is None:
+            dumped.pop("description", None)
+        return dumped
 
     @model_validator(mode="after")
     def validate_lifecycle(self) -> ArtifactDefinition:
@@ -1045,9 +1058,19 @@ class AgentDefinition(VersionedDefinition):
     instructions: str
     skills: tuple[str, ...] = ()
     tools: tuple[Literal["computer", "recall"], ...] = ("computer", "recall")
+    # The declared tool surface.  `tools` and `skills` are the pre-toolset
+    # spelling of the same fact, kept working so published catalogs stay valid.
+    toolset: str | None = None
     computers: tuple[str, ...]
     context_policy: str
     limits: AgentLimits = Field(default_factory=AgentLimits)
+
+    @model_serializer(mode="wrap")
+    def _serialize(self, handler: Any) -> dict[str, Any]:
+        dumped = dict(handler(self))
+        if self.toolset is None:
+            dumped.pop("toolset", None)
+        return dumped
 
     @model_validator(mode="after")
     def validate_agent(self) -> AgentDefinition:
@@ -1062,6 +1085,14 @@ class AgentDefinition(VersionedDefinition):
         ensure_unique(self.computers, "agent computers")
         if not self.computers:
             raise ValueError("agent requires at least one allowed computer")
+        if self.toolset is not None:
+            _require_exact_definition_reference(self.toolset, "agent toolset")
+            # Declaring both would give an Agent two tool surfaces and no rule
+            # for which wins.  `model_fields_set` is what distinguishes "the
+            # author wrote the default" from "the author wrote nothing".
+            declared = self.model_fields_set & {"tools", "skills"}
+            if declared:
+                raise ValueError(f"agent toolset is exclusive with {sorted(declared)}")
         return self
 
 
@@ -1254,6 +1285,205 @@ def _require_exact_definition_reference(reference: str, kind: str) -> None:
         raise ValueError(f"{kind} must be an exact name@version reference") from exc
 
 
+ToolSourceKind = Literal["filesystem", "exec", "recall", "writeback", "skill", "view", "mcp_server"]
+FilesystemMode = Literal["read", "ls", "find", "grep", "write", "edit", "delete"]
+
+# What each source kind requires and what it may additionally carry.  Stating
+# the exclusivity rule once as data keeps seven kinds from becoming seven
+# near-identical branches; the checks that are genuinely per-kind — exact
+# references, path prefixes, URL scheme — stay explicit in the validator.
+_TOOL_SOURCE_FIELDS: Mapping[str, tuple[frozenset[str], frozenset[str]]] = {
+    "filesystem": (frozenset({"modes"}), frozenset({"root"})),
+    "exec": (frozenset(), frozenset()),
+    "recall": (frozenset(), frozenset()),
+    "writeback": (frozenset({"path"}), frozenset({"commit"})),
+    "skill": (frozenset({"artifact"}), frozenset({"skill_name"})),
+    "view": (frozenset({"view"}), frozenset({"arguments", "mode"})),
+    "mcp_server": (frozenset({"url"}), frozenset({"allowed_tools"})),
+}
+_TOOL_SOURCE_BINDINGS = frozenset(
+    {
+        "root",
+        "modes",
+        "path",
+        "commit",
+        "artifact",
+        "skill_name",
+        "view",
+        "arguments",
+        "mode",
+        "url",
+        "allowed_tools",
+    }
+)
+# Two sources of one of these kinds would be two identically-behaving tools the
+# model has to choose between.  Skills are deliberately absent: many skill
+# sources produce one tool with many choices, not many tools.
+_SINGLETON_TOOL_KINDS = frozenset({"filesystem", "exec", "recall"})
+
+
+def _derived_skill_name(reference: str) -> str:
+    """The skill name implied by an artifact reference.
+
+    Artifact names may carry dots and underscores; a skill name may not, because
+    it becomes a path segment and a value the model types.  Where the mapping is
+    not obvious the author declares ``skill_name`` instead.
+    """
+
+    name, _ = split_exact_reference(reference)
+    return name.replace("_", "-").replace(".", "-")
+
+
+class ToolSourceDefinition(StrictModel):
+    """One capability an Agent may reach through its toolset.
+
+    A source is a *binding*, not an implementation: it names the exact catalog
+    definition a tool operates on, so the surface an Agent sees is auditable
+    from the catalog alone.  Nothing here is implicit — a filesystem source that
+    does not list ``write`` grants no write tool — because the alternative is a
+    surface that silently widens when a dependency adds a tool.
+    """
+
+    name: PublicName
+    kind: ToolSourceKind
+    # Required for every kind except `skill`.  A skill's description belongs to
+    # the skill: two toolsets that each described the same skill would be two
+    # different promises about one body of text.
+    description: NonBlank | None = None
+    root: str | None = None
+    modes: tuple[FilesystemMode, ...] | None = None
+    path: str | None = None
+    commit: Literal["outbox", "staged"] | None = None
+    artifact: str | None = None
+    skill_name: SkillName | None = None
+    view: str | None = None
+    arguments: dict[PublicName, str | int | float | bool] | None = None
+    mode: Literal["snapshot", "live"] | None = None
+    url: str | None = None
+    allowed_tools: tuple[PublicName, ...] | None = None
+
+    @model_serializer(mode="wrap")
+    def _serialize(self, handler: Any) -> dict[str, Any]:
+        """Omit every binding this source does not use.
+
+        Same reason as ``McpToolDefinition._serialize``: a definition's identity
+        covers its whole dumped form, so a null for a field this source never
+        declared would restate it.
+        """
+
+        dumped = dict(handler(self))
+        for field_name in (*_TOOL_SOURCE_BINDINGS, "description"):
+            if getattr(self, field_name) is None:
+                dumped.pop(field_name, None)
+        return dumped
+
+    @model_validator(mode="after")
+    def validate_source(self) -> ToolSourceDefinition:
+        required, optional = _TOOL_SOURCE_FIELDS[self.kind]
+        for field_name in _TOOL_SOURCE_BINDINGS:
+            declared = getattr(self, field_name) is not None
+            if field_name in required and not declared:
+                raise ValueError(f"{self.kind} tool source requires {field_name}")
+            if declared and field_name not in required and field_name not in optional:
+                raise ValueError(f"{self.kind} tool source forbids {field_name}")
+        if self.kind == "skill":
+            if self.description is not None:
+                raise ValueError(
+                    "skill tool source forbids description; it belongs on the artifact"
+                )
+            assert self.artifact is not None
+            _require_exact_definition_reference(self.artifact, "tool source artifact")
+            if self.skill_name is None:
+                _validate_derived_skill_name(self.artifact)
+        elif self.description is None:
+            raise ValueError(f"{self.kind} tool source requires description")
+        if self.kind == "filesystem":
+            assert self.modes is not None
+            if not self.modes:
+                raise ValueError("filesystem tool source requires at least one mode")
+            ensure_unique(self.modes, "filesystem modes")
+            if self.root is not None:
+                _absolute_computer_path(self.root, "tool source root")
+        if self.kind == "writeback":
+            assert self.path is not None
+            _absolute_computer_path(self.path, "tool source path")
+            if not self.path.startswith("/outbox/"):
+                raise ValueError("writeback tool sources must name a path below /outbox")
+            if self.commit == "staged":
+                # Staged writes need the host tool channel, which does not exist
+                # yet.  Declaring the value early would promise a durability the
+                # runtime cannot deliver, so it is refused until the channel and
+                # its promotion step land together.
+                raise ValueError("writeback commit 'staged' requires the host tool channel")
+        if self.kind == "view":
+            assert self.view is not None
+            _require_exact_definition_reference(self.view, "tool source view")
+            if self.mode == "live":
+                raise ValueError("view mode 'live' requires the host tool channel")
+        if self.kind == "mcp_server":
+            assert self.url is not None
+            _validate_endpoint_url(self.url)
+            if self.allowed_tools is not None:
+                ensure_unique(self.allowed_tools, "allowed_tools")
+        return self
+
+    @property
+    def resolved_skill_name(self) -> str:
+        assert self.kind == "skill"
+        assert self.artifact is not None
+        return self.skill_name or _derived_skill_name(self.artifact)
+
+
+def _validate_derived_skill_name(reference: str) -> None:
+    derived = _derived_skill_name(reference)
+    if not re.fullmatch(SKILL_NAME_PATTERN, derived):
+        raise ValueError(
+            f"artifact {reference!r} implies invalid skill name {derived!r}; declare skill_name"
+        )
+
+
+class ToolsetDefinition(DefinitionModel):
+    """The inbound tool surface one Agent may consume.
+
+    The counterpart to :class:`McpDefinition`.  That one publishes memseek's own
+    operations *outward* to external clients; this one enumerates, exactly, what
+    an Agent running inside a Computer may reach.  Like an MCP interface it has
+    no active alias: an Agent binds one exact surface, because a tool set that
+    could change under a pinned Agent is not a surface at all.
+    """
+
+    version: int = Field(ge=1)
+    title: NonBlank | None = None
+    instructions: NonBlank | None = None
+    sources: tuple[ToolSourceDefinition, ...]
+
+    @model_serializer(mode="wrap")
+    def _serialize(self, handler: Any) -> dict[str, Any]:
+        dumped = dict(handler(self))
+        for field_name in ("title", "instructions"):
+            if getattr(self, field_name) is None:
+                dumped.pop(field_name, None)
+        return dumped
+
+    @model_validator(mode="after")
+    def validate_sources(self) -> ToolsetDefinition:
+        if not self.sources:
+            raise ValueError("toolset requires at least one source")
+        ensure_unique([source.name for source in self.sources], "toolset source names")
+        for kind in sorted(_SINGLETON_TOOL_KINDS):
+            if sum(source.kind == kind for source in self.sources) > 1:
+                raise ValueError(f"toolset declares more than one {kind} source")
+        ensure_unique(
+            [source.resolved_skill_name for source in self.sources if source.kind == "skill"],
+            "toolset skill names",
+        )
+        ensure_unique(
+            [source.path for source in self.sources if source.kind == "writeback"],
+            "toolset writeback paths",
+        )
+        return self
+
+
 class PackageDefinition(DefinitionModel):
     version: SemVer
     collections: tuple[str, ...] = ()
@@ -1265,6 +1495,7 @@ class PackageDefinition(DefinitionModel):
     programs: tuple[str, ...] = ()
     agents: tuple[str, ...] = ()
     context_policies: tuple[str, ...] = ()
+    toolsets: tuple[str, ...] = ()
     search_profiles: tuple[PublicName, ...] = ()
     optional_search_profiles: tuple[PublicName, ...] = ()
     retentions: tuple[TombstoneRetention, ...] = ()
@@ -1272,6 +1503,21 @@ class PackageDefinition(DefinitionModel):
     # permits existing catalogs to remain valid while preserving an explicit,
     # curatable MCP surface for every package that does define one.
     mcp: str | None = None
+
+    @model_serializer(mode="wrap")
+    def _serialize(self, handler: Any) -> dict[str, Any]:
+        """Omit ``toolsets`` until a package declares one.
+
+        NOTE: ``mcp`` is deliberately *not* popped here.  It has dumped as an
+        explicit null since it was added, and every package hash published since
+        then covers that null.  Popping it now would restate all of them, which
+        is the exact failure this method exists to prevent.
+        """
+
+        dumped = dict(handler(self))
+        if not self.toolsets:
+            dumped.pop("toolsets", None)
+        return dumped
 
     @model_validator(mode="after")
     def validate_manifest(self) -> PackageDefinition:
@@ -1285,6 +1531,7 @@ class PackageDefinition(DefinitionModel):
             "programs",
             "agents",
             "context_policies",
+            "toolsets",
             "search_profiles",
             "optional_search_profiles",
         ):

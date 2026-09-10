@@ -51,6 +51,7 @@ def _settings(settings: Settings) -> Settings:
             "programs_dir": ROOT / "programs",
             "agents_dir": ROOT / "agents",
             "context_policies_dir": ROOT / "context_policies",
+            "toolsets_dir": ROOT / "toolsets",
             "mcp_dir": ROOT / "mcp",
             "packages_dir": ROOT / "packages",
             "triggers_dir": None,
@@ -155,7 +156,7 @@ async def test_renewal_fixture_runs_program_and_agent_derivations(
 
     FAKE_COMPUTER_PROVIDER.clear()
     FAKE_COMPUTER_PROVIDER.register_program("contract_extract@3", extract)
-    FAKE_COMPUTER_PROVIDER.register_agent("renewal_analyst@1", assess)
+    FAKE_COMPUTER_PROVIDER.register_agent("renewal_analyst@2", assess)
     try:
         direct = _execution(
             catalog.derivations["contract_extract"],
@@ -223,7 +224,7 @@ async def test_renewal_fixture_runs_program_and_agent_derivations(
         )
         assert agentic.output[0]["content"]["severity"] == "high"
         assert agentic.computer_trace is not None
-        assert agentic.computer_trace[0]["executor"] == "renewal_analyst@1"
+        assert agentic.computer_trace[0]["executor"] == "renewal_analyst@2"
     finally:
         FAKE_COMPUTER_PROVIDER.clear()
 
@@ -292,6 +293,14 @@ async def test_interactive_outbox_auto_ingests_observation_and_stages_proposal(
             "text": "The uptime miss is material renewal evidence.",
             "content": {"kind": "observation"},
             "citations": [str(evidence_id)],
+        }
+        schemas = {
+            item["path"]: item["schema"]
+            for item in json.loads(request.context_files["/.memseek/writeback-schemas.json"])
+        }
+        assert schemas["/outbox/observations.jsonl"]["additionalProperties"] is False
+        assert schemas["/outbox/proposals"]["properties"]["kind"] == {
+            "const": "pricing_commitment"
         }
         proposal = {
             "text": "Offer a new 12% renewal discount.",

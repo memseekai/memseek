@@ -26,7 +26,8 @@ Start from what you want to say, in words:
 | …save a search my whole app can reuse | `views/*.yaml` | [Views & search](views-search.md) |
 | …assemble prompts or briefings from memory | `artifacts/*.yaml` | [Artifacts](artifacts.md) |
 | …run code or a working agent in a sandbox over memory | `computers/`, `programs/`, `agents/`, `context_policies/` | [Computers, Programs & Agents](computers.md) |
-| …choose exactly which tools an agent may call | `mcp/*.yaml` | [MCP](mcp.md) |
+| …choose exactly which tools an agent may call | `toolsets/*.yaml` | [Toolsets](toolsets.md) |
+| …publish tools to an external MCP client | `mcp/*.yaml` | [MCP](mcp.md) |
 | …ship all of the above as one installable unit | `packages/*.yaml` | [Packages](packages.md) |
 
 ## Recommended tree
@@ -57,6 +58,7 @@ my-memory/
 ├── agents/                             # optional, model-driven working agents
 │   └── renewal_analyst.yaml
 ├── context_policies/                   # optional, an agent's token budget
+├── toolsets/                           # optional, the tools an agent may call
 │   └── evidence_spine.yaml
 ├── mcp/
 │   └── customer_memory.yaml            # optional, agent tool allowlist
@@ -96,7 +98,8 @@ How much can go in one file depends on the kind:
 | `programs/*.yaml` | `programs: [...]` | Versioned deterministic code, with input and output schemas |
 | `agents/*.yaml` | `agents: [...]` | Model, instructions, tools, and limits for a working agent |
 | `context_policies/*.yaml` | `context_policies: [...]` | How an agent's context budget is managed as it fills |
-| `mcp/*.yaml` | one mapping | The allowlist of tools an agent may call |
+| `toolsets/*.yaml` | `toolsets: [...]` | The declared surface of tools and skills an agent may reach |
+| `mcp/*.yaml` | one mapping | The allowlist of operations this package publishes to MCP clients |
 | `packages/*.yaml` | one mapping | The exact versions that ship together |
 
 ## Two ways to publish a design
@@ -163,6 +166,21 @@ path inside that file where possible. The codes you will meet:
 
 Treat this validation as a deployment gate — the same way you would treat a
 failing migration.
+
+## Seeing the tree as a graph
+
+The directories say where a definition lives; they do not say what references
+it. For that, compile the tree and draw it:
+
+```console
+uv run memseek catalog-graph --dir ./my-catalog --out my-catalog.html
+```
+
+The page lays the package out in flow order and makes each part's compiled
+definition, budgets, and references clickable. It is the fastest way to check a
+design against what you meant before publishing it, and it is often quicker than
+reading the files when you inherit someone else's catalog. Details in
+[Seeing the package](packages.md#seeing-the-package).
 
 ## Generating definitions from Python
 

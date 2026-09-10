@@ -11,6 +11,8 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
 
+from memseek.render import estimate_tokens
+
 from .registry import (
     Completion,
     CompletionOutput,
@@ -51,12 +53,6 @@ class FakeCompletionCall:
 class FakeEmbeddingCall:
     model: str
     texts: tuple[str, ...]
-
-
-def estimate_tokens(text: str) -> int:
-    """Return the deterministic usage estimate shared by fake calls and audit code."""
-
-    return max(1, math.ceil(len(text.encode("utf-8")) / 4))
 
 
 class FakeLLMProvider:

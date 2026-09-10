@@ -23,6 +23,7 @@ def test_parser_exposes_every_operational_command() -> None:
         "mcp",
         # Definition evolution.
         "catalog-check",
+        "catalog-graph",
         "catalog-prune",
         "migrate-collection-hashes",
         "backfill",

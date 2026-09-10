@@ -13,7 +13,6 @@ import asyncio
 import hashlib
 import json
 import logging
-import math
 import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
@@ -25,7 +24,6 @@ from jsonschema import Draft202012Validator, FormatChecker
 from psycopg.types.json import Jsonb
 
 from memseek import __version__
-from memseek.artifacts import render_artifact
 from memseek.canonical_records import CanonicalRecordWrite, insert_canonical_record_tx
 from memseek.computers import ComputerExecutionError, execute_agent, execute_program
 from memseek.config import Settings
@@ -68,13 +66,15 @@ from memseek.llm.registry import CompletionOutput, LLMTransportError
 from memseek.llm.runtime import ModelAttempt, ModelAttemptsExhausted, complete
 from memseek.locks import acquire_entity_locks, acquire_workspace_lock
 from memseek.logging import log_event
+from memseek.materialization import MaterializationError, build_agent_materialization
 from memseek.models import ClaimedJob, LeaseLost
 from memseek.render import (
     RenderableRecord,
     escape_untrusted,
-    render_records,
+    render_record,
     render_rows,
 )
+from memseek.render import estimate_tokens as _tokens
 from memseek.search.engine import SearchRequestError, execute_search
 from memseek.search.named_views import ViewNotFound, execute_view
 from memseek.search.spec import SearchSpec
@@ -173,10 +173,6 @@ def _renderable(item: DerivationRecord) -> RenderableRecord:
     )
 
 
-def _tokens(value: str) -> int:
-    return max(1, math.ceil(len(value.encode("utf-8")) / 4))
-
-
 def _pack_rows(
     rows: Sequence[DerivationRecord],
     *,
@@ -186,30 +182,23 @@ def _pack_rows(
     max_records: int | None = None,
 ) -> tuple[tuple[DerivationRecord, ...], str]:
     selected: list[DerivationRecord] = []
+    rendered: list[str] = []
+    used_bytes = 0
     for item in rows:
         if max_records is not None and len(selected) >= max_records:
             break
-        candidate = [*selected, item]
-        rendered = render_records(
-            [_renderable(value) for value in candidate],
-            profile="derivation_input",
-            catalog=catalog,
-            fence=None,
-        )
-        if _tokens(rendered) > max_tokens:
+        row = render_record(_renderable(item), profile="derivation_input", catalog=catalog)
+        candidate_bytes = used_bytes + len(row.encode("utf-8")) + bool(selected)
+        if max(1, (candidate_bytes + 3) // 4) > max_tokens:
             if not selected:
                 raise DerivationError(
                     "budget", f"first {label} record does not fit its token budget"
                 )
             break
         selected.append(item)
-    rendered = render_records(
-        [_renderable(value) for value in selected],
-        profile="derivation_input",
-        catalog=catalog,
-        fence=None,
-    )
-    return tuple(selected), rendered
+        rendered.append(row)
+        used_bytes = candidate_bytes
+    return tuple(selected), render_rows(rendered, fence=None)
 
 
 def _record_value(item: DerivationRecord) -> dict[str, Any]:
@@ -957,56 +946,33 @@ class _RuntimeTaskContext(TaskContext):
             citation_ids=result.citation_ids,
         )
 
-    async def _render_context_artifact(self, reference: str) -> tuple[str, frozenset[UUID]]:
-        artifact = self._catalog.resolve_artifact(reference)
-        parameters = {"entity": self.entity} if "entity" in artifact.parameters else {}
-        rendered = await render_artifact(
-            self._pool,
-            workspace=self._execution.workspace,
-            name=reference,
-            parameters=parameters,
-            catalog=self._catalog,
-            settings=self._settings,
-        )
-        manifest = rendered["manifest"]
-        ids = frozenset(UUID(str(value)) for value in manifest["input_record_ids"])
-        return str(rendered["rendered"]), ids
-
-    async def _agent_context_files(
-        self, config: AgentTaskConfig
-    ) -> tuple[dict[str, str], frozenset[UUID]]:
-        agent = self._catalog.resolve_agent(config.agent)
-        computer = self._catalog.resolve_computer(config.computer)
-        targets = [
-            ("/.memseek/instructions.md", agent.instructions),
-            *(
-                (f"/.memseek/skills/{index:02d}.md", reference)
-                for index, reference in enumerate(agent.skills, start=1)
-            ),
-            *((mount.path, mount.artifact) for mount in computer.context),
-        ]
-        files: dict[str, str] = {}
-        source_ids: set[UUID] = set()
-        for path, reference in targets:
-            if path in files:
-                raise DerivationError("validation", f"duplicate materialized path {path!r}")
-            text, ids = await self._render_context_artifact(reference)
-            files[path] = text
-            source_ids.update(ids)
-        new_ids = source_ids - self._execution.visible_ids
+    async def run_agent(self, value: Any, config: Any) -> TaskResult[Any]:
+        if not isinstance(config, AgentTaskConfig):
+            raise DerivationError("validation", "agent Task received invalid configuration")
+        self._reserve_computer_run()
+        try:
+            materialized = await build_agent_materialization(
+                self._pool,
+                workspace=self._execution.workspace,
+                entity=self.entity,
+                computer_ref=config.computer,
+                agent_ref=config.agent,
+                catalog=self._catalog,
+                settings=self._settings,
+            )
+        except MaterializationError as exc:
+            raise DerivationError(exc.code, exc.detail, wm=self._execution.wm_before) from exc
+        context_ids = materialized.citation_ids
+        # The visible-record budget is derivation execution policy, not
+        # materialization: it belongs to this run, and the builder has no
+        # business knowing about it.
+        new_ids = context_ids - self._execution.visible_ids
         if (
             len(self._execution.visible_ids) + len(new_ids)
             > self._execution.limits.max_visible_records
         ):
             raise DerivationError("budget", "agent context exceeds max_visible_records")
         self._execution.visible_ids.update(new_ids)
-        return files, frozenset(source_ids)
-
-    async def run_agent(self, value: Any, config: Any) -> TaskResult[Any]:
-        if not isinstance(config, AgentTaskConfig):
-            raise DerivationError("validation", "agent Task received invalid configuration")
-        self._reserve_computer_run()
-        context_files, context_ids = await self._agent_context_files(config)
         available_sources = self._config_source_ids | context_ids
         available_citations = self._config_citation_ids | context_ids
         agent = self._catalog.resolve_agent(config.agent)
@@ -1031,7 +997,9 @@ class _RuntimeTaskContext(TaskContext):
                 citation_ids=available_citations,
                 output_path=config.output,
                 output_schema=config.output_schema,
-                context_files=context_files,
+                context_files=materialized.context_files,
+                materialization=materialized.descriptor_json(),
+                toolset=materialized.toolset_json(),
                 max_output_bytes=min(
                     self._execution.limits.max_computer_output_bytes,
                     agent.limits.max_output_bytes,

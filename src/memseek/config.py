@@ -78,6 +78,7 @@ class Settings(BaseSettings):
     programs_dir: Path | None = None
     agents_dir: Path | None = None
     context_policies_dir: Path | None = None
+    toolsets_dir: Path | None = None
     mcp_dir: Path | None = None
     packages_dir: Path | None = None
 
@@ -120,6 +121,7 @@ class Settings(BaseSettings):
                 self.programs_dir,
                 self.agents_dir,
                 self.context_policies_dir,
+                self.toolsets_dir,
                 self.packages_dir,
                 self.mcp_dir,
                 self.triggers_dir,

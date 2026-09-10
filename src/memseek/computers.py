@@ -8,11 +8,14 @@ remain responsible for deciding whether that value is emitted.
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import hmac
 import json
+import re
 import time
-from collections.abc import Awaitable, Callable, Mapping
+from collections.abc import AsyncIterator, Awaitable, Callable, Mapping
+from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from typing import Any, Literal, Protocol
 from uuid import UUID
@@ -66,6 +69,11 @@ class ComputerRequest:
     # way; sending it means the executor is told the target rather than left to
     # infer it, which a model cannot do.
     output_schema: Mapping[str, Any] | None = None
+    # What each context file is for, and what tools the catalog granted. Both
+    # are omitted for Programs, so a Program request body is byte-identical to
+    # what it was before either existed.
+    materialization: Mapping[str, Any] | None = None
+    toolset: Mapping[str, Any] | None = None
 
     def as_json(self) -> dict[str, Any]:
         executor: dict[str, Any]
@@ -103,6 +111,10 @@ class ComputerRequest:
         }
         if self.output_schema is not None:
             payload["output_schema"] = dict(self.output_schema)
+        if self.materialization is not None:
+            payload["materialization"] = dict(self.materialization)
+        if self.toolset is not None:
+            payload["toolset"] = dict(self.toolset)
         if self.parent_session_key is not None:
             payload["parent_session_key"] = self.parent_session_key
         return payload
@@ -191,11 +203,30 @@ class FakeComputerProvider:
 class RemoteComputerProvider:
     """HTTP adapter for the Cloudflare runtime service."""
 
-    def __init__(self, settings: Settings) -> None:
+    def __init__(self, settings: Settings, *, client: httpx.AsyncClient | None = None) -> None:
+        self._injected_client = client
+        self._clients: dict[asyncio.AbstractEventLoop, httpx.AsyncClient] = {}
+        self._owners: dict[asyncio.AbstractEventLoop, int] = {}
         self._url = settings.computer_runtime_url.rstrip("/")
         self._token = settings.computer_runtime_token
         self._timeout = settings.computer_request_timeout_s
         self._max_response_bytes = settings.computer_response_max_bytes
+
+    def _client(self) -> httpx.AsyncClient:
+        if self._injected_client is not None:
+            return self._injected_client
+        loop = asyncio.get_running_loop()
+        client = self._clients.get(loop)
+        if client is None:
+            client = httpx.AsyncClient(timeout=self._timeout)
+            self._clients[loop] = client
+        return client
+
+    async def aclose(self) -> None:
+        """Close this loop's owned client; an injected client belongs to its caller."""
+        client = self._clients.pop(asyncio.get_running_loop(), None)
+        if client is not None:
+            await client.aclose()
 
     async def execute(self, request: ComputerRequest) -> ComputerResult:
         if not self._url or not self._token:
@@ -208,16 +239,15 @@ class RemoteComputerProvider:
             signature = hmac.new(
                 self._token.encode(), timestamp.encode() + b"." + body, hashlib.sha256
             ).hexdigest()
-            async with httpx.AsyncClient(timeout=self._timeout) as client:
-                response = await client.post(
-                    f"{self._url}/v1/execute",
-                    content=body,
-                    headers={
-                        "Content-Type": "application/json",
-                        "X-Memseek-Timestamp": timestamp,
-                        "X-Memseek-Signature": signature,
-                    },
-                )
+            response = await self._client().post(
+                f"{self._url}/v1/execute",
+                content=body,
+                headers={
+                    "Content-Type": "application/json",
+                    "X-Memseek-Timestamp": timestamp,
+                    "X-Memseek-Signature": signature,
+                },
+            )
         except httpx.HTTPError as exc:
             raise ComputerExecutionError("transport", type(exc).__name__) from exc
         if response.status_code != 200:
@@ -250,10 +280,46 @@ FAKE_COMPUTER_PROVIDER = FakeComputerProvider()
 register_computer_provider("fake", FAKE_COMPUTER_PROVIDER)
 
 
-def configure_remote_computer_provider(settings: Settings) -> None:
-    """Install or refresh the Cloudflare adapter for one application instance."""
+_REMOTE_PROVIDERS: dict[tuple[str, str, float, int], RemoteComputerProvider] = {}
 
-    register_computer_provider("cloudflare", RemoteComputerProvider(settings), replace=True)
+
+def _remote_computer_provider(settings: Settings) -> RemoteComputerProvider:
+    """Select a reusable Cloudflare adapter for this exact connection configuration."""
+
+    key = (
+        settings.computer_runtime_url.rstrip("/"),
+        settings.computer_runtime_token,
+        settings.computer_request_timeout_s,
+        settings.computer_response_max_bytes,
+    )
+    provider = _REMOTE_PROVIDERS.get(key)
+    if provider is None:
+        provider = RemoteComputerProvider(settings)
+        _REMOTE_PROVIDERS[key] = provider
+    register_computer_provider("cloudflare", provider, replace=True)
+    return provider
+
+
+def configure_remote_computer_provider(settings: Settings) -> None:
+    _remote_computer_provider(settings)
+
+
+@asynccontextmanager
+async def computer_provider_lifespan(settings: Settings) -> AsyncIterator[None]:
+    provider = _remote_computer_provider(settings)
+    loop = asyncio.get_running_loop()
+    provider._owners[loop] = provider._owners.get(loop, 0) + 1
+    try:
+        yield
+    finally:
+        provider._owners[loop] -= 1
+        if not provider._owners[loop]:
+            del provider._owners[loop]
+            await provider.aclose()
+            if not provider._owners and not provider._clients:
+                for key, cached in list(_REMOTE_PROVIDERS.items()):
+                    if cached is provider:
+                        del _REMOTE_PROVIDERS[key]
 
 
 def _runtime_error_detail(response: httpx.Response) -> str:
@@ -275,7 +341,13 @@ def _runtime_error_detail(response: httpx.Response) -> str:
     detail = " ".join(error.split())
     if len(detail) > 200:
         detail = f"{detail[:199]}\u2026"
-    return f": {detail}"
+    diagnostics = []
+    for key in ("stage", "request_id"):
+        value = payload.get(key)
+        if isinstance(value, str) and re.fullmatch(r"[A-Za-z0-9_-]{1,64}", value):
+            diagnostics.append(f"{key}={value}")
+    suffix = f" [{', '.join(diagnostics)}]" if diagnostics else ""
+    return f": {detail}{suffix}"
 
 
 def _canonical_bytes(value: Any) -> bytes:
@@ -366,8 +438,12 @@ async def execute_program(
             else None
         ),
     )
-    configure_remote_computer_provider(settings)
-    result = await computer_provider(computer.provider).execute(request)
+    provider = (
+        _remote_computer_provider(settings)
+        if computer.provider == "cloudflare"
+        else computer_provider(computer.provider)
+    )
+    result = await provider.execute(request)
     if result.awaiting_input:
         raise ComputerExecutionError("validation", "Programs cannot await user input")
     _validate_json(program.output_schema, result.value, "Program output")
@@ -408,6 +484,8 @@ async def execute_agent(
     output_path: str,
     output_schema: Mapping[str, Any],
     context_files: Mapping[str, str],
+    materialization: Mapping[str, Any] | None = None,
+    toolset: Mapping[str, Any] | None = None,
     max_output_bytes: int,
     max_steps: int,
     mode: Literal["derivation", "invocation"] = "derivation",
@@ -421,6 +499,15 @@ async def execute_agent(
         raise ComputerExecutionError("reference", str(exc)) from exc
     if computer_ref not in agent.computers:
         raise ComputerExecutionError("capability", "Agent is not allowed to use this Computer")
+    if toolset is not None:
+        for tool in toolset.get("tools", ()):
+            if tool.get("kind") == "mcp_server":
+                # Refused here rather than in the runtime, so a Computer that
+                # cannot reach a declared tool costs nothing to discover.
+                raise ComputerExecutionError(
+                    "capability",
+                    f"mcp_server tool {tool.get('name')!r} is declared but not yet executable",
+                )
     model_alias = catalog.models.aliases[agent.model]
     context_bytes = sum(len(value.encode("utf-8")) for value in context_files.values())
     input_bytes = len(_canonical_bytes(input_value))
@@ -461,6 +548,8 @@ async def execute_agent(
             else None
         ),
         context_files=context_files,
+        materialization=materialization,
+        toolset=toolset,
         model={
             "alias": agent.model,
             "targets": list(model_alias.targets),
@@ -472,8 +561,12 @@ async def execute_agent(
             },
         },
     )
-    configure_remote_computer_provider(settings)
-    result = await computer_provider(computer.provider).execute(request)
+    provider = (
+        _remote_computer_provider(settings)
+        if computer.provider == "cloudflare"
+        else computer_provider(computer.provider)
+    )
+    result = await provider.execute(request)
     _validate_json(output_schema, result.value, "Agent output")
     encoded = _canonical_bytes(result.value)
     if len(encoded) > max_output_bytes:
@@ -494,6 +587,11 @@ async def execute_agent(
                     "ref": context_policy_ref,
                     "hash": policy.definition_hash,
                 },
+                **(
+                    {"toolset": {"ref": toolset["ref"], "hash": toolset.get("hash")}}
+                    if toolset is not None and toolset.get("ref") is not None
+                    else {}
+                ),
             },
             "context_pressure": {
                 "used_tokens": used_tokens,

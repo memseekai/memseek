@@ -44,6 +44,25 @@ def build_parser() -> argparse.ArgumentParser:
     check.add_argument("--dir", required=True, help="catalog directory to compile")
     check.add_argument("--package", required=True, help="exact name@semver package reference")
 
+    graph = subparsers.add_parser(
+        "catalog-graph",
+        help="render one catalog package as an interactive dependency graph",
+    )
+    graph.add_argument("--dir", required=True, help="catalog directory to compile")
+    graph.add_argument(
+        "--package",
+        help="exact name@semver package reference (default: the directory's only package)",
+    )
+    graph.add_argument(
+        "--out",
+        help="file to write; omit to write the page to stdout",
+    )
+    graph.add_argument(
+        "--json",
+        action="store_true",
+        help="emit the graph as JSON instead of an interactive page",
+    )
+
     prune = subparsers.add_parser(
         "catalog-prune",
         help="report which inactive definitions nothing references any more",
@@ -183,6 +202,40 @@ async def _run_command(args: argparse.Namespace, settings: Settings) -> int:
             )
         print(json.dumps(report.as_json(), separators=(",", ":"), sort_keys=True))
         return 0 if report.publishable else 1
+    if args.command == "catalog-graph":
+        from memseek.catalog_graph import (
+            build_package_graph,
+            compile_catalog_directory,
+            sole_package,
+        )
+        from memseek.catalog_graph_page import render_graph_page
+
+        catalog = await asyncio.to_thread(
+            compile_catalog_directory, Path(args.dir), settings=settings
+        )
+        graph = build_package_graph(catalog, args.package or sole_package(catalog))
+        if args.json:
+            output = json.dumps(graph.as_json(), separators=(",", ":"), sort_keys=True)
+        else:
+            output = render_graph_page(graph)
+        if args.out is None:
+            print(output)
+        else:
+            destination = Path(args.out)
+            await asyncio.to_thread(destination.write_text, output, encoding="utf-8")
+            print(
+                json.dumps(
+                    {
+                        "package": graph.package,
+                        "nodes": len(graph.nodes),
+                        "edges": len(graph.edges),
+                        "path": str(destination),
+                    },
+                    separators=(",", ":"),
+                    sort_keys=True,
+                )
+            )
+        return 0
     if args.command == "catalog-prune":
         from memseek.definitions import load_definition_catalog
         from memseek.evolution import prune_definitions

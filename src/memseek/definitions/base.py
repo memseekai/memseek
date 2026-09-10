@@ -17,6 +17,11 @@ TRIGGER_NAME_PATTERN = r"^[a-z][a-z0-9._-]{0,63}$"
 # can never be rejected by the database that has to store it.
 EMBEDDING_SPACE_PATTERN = r"^[a-z0-9][a-z0-9._-]{0,63}$"
 ENV_VAR_PATTERN = r"^[A-Z][A-Z0-9_]{0,63}$"
+# A skill name becomes a directory segment under ``/.memseek/skills`` and is the
+# value a model passes to the skill tool, so it is deliberately narrower than a
+# public name: no dots or underscores, nothing that reads differently in a path
+# than it does in the prompt that offers it.
+SKILL_NAME_PATTERN = r"^[a-z0-9][a-z0-9-]{0,62}$"
 SEMVER_PATTERN = (
     r"^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)"
     r"(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?"
@@ -29,6 +34,7 @@ ProviderName = Annotated[str, StringConstraints(pattern=PROVIDER_NAME_PATTERN)]
 EmbeddingSpace = Annotated[str, StringConstraints(pattern=EMBEDDING_SPACE_PATTERN)]
 EnvVarName = Annotated[str, StringConstraints(pattern=ENV_VAR_PATTERN)]
 TriggerName = Annotated[str, StringConstraints(pattern=TRIGGER_NAME_PATTERN)]
+SkillName = Annotated[str, StringConstraints(pattern=SKILL_NAME_PATTERN)]
 SemVer = Annotated[str, StringConstraints(pattern=SEMVER_PATTERN)]
 NonBlank = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
 

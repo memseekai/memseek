@@ -24,6 +24,7 @@ from memseek.auth import (
     authenticate_api_key,
     parse_bearer_header,
 )
+from memseek.computers import computer_provider_lifespan
 from memseek.config import Settings, get_settings
 from memseek.db import (
     DatabasePool,
@@ -207,7 +208,7 @@ async def _authenticated_workspace(request: Request) -> str:
         raise _RequestRejected(401, "unauthorized", "invalid bearer credential")
     registry: WorkspaceCatalogRegistry = request.app.state.catalog_registry
     try:
-        request.state.catalog = await registry.get(workspace)
+        request.state.catalog, request.state.package = await registry.resolve(workspace)
     except WorkspaceCatalogError as exc:
         if exc.code != "no_catalog":
             raise
@@ -322,12 +323,6 @@ _InvocationId = Annotated[
 ]
 
 
-def _load_catalog(settings: Settings) -> DefinitionCatalog:
-    from memseek.definitions import load_definition_catalog
-
-    return load_definition_catalog(settings)
-
-
 def create_app(
     settings: Settings | None = None,
     *,
@@ -350,7 +345,9 @@ def create_app(
         configure_logging(logging.DEBUG if runtime_settings.llm_debug else logging.INFO)
         runtime_pool = pool or create_pool(runtime_settings)
         try:
-            runtime_catalog = catalog or _load_catalog(runtime_settings)
+            from memseek.definitions import load_definition_catalog
+
+            runtime_catalog = catalog or load_definition_catalog(runtime_settings)
             await open_pool(runtime_pool)
             if verify_storage:
                 # Semantic compatibility is workspace-scoped once packages can
@@ -373,7 +370,7 @@ def create_app(
                 max_size=runtime_settings.api_key_cache_size,
             )
             assert mcp_http_runtime is not None
-            async with mcp_http_runtime.run():
+            async with mcp_http_runtime.run(), computer_provider_lifespan(runtime_settings):
                 log_event(LOGGER, "info", "api.started")
                 yield
         except BaseException as exc:
@@ -486,7 +483,7 @@ def create_app(
                 report, *_ = await registry.preflight(workspace, body)
                 return JSONResponse(status_code=200, content=report.as_json())
             result = await registry.install(workspace, body)
-            request.state.catalog = await registry.get(workspace)
+            request.state.catalog, request.state.package = await registry.resolve(workspace)
         except WorkspaceCatalogError as exc:
             return _catalog_error_response(exc)
         except Exception as exc:
@@ -1369,16 +1366,12 @@ def create_app(
     async def list_tools(request: Request, workspace: _AuthenticatedWorkspace) -> JSONResponse:
         from memseek.tools import tool_definitions_payload
 
-        registry: WorkspaceCatalogRegistry = request.app.state.catalog_registry
         return JSONResponse(
             status_code=200,
             content=tool_definitions_payload(
                 request.app.state.settings,
                 catalog=_request_catalog(request),
-                package=await registry.selected_package(
-                    workspace,
-                    catalog=_request_catalog(request),
-                ),
+                package=request.state.package,
             ),
         )
 
@@ -1626,15 +1619,14 @@ def _catalog_error_response(exc: WorkspaceCatalogError) -> JSONResponse:
 
 
 def _bounded_json(content: dict[str, Any], settings: Settings) -> JSONResponse:
-    from memseek.views.shared import json_size
-
-    if json_size(content) > settings.max_response_bytes:
+    response = JSONResponse(status_code=200, content=content)
+    if len(response.body) > settings.max_response_bytes:
         return _error_response(
             409,
             "response_too_large",
             "response exceeds MAX_RESPONSE_BYTES; reduce k, include, fields, or annotations",
         )
-    return JSONResponse(status_code=200, content=content)
+    return response
 
 
 def _artifact_failure(exc: Exception, event: str, workspace: str) -> JSONResponse:

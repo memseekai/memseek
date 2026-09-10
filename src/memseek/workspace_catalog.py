@@ -3,12 +3,11 @@
 from __future__ import annotations
 
 import asyncio
-import shutil
-import tempfile
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Any
+from weakref import WeakValueDictionary
 
 from jsonschema import Draft202012Validator, FormatChecker
 from psycopg.types.json import Jsonb
@@ -20,7 +19,6 @@ from memseek.definitions import (
     DefinitionCatalog,
     DefinitionError,
     PackageDefinition,
-    load_definition_catalog,
 )
 from memseek.definitions.base import split_exact_reference
 from memseek.definitions.compat import (
@@ -31,7 +29,9 @@ from memseek.definitions.compat import (
     classify_catalogs,
     plan_stored_groups,
 )
-from memseek.definitions.yaml import load_yaml_text
+from memseek.definitions.loader import _CatalogBuilder
+from memseek.definitions.yaml import load_yaml_file, load_yaml_text, yaml_files
+from memseek.derive.tasks import import_task_modules
 from memseek.locks import acquire_workspace_lock
 
 _MAX_FILES = 256
@@ -49,6 +49,7 @@ _CATALOG_DIRECTORIES = {
     "mcp",
     "packages",
     "programs",
+    "toolsets",
 }
 
 
@@ -147,142 +148,99 @@ def _normalize_files(files: Mapping[str, str]) -> dict[str, str]:
     return dict(sorted(normalized.items()))
 
 
-def _copy_source(source: Path | None, destination: Path) -> None:
-    # Unconfigured means the deployment ships no definitions of this kind, so
-    # the overlay gets an empty directory rather than inheriting whatever is on
-    # disk next to the service.
-    if source is None:
-        destination.mkdir(parents=True, exist_ok=True)
-        return
-    if source.is_dir():
-        shutil.copytree(source, destination)
-    elif source.is_file():
-        destination.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(source, destination)
-    else:
-        raise WorkspaceCatalogError("base_catalog", f"definition path does not exist: {source}")
-
-
-def _copy_fragments(source: Path | None, destination: Path) -> None:
-    destination.mkdir(parents=True, exist_ok=True)
-    if source is None:
-        return
-    if source.is_dir():
-        for path in sorted(
-            (*source.glob("*.yaml"), *source.glob("*.yml")), key=lambda item: item.name
-        ):
-            shutil.copy2(path, destination / f"base-{path.name}")
-    elif source.is_file():
-        shutil.copy2(source, destination / "base.yaml")
-    else:
-        raise WorkspaceCatalogError("base_catalog", f"definition path does not exist: {source}")
-
-
-def _write_user_file(root: Path, relative: str, text: str) -> None:
-    path = PurePosixPath(relative)
-    parts = path.parts
-    if parts[0] in _CATALOG_DIRECTORIES:
-        destination = root / parts[0] / Path(*parts[1:])
-    elif parts[:2] == ("conf", "processors"):
-        destination = root / "conf" / "processors" / Path(*parts[2:])
-    elif parts[:2] == ("conf", "search_profiles"):
-        destination = root / "conf" / "search_profiles" / Path(*parts[2:])
-    elif relative == "conf/processors.yaml":
-        destination = root / "conf" / "processors" / "user.yaml"
-    elif relative == "conf/search_profiles.yaml":
-        destination = root / "conf" / "search_profiles" / "user.yaml"
-    elif relative in {"conf/models.yaml", "conf/rank_default.yaml"}:
-        destination = root / Path(*parts)
-    else:
-        raise WorkspaceCatalogError("file_path", f"unsupported definition path {relative!r}")
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    destination.write_text(text, encoding="utf-8")
-
-
 def _compile_overlay(settings: Settings, files: Mapping[str, str]) -> DefinitionCatalog:
-    with tempfile.TemporaryDirectory(prefix="memseek-workspace-catalog-") as temporary:
-        root = Path(temporary)
-        uploaded_sections = {path.split("/", 1)[0] for path in files}
-        user_definition_catalog = bool(uploaded_sections & _CATALOG_DIRECTORIES)
-        directories: dict[str, Path | None] = {}
-        for field, name in (
-            ("collections_dir", "collections"),
-            ("derivations_dir", "derivations"),
-            ("triggers_dir", "triggers"),
-            ("views_dir", "views"),
-            ("artifacts_dir", "artifacts"),
-            ("computers_dir", "computers"),
-            ("programs_dir", "programs"),
-            ("agents_dir", "agents"),
-            ("context_policies_dir", "context_policies"),
-            ("mcp_dir", "mcp"),
-            ("packages_dir", "packages"),
-        ):
-            destination = root / name
-            if user_definition_catalog:
-                # An upload is the whole declaration of its catalog, so a
-                # section it never mentions stays unconfigured — the same state
-                # a service ships in when it carries no definitions of that
-                # kind. Creating an empty directory instead would hand the
-                # loader a configured-but-empty section, and that guard exists
-                # to catch a mistyped operator path, not to demand that every
-                # published catalog invent a view or an artifact it has no use
-                # for.
-                if name not in uploaded_sections:
-                    directories[field] = None
-                    continue
-                destination.mkdir(parents=True, exist_ok=True)
-            elif field == "mcp_dir" and (
-                getattr(settings, field) is None or not getattr(settings, field).exists()
-            ):
-                # MCP is optional for legacy/base catalogs.  Keep the overlay
-                # layout deterministic without requiring an empty directory
-                # in every deployment.
-                destination.mkdir(parents=True, exist_ok=True)
-            else:
-                _copy_source(getattr(settings, field), destination)
-            directories[field] = destination
-        conf = root / "conf"
-        conf.mkdir()
-        models_path = conf / "models.yaml"
-        rank_path = conf / "rank_default.yaml"
-        if "conf/models.yaml" in files:
-            _write_user_file(root, "conf/models.yaml", files["conf/models.yaml"])
-        else:
-            _copy_source(settings.models_file, models_path)
-        if "conf/rank_default.yaml" in files:
-            _write_user_file(root, "conf/rank_default.yaml", files["conf/rank_default.yaml"])
-        else:
-            _copy_source(settings.rank_default_file, rank_path)
-        processors_path = conf / "processors"
-        search_profiles_path = conf / "search_profiles"
-        processors_path.mkdir(parents=True, exist_ok=True)
-        search_profiles_path.mkdir(parents=True, exist_ok=True)
-        if not user_definition_catalog and not any(
-            path == "conf/processors.yaml" or path.startswith("conf/processors/") for path in files
-        ):
-            _copy_fragments(settings.processors_file, processors_path)
-        if not any(
-            path == "conf/search_profiles.yaml" or path.startswith("conf/search_profiles/")
-            for path in files
-        ):
-            _copy_fragments(settings.search_profiles_file, search_profiles_path)
-        for relative, text in files.items():
-            _write_user_file(root, relative, text)
-        compiled_settings = settings.model_copy(
-            update={
-                "models_file": models_path,
-                "rank_default_file": rank_path,
-                "processors_file": processors_path,
-                "search_profiles_file": search_profiles_path,
-                **directories,
-                "search_profile_overrides_file": None,
+    # Parse even nested files that the family loaders do not select, matching
+    # upload validation without a second YAML parse during compilation.
+    parsed = {name: load_yaml_text(text, source=name) for name, text in files.items()}
+    documents: dict[str, tuple[tuple[Path, Any], ...]] = {}
+    configured: dict[str, Path | None] = {"search_profile_overrides_file": None}
+    uploaded_sections = {path.split("/", 1)[0] for path in files}
+    user_catalog = bool(uploaded_sections & _CATALOG_DIRECTORIES)
+
+    def base_files(source: Path | None) -> tuple[Path, ...]:
+        if source is None:
+            return ()
+        if source.is_dir():
+            return yaml_files(source)
+        if source.is_file():
+            return (source,)
+        raise WorkspaceCatalogError("base_catalog", f"definition path does not exist: {source}")
+
+    for family in sorted(_CATALOG_DIRECTORIES):
+        field = f"{family}_dir"
+        configured[field] = Path(family)
+        if user_catalog:
+            if family not in uploaded_sections:
+                configured[field] = None
+            selected = {
+                Path(name): value
+                for name, value in parsed.items()
+                if Path(name).parent == Path(family)
             }
-        )
-        try:
-            return load_definition_catalog(compiled_settings)
-        except DefinitionError as exc:
-            raise WorkspaceCatalogError("definition", str(exc)) from exc
+        else:
+            source = getattr(settings, field)
+            # A base catalog that predates a family, or simply declares none,
+            # is absent rather than broken.
+            if family in {"mcp", "toolsets"} and (source is None or not source.exists()):
+                source = None
+            paths = base_files(source)
+            if source is not None and source.is_file():
+                raise WorkspaceCatalogError(
+                    "definition",
+                    str(
+                        DefinitionError(
+                            "directory_type", "definition path is not a directory", file=family
+                        )
+                    ),
+                )
+            selected = {Path(family) / path.name: load_yaml_file(path) for path in paths}
+        documents[field] = tuple(sorted(selected.items()))
+
+    for family in ("models", "rank_default", "processors", "search_profiles"):
+        field = f"{family}_file"
+        name = f"conf/{family}.yaml"
+        configured[field] = Path(name)
+        if family in {"models", "rank_default"}:
+            value = parsed.get(name)
+            if name not in parsed:
+                source = getattr(settings, field)
+                base_files(source)  # Preserve missing deployment-file diagnostics.
+                value = load_yaml_file(source)
+            documents[field] = ((Path(name), value),)
+            continue
+        selected = {}
+        uploaded = name in parsed or any(key.startswith(f"conf/{family}/") for key in parsed)
+        if not uploaded and (family != "processors" or not user_catalog):
+            source = getattr(settings, field)
+            for path in base_files(source):
+                label = f"base-{path.name}" if source.is_dir() else "base.yaml"
+                selected[Path(f"conf/{family}/{label}")] = load_yaml_file(path)
+        for key, value in parsed.items():
+            if key == name:
+                selected[Path(f"conf/{family}/user.yaml")] = value
+            elif Path(key).parent == Path(f"conf/{family}"):
+                selected[Path(key)] = value
+        documents[field] = tuple(sorted(selected.items()))
+
+    for name in files:
+        parts = PurePosixPath(name).parts
+        if (
+            parts[0] not in _CATALOG_DIRECTORIES
+            and parts[:2] not in {("conf", "processors"), ("conf", "search_profiles")}
+            and name
+            not in {
+                "conf/models.yaml",
+                "conf/rank_default.yaml",
+                "conf/processors.yaml",
+                "conf/search_profiles.yaml",
+            }
+        ):
+            raise WorkspaceCatalogError("file_path", f"unsupported definition path {name!r}")
+    try:
+        import_task_modules(settings.task_modules)
+        return _CatalogBuilder(settings.model_copy(update=configured), documents=documents).build()
+    except DefinitionError as exc:
+        raise WorkspaceCatalogError("definition", str(exc)) from exc
 
 
 async def _stored_groups(conn: DatabaseConnection, workspace: str) -> tuple[StoredGroup, ...]:
@@ -513,48 +471,64 @@ class WorkspaceCatalogRegistry:
         self.settings = settings
         self.default_catalog = default_catalog
         self._cache: dict[str, tuple[str, DefinitionCatalog]] = {}
-        self._lock = asyncio.Lock()
+        self._locks: WeakValueDictionary[str, asyncio.Lock] = WeakValueDictionary()
 
     async def get(self, workspace: str) -> DefinitionCatalog:
-        async with self.pool.connection() as conn:
-            result = await conn.execute(
-                "select catalog_hash, files from workspace_catalog where workspace = %s",
-                (workspace,),
-            )
-            row = await result.fetchone()
-        if row is None:
-            # A workspace that published nothing falls back only to a catalog
-            # the operator explicitly configured. With no configured catalog —
-            # the shipped default — there is nothing to fall back to, and
-            # saying so is far better than serving definitions that merely
-            # happened to sit on disk beside the service.
-            if not self.settings.has_configured_catalog:
-                raise WorkspaceCatalogError(
-                    "no_catalog",
-                    f"workspace {workspace!r} has no published catalog; publish a package first",
-                    status=409,
-                )
-            return self.default_catalog
-        catalog_hash = str(row["catalog_hash"])
-        cached = self._cache.get(workspace)
-        if cached is not None and cached[0] == catalog_hash:
-            return cached[1]
-        files = row["files"]
-        if not isinstance(files, Mapping):
-            raise WorkspaceCatalogError(
-                "catalog_storage", "stored workspace catalog is invalid", status=503
-            )
-        async with self._lock:
+        catalog, _package = await self.resolve(workspace)
+        return catalog
+
+    async def resolve(self, workspace: str) -> tuple[DefinitionCatalog, PackageDefinition | None]:
+        # The CASE keeps large YAML payloads in PostgreSQL on a cache hit. Both
+        # identities and any fetched documents belong to this one read snapshot.
+        async with self._locks.setdefault(workspace, asyncio.Lock()):
             cached = self._cache.get(workspace)
-            if cached is not None and cached[0] == catalog_hash:
-                return cached[1]
-            catalog = _compile_overlay(self.settings, files)
-            if catalog.catalog_hash != catalog_hash:
-                raise WorkspaceCatalogError(
-                    "catalog_storage", "stored catalog hash mismatch", status=503
+            async with self.pool.connection() as conn:
+                result = await conn.execute(
+                    """
+                    select catalog_hash, package_name, package_version,
+                           case when catalog_hash = %s then null else files end as files
+                    from workspace_catalog where workspace = %s
+                    """,
+                    (cached[0] if cached else None, workspace),
                 )
-            self._cache[workspace] = (catalog_hash, catalog)
-            return catalog
+                row = await result.fetchone()
+            if row is None:
+                self._cache.pop(workspace, None)
+                if not self.settings.has_configured_catalog:
+                    raise WorkspaceCatalogError(
+                        "no_catalog",
+                        f"workspace {workspace!r} has no published catalog; publish a package first",
+                        status=409,
+                    )
+                catalog = self.default_catalog
+                package = (
+                    next(iter(catalog.packages.values())) if len(catalog.packages) == 1 else None
+                )
+                return catalog, package
+            catalog_hash = str(row["catalog_hash"])
+            if cached is not None and cached[0] == catalog_hash:
+                catalog = cached[1]
+            else:
+                files = row["files"]
+                if not isinstance(files, Mapping):
+                    raise WorkspaceCatalogError(
+                        "catalog_storage", "stored workspace catalog is invalid", status=503
+                    )
+                catalog = await asyncio.to_thread(_compile_overlay, self.settings, files)
+                if catalog.catalog_hash != catalog_hash:
+                    raise WorkspaceCatalogError(
+                        "catalog_storage", "stored catalog hash mismatch", status=503
+                    )
+                self._cache[workspace] = (catalog_hash, catalog)
+            try:
+                package = catalog.resolve_package(
+                    str(row["package_name"]), str(row["package_version"])
+                )
+            except (KeyError, TypeError) as exc:
+                raise WorkspaceCatalogError(
+                    "catalog_storage", "stored workspace package is invalid", status=503
+                ) from exc
+            return catalog, package
 
     async def metadata(self, workspace: str) -> dict[str, Any]:
         """Return the selected package identity without exposing YAML contents."""
@@ -605,30 +579,22 @@ class WorkspaceCatalogRegistry:
         *,
         catalog: DefinitionCatalog | None = None,
     ) -> PackageDefinition | None:
-        """Resolve the one package whose declared interface a workspace may expose.
+        """Resolve the currently selected package; retained for existing callers."""
 
-        An installed workspace catalog persists an exact package reference, and
-        that is how a package is normally selected. A workspace that published
-        nothing may use an explicitly configured catalog when it holds exactly
-        one package — but a service with no configured catalog has no such
-        fallback, so it exposes nothing rather than guessing.
-        """
-
-        selected_catalog = catalog if catalog is not None else await self.get(workspace)
+        if catalog is None:
+            _catalog, package = await self.resolve(workspace)
+            return package
         metadata = await self.metadata(workspace)
-        package_metadata = metadata["package"]
-        if package_metadata is not None:
+        package = metadata["package"]
+        if package is not None:
             try:
-                return selected_catalog.resolve_package(
-                    str(package_metadata["name"]), str(package_metadata["version"])
-                )
+                return catalog.resolve_package(str(package["name"]), str(package["version"]))
             except (KeyError, TypeError) as exc:
                 raise WorkspaceCatalogError(
                     "catalog_storage", "stored workspace package is invalid", status=503
                 ) from exc
-
-        if metadata["source"] == "default" and len(selected_catalog.packages) == 1:
-            return next(iter(selected_catalog.packages.values()))
+        if metadata["source"] == "default" and len(catalog.packages) == 1:
+            return next(iter(catalog.packages.values()))
         return None
 
     def _compile_request(
@@ -647,10 +613,6 @@ class WorkspaceCatalogRegistry:
             raise WorkspaceCatalogError(
                 "package_file", "upload must include a packages/*.yaml file"
             )
-        # Parse every submitted YAML once at the HTTP boundary. Compilation below
-        # performs the complete family-specific validation and reference checks.
-        for path, text in files.items():
-            load_yaml_text(text, source=path)
         catalog = _compile_overlay(self.settings, files)
         try:
             catalog.resolve_package(str(package_name), str(package_version))
@@ -687,7 +649,9 @@ class WorkspaceCatalogRegistry:
         estimate.
         """
 
-        files, catalog, package_name, package_version = self._compile_request(request)
+        files, catalog, package_name, package_version = await asyncio.to_thread(
+            self._compile_request, request
+        )
         previous = await self._previous(workspace)
         report = await self._compatibility(workspace, previous=previous, incoming=catalog)
         return report, catalog, files, package_name, package_version
@@ -742,7 +706,9 @@ class WorkspaceCatalogRegistry:
         workspace: str,
         request: WorkspaceCatalogRequest,
     ) -> WorkspaceCatalogResult:
-        files, catalog, package_name, package_version = self._compile_request(request)
+        files, catalog, package_name, package_version = await asyncio.to_thread(
+            self._compile_request, request
+        )
         async with self.pool.connection() as conn, conn.transaction():
             await acquire_workspace_lock(conn, workspace)
             existing = await conn.execute(

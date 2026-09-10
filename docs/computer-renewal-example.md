@@ -5,67 +5,191 @@ eyebrow: Tutorial — the Computer-backed renewal desk
 
 ## Run the demo
 
-Start with the working demo, then follow the tutorial to see how each piece is
-built. You need Docker Compose and `uv`. You do **not** need an API key: the
-fixture's model provider is `fake`, and neither Computer in this walkthrough
-calls a model.
+Install Docker Compose and `uv`, then run from the repository root:
 
 ```console
 make computer-demo
+make computer-demo SCRIPTED=1
 ```
 
-That brings up PostgreSQL, the Memseek API, and the worker with a Computer
-runtime configured, then runs `examples/computer_renewal.py` against them. The
-script mints its own disposable workspace, so the `local` workspace `make up`
-sets up is untouched. Let it run while you read: each section below explains one
-part of the system and shows the **actual output** captured from a real run.
+The first command asks for your answers; the second supplies fixed replies and
+exits. The launcher starts PostgreSQL, the API, the worker, and a deterministic
+HTTP runtime. It creates a separate demo workspace and publishes the fixture.
+No model credentials are needed. The runtime uses the signed provider protocol,
+but simulates execution: it is not a sandbox and does not call a model.
 
-A Computer is where Programs and Agents actually run, so the stack needs a
-runtime to call — and the script is it. It serves a small stand-in for
-[`cloudflare/computer-runtime`](computer-resources-and-durable-agents.md#running-the-cloudflare-provider):
-the same signed wire protocol, the same response envelope, no sandbox and no
-model. It prints every request the worker sends it, so you can watch the two
-sides talk. The containers reach it at `host.docker.internal:8799`, which is why
-it binds every interface.
+The short `examples/computer_renewal.py` demonstrates three steps: contract
+extraction, cited risk assessment, and a durable invocation. A successful
+scripted run ends with:
 
-The catalog is `examples/computer_renewal_catalog/` — the smallest complete
-catalog that uses [Computers, Programs and Agents](computers.md) — and the demo
-publishes it into its own workspace with exactly one edit: the Computer's
-`provider`.
+```text
+PASS: terms, cited risk, answered invocation, active observation, draft proposal
+```
 
-### Or drive a real Cloudflare Agent
+It checks two answered pauses in local mode, accepted citations, an active
+observation, and a proposal held as a draft. Failed stages exit nonzero.
 
-The stand-in is deterministic on purpose: the demo is about what Memseek does
-with an answer, not about producing an impressive one. When you want the real
-thing, hand the same catalog to Workers AI:
+For the full interactive desk, including streamed events, recall, fork, and
+receipt inspection, use `make computer-demo ADVANCED=1`. This runs
+`examples/computer_renewal_advanced.py`; the detailed story and sample journal
+below describe that advanced walkthrough. Runtime simulation and bootstrap
+code live in separate `_computer_*` example-support modules.
+
+### Three ways to run the same demo
+
+The demo is one script. What changes between modes is only *which provider
+executes the Computer* — and in all three the catalog's Computers are published
+as `provider: cloudflare`, so the signed HTTP boundary and its HMAC are
+exercised even when nothing leaves your machine.
+
+| Command | Executes the Computer | Creates Cloudflare resources | Model calls |
+| --- | --- | --- | --- |
+| `make computer-demo` | `_computer_runtime.py`, a deterministic stand-in on port 8799 | none | none |
+| `make computer-demo MODE=cloudflare` | `wrangler dev` — the real Worker and both Durable Objects, locally | none; local state under `cloudflare/computer-runtime/.wrangler/state` | **real and billable** |
+| the same, with `COMPUTER_RUNTIME_URL` exported | your deployed Worker | yes — see below | real and billable |
+
+All three start the Docker stack themselves. Only the third involves anything
+in your Cloudflare dashboard.
+
+### Run the real Worker locally
+
+Local Cloudflare development, not a deployment. Wrangler runs the Worker and
+its `MemSeekComputer` and `MemSeekAgent` Durable Objects on your machine.
 
 ```console
-make computer-demo-cloudflare
+cd cloudflare/computer-runtime
+npm ci
+cp -n .dev.vars.example .dev.vars
+npx wrangler login
+cd ../..
+
+unset COMPUTER_RUNTIME_URL COMPUTER_RUNTIME_TOKEN
+make computer-demo MODE=cloudflare SCRIPTED=1
 ```
 
-Then the Agent picks its own steps, calls real tools inside a network-denied
-durable workspace, and decides for itself when to stop and ask you something —
-so the walkthrough below stops being reproducible, and none of the checks
-change. The demo never assumes how many times it will pause.
+`make computer-demo-cloudflare` is an equivalent alias.
 
-That target starts the stack and waits for you to serve the Worker in another
-terminal:
+The launcher starts `wrangler dev`, waits for `/health` to identify the
+Cloudflare provider, and wires `.dev.vars`' `MEMSEEK_RUNTIME_SECRET` into the
+API and worker.
+[Wrangler development mode](https://developers.cloudflare.com/workers/wrangler/commands/)
+uses your account's Workers AI binding, so **model calls are real and billable
+even though the Worker is local**. Live execution can choose a different number
+of pauses and different wording; the example checks completion, citations, and
+writeback outcomes rather than exact text.
+
+Three things that reliably cost people an afternoon:
+
+- **Node must be on the PATH of the shell running Make**, not merely installed.
+  A version manager that is only initialized in your interactive profile will
+  not be visible to `make`.
+- **The `unset` is not decorative.** The launcher chooses between `wrangler dev`
+  and a deployed Worker by looking for `COMPUTER_RUNTIME_URL` *in the
+  environment*. A value in the repository's `.env` does not select the remote
+  path — but `source .env.sh`, or an export left over from a previous session,
+  does, silently.
+- **The container backend needs Docker**, locally as well as at deploy time,
+  to build the runtime's
+  [`Dockerfile`](https://github.com/memseekai/memseek/blob/main/cloudflare/computer-runtime/Dockerfile).
+  The renewal fixture runs on `worker-javascript` and never starts a container,
+  so exercise that path first.
+
+An occupied runtime port fails with an actionable message: choose
+`COMPUTER_RUNTIME_PORT` or stop its owner. Do not start a second Wrangler on
+the same port.
+
+### Deploy the Computer to your account
+
+This is the step that creates resources. The full procedure, and every limit
+that applies to a deployed runtime, is in
+[§8 of the runtime README](https://github.com/memseekai/memseek/blob/main/cloudflare/computer-runtime/README.md#8-configure-deploy-verify);
+the shape of it is:
 
 ```console
-cd cloudflare/computer-runtime && npx wrangler dev --port 8799
+cd cloudflare/computer-runtime
+npm ci && npm run check
+
+SECRET=$(openssl rand -hex 32)
+echo -n "$SECRET" | npx wrangler secret put MEMSEEK_RUNTIME_SECRET
+npm run deploy
+curl -s https://memseek-computer-runtime.<subdomain>.workers.dev/health
 ```
 
-`wrangler dev` binds the remote AI binding, so those turns are **real and
-billable**. Under the hood the target is just the flag:
+That deploy registers, in one go:
+
+- the Worker itself, with the `AI` and `LOADER` bindings;
+- both Durable Object classes — `MemSeekComputer` and `MemSeekAgent` — as
+  SQLite-backed namespaces under migration tag `v1`;
+- the container application built from the runtime's `Dockerfile`, at
+  `instance_type: standard-2`, `max_instances: 10`.
+
+Registering them is not the same as running them. A Durable Object is created
+on demand by the first session that addresses it, and a container starts only
+when a definition selects the `container-shell` backend.
+
+Point Memseek at the deployment. **The variable names are unprefixed** —
+`Settings` sets no `env_prefix`, so a `MEMSEEK_`-prefixed name binds nothing and
+you get `Cloudflare Computer runtime URL/token is not configured`:
 
 ```console
-uv run python examples/computer_renewal.py --cloudflare
+export COMPUTER_RUNTIME_URL=https://memseek-computer-runtime.<subdomain>.workers.dev
+export COMPUTER_RUNTIME_TOKEN=$SECRET
+make computer-demo MODE=cloudflare SCRIPTED=1
 ```
 
-`--cloudflare` refuses to serve anything itself, and refuses to run at all
-unless something is already answering `/health` with `provider: cloudflare`. A
-stand-in listening on the same port would otherwise turn a live model run back
-into a regex without saying so.
+`scripts/setup_cloudflare_smoke.sh` prompts for both and writes them to the
+untracked `.env` plus a mode-600 `.env.sh`, without echoing the secret.
+
+### A smaller canary when something breaks
+
+The full demo publishes a catalog, runs a Program, a derivation, and a durable
+invocation. When you only need to know whether the runtime itself works, the
+database-free canary is far faster to iterate on: two model turns on one
+session, writing a file and reopening it from a fresh task.
+
+```console
+make cloudflare-agent-smoke-local   # wrangler dev, nothing deployed
+make cloudflare-agent-smoke         # against the deployed Worker
+```
+
+It uses neither PostgreSQL nor a published workspace. Runtime logs from any
+mode are retained at `.memseek/logs/computer-runtime-*.log`; the
+[debugging walkthrough](https://github.com/memseekai/memseek/blob/main/examples/README.md#debug-a-real-runtime-http-422)
+reads one 422 end to end.
+
+The launcher terminates only runtime processes it started. Docker services and
+data remain available after exit. Stop them with `docker compose down` when
+finished. Port overrides are `MEMSEEK_PORT`, `MEMSEEK_DB_PORT`, and
+`COMPUTER_RUNTIME_PORT`. For an isolated stack, also set `COMPOSE_PROJECT_NAME`.
+The launcher always creates a demo workspace, even if `MEMSEEK_API_KEY` is set.
+
+### Configure references once in your app
+
+```python
+analyst = client.invocations.bind(
+    computer="research_workspace@1",
+    agent="renewal_analyst@1",
+    context_policy="evidence_spine@1",
+)
+run = await analyst.start(entity="account:acme", prompt="Prepare the renewal position.")
+state = await run.wait()
+while state["status"] == "awaiting_input":
+    await run.reply(input("Your answer: "))
+    state = await run.wait()
+```
+
+`wait()` returns at a pause or terminal state; inspect `status` for success or
+failure. Its default deadline is 300 seconds, including HTTP requests. A
+`TimeoutError` contains the invocation ID and leaves server work running.
+Reconnect with `client.invocations.attach(id)`. Handles also provide `retrieve()`,
+`events(after=..., limit=...)`, and `cancel()`. Use the existing
+`client.invocations.stream(id)` separately for live event presentation.
+
+For deterministic work, bind `computer` and `program` and call
+`start(entity=..., input=...)`. Both forms accept an `idempotency_key` at start.
+These helpers use the existing endpoints and exact references; they create no
+additional server resource. See [the concept guide](computers.md#configure-computer-work-once)
+for the role and current limits of context policy.
 
 ## The problem it poses
 
@@ -124,6 +248,18 @@ So when the Agent says "high renewal risk", that is not taken on faith:
 
 Each of the following sections turns on one of those, shows the YAML that does
 it, and shows what came out.
+
+If you would rather see the whole wiring before reading it section by section,
+draw the catalog first:
+
+```sh
+make catalog-graph          # writes catalog-graph.html; open it in a browser
+```
+
+That page is the same catalog, compiled and laid out in flow order, with every
+part's definition, budgets, and references one click away — including the
+Agent's toolset, drawn tool by tool. The sections below walk the same graph from
+left to right.
 
 ## 1. The evidence — one collection, two roles
 
@@ -194,9 +330,8 @@ Computer declares more, because an Agent does more:
   version: 1
   active: true
   provider: cloudflare
-  context:
-    - {path: /.memseek/context.md, artifact: renewal_instructions@1, mode: read_only}
-    - {path: /.memseek/skills/research.md, artifact: renewal_research_skill@1, mode: read_only}
+  # No `context:` — the Agent declares its own instructions and skills, and
+  # mounting them here as well would render them twice.
   writable: [/workspace, /outbox]
   runtime:
     default: worker-javascript
@@ -386,10 +521,11 @@ At run time these render to files inside the workspace, along with everything
 the Computer's own `context:` block mounts:
 
 ```text
-/.memseek/instructions.md      the Agent's instructions artifact
-/.memseek/skills/01.md         each skill artifact
-/.memseek/context.md           whatever the Computer mounts
-/.memseek/manifest.json        which records went into each of the above
+/.memseek/instructions.md                    the Agent's instructions artifact
+/.memseek/skills/renewal-research/SKILL.md   a skill, offered by name and
+                                             description, loaded on demand
+/.memseek/manifest.json                      which records went into each of
+                                             the above
 ```
 
 Everything under `/.memseek` is read-only, and changing it is a rejected run.
@@ -727,8 +863,9 @@ Agent can go back and look, without widening what it is allowed to see:
 ```
 
 `recall` searches this session's own journal and memory nodes. It cannot reach
-another session, another entity, or the rest of the workspace, and the context
-policy caps how many pages and hits it may pull back.
+another session, another entity, or the rest of the workspace. The API caps
+results per call; the Cloudflare tool also applies policy hit and byte limits.
+There is no cumulative policy page-limit enforcement today.
 
 ## 10. Fork instead of rewrite
 
@@ -815,8 +952,7 @@ name a record it was not shown.
 
 ## The stand-in runtime, and the real one
 
-`make computer-demo` serves the provider from the demo script itself, in about a
-hundred lines: verify the HMAC, dispatch on `executor.kind`, return
+The local launcher serves the provider from `_computer_runtime.py`: verify the HMAC, dispatch on `executor.kind`, return
 `{value, citation_ids, receipt, steps, awaiting_input}`. What it runs there is
 deterministic — a small routine that finds a promised uptime floor, finds the
 worst reported uptime, and reports the breach. No model, no sandbox, no API key.
@@ -825,16 +961,17 @@ That is deliberate. The demo does not set out to show an impressive agent; it
 shows what the system does with an answer once it has one. Swap in a real model
 and every check in section 6 stays exactly where it was.
 
-To run the same catalog against the real thing, deploy
-`cloudflare/computer-runtime`, then point the stack at it:
+To run the same catalog against the real thing,
+[deploy the Computer to your account](#deploy-the-computer-to-your-account),
+then point the stack at it:
 
 ```dotenv
 COMPUTER_RUNTIME_URL=https://<worker-host>
 COMPUTER_RUNTIME_TOKEN=<the Worker's MEMSEEK_RUNTIME_SECRET>
 ```
 
-The demo detects that the URL is not this machine, serves nothing, and drives
-the deployed Worker instead. Nothing in the catalog changes — the deployment
+Select `MODE=cloudflare` with the exported URL and token to drive the deployed
+Worker explicitly. Nothing in the catalog changes — the deployment
 requirements (Workers AI model targets, inline Program bundles, no network
 capability), the signed wire protocol, and every limit that applies are in
 [The Cloudflare Computer runtime](computer-cloudflare.md).
@@ -867,9 +1004,19 @@ or stale request`.** The two sides disagree about the shared secret, or their
 clocks are more than 300 s apart. Both processes must read the same
 `COMPUTER_RUNTIME_TOKEN`.
 
-**`a Computer runtime already answers on port 8799; using it`.** A previous copy
-of the demo is still running and holding the port, so this run is talking to
-*that* process's executors. Stop it and run again.
+**`Port 8799 is occupied`.** Stop the previous runtime or choose another
+`COMPUTER_RUNTIME_PORT`. The launcher never takes ownership of an existing process.
+
+**`Install Node.js and run npm ci in cloudflare/computer-runtime`, but Node is
+installed.** The launcher looks for `node` on the PATH of the shell running
+Make. A version manager initialized only in an interactive profile is invisible
+there; export the PATH in the same shell, or use a login shell.
+
+**`MODE=cloudflare` used a deployed Worker when Wrangler was expected.** The
+launcher picks the remote path whenever `COMPUTER_RUNTIME_URL` is present *in
+the environment*. A value in `.env` alone does not do this, but `source .env.sh`
+and stale exports do. `unset COMPUTER_RUNTIME_URL COMPUTER_RUNTIME_TOKEN` first,
+or check with `echo $COMPUTER_RUNTIME_URL`.
 
 **Nothing happens after ingest; the worker logs `derive.not_ready`.** The
 derivation is waiting for records to finish enrichment. Check the worker for an
@@ -895,6 +1042,8 @@ publish time either way.
 ## Next
 
 - The files themselves, family by family: [Computers, Programs & Agents](computers.md)
+- The same catalog as one interactive graph: `make catalog-graph`, explained in
+  [Seeing the package](packages.md#seeing-the-package)
 - The promises behind them: [How a Computer stays trustworthy](computer-resources-and-durable-agents.md)
 - The deployed provider, end to end: [The Cloudflare Computer runtime](computer-cloudflare.md)
 - What renders an Agent's context: [Artifacts](artifacts.md)

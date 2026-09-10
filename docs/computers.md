@@ -3,6 +3,48 @@ title: Computers, Programs & Agents
 eyebrow: Running code and agents over memory
 ---
 
+## Configure Computer work once
+
+| Concept | Responsibility |
+| --- | --- |
+| Computer | Execution environment, capabilities, writable paths, writeback rules |
+| Program | Deterministic code with input/output schemas |
+| Agent | Model, instructions, tools, allowed Computers |
+| Context policy | Context budget, output reserve, pressure thresholds, recall limits |
+| Invocation | Durable work with events, results, human replies |
+
+Use `client.invocations.bind(computer=..., agent=..., context_policy=...)` once,
+then `await binding.start(entity=..., prompt=...)`. For a Program, bind
+`computer` and `program` and pass `input` to `start`. All references remain exact
+`name@version` references. The Agent declaration also names a context policy;
+invocation callers explicitly select the policy used and pinned for that work.
+The binding preserves this existing contract instead of inferring references.
+
+A context policy is a separate versioned resource because context handling has
+a different purpose from Computer permissions or evidence selection. Artifacts
+and the invocation's entity determine the prepared evidence; a context policy
+does not grant access to additional records.
+
+Current enforcement is deliberately specific:
+
+- Python estimates input tokens from mounted context and input bytes, accounts
+  for the output reserve, and rejects input reaching the `pause` threshold.
+- `pointerize` and `compact` classify pressure and are reported in receipts;
+  declaring them does not implement automatic pointerization or compaction.
+- The Cloudflare recall tool bounds returned hits and exposed bytes using
+  `max_recall_hits` and `max_exposed_bytes`, with its own stricter caps.
+- `max_recall_pages` and `receipt_fanout` are validated declarations, not enforced
+  cumulative paging or hierarchical compaction mechanisms today. The journal
+  recall API has a per-call hit limit independent of those declarations.
+
+Replying to a paused invocation starts another executor turn with reconstructed
+context and prior answers. It does not resume a suspended model instruction.
+
+[Run the short renewal example](computer-renewal-example.md) for the binding,
+handle, local launcher, and optional real-runtime commands.
+
+## Catalog definitions
+
 Most of a catalog describes *what memory holds*. This page describes the one
 place where memory lets something **run**: a sandboxed workspace, called a
 **Computer**, where either a small deterministic program or a model-driven
@@ -68,8 +110,8 @@ reattaches instead of starting over. Inside, the layout is always these four
 roots:
 
 ```text
-/.memseek/    read-only.  instructions.md · skills/01.md · your mounted
-                          context files · the Program's source
+/.memseek/    read-only.  instructions.md · skills/<name>/SKILL.md · your
+                          mounted context files · the Program's source
 /inputs/      read-only.  the typed input for this unit of work
 /workspace/   writable.   scratch: notes, scripts, working files
 /outbox/      writable.   the only way a result leaves
@@ -227,9 +269,11 @@ computers:
     version: 1
     active: true
     provider: cloudflare
+    # `context:` is for reference material the *Computer* provides to whatever
+    # runs in it. An Agent's own instructions and skills belong to the Agent —
+    # mounting them here as well renders them twice.
     context:
-      - {path: /.memseek/context.md, artifact: renewal_instructions@1, mode: read_only}
-      - {path: /.memseek/skills/research.md, artifact: renewal_research_skill@1, mode: read_only}
+      - {path: /.memseek/house-style.md, artifact: writing_style@1, mode: read_only}
     writable: [/workspace, /outbox]
     runtime:
       default: worker-javascript
@@ -574,16 +618,20 @@ run.
 ```yaml
 agents:
   - name: renewal_analyst
-    version: 1
+    version: 2
     active: true
     model: renewal_reasoner
     instructions: renewal_instructions@1
-    skills: [renewal_research_skill@1]
-    tools: [computer, recall]
+    # What this Agent may reach, named once and auditable from the catalog.
+    toolset: renewal@1
     computers: [research_workspace@1]
     context_policy: evidence_spine@1
     limits: {max_steps: 24, max_wall_s: 300, max_output_bytes: 1048576}
 ```
+
+The older spelling — `skills: [...]` and `tools: [computer, recall]` in place of
+`toolset:` — still compiles and still runs; the two are mutually exclusive. See
+[Toolsets](toolsets.md) for what a declared surface buys and what it costs.
 
 ### Every field
 
@@ -594,8 +642,9 @@ agents:
 | `active` | no | `false` | Marks the current version for the name. |
 | `model` | yes | — | A [model alias](models.md) from `conf/models.yaml`, by name. Must exist. |
 | `instructions` | yes | — | Exact reference to a [prompt artifact](artifacts.md). Rendered to `/.memseek/instructions.md`. |
-| `skills` | no | none | Exact references to artifacts of `kind: skill`. Rendered to `/.memseek/skills/01.md`, `02.md`, … in order. |
-| `tools` | no | `[computer, recall]` | Which tool families the loop may use. `computer` is the filesystem and shell tools — the shell appears only if the Computer allows `exec`. `recall` is granted only if listed here. Values must be unique. |
+| `skills` | no | none | Exact references to artifacts of `kind: skill`. Superseded by `toolset`; see [Toolsets](toolsets.md). |
+| `tools` | no | `[computer, recall]` | Which tool families the loop may use. `computer` is the filesystem and shell tools — the shell appears only if the Computer allows `exec`. `recall` is granted only if listed here. Superseded by `toolset`. |
+| `toolset` | no | none | Exact reference to a [toolset](toolsets.md) — the declared surface of tools and skills this Agent may reach. Mutually exclusive with `tools` and `skills`. |
 | `computers` | yes | — | Exact references to every Computer this Agent is allowed to run in. At least one. A run naming a Computer that is not on this list is refused. |
 | `context_policy` | yes | — | Exact reference to a context policy. |
 | `limits` | no | see below | Hard bounds on the loop. |
@@ -1077,11 +1126,14 @@ For `use: computer` (a Program):
 
 `use: agent` adds five things around the same spine:
 
-- **Evidence is rendered first.** The Agent's `instructions`, each `skills`
-  entry, and every `context:` mount on the Computer are rendered to text, in
-  that order, at `/.memseek/instructions.md`, `/.memseek/skills/NN.md`, and
-  their declared paths. Records newly made visible by those renders count
-  against the run's `max_visible_records`.
+- **Evidence is rendered first.** The Agent's `instructions`, each declared
+  skill, and every `context:` mount on the Computer are rendered to text, in
+  that order, at `/.memseek/instructions.md`, `/.memseek/skills/<name>/SKILL.md`,
+  and their declared paths. A skill artifact carrying a `description` is
+  disclosed progressively — its name and description reach the system prompt and
+  its procedure stays on disk until the Agent loads it — while one without a
+  description is inlined, because there is nothing to offer it by. Records newly
+  made visible by those renders count against the run's `max_visible_records`.
 - **Citation authority is the union** of the records behind the task input and
   the records behind those renders. Nothing else. The rendered text itself is
   escaped and labeled untrusted; only the versioned instructions are treated as
@@ -1229,6 +1281,22 @@ The publish is rejected if anything is missing, and the message names what:
 
 Program source is part of the package hash, so "the same package" always means
 the same code.
+
+Families that reference each other by exact version are the point where a
+directory listing stops explaining the design. Draw it instead:
+
+```console
+uv run memseek catalog-graph --dir examples/computer_renewal_catalog \
+    --out renewal-graph.html
+```
+
+The page shows the whole closure in flow order: which Collection triggers the
+Pipeline, which Computer and Program it runs, which Artifacts are mounted at
+which paths, which tools the Agent's toolset grants, where each writeback lands,
+and which of those Collections is review-gated. Clicking a Computer or Agent
+gives its compiled definition — the capabilities, runtime fallback, retention,
+and step and token budgets it actually commits to. See
+[Seeing the package](packages.md#seeing-the-package).
 
 ## Choosing a provider
 
@@ -1397,4 +1465,5 @@ demo file by file, with the output of a real run at each step.
   [Derivations](derivations.md) and [Runtime receipts and Candidate Sets](evaluation-bases.md)
 - What gets mounted as context: [Artifacts](artifacts.md)
 - Exposing it to an agent: [MCP](mcp.md)
-- Shipping it: [Packages](packages.md)
+- Shipping it: [Packages](packages.md), and
+  [seeing what shipped](packages.md#seeing-the-package)

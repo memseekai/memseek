@@ -65,6 +65,33 @@ separately refused at the boundary for any Computer declaring
 
 ## 2. HTTP surface
 
+Execution failures return HTTP 422 with `{error, stage, request_id}`. The
+`computer.execution_failed` structured log contains the matching runtime request
+ID, execution stage, task/session IDs, and bounded exception details. Agent-side
+failures are also logged before RPC serialization; join them by task/session ID.
+`computer.model_step` logs tool names/errors and finish reason without full tool
+inputs, result bodies, or model text. See the
+[debugging walkthrough](../../examples/README.md#debug-a-real-runtime-http-422)
+for the smaller live canary and retained local logs.
+
+Invocations first decide whether an operator answer is needed in one structured
+response, using the inline evidence and operator turns without tools. A paused
+decision returns immediately. When execution can proceed, the remaining model
+steps enable recall and workspace tools.
+Both phases share the Agent's existing step limit. The runtime reserves the last
+step for a final JSON response and ends identical repeated tool steps early.
+Derivations return records for pipeline `emit`; they cannot publish invocation
+writeback. All returned envelopes, citations, and writeback still undergo normal
+validation.
+
+For supplied destination schemas the runtime exposes schema-specific observation
+and proposal tools. Their inputs use the destination record shape, and their
+results report the exact citations to include in the final envelope. Generic
+`write` calls to those paths are redirected to these tools; scratch writes remain
+available. Schemas unsupported by the helper converter retain generic file
+writing and canonical ingestion validation.
+
+
 ### `GET /health`
 
 ```json
@@ -111,8 +138,8 @@ sides on NTP.
 
 `422` is the catch-all: a traversal path, a tampered immutable file, a Program
 exit code, an agent envelope that does not parse, an outbox violation. The
-message is the thrown `Error.message`; only the error *name* is logged, so
-`wrangler tail` shows less than the response body does.
+message is the thrown `Error.message`. Structured diagnostics include the failing
+stage, correlation IDs, and bounded exception details without full request bodies.
 
 ### Request and response
 
@@ -143,11 +170,13 @@ Every execution sees the same layout inside the session's durable workspace:
 ```text
 /.memseek/                        immutable — rejected as a write target
   instructions.md                 the Agent's versioned instructions artifact
-  skills/NN.md                    the Agent's skill artifacts, in order
+  skills/<name>/SKILL.md          each disclosed skill: frontmatter, then
+                                  the procedure the Agent loads on demand
   manifest.json                   MemSeek's provenance manifest of those renders
   runtime-manifest.json           this Worker's manifest: refs, permissions, sources, citations
+  writeback-schemas.json          destination collection schemas for invocation candidates
   program/…                       the Program bundle, when the executor is a Program
-  results/<sha256(task_id)>.json  the idempotency cache
+  results/<sha256(request)>.json   the idempotency cache (canonical request JSON)
   forked-from                     the parent session key, when this session is a fork
 /inputs/<sha256(task_id)>/input.json    immutable typed Task input
 /workspace/                       writable working files
@@ -175,7 +204,8 @@ does not go unnoticed.
    from the parent workspace, then write the marker. If the marker exists with
    a different value → `fork parent mismatch`. Copying refuses symlinks and
    caps at 2 000 files / 50 MiB.
-3. **Idempotency probe.** Read `/.memseek/results/<sha256(task_id)>.json`. On a
+3. **Idempotency probe.** Read `/.memseek/results/<sha256(request)>.json`, keyed
+   by the canonical full request, including input turns and authority. On a
    hit, return it with `receipt.resumed = true` — no re-execution, no second
    model call. This is what makes a MemSeek retry safe.
 4. **Materialize.** Write `context_files` (each must be under `/.memseek`),
@@ -307,11 +337,10 @@ Three distinct identities do three different jobs:
 - **`session_key`** names the workspace. Same value → same files. Tasks in one
   derivation run naming the same Computer share a filesystem; different
   Computer references are isolated.
-- **`task_id`** names one unit of work. Its result is cached in the workspace,
-  so a transport interruption and retry return the original value with
-  `resumed: true` rather than paying for the work twice. Reusing a `task_id`
-  for genuinely different work returns the stale result — MemSeek derives it
-  from run identity for exactly this reason.
+- **`task_id`** names the durable work and stays the same across invocation
+  replies. The full request determines the result-cache key, so a transport
+  retry returns the original value with `resumed: true`, while a new human
+  reply, changed context, or changed authority executes again.
 - **`parent_session_key`** requests a fork. Only `retention.preserve` paths
   cross over, so a fork inherits checkpoints, not scratch state. The
   `/.memseek/forked-from` marker makes the copy happen exactly once and makes a
@@ -345,16 +374,21 @@ become active evidence; maintained state becomes a review-required draft.
 
 ## 8. Configure, deploy, verify
 
-Node comes from `nvm` in this repo; `npm` is not on the default `PATH`.
+Use Node.js 22 or newer with `node` and `npm` on your shell's PATH.
 
 ```sh
-export PATH="$HOME/.nvm/versions/node/v22.22.1/bin:$PATH"
 cd cloudflare/computer-runtime
-npm install
+npm ci
 npm run check          # tsc --noEmit && vitest run
 ```
 
 Set the shared secret and deploy:
+
+Unlike `make computer-demo MODE=cloudflare`, these commands deploy resources
+to your Cloudflare account. The Make command without a remote URL uses local
+Wrangler development. The configured deployment includes the Worker, both
+Durable Object classes, and the container application; running containers start
+only when the container backend is used.
 
 ```sh
 SECRET=$(openssl rand -hex 32)
@@ -472,7 +506,7 @@ Docker because `wrangler.jsonc` declares the container fallback.
 | `files changed outside writable roots: …` | A write landed outside `computer.writable` |
 | `unknown outbox files: …` | An undeclared path under `/outbox`, or a derivation writing more than its declared result |
 | `external Program bundles require an installed artifact resolver` | The Program uses `bundle:` instead of inline `files:` |
-| `receipt.resumed: true` unexpectedly | A reused `task_id` hit the result cache |
+| `receipt.resumed: true` unexpectedly | The same full request hit the result cache; inspect input turns and context |
 | `budget: Computer runtime response exceeds byte limit` | Response over `COMPUTER_RESPONSE_MAX_BYTES` (16 MiB default) |
 
 ---

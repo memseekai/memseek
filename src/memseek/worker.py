@@ -16,6 +16,7 @@ from uuid import UUID, uuid4
 
 from psycopg.types.json import Jsonb
 
+from memseek.computers import computer_provider_lifespan
 from memseek.config import Settings, get_settings
 from memseek.db import (
     DatabasePool,
@@ -85,12 +86,6 @@ class WorkerPassResult:
         )
 
 
-def _load_catalog(settings: Settings) -> DefinitionCatalog:
-    from memseek.definitions import load_definition_catalog
-
-    return load_definition_catalog(settings)
-
-
 @asynccontextmanager
 async def worker_lifespan(
     settings: Settings | None = None,
@@ -108,7 +103,9 @@ async def worker_lifespan(
     configure_logging(logging.DEBUG if runtime_settings.llm_debug else logging.INFO)
     runtime_pool = pool or create_pool(runtime_settings)
     try:
-        runtime_catalog = catalog or _load_catalog(runtime_settings)
+        from memseek.definitions import load_definition_catalog
+
+        runtime_catalog = catalog or load_definition_catalog(runtime_settings)
         await open_pool(runtime_pool)
         if verify_storage:
             # A worker serves many workspace packages; semantic metadata is
@@ -125,7 +122,8 @@ async def worker_lifespan(
             WorkspaceCatalogRegistry(runtime_pool, runtime_settings, runtime_catalog),
         )
         log_event(LOGGER, "info", "worker.started")
-        yield runtime
+        async with computer_provider_lifespan(runtime_settings):
+            yield runtime
     except BaseException as exc:
         log_event(
             LOGGER,

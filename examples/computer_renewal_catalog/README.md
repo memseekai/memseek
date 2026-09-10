@@ -23,47 +23,57 @@ extracts the contract terms, while the Agent must connect the old promise to
 the incident, retain the original citations, and leave a new commercial
 commitment as a review-required proposal.
 
+## Seeing it
+
+The fixture is fifteen files and twenty-nine parts that reference each other, so
+read it as a graph rather than as a directory:
+
+```sh
+make catalog-graph                                  # this fixture
+make catalog-graph CATALOG=examples/gbrain_catalog  # any other one
+```
+
+That writes `catalog-graph.html`, a self-contained page with no server behind
+it. Both execution modes are visible in one view: `renewal_evidence` triggers
+`contract_extract`, which runs the Program in `fast_workspace@1`; the nightly
+`renewal_assessment` runs the analyst Agent in `research_workspace@1`, whose
+writeback lands the observations directly and holds the pricing proposal for
+review. The Agent's toolset is drawn tool by tool, so what it may read, run, and
+write back is visible without opening `toolsets/renewal.yaml` — and both Agent
+versions appear, which is what keeping a superseded definition published looks
+like. Click a part for the budgets, mount paths, and citation rules it actually
+commits to. `uv run memseek catalog-graph --help` has the options.
+
 ## Running it
 
-`examples/computer_renewal.py` drives this catalog end to end — write-triggered
-Program, nightly Agent derivation, and a durable invocation that pauses for a
-human — and then hands you a prompt.
+See [the complete setup README](../README.md) for prerequisites, first-run
+commands, Cloudflare configuration, and troubleshooting.
+
+From the repository root, with Docker Compose and `uv` installed:
 
 ```sh
-make computer-demo
+make computer-demo                 # short walkthrough, interactive replies
+make computer-demo SCRIPTED=1      # fixed replies, verified outcomes, then exit
+make computer-demo ADVANCED=1      # full desk: journal, recall, fork, receipts
+make computer-demo MODE=cloudflare # real Agent; starts Wrangler automatically
 ```
 
-That brings the Docker stack up with a Computer runtime configured and runs the
-demo against it. Nothing else is required: no API keys (the model provider here
-is `fake`, and neither Computer calls a model), and the demo mints its own
-disposable workspace, so the `local` workspace `make up` sets up is untouched.
+Local mode uses a deterministic HTTP stand-in and needs no model credentials.
+The launcher creates a demo workspace, publishes this fixture with the Computer
+provider set to `cloudflare` (the HTTP adapter), and configures matching secrets.
+The source fixture stays pinned to `fake` for CI. Local execution simulates the
+provider protocol; it does not run JavaScript in a sandbox or call a model.
 
-A Computer is where Programs and Agents actually run, so the stack needs a
-runtime to call — and the demo is it. It serves a small stand-in for
-`cloudflare/computer-runtime`: same signed wire protocol, same response
-envelope, no sandbox and no model. It prints every request the worker sends it.
-The containers reach it at `host.docker.internal:8799`, which is why it binds
-every interface; override the port and shared secret with
-`COMPUTER_RUNTIME_PORT` and `COMPUTER_RUNTIME_SECRET`.
+Cloudflare mode requires Node.js, `npm ci` in `cloudflare/computer-runtime`,
+Wrangler authentication, and `MEMSEEK_RUNTIME_SECRET` in its `.dev.vars`. Its
+Workers AI calls are real and billable. Export `COMPUTER_RUNTIME_URL` and
+`COMPUTER_RUNTIME_TOKEN` to use a deployed runtime instead. Local mode overrides
+those inherited values with its own stand-in settings. `make computer-demo-cloudflare` remains an alias.
 
-Point `COMPUTER_RUNTIME_URL` at a deployed Worker instead and the demo detects
-it, serves nothing, and drives the real runtime — the catalog is unchanged
-either way. The demo publishes this directory with the one edit the deployment
-guide names (`provider: fake` → `provider: cloudflare`), so it runs whichever way
-the fixture is currently pinned.
+Success verifies extracted terms, a cited risk, a completed invocation, active
+observations, and draft proposals requiring review. Local mode also checks two
+answered pauses. A failed stage exits nonzero. The launcher stops its own runtime;
+Docker services and data remain until you stop them with `docker compose down`.
 
-Without Docker, run the same thing by hand. Put the runtime in `.env`, so the
-API, the worker, and the demo agree on it:
-
-```
-COMPUTER_RUNTIME_URL=http://127.0.0.1:8799
-COMPUTER_RUNTIME_TOKEN=local-demo-secret
-```
-
-```sh
-make database && source .env.sh
-uv run memseek migrate
-uv run uvicorn memseek.api:app &                 # terminal A
-uv run memseek worker &                          # terminal B
-uv run python examples/computer_renewal.py       # terminal C
-```
+See [the tutorial](../../docs/computer-renewal-example.md) for SDK usage, port
+overrides, manual setup, and the advanced desk's story.

@@ -14,9 +14,9 @@ computers:
     version: 1
     active: true
     provider: fake
-    context:
-      - {path: /.memseek/context.md, artifact: renewal_instructions@1, mode: read_only}
-      - {path: /.memseek/skills/research.md, artifact: renewal_research_skill@1, mode: read_only}
+    # No `context:`. An Agent's instructions and skills are the Agent's own
+    # declaration; a Computer mounts only what it provides regardless of which
+    # executor runs on it, and this one provides none.
     writable: [/workspace, /outbox]
     runtime:
       default: worker-javascript

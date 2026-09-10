@@ -29,7 +29,7 @@ tasks:
       objective: Identify renewal risks, including promises contradicted by incidents.
       evidence: "{{renewal_basis.records}}"
     with:
-      agent: renewal_analyst@1
+      agent: renewal_analyst@2
       computer: research_workspace@1
       context_policy: evidence_spine@1
       output: /outbox/final-result.json

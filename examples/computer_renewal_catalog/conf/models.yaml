@@ -6,7 +6,7 @@ providers:
 
 aliases:
   renewal_reasoner:
-    targets: ["workers_ai:@cf/meta/llama-3.3-70b-instruct-fp8-fast"]
+    targets: ["workers_ai:@cf/zai-org/glm-5.3-flash"]
     params: {temperature: 0, max_output_tokens: 2400}
     context_tokens: 24000
 

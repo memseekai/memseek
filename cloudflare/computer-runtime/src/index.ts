@@ -12,11 +12,16 @@ import {
   withWorkspaceContainer,
 } from "@cloudflare/computer/backends/container";
 import { WorkerJavaScriptBackend } from "@cloudflare/computer/backends/worker-javascript";
-import { createAITools } from "@cloudflare/computer/tools";
 import { Agent, getAgentByName } from "agents";
-import { generateText, stepCountIs, tool, type ToolSet } from "ai";
+import { generateText, Output, stepCountIs, type ToolSet } from "ai";
 import { createWorkersAI } from "workers-ai-provider";
 import { z } from "zod";
+
+import { ExecutionDiagnostics } from "./diagnostics";
+import { executionInstructions, finalAnswerStep } from "./execution-instructions";
+import { resultCachePath, runAgentPhases } from "./turn-policy";
+import { assembleTools, legacyToolset } from "./tool-registry";
+import { buildContextView, buildSystemPrompt, classifyContext } from "./materialization";
 
 import type { ExecuteRequest, ExecuteResponse, RuntimeName } from "./protocol";
 import { safeAbsolutePath, safeRelativePath, sha256, shellQuote, verifySignedBody } from "./security";
@@ -77,190 +82,168 @@ type SafeGenerationOptions = {
 
 export class MemSeekAgent extends Agent<Env> {
   async execute(request: ExecuteRequest): Promise<AgentOutcome> {
-    return this.keepAliveWhile(async () => {
-      const computer = this.env.COMPUTER.get(
-        this.env.COMPUTER.idFromName(request.session_key),
-      );
-      using workspace = await getWorkspace(
-        computer as unknown as Parameters<typeof getWorkspace>[0],
-      );
-      const target = request.executor.kind === "agent" ? request.executor.model.targets[0] : "";
-      const prefixes = ["workers-ai:", "workers_ai:"];
-      const prefix = prefixes.find((candidate) => target.startsWith(candidate));
-      if (!prefix) {
-        throw new Error("Cloudflare runtime accepts only workers-ai model targets");
-      }
-      const modelName = target.slice(prefix.length);
-      if (!modelName.startsWith("@cf/")) throw new Error("invalid Workers AI model target");
-      const model = createWorkersAI({ binding: this.env.AI })(modelName);
-      const system = await buildSystemPrompt(workspace, request);
-      const backend = backendFor(request);
-      const computerTools = createAITools({
-        workspace,
-        read: { maxBytes: 32 * 1024, maxLines: 800 },
-        ...(request.computer.capabilities.exec
-          ? {
-              shell: {
-                defaultBackend: backend,
-                backends: {
-                  [backend]: {
-                    description:
-                      backend === "container-shell"
-                        ? "A network-denied Linux container sharing the durable workspace."
-                        : "A fast network-denied JavaScript runtime sharing the durable workspace.",
-                  },
-                },
-              },
-            }
-          : {}),
-      });
-      const tools: ToolSet = { ...computerTools };
-      if (
-        request.executor.kind === "agent"
-        && request.executor.definition.tools.includes("recall")
-      ) {
-        tools.recall = createRecallTool(workspace, request);
-      }
-      const maxSteps = request.executor.kind === "agent" ? request.executor.definition.limits.max_steps : 1;
-      const generation = request.executor.kind === "agent"
-        ? safeGenerationOptions(request.executor.model.params)
-        : {};
-      const encodedInput = JSON.stringify(request.input);
-      // Every request carries the system prompt, the input, AND the full JSON
-      // Schema of every tool. On a small context window the tool schemas are
-      // easily the largest term, and they are invisible in the request Memseek
-      // sent — so measure them and put the breakdown in the receipt.
-      const budget = promptBudget(system, encodedInput, tools);
-      console.log("prompt budget", JSON.stringify(budget));
-      const outcome = await generateText({
-        model,
-        system,
-        prompt: encodedInput,
-        tools,
-        stopWhen: stepCountIs(maxSteps),
-        ...generation,
-      });
-      const parsed = parseAgentResult(
-        outcome.text,
-        request.citation_ids,
-        ` (finish reason: ${outcome.finishReason}, steps: ${outcome.steps.length}/${maxSteps})`,
-      );
-      const events: RuntimeEvent[] = [
-        {
-          kind: "model_request",
-          payload: {
-            target,
-            params: generation,
-            input_sha256: await sha256(encodedInput),
-            prompt_budget: budget,
-          },
-        },
-      ];
-      for (const [index, rawStep] of outcome.steps.entries()) {
-        const step = rawStep as unknown as {
-          finishReason?: unknown;
-          usage?: unknown;
-          toolCalls?: Array<Record<string, unknown>>;
-          toolResults?: Array<Record<string, unknown>>;
-        };
-        events.push({
-          kind: "model_step",
-          payload: {
-            index,
-            finish_reason: step.finishReason ?? null,
-            usage: await boundedAuditValue(step.usage),
-          },
+    const diagnostics = new ExecutionDiagnostics("agent", this.env.MEMSEEK_RUNTIME_SECRET);
+    diagnostics.identify(request);
+    try {
+      return await this.keepAliveWhile(async () => {
+        diagnostics.at("agent_workspace");
+        const computer = this.env.COMPUTER.get(
+          this.env.COMPUTER.idFromName(request.session_key),
+        );
+        using workspace = await getWorkspace(
+          computer as unknown as Parameters<typeof getWorkspace>[0],
+        );
+        diagnostics.at("model_configuration");
+        const target = request.executor.kind === "agent" ? request.executor.model.targets[0] : "";
+        const prefixes = ["workers-ai:", "workers_ai:"];
+        const prefix = prefixes.find((candidate) => target.startsWith(candidate));
+        if (!prefix) {
+          throw new Error("Cloudflare runtime accepts only workers-ai model targets");
+        }
+        const modelName = target.slice(prefix.length);
+        if (!modelName.startsWith("@cf/")) throw new Error("invalid Workers AI model target");
+        const model = createWorkersAI({ binding: this.env.AI })(modelName);
+        diagnostics.at("context_view");
+        const classified = classifyContext(request);
+        const context = await buildContextView(classified, (path) =>
+          workspace.fs.readFile(path, "utf8"));
+        diagnostics.at("system_prompt");
+        const system = buildSystemPrompt(context, request);
+        diagnostics.at("tool_configuration");
+        const backend = backendFor(request);
+        const sources = request.toolset?.tools ?? legacyToolset(request, context.skills);
+        const tools = assembleTools({
+          request, workspace, backend, skills: context.skills, sources,
         });
-        for (const call of step.toolCalls ?? []) {
+        const maxSteps = request.executor.kind === "agent" ? request.executor.definition.limits.max_steps : 1;
+        const generation = request.executor.kind === "agent"
+          ? safeGenerationOptions(request.executor.model.params)
+          : {};
+        const encodedInput = JSON.stringify(request.input);
+        // Every request carries the system prompt, the input, AND the full JSON
+        // Schema of every tool. On a small context window the tool schemas are
+        // easily the largest term, and they are invisible in the request Memseek
+        // sent — so measure them and put the breakdown in the receipt.
+        const budget = promptBudget(system, encodedInput, tools, request.toolset);
+        console.log("prompt budget", JSON.stringify(budget));
+        diagnostics.at("model_generation");
+        const envelopeOutput = Output.object({ schema: z.object({
+          value: z.unknown(), citation_ids: z.array(z.string()), awaiting_input: z.boolean(),
+        }) });
+        const generate = async (phaseSystem: string, phaseTools: ToolSet, limit: number, offset = 0) => {
+          const outcome = await generateText({
+          model,
+          system: phaseSystem,
+          prompt: encodedInput,
+          tools: phaseTools,
+          ...(limit === 1 ? { output: envelopeOutput } : {}),
+          stopWhen: stepCountIs(Math.max(1, limit - 1)),
+          prepareStep: ({ stepNumber, steps }) => finalAnswerStep(stepNumber, limit, phaseSystem, steps),
+          onStepFinish: (step) => {
+            diagnostics.modelStep(
+              offset + step.stepNumber, step.finishReason, step.text.length,
+              step.toolCalls.map((call) => call.toolName),
+              [
+                ...step.content.filter((part) => part.type === "tool-error")
+                  .map((part) => ({ tool: part.toolName, error: part.error })),
+                ...step.toolResults.flatMap((part) => {
+                  const output = part.output;
+                  return output && typeof output === "object" && "error" in output
+                    ? [{ tool: part.toolName, error: output.error }] : [];
+                }),
+              ],
+            );
+          },
+          ...generation,
+          });
+          try {
+            parseAgentResult(outcome.text, request.citation_ids);
+          } catch (error) {
+            const message = error instanceof Error ? error.message : "";
+            if (outcome.steps.length >= limit || !(message.startsWith("agent final output") || message.startsWith("agent returned no final"))) throw error;
+            const formatted = await generateText({
+              model, system: phaseSystem, output: envelopeOutput,
+              messages: [
+                { role: "user", content: encodedInput }, ...outcome.response.messages,
+                { role: "user", content: "Return the final MemSeek envelope now. Preserve the evidence and successful tool results; do not claim unperformed writes. Include every authorized citation used in your written observation/proposal files in citation_ids. If this is the decision phase, return the question or execution plan, without claiming writes." },
+              ],
+              onStepFinish: (step) => diagnostics.modelStep(offset + outcome.steps.length, step.finishReason, step.text.length, [], []),
+              ...generation,
+            });
+            return { text: formatted.text, finishReason: formatted.finishReason, steps: [...outcome.steps, ...formatted.steps] };
+          }
+          return { text: outcome.text, finishReason: outcome.finishReason, steps: outcome.steps };
+        };
+        const { outcome, completedSteps } = await runAgentPhases({
+          invocation: request.mode === "invocation",
+          system, tools, maxSteps, generate,
+          parseDecision: (text) => parseAgentResult(text, request.citation_ids),
+        });
+        diagnostics.at("agent_output_validation");
+        const parsed = parseAgentResult(
+          outcome.text,
+          request.citation_ids,
+          ` (finish reason: ${outcome.finishReason}, steps: ${completedSteps.length}/${maxSteps})`,
+        );
+        diagnostics.at("agent_audit");
+        const events: RuntimeEvent[] = [
+          {
+            kind: "model_request",
+            payload: {
+              target,
+              params: generation,
+              input_sha256: await sha256(encodedInput),
+              prompt_budget: budget,
+            },
+          },
+        ];
+        for (const [index, rawStep] of completedSteps.entries()) {
+          const step = rawStep as unknown as {
+            finishReason?: unknown;
+            usage?: unknown;
+            toolCalls?: Array<Record<string, unknown>>;
+            toolResults?: Array<Record<string, unknown>>;
+          };
           events.push({
-            kind: "tool_call",
+            kind: "model_step",
             payload: {
               index,
-              tool_call_id: call.toolCallId ?? null,
-              tool_name: call.toolName ?? null,
-              input: await boundedAuditValue(call.input),
+              finish_reason: step.finishReason ?? null,
+              usage: await boundedAuditValue(step.usage),
             },
           });
+          for (const call of step.toolCalls ?? []) {
+            events.push({
+              kind: "tool_call",
+              payload: {
+                index,
+                tool_call_id: call.toolCallId ?? null,
+                tool_name: call.toolName ?? null,
+                input: await boundedAuditValue(call.input),
+              },
+            });
+          }
+          for (const toolResult of step.toolResults ?? []) {
+            events.push({
+              kind: "tool_result",
+              payload: {
+                index,
+                tool_call_id: toolResult.toolCallId ?? null,
+                tool_name: toolResult.toolName ?? null,
+                output: await boundedAuditValue(toolResult.output),
+              },
+            });
+          }
         }
-        for (const toolResult of step.toolResults ?? []) {
-          events.push({
-            kind: "tool_result",
-            payload: {
-              index,
-              tool_call_id: toolResult.toolCallId ?? null,
-              tool_name: toolResult.toolName ?? null,
-              output: await boundedAuditValue(toolResult.output),
-            },
-          });
-        }
-      }
-      return { ...parsed, steps: outcome.steps.length, events };
-    });
+        diagnostics.at("agent_complete");
+        return { ...parsed, steps: completedSteps.length, events };
+      });
+    } catch (error) {
+      // Log here before Durable Object RPC serialization can erase causes.
+      diagnostics.failure(error);
+      throw error;
+    }
   }
-}
-
-function createRecallTool(workspace: WorkspaceClient, request: ExecuteRequest) {
-  const rawPolicy = request.executor.kind === "agent" ? request.executor.context_policy : {};
-  const hitLimit = boundedInteger(rawPolicy.max_recall_hits, 1, 50, 20);
-  const byteLimit = boundedInteger(rawPolicy.max_exposed_bytes, 1024, 262_144, 64 * 1024);
-  return tool({
-    description:
-      "Search already-authorized immutable context and durable workspace files, then materialize a bounded receipt for exact opening.",
-    inputSchema: z.object({
-      query: z.string().min(1).max(512),
-    }),
-    execute: async ({ query }) => {
-      const matches: Array<Record<string, unknown>> = [];
-      for (const root of ["/.memseek", "/workspace"]) {
-        let found;
-        try {
-          found = await workspace.fs.grep(query, root, {
-            ignoreCase: true,
-            regex: false,
-            context: 1,
-            limit: hitLimit - matches.length,
-          });
-        } catch (error) {
-          if ((error as { code?: string }).code === "ENOENT") continue;
-          throw error;
-        }
-        for (const match of found) {
-          matches.push({
-            path: match.path,
-            line: match.line,
-            text: match.text,
-            context: match.context ?? [],
-          });
-          if (matches.length >= hitLimit) break;
-        }
-        if (matches.length >= hitLimit) break;
-      }
-      let exposed = matches;
-      while (exposed.length && new TextEncoder().encode(JSON.stringify(exposed)).length > byteLimit) {
-        exposed = exposed.slice(0, -1);
-      }
-      const receipt = {
-        query,
-        matches: exposed,
-        truncated: exposed.length < matches.length,
-      };
-      const path = `/workspace/recalled/${await sha256(query)}.json`;
-      await workspace.fs.mkdir(parentPath(path), { recursive: true });
-      await workspace.fs.writeFile(path, JSON.stringify(receipt));
-      return { ...receipt, materialized_path: path };
-    },
-  });
-}
-
-function boundedInteger(
-  value: unknown,
-  minimum: number,
-  maximum: number,
-  fallback: number,
-): number {
-  return Number.isSafeInteger(value) && (value as number) >= minimum && (value as number) <= maximum
-    ? value as number
-    : fallback;
 }
 
 async function boundedAuditValue(value: unknown): Promise<unknown> {
@@ -330,27 +313,6 @@ function backendFor(request: ExecuteRequest): "worker-javascript" | "container-s
   return runtime === "container" ? "container-shell" : "worker-javascript";
 }
 
-async function buildSystemPrompt(workspace: WorkspaceClient, request: ExecuteRequest): Promise<string> {
-  const sections: string[] = [];
-  for (const path of Object.keys(request.context_files).sort()) {
-    if (path === "/.memseek/manifest.json") continue;
-    const content = await workspace.fs.readFile(path, "utf8");
-    sections.push(`## ${path}\n\n${content}`);
-  }
-  return [
-    "You are the exact versioned MemSeek Agent named in the manifest.",
-    "Use the Computer filesystem as working memory. Read immutable context before acting.",
-    "Use recall to recover buried authorized evidence; open its materialized receipt before citing it.",
-    "You may write only below the writable roots named in the manifest.",
-    "Network access is denied unless the manifest explicitly enables it.",
-    "End with one JSON object: {\"value\": <object>, \"citation_ids\": [<visible UUIDs>], \"awaiting_input\": <boolean> }.",
-    "Set awaiting_input true only when work cannot continue without one concrete user answer.",
-    "Never cite an ID absent from the manifest.",
-    ...schemaSection(request),
-    ...sections,
-  ].join("\n\n");
-}
-
 // What the model is actually charged for, before it has done anything. Sizes
 // are bytes of serialized JSON, which is within a rounding error of tokens/4
 // for this material and — unlike a token count — needs no tokenizer.
@@ -358,6 +320,7 @@ function promptBudget(
   system: string,
   input: string,
   tools: ToolSet,
+  toolset: { ref: string | null } | undefined,
 ): Record<string, unknown> {
   const perTool: Record<string, number> = {};
   let toolBytes = 0;
@@ -383,6 +346,11 @@ function promptBudget(
     input_bytes: input.length,
     tool_bytes: toolBytes,
     total_bytes: system.length + input.length + toolBytes,
+    // A declared toolset can measure *smaller* than the legacy surface, which
+    // nothing here has ever done before. Say which surface produced the number
+    // so a step in the series explains itself.
+    tools_source: toolset ? "toolset" : "legacy",
+    toolset_ref: toolset?.ref ?? null,
     tools: perTool,
   };
 }
@@ -390,17 +358,6 @@ function promptBudget(
 // Memseek validates `value` against the caller's declared schema and rejects
 // the whole run on a mismatch, so withholding the schema asks the model to hit
 // an undisclosed target. Stated here, and only when there is one to state.
-function schemaSection(request: ExecuteRequest): string[] {
-  if (!request.output_schema) return [];
-  const encoded = JSON.stringify(request.output_schema);
-  if (encoded.length > 8 * 1024) {
-    return ["The \"value\" object is validated against a JSON Schema too large to inline."];
-  }
-  return [
-    `The "value" object MUST validate against this JSON Schema, or the run is rejected:\n${encoded}`,
-  ];
-}
-
 function parseAgentResult(
   text: string,
   visible: string[],
@@ -424,8 +381,10 @@ function parseAgentResult(
   } catch {
     throw new Error("agent final output was not valid JSON");
   }
-  if (!("value" in parsed) || !Array.isArray(parsed.citation_ids)) {
-    throw new Error("agent final output does not match the MemSeek envelope");
+  if (!parsed || typeof parsed !== "object" || !("value" in parsed) || !Array.isArray(parsed.citation_ids)) {
+    const hasValue = Boolean(parsed && typeof parsed === "object" && "value" in parsed);
+    const hasCitations = Boolean(parsed && Array.isArray(parsed.citation_ids));
+    throw new Error(`agent final output does not match the MemSeek envelope (value present: ${hasValue}; citation_ids array: ${hasCitations})`);
   }
   const allowed = new Set(visible);
   const citations = parsed.citation_ids.map(String);
@@ -458,23 +417,31 @@ export default {
     if (!(await verifySignedBody(body, request.headers, env.MEMSEEK_RUNTIME_SECRET))) {
       return errorResponse("unauthorized", 401);
     }
+    const diagnostics = new ExecutionDiagnostics("runtime", env.MEMSEEK_RUNTIME_SECRET);
     try {
+      diagnostics.at("parse_request");
       const payload = JSON.parse(new TextDecoder().decode(body)) as ExecuteRequest;
+      diagnostics.at("validate_request");
       validateRequest(payload);
-      const result = await execute(payload, env);
+      diagnostics.identify(payload);
+      const result = await execute(payload, env, diagnostics);
       return Response.json(result);
     } catch (error) {
-      console.error("computer execution failed", error instanceof Error ? error.name : "unknown");
-      return errorResponse(error instanceof Error ? error.message : "execution_failed", 422);
+      return Response.json(diagnostics.failure(error), { status: 422 });
     }
   },
 } satisfies ExportedHandler<Env>;
 
-async function execute(request: ExecuteRequest, env: Env): Promise<ExecuteResponse> {
+async function execute(
+  request: ExecuteRequest, env: Env, diagnostics: ExecutionDiagnostics,
+): Promise<ExecuteResponse> {
+  diagnostics.at("workspace_open");
   const stub = env.COMPUTER.get(env.COMPUTER.idFromName(request.session_key));
   using workspace = await getWorkspace(stub as unknown as Parameters<typeof getWorkspace>[0]);
+  diagnostics.at("fork_materialization");
   await materializeFork(workspace, request, env);
-  const cachePath = `/.memseek/results/${await sha256(request.task_id)}.json`;
+  diagnostics.at("result_cache_read");
+  const cachePath = await resultCachePath(request);
   try {
     const cached = await workspace.fs.readFile(cachePath, "utf8");
     const result = JSON.parse(cached) as ExecuteResponse;
@@ -484,18 +451,24 @@ async function execute(request: ExecuteRequest, env: Env): Promise<ExecuteRespon
     if ((error as { code?: string }).code !== "ENOENT") throw error;
   }
 
+  diagnostics.at("context_materialization");
   const immutable = await materialize(workspace, request);
+  diagnostics.at("snapshot_before");
   const before = await snapshot(workspace, ["/"]);
   const commands: Array<Record<string, unknown>> = [];
   let outcome: AgentOutcome;
   if (request.executor.kind === "program") {
+    diagnostics.at("program_execution");
     outcome = await runProgram(workspace, request, commands);
   } else {
+    diagnostics.at("agent_execution");
     const agent = await getAgentByName(env.AGENT, `${request.session_key}:${request.executor.ref}`);
     outcome = await agent.execute(request);
   }
+  diagnostics.at("immutable_validation");
   const tampered = await restoreAndFindTampering(workspace, immutable);
   if (tampered.length) throw new Error(`immutable files changed: ${tampered.join(", ")}`);
+  diagnostics.at("writable_validation");
   const afterExecution = await snapshot(workspace, ["/"]);
   const unauthorized = diffSnapshots(before, afterExecution)
     .map((entry) => String(entry.path))
@@ -503,17 +476,22 @@ async function execute(request: ExecuteRequest, env: Env): Promise<ExecuteRespon
   if (unauthorized.length) {
     throw new Error(`files changed outside writable roots: ${unauthorized.join(", ")}`);
   }
+  diagnostics.at("output_validation");
   const encoded = JSON.stringify(outcome.value);
+  const encodedBytes = new TextEncoder().encode(encoded);
   const limit = request.executor.kind === "agent"
     ? request.executor.definition.limits.max_output_bytes
     : 10 * 1024 * 1024;
-  if (new TextEncoder().encode(encoded).length > limit) throw new Error("output byte limit exceeded");
+  if (encodedBytes.length > limit) throw new Error("output byte limit exceeded");
+  diagnostics.at("output_write");
   await workspace.fs.mkdir(parentPath(request.output_path), { recursive: true });
   await workspace.fs.writeFile(request.output_path, encoded);
+  diagnostics.at("outbox_collection");
   const outbox = await collectOutbox(workspace, request);
+  diagnostics.at("snapshot_after");
   const after = await snapshot(workspace, ["/"]);
   const files = diffSnapshots(before, after);
-  const outputHash = await sha256(encoded);
+  const outputHash = await sha256(encodedBytes);
   const response: ExecuteResponse = {
     value: outcome.value,
     citation_ids: outcome.citation_ids,
@@ -529,7 +507,7 @@ async function execute(request: ExecuteRequest, env: Env): Promise<ExecuteRespon
       executor_ref: request.executor.ref,
       output_path: request.output_path,
       output_sha256: outputHash,
-      bytes: new TextEncoder().encode(encoded).length,
+      bytes: encodedBytes.length,
       commands,
       files,
       events: outcome.events ?? [],
@@ -540,8 +518,10 @@ async function execute(request: ExecuteRequest, env: Env): Promise<ExecuteRespon
       resumed: false,
     },
   };
+  diagnostics.at("result_cache_write");
   await workspace.fs.mkdir(parentPath(cachePath), { recursive: true });
   await workspace.fs.writeFile(cachePath, JSON.stringify(response));
+  diagnostics.at("complete");
   return response;
 }
 

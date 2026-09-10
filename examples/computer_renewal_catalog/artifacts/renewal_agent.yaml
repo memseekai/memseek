@@ -3,6 +3,9 @@ artifacts:
     version: 1
     active: true
     kind: prompt
+    description: >-
+      Standing instructions for renewal analysis: work from evidence, cite record
+      IDs, and escalate an uncontracted pricing promise rather than pricing it.
     lifecycle: live
     parameters:
       entity: {type: string, required: true}
@@ -43,6 +46,12 @@ artifacts:
     version: 1
     active: true
     kind: skill
+    # This is the only part of the skill that reaches the system prompt, so it
+    # is written for the model deciding whether to open the rest.
+    description: >-
+      Work a renewal file evidence-first: keep a risk table in the workspace,
+      recall promises that have left working context, and cite original record
+      IDs. Load this before assessing an account.
     lifecycle: live
     parameters:
       entity: {type: string, required: true}

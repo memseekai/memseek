@@ -1,0 +1,47 @@
+# What the renewal analyst may reach. Every capability is named here: a tool the
+# Agent is not given is a tool it does not have, rather than one the runtime
+# happens not to install.
+toolsets:
+  - name: renewal
+    version: 1
+    title: Renewal analyst tools
+    instructions: >-
+      Keep working notes in /workspace. Load the renewal-research skill before
+      assessing an account. Write conclusions out rather than only summarising
+      them.
+    sources:
+      - name: workspace
+        kind: filesystem
+        description: Read and write working files in the Computer workspace.
+        root: /workspace
+        # No `delete`: this Agent has no reason to remove its own evidence.
+        modes: [read, ls, find, grep, write, edit]
+
+      - name: shell
+        kind: exec
+        description: Run a command inside the Computer to process workspace files.
+
+      - name: recall
+        kind: recall
+        description: >-
+          Search already-authorized immutable context and durable workspace
+          files, then open the materialized receipt before citing anything.
+
+      - name: renewal_research
+        kind: skill
+        artifact: renewal_research_skill@1
+        skill_name: renewal-research
+
+      - name: observations
+        kind: writeback
+        description: >-
+          Record what is true now: one JSON object per line, each with text,
+          content, and the citations it rests on.
+        path: /outbox/observations.jsonl
+
+      - name: proposals
+        kind: writeback
+        description: >-
+          Propose a commercial commitment for a person to approve, rather than
+          making one. Lands as a draft.
+        path: /outbox/proposals

@@ -446,7 +446,11 @@ sequenceDiagram
 ```text
 /.memseek/                        immutable — rejected as a write target
   instructions.md                 the Agent's versioned instructions artifact
-  skills/NN.md                    the Agent's skill artifacts, in order
+  skills/<name>/SKILL.md          each disclosed skill: frontmatter, then
+                                  the procedure the Agent loads on demand
+  skills/<name>.md                a skill artifact with no description, which
+                                  is inlined into the prompt instead
+  views/<tool>.json               rows a `view` tool source searches
   manifest.json                   Memseek's provenance manifest of those renders
   runtime-manifest.json           the Worker's manifest: refs, permissions,
                                   sources, citations
@@ -517,16 +521,23 @@ Never cite an ID absent from the manifest.
 
 ## /.memseek/instructions.md
 …
-## /.memseek/skills/01.md
-…
+
+## Skills
+These procedures are available but are NOT in your context. Call the `skill`
+tool with the exact name to read one.
+- renewal-research — Work a renewal file evidence-first…
 ```
 
-Every `context_files` entry except `/.memseek/manifest.json` is appended as a
-`## <path>` section, sorted by path. The manifest is excluded as machine
-metadata. The user message is the JSON encoding of `input`.
+Memseek sends a `materialization` descriptor alongside `context_files` saying
+what each path is for. A `skill` file contributes only its name and description;
+a `view` file is searched by its tool rather than inlined; everything else except
+`/.memseek/manifest.json` is appended as a `## <path>` section. When the
+descriptor is absent — an older Memseek against a newer Worker — the runtime
+falls back to path conventions that reproduce the previous behavior exactly.
 
-**Grants tools.** The filesystem set comes from `createAITools`, over the same
-durable workspace; the loop's authority is exactly this list.
+**Grants tools.** The tool set is assembled from the `toolset` descriptor, one
+provider per declared source kind, over the same durable workspace; the loop's
+authority is exactly what the catalog named. See [Toolsets](toolsets.md).
 
 | Tool | Bounds | Granted when |
 | --- | --- | --- |

@@ -12,7 +12,6 @@ from psycopg import errors
 from psycopg.types.json import Jsonb
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from memseek.artifacts import render_artifact
 from memseek.computers import ComputerExecutionError, ComputerResult, execute_agent, execute_program
 from memseek.config import Settings
 from memseek.db import DatabaseConnection, DatabasePool
@@ -20,6 +19,7 @@ from memseek.definitions import DefinitionCatalog
 from memseek.definitions.base import split_exact_reference
 from memseek.evidence_spine import persist_completion_memory_tx
 from memseek.locks import acquire_workspace_lock
+from memseek.materialization import MaterializationError, build_agent_materialization
 
 TERMINAL_INVOCATION_STATUSES = frozenset({"succeeded", "failed", "cancelled", "context_exhausted"})
 _MAX_PROVIDER_EVENTS = 512
@@ -439,52 +439,6 @@ async def read_invocation_events(
     return {"events": events, "cursor": events[-1]["ordinal"] if events else after}
 
 
-async def _render_agent_context(
-    pool: DatabasePool,
-    *,
-    workspace: str,
-    entity: str,
-    computer_ref: str,
-    agent_ref: str,
-    catalog: DefinitionCatalog,
-    settings: Settings,
-) -> tuple[dict[str, str], frozenset[UUID]]:
-    computer = catalog.resolve_computer(computer_ref)
-    agent = catalog.resolve_agent(agent_ref)
-    targets = [
-        ("/.memseek/instructions.md", agent.instructions),
-        *(
-            (f"/.memseek/skills/{index:02d}.md", reference)
-            for index, reference in enumerate(agent.skills, start=1)
-        ),
-        *((mount.path, mount.artifact) for mount in computer.context),
-    ]
-    files: dict[str, str] = {}
-    ids: set[UUID] = set()
-    manifests: list[dict[str, Any]] = []
-    for path, reference in targets:
-        if path in files:
-            raise InvocationError("materialization", f"duplicate context path {path!r}")
-        artifact = catalog.resolve_artifact(reference)
-        parameters = {"entity": entity} if "entity" in artifact.parameters else {}
-        rendered = await render_artifact(
-            pool,
-            workspace=workspace,
-            name=reference,
-            parameters=parameters,
-            catalog=catalog,
-            settings=settings,
-        )
-        files[path] = str(rendered["rendered"])
-        manifest = dict(rendered["manifest"])
-        manifests.append({"path": path, **manifest})
-        ids.update(UUID(str(value)) for value in manifest["input_record_ids"])
-    files["/.memseek/manifest.json"] = _canonical_json(
-        {"entity": entity, "computer": computer_ref, "agent": agent_ref, "sources": manifests}
-    )
-    return files, frozenset(ids)
-
-
 async def execute_invocation(
     pool: DatabasePool,
     *,
@@ -558,15 +512,19 @@ async def execute_invocation(
                 parent_run_key=parent_run_key,
             )
         else:
-            context_files, context_ids = await _render_agent_context(
-                pool,
-                workspace=workspace,
-                entity=str(invocation["entity"]),
-                computer_ref=computer_ref,
-                agent_ref=str(invocation["executor_ref"]),
-                catalog=catalog,
-                settings=settings,
-            )
+            try:
+                materialized = await build_agent_materialization(
+                    pool,
+                    workspace=workspace,
+                    entity=str(invocation["entity"]),
+                    computer_ref=computer_ref,
+                    agent_ref=str(invocation["executor_ref"]),
+                    catalog=catalog,
+                    settings=settings,
+                )
+            except MaterializationError as exc:
+                raise InvocationError(exc.code, exc.detail) from exc
+            context_ids = materialized.citation_ids
             agent = catalog.resolve_agent(str(invocation["executor_ref"]))
             provider_result = await execute_agent(
                 settings=settings,
@@ -587,7 +545,9 @@ async def execute_invocation(
                 citation_ids=context_ids,
                 output_path="/outbox/final-result.json",
                 output_schema={"type": "object"},
-                context_files=context_files,
+                context_files=materialized.context_files,
+                materialization=materialized.descriptor_json(),
+                toolset=materialized.toolset_json(),
                 max_output_bytes=agent.limits.max_output_bytes,
                 max_steps=agent.limits.max_steps,
                 mode="invocation",
@@ -873,7 +833,7 @@ async def _ingest_outbox_tx(
 ) -> dict[str, Any]:
     if not outbox:
         return {}
-    from memseek.records import PublicRecordInput, insert_records_tx
+    from memseek.records import PublicRecordInput, RecordValidationError, insert_records_tx
 
     computer = catalog.resolve_computer(computer_ref)
     declarations = [
@@ -940,13 +900,16 @@ async def _ingest_outbox_tx(
             paths.append(path)
     if not records:
         return {}
-    result = await insert_records_tx(
-        conn,
-        workspace=workspace,
-        records=tuple(records),
-        catalog=catalog,
-        settings=settings,
-    )
+    try:
+        result = await insert_records_tx(
+            conn,
+            workspace=workspace,
+            records=tuple(records),
+            catalog=catalog,
+            settings=settings,
+        )
+    except RecordValidationError as exc:
+        raise InvocationError("writeback", f"invalid writeback record: {exc}") from exc
     return {
         "paths": sorted(set(paths)),
         "inserted_ids": [str(item.id) for item in result.inserted],

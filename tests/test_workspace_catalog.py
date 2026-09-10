@@ -2,17 +2,28 @@
 
 from __future__ import annotations
 
+import asyncio
+import threading
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
+from unittest.mock import patch
 
 import httpx
+import pytest
+from psycopg import AsyncConnection
 
 from memseek.api import create_app
 from memseek.auth import create_workspace
 from memseek.config import Settings
 from memseek.db import DatabasePool, create_pool
 from memseek.definitions import load_definition_catalog
-from memseek.workspace_catalog import WorkspaceCatalogError
+from memseek.workspace_catalog import (
+    WorkspaceCatalogError,
+    WorkspaceCatalogRegistry,
+    WorkspaceCatalogRequest,
+    _compile_overlay,
+)
 
 
 def _gbrain_catalog_files() -> dict[str, str]:
@@ -414,7 +425,7 @@ async def test_unresolvable_stored_catalog_is_not_reported_as_a_bad_credential(
                 "catalog_storage", "stored catalog hash mismatch", status=503
             )
 
-        app.state.catalog_registry.get = refuse
+        app.state.catalog_registry.resolve = refuse
         transport = httpx.ASGITransport(app=app)
         async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
             refused = await client.get("/collections", headers=headers)
@@ -430,3 +441,115 @@ async def test_unresolvable_stored_catalog_is_not_reported_as_a_bad_credential(
     # A genuinely bad credential is still the only thing that reads as 401.
     assert unauthorized.status_code == 401, unauthorized.text
     assert unauthorized.json()["error"] == "unauthorized"
+
+
+async def test_catalog_cache_coalesces_compilation_and_keeps_yaml_in_database(
+    settings: Settings,
+    db_pool: DatabasePool,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from memseek import workspace_catalog as catalog_module
+
+    await create_workspace(db_pool, "cache")
+    registry = WorkspaceCatalogRegistry(db_pool, settings, load_definition_catalog(settings))
+    request = WorkspaceCatalogRequest(package="gbrain@0.13.0", files=_gbrain_catalog_files())
+    await registry.install("cache", request)
+    registry._cache.clear()
+    loop_thread = threading.get_ident()
+    threads: list[int] = []
+    payloads: list[object] = []
+    execute = AsyncConnection.execute
+
+    def compile_counted(*args: Any) -> Any:
+        threads.append(threading.get_ident())
+        return _compile_overlay(*args)
+
+    async def record_payload(self: Any, query: Any, params: Any = None, **kwargs: Any) -> Any:
+        cursor = await execute(self, query, params, **kwargs)
+        if isinstance(query, str) and "end as files" in query:
+
+            async def fetchone() -> Any:
+                row: Any = await cursor.fetchone()
+                payloads.append(row["files"])
+                return row
+
+            return SimpleNamespace(fetchone=fetchone)
+        return cursor
+
+    monkeypatch.setattr(catalog_module, "_compile_overlay", compile_counted)
+    with patch.object(AsyncConnection, "execute", record_payload):
+        resolved = await asyncio.gather(*(registry.resolve("cache") for _ in range(8)))
+    assert len(threads) == 1
+    assert threads[0] != loop_thread
+    assert isinstance(payloads[0], dict)
+    assert payloads[1:] == [None] * 7
+    assert all(catalog is resolved[0][0] for catalog, _ in resolved)
+    assert all(package is not None and package.name == "gbrain" for _, package in resolved)
+
+    # A second process publishes a new catalog while this registry stays alive.
+    changed = {
+        name: text.replace("0.13.0", "0.13.1") if name.startswith("packages/") else text
+        for name, text in request.files.items()
+    }
+    other = WorkspaceCatalogRegistry(db_pool, settings, registry.default_catalog)
+    await other.install("cache", WorkspaceCatalogRequest(package="gbrain@0.13.1", files=changed))
+    latest, package = await registry.resolve("cache")
+    assert latest.catalog_hash != resolved[0][0].catalog_hash
+    assert package is not None
+    assert package.version == "0.13.1"
+    assert resolved[0][1] is not None
+    assert resolved[0][1].version == "0.13.0"
+    await other.clear("cache")
+    assert await registry.get("cache") is registry.default_catalog
+    assert "cache" not in registry._cache
+
+
+def test_uploaded_catalog_matches_disk_and_parses_every_file_once(
+    gbrain_settings: Settings,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from memseek import workspace_catalog as catalog_module
+
+    files = _gbrain_catalog_files()
+    expected = load_definition_catalog(gbrain_settings)
+    parse = catalog_module.load_yaml_text
+    parsed: list[str] = []
+
+    def tracked(text: str, *, source: str = "<request>") -> Any:
+        parsed.append(source)
+        return parse(text, source=source)
+
+    def no_write(*args: object, **kwargs: object) -> None:
+        pytest.fail("uploaded catalogs must compile without filesystem writes")
+
+    monkeypatch.setattr(catalog_module, "load_yaml_text", tracked)
+    monkeypatch.setattr(Path, "write_text", no_write)
+    monkeypatch.setattr(Path, "mkdir", no_write)
+    actual = _compile_overlay(gbrain_settings, files)
+    assert actual.catalog_hash == expected.catalog_hash
+    assert sorted(parsed) == sorted(files)
+
+
+def test_uploaded_fragments_preserve_catalog_identity(gbrain_settings: Settings) -> None:
+    import yaml
+
+    files = _gbrain_catalog_files()
+    expected = _compile_overlay(gbrain_settings, files)
+    processors = yaml.safe_load(files.pop("conf/processors.yaml"))["processors"]
+    files["conf/processors/a.yml"] = yaml.safe_dump({"processors": processors[:2]})
+    files["conf/processors/b.yaml"] = yaml.safe_dump({"processors": processors[2:]})
+    profiles = yaml.safe_load(files.pop("conf/search_profiles.yaml"))["profiles"]
+    for index, (name, profile) in enumerate(profiles.items()):
+        files[f"conf/search_profiles/{index}.yml"] = yaml.safe_dump({"profiles": {name: profile}})
+    assert _compile_overlay(gbrain_settings, files).catalog_hash == expected.catalog_hash
+
+
+def test_duplicate_uploaded_keys_report_the_authored_source(gbrain_settings: Settings) -> None:
+    from memseek.definitions import DefinitionError
+
+    files = _gbrain_catalog_files()
+    files["collections/nested/invalid.yaml"] = "name: first\nname: second\n"
+    with pytest.raises(DefinitionError) as caught:
+        _compile_overlay(gbrain_settings, files)
+    assert caught.value.code == "yaml"
+    assert caught.value.file == "collections/nested/invalid.yaml"

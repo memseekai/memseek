@@ -220,6 +220,12 @@ Each prints one JSON object. `catalog-check` and `migrate-collection-hashes` exi
 non-zero when the workspace is blocked or incomplete, so they compose in a
 deployment pipeline.
 
+One related command is deliberately *not* in that list: `memseek catalog-graph`
+compiles a catalog directory and writes an interactive page of the package it
+declares. It takes no `--workspace`, touches no database, and changes nothing,
+so it is safe to run against a candidate catalog before the preflight above.
+See [Seeing the package](packages.md#seeing-the-package).
+
 These commands connect to the database directly and are scoped by `--workspace`,
 which is what makes them operator tools. Every one of them except `reembed` and
 `migrate-collection-hashes` is also a workspace-scoped route, so a tenant can run

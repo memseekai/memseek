@@ -32,7 +32,6 @@ from memseek.graph import (
     resolve_graph_projection,
     traverse_graph,
 )
-from memseek.llm.fake import estimate_tokens
 from memseek.llm.registry import CompletionOutput
 from memseek.llm.runtime import ModelAttemptsExhausted, complete
 from memseek.logging import log_event
@@ -40,6 +39,7 @@ from memseek.render import (
     FenceDeclaration,
     RenderableRecord,
     escape_untrusted,
+    estimate_tokens,
     fence_overhead_tokens,
     render_record,
     render_rows,
@@ -714,22 +714,23 @@ def _structured_sort(
     rows: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
     order_by = resolved.source.order_by
+    keys = {}
+    versions = [resolved.field_versions[order.field] for order in order_by]
+    for row in rows:
+        values = []
+        for field_versions in versions:
+            declaration = _row_declaration(row, field_versions)
+            values.append(
+                _typed_value(declaration.scalar_type, _field_value(row, declaration))
+                if declaration is not None
+                else None
+            )
+        keys[row["id"]] = (values, (int(row["seq"]), str(row["id"])))
 
     def compare(left: dict[str, Any], right: dict[str, Any]) -> int:
-        for order in order_by:
-            versions = resolved.field_versions[order.field]
-            left_declaration = _row_declaration(left, versions)
-            right_declaration = _row_declaration(right, versions)
-            left_value = (
-                _typed_value(left_declaration.scalar_type, _field_value(left, left_declaration))
-                if left_declaration is not None
-                else None
-            )
-            right_value = (
-                _typed_value(right_declaration.scalar_type, _field_value(right, right_declaration))
-                if right_declaration is not None
-                else None
-            )
+        left_values, left_tie = keys[left["id"]]
+        right_values, right_tie = keys[right["id"]]
+        for order, left_value, right_value in zip(order_by, left_values, right_values, strict=True):
             if left_value is None and right_value is None:
                 continue
             if left_value is None:
@@ -743,9 +744,7 @@ def _structured_sort(
             except TypeError:
                 ascending = -1 if str(left_value) < str(right_value) else 1
             return ascending if order.direction == "asc" else -ascending
-        if int(left["seq"]) != int(right["seq"]):
-            return -1 if int(left["seq"]) < int(right["seq"]) else 1
-        return -1 if str(left["id"]) < str(right["id"]) else 1
+        return (left_tie > right_tie) - (left_tie < right_tie)
 
     return sorted(rows, key=cmp_to_key(compare))
 

@@ -6,7 +6,7 @@ tools:
   - name: prepare_renewal
     kind: invocation
     computer: research_workspace@1
-    agent: renewal_analyst@1
+    agent: renewal_analyst@2
     context_policy: evidence_spine@1
     invocation_task: answer
     description: Start a durable, resumable renewal analysis for one account.

@@ -8,11 +8,12 @@ TEST_DATABASE_URL ?= $(COMPOSE_TEST_DATABASE_URL)
 COMPUTER_RUNTIME_PORT ?= 8799
 COMPUTER_RUNTIME_SECRET ?= local-computer-demo
 
-.PHONY: help sync format lint typecheck build docs docs-build reference database database-down migrate migration-current quickstart up down logs check test e2e computer-demo computer-demo-cloudflare cloudflare-agent-smoke cloudflare-agent-smoke-local cloudflare-agent-smoke-setup
+.PHONY: help sync format lint typecheck build docs docs-build reference catalog-graph database database-down migrate migration-current quickstart up down logs check test e2e computer-demo computer-demo-cloudflare cloudflare-agent-smoke cloudflare-agent-smoke-local cloudflare-agent-smoke-setup
 
 help:
 	@echo "up             Run the whole local stack in Docker: postgres, api, worker, catalog"
 	@echo "tools          Print the MCP tools the published catalog offers an agent"
+	@echo "catalog-graph  Draw one catalog package as an interactive page (CATALOG=dir)"
 	@echo "computer-demo  Run the Computer-backed renewal demo against the Docker stack"
 	@echo "computer-demo-cloudflare  The same demo, driven by a real Cloudflare Agent"
 	@echo "cloudflare-agent-smoke  Run a real Workers AI Agent against one durable Computer"
@@ -102,39 +103,27 @@ up:
 # exposed database port and publishes its own catalog, so it needs neither the
 # `local` workspace nor the setup step that installs one — and an unrelated
 # problem there must not stand between you and the demo.
-computer-demo:
-	@set -eu; \
-	COMPUTER_RUNTIME_URL="http://host.docker.internal:$(COMPUTER_RUNTIME_PORT)" \
-	COMPUTER_RUNTIME_TOKEN="$(COMPUTER_RUNTIME_SECRET)" \
-	$(COMPOSE) up -d --build --wait api worker; \
-	printf '\n%s\n' "Stack up. Serving the Computer runtime on port $(COMPUTER_RUNTIME_PORT)."; \
-	DATABASE_URL="postgresql://postgres:postgres@127.0.0.1:$${MEMSEEK_DB_PORT:-5433}/memseek" \
-	COMPUTER_RUNTIME_URL="http://host.docker.internal:$(COMPUTER_RUNTIME_PORT)" \
-	COMPUTER_RUNTIME_TOKEN="$(COMPUTER_RUNTIME_SECRET)" \
-	MEMSEEK_BASE_URL="http://127.0.0.1:$${MEMSEEK_PORT:-8000}" \
-	$(UV) run python examples/computer_renewal.py
+MODE ?= local
+SCRIPTED ?= 0
+ADVANCED ?= 0
 
-# The same renewal desk, driven by a real Cloudflare Agent instead of the
-# deterministic stand-in: Workers AI picks the steps, calls the tools, and
-# decides for itself when to stop and ask you something. `wrangler dev` binds
-# the remote AI binding, so those turns are real and billable.
-#
-# The secret comes from cloudflare/computer-runtime/.dev.vars so that the api,
-# the worker, and the demo all sign with what the Worker verifies.
+# The graph tool needs no database and no workspace: it compiles the directory
+# and writes one page. CATALOG selects which catalog, GRAPH_OUT where it lands.
+CATALOG ?= examples/computer_renewal_catalog
+GRAPH_OUT ?= catalog-graph.html
+
+catalog-graph:
+	@$(UV) run memseek catalog-graph --dir "$(CATALOG)" --out "$(GRAPH_OUT)"
+	@echo "Open $(GRAPH_OUT)"
+
+computer-demo: export COMPOSE := $(COMPOSE)
+computer-demo: export COMPUTER_RUNTIME_PORT := $(COMPUTER_RUNTIME_PORT)
+computer-demo: export COMPUTER_RUNTIME_SECRET := $(COMPUTER_RUNTIME_SECRET)
+computer-demo:
+	@$(UV) run python scripts/run_computer_demo.py --mode "$(MODE)" $(if $(filter 1,$(SCRIPTED)),--scripted) $(if $(filter 1,$(ADVANCED)),--advanced)
+
 computer-demo-cloudflare:
-	@set -eu; \
-	secret=$$(sed -n 's/^MEMSEEK_RUNTIME_SECRET=//p' cloudflare/computer-runtime/.dev.vars | tr -d "\"'"); \
-	[ -n "$$secret" ] || { printf 'error: MEMSEEK_RUNTIME_SECRET missing from cloudflare/computer-runtime/.dev.vars\n' >&2; exit 1; }; \
-	COMPUTER_RUNTIME_URL="http://host.docker.internal:$(COMPUTER_RUNTIME_PORT)" \
-	COMPUTER_RUNTIME_TOKEN="$$secret" \
-	$(COMPOSE) up -d --build --wait api worker; \
-	printf '\n%s\n' "Stack up. Start the Worker in another terminal, then this returns:"; \
-	printf '%s\n\n' "  cd cloudflare/computer-runtime && npx wrangler dev --port $(COMPUTER_RUNTIME_PORT)"; \
-	DATABASE_URL="postgresql://postgres:postgres@127.0.0.1:$${MEMSEEK_DB_PORT:-5433}/memseek" \
-	COMPUTER_RUNTIME_URL="http://127.0.0.1:$(COMPUTER_RUNTIME_PORT)" \
-	COMPUTER_RUNTIME_TOKEN="$$secret" \
-	MEMSEEK_BASE_URL="http://127.0.0.1:$${MEMSEEK_PORT:-8000}" \
-	$(UV) run python examples/computer_renewal.py --cloudflare
+	@$(MAKE) computer-demo MODE=cloudflare SCRIPTED=$(SCRIPTED) ADVANCED=$(ADVANCED)
 
 # A live, database-free deployment canary. Settings reads these from the
 # environment or the repository's untracked .env:

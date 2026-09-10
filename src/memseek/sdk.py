@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import asyncio
 import json
-from collections.abc import AsyncIterator, Mapping, Sequence
+import math
+from collections.abc import AsyncGenerator, AsyncIterator, Mapping, Sequence
 from contextlib import asynccontextmanager, nullcontext
 from dataclasses import dataclass
 from pathlib import Path
@@ -348,11 +349,116 @@ class _FeedbackClient:
         )
 
 
+_UNSET = object()
+_INVOCATION_RESTING = frozenset(
+    {"awaiting_input", "succeeded", "failed", "cancelled", "context_exhausted"}
+)
+
+
+@dataclass(frozen=True, slots=True)
+class InvocationHandle:
+    """A durable invocation ID; closing the client never cancels server work."""
+
+    _invocations: _InvocationsClient
+    id: str
+
+    async def retrieve(self) -> dict[str, Any]:
+        return await self._invocations.retrieve(self.id)
+
+    async def wait(self, *, timeout_s: float = 300) -> dict[str, Any]:
+        """Wait for this turn to rest, with a deadline covering HTTP requests too."""
+        if not math.isfinite(timeout_s) or timeout_s <= 0:
+            raise ValueError("timeout_s must be finite and positive")
+        try:
+            async with asyncio.timeout(timeout_s):
+                while True:
+                    state = await self.retrieve()
+                    if state["status"] in _INVOCATION_RESTING:
+                        return state
+                    await asyncio.sleep(0.4)
+        except TimeoutError as exc:
+            raise TimeoutError(f"Invocation {self.id} did not rest within {timeout_s}s") from exc
+
+    async def reply(self, prompt: str) -> dict[str, Any]:
+        return await self._invocations.continue_(self.id, prompt=prompt)
+
+    async def events(self, *, after: int = 0, limit: int = 100) -> dict[str, Any]:
+        return await self._invocations.events(self.id, after=after, limit=limit)
+
+    async def cancel(self) -> dict[str, Any]:
+        return await self._invocations.cancel(self.id)
+
+
+@dataclass(frozen=True, slots=True)
+class InvocationBinding:
+    """Exact execution references configured once; no server resource is created."""
+
+    _invocations: _InvocationsClient
+    computer: str
+    agent: str | None = None
+    context_policy: str | None = None
+    program: str | None = None
+
+    def __post_init__(self) -> None:
+        from memseek.definitions.base import split_exact_reference
+
+        if (self.agent is None) == (self.program is None):
+            raise ValueError("bind requires exactly one of agent or program")
+        if self.agent is not None and self.context_policy is None:
+            raise ValueError("agent binding requires context_policy")
+        if self.program is not None and self.context_policy is not None:
+            raise ValueError("program binding forbids context_policy")
+        for reference in (self.computer, self.agent, self.context_policy, self.program):
+            if reference is not None:
+                split_exact_reference(reference)
+
+    async def start(
+        self,
+        *,
+        entity: str,
+        prompt: str | None = None,
+        input: Any = _UNSET,
+        idempotency_key: str | None = None,
+    ) -> InvocationHandle:
+        if self.agent is not None:
+            if not prompt or input is not _UNSET:
+                raise ValueError("agent start requires prompt and forbids input")
+            executor = {"kind": "agent", "agent": self.agent, "context_policy": self.context_policy}
+            task = {"kind": "answer", "prompt": prompt}
+        else:
+            if input is _UNSET or input is None or prompt is not None:
+                raise ValueError("program start requires non-null input and forbids prompt")
+            executor = {"kind": "program", "program": self.program}
+            task = {"kind": "compute", "input": input}
+        started = await self._invocations.start(
+            entity=entity,
+            computer=self.computer,
+            executor=executor,
+            task=task,
+            idempotency_key=idempotency_key,
+        )
+        return self._invocations.attach(started["invocation_id"])
+
+
 class _InvocationsClient:
     """Start, resume, fork, and inspect durable Computer work."""
 
     def __init__(self, client: MemseekClient) -> None:
         self._client = client
+
+    def bind(
+        self,
+        *,
+        computer: str,
+        agent: str | None = None,
+        context_policy: str | None = None,
+        program: str | None = None,
+    ) -> InvocationBinding:
+        return InvocationBinding(self, computer, agent, context_policy, program)
+
+    def attach(self, invocation_id: str) -> InvocationHandle:
+        """Construct a handle without an HTTP call; authorization happens on use."""
+        return InvocationHandle(self, invocation_id)
 
     async def start(
         self,
@@ -387,7 +493,7 @@ class _InvocationsClient:
             params={"after": after, "limit": limit},
         )
 
-    async def stream(self, invocation_id: str, *, after: int = 0) -> AsyncIterator[dict[str, Any]]:
+    async def stream(self, invocation_id: str, *, after: int = 0) -> AsyncGenerator[dict[str, Any]]:
         """Yield journal events as the server appends them.
 
         The same ordered journal `events()` pages through, pushed over
@@ -737,4 +843,11 @@ class MemseekClient:
         return value
 
 
-__all__ = ["ArtifactHandle", "BoundArtifact", "MemseekClient", "MemseekHTTPError"]
+__all__ = [
+    "ArtifactHandle",
+    "BoundArtifact",
+    "InvocationBinding",
+    "InvocationHandle",
+    "MemseekClient",
+    "MemseekHTTPError",
+]

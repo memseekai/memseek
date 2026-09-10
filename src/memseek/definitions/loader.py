@@ -2,18 +2,15 @@
 
 from __future__ import annotations
 
-import json
-import tempfile
+import math
 from collections import deque
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from shutil import rmtree
 from types import MappingProxyType
 from typing import Any
 
-import yaml
 from croniter import croniter
 from jsonschema import Draft202012Validator, FormatChecker
 from jsonschema.exceptions import SchemaError
@@ -73,34 +70,12 @@ from .models import (
     ProgramDefinition,
     RankDefaults,
     SearchProfileDefinition,
+    ToolsetDefinition,
+    ToolSourceDefinition,
     ViewDefinition,
     parameter_value_matches,
 )
 from .yaml import load_yaml_file, yaml_files
-
-
-def _catalog_files(path: Path | None) -> tuple[Path, ...]:
-    """Return one legacy catalog file or a deterministic directory of fragments."""
-
-    if path is None:
-        return ()
-    if path.is_dir():
-        return yaml_files(path)
-    return (path,)
-
-
-def _optional_yaml_files(directory: Path | None) -> tuple[Path, ...]:
-    """Definition files for a catalog section, or none when it is unconfigured.
-
-    ``None`` means the deployment ships no definitions of that kind, which is
-    the default: a workspace's catalog arrives by being published, not by being
-    found on disk. A configured directory that is missing still raises, so a
-    typo in a path is never mistaken for "there is nothing here".
-    """
-
-    if directory is None:
-        return ()
-    return yaml_files(directory)
 
 
 def _programmatic_value(value: Any) -> Any:
@@ -119,10 +94,11 @@ def _programmatic_value(value: Any) -> Any:
         return {str(key): _programmatic_value(item) for key, item in value.items()}
     if isinstance(value, (list, tuple)):
         return [_programmatic_value(item) for item in value]
-    try:
-        return json.loads(json.dumps(value, ensure_ascii=False, allow_nan=False))
-    except (TypeError, ValueError) as exc:
-        raise TypeError("programmatic definitions must contain finite JSON values") from exc
+    if value is None or isinstance(value, (str, bool, int)):
+        return value
+    if isinstance(value, float) and math.isfinite(value):
+        return value
+    raise TypeError("programmatic definitions must contain finite JSON values")
 
 
 @dataclass(frozen=True, slots=True)
@@ -131,10 +107,9 @@ class DefinitionSources:
 
     The source mirrors the repository layout, but contains Pydantic models (or
     JSON-compatible mappings) instead of YAML files.  It is intentionally a
-    source object rather than a second validation implementation: definitions
-    are materialized into an isolated temporary layout and pass through the
-    exact same duplicate-key, schema, reference, budget, graph, and hashing
-    checks as the shipped YAML catalog.
+    source object rather than a second validation implementation. Parsed inputs
+    pass through the same schema, reference, budget, graph, and hashing checks
+    as the shipped YAML catalog.
     """
 
     models: BaseModel | Mapping[str, Any]
@@ -150,6 +125,7 @@ class DefinitionSources:
     programs: tuple[BaseModel | Mapping[str, Any], ...] = ()
     agents: tuple[BaseModel | Mapping[str, Any], ...] = ()
     context_policies: tuple[BaseModel | Mapping[str, Any], ...] = ()
+    toolsets: tuple[BaseModel | Mapping[str, Any], ...] = ()
     mcps: tuple[BaseModel | Mapping[str, Any], ...] = ()
     triggers: tuple[BaseModel | Mapping[str, Any], ...] = ()
     deployment_overrides: BaseModel | Mapping[str, Any] | None = None
@@ -176,6 +152,7 @@ class DefinitionSources:
             programs=tuple(catalog.programs.values()),
             agents=tuple(catalog.agents.values()),
             context_policies=tuple(catalog.context_policies.values()),
+            toolsets=tuple(catalog.toolsets.values()),
             packages=tuple(catalog.packages.values()),
             mcps=tuple(catalog.mcps.values()),
             triggers=tuple(
@@ -187,92 +164,73 @@ class DefinitionSources:
     def compile(self, settings: Settings) -> DefinitionCatalog:
         """Compile these Python definitions with the canonical catalog validator."""
 
-        root = Path(tempfile.mkdtemp(prefix="memseek-python-catalog-"))
-        try:
-            conf = root / "conf"
-            for directory in (
-                conf,
-                root / "collections",
-                root / "derivations",
-                root / "triggers",
-                root / "views",
-                root / "artifacts",
-                root / "mcp",
-                root / "packages",
-            ):
-                directory.mkdir(parents=True, exist_ok=True)
+        documents: dict[str, tuple[tuple[Path, Any], ...]] = {}
+        configured: dict[str, Path | None] = {}
 
-            def write(path: Path, value: Any) -> None:
-                path.write_text(
-                    yaml.safe_dump(_programmatic_value(value), sort_keys=False),
-                    encoding="utf-8",
-                )
-
-            write(conf / "models.yaml", self.models)
-            write(conf / "processors.yaml", {"processors": list(self.processors)})
-            write(conf / "rank_default.yaml", self.rank_defaults)
-            profiles: dict[str, Any] = {}
-            for name, profile in sorted(self.search_profiles.items()):
-                raw = _programmatic_value(profile)
-                if isinstance(raw, dict):
-                    raw.pop("name", None)
-                profiles[name] = raw
-            write(conf / "search_profiles.yaml", {"profiles": profiles})
-            write(root / "collections" / "python.yaml", {"collections": list(self.collections)})
-            for definition in self.derivations:
-                name = _programmatic_value(definition).get("name")
-                write(root / "derivations" / f"{name}.yaml", definition)
-            for trigger in self.triggers:
-                name = _programmatic_value(trigger).get("name")
-                write(root / "triggers" / f"{name}.yaml", trigger)
-            write(root / "views" / "python.yaml", {"views": list(self.views)})
-            write(root / "artifacts" / "python.yaml", {"artifacts": list(self.artifacts)})
-            optional_families = {
-                "computers": self.computers,
-                "programs": self.programs,
-                "agents": self.agents,
-                "context_policies": self.context_policies,
-            }
-            for family, definitions in optional_families.items():
-                if not definitions:
-                    continue
-                directory = root / family
-                directory.mkdir(parents=True, exist_ok=True)
-                write(directory / "python.yaml", {family: list(definitions)})
-            for definition in self.mcps:
-                name = _programmatic_value(definition).get("name")
-                write(root / "mcp" / f"{name}.yaml", definition)
-            write(root / "packages" / "python.yaml", {"packages": list(self.packages)})
-
-            overrides_path: Path | None = None
-            if self.deployment_overrides is not None:
-                overrides_path = conf / "deployment_overrides.yaml"
-                write(overrides_path, self.deployment_overrides)
-            compiled_settings = settings.model_copy(
-                update={
-                    "models_file": conf / "models.yaml",
-                    "processors_file": conf / "processors.yaml",
-                    "rank_default_file": conf / "rank_default.yaml",
-                    "search_profiles_file": conf / "search_profiles.yaml",
-                    "collections_dir": root / "collections",
-                    "derivations_dir": root / "derivations",
-                    "triggers_dir": root / "triggers",
-                    "views_dir": root / "views",
-                    "artifacts_dir": root / "artifacts",
-                    "computers_dir": root / "computers" if self.computers else None,
-                    "programs_dir": root / "programs" if self.programs else None,
-                    "agents_dir": root / "agents" if self.agents else None,
-                    "context_policies_dir": (
-                        root / "context_policies" if self.context_policies else None
-                    ),
-                    "mcp_dir": root / "mcp",
-                    "packages_dir": root / "packages",
-                    "search_profile_overrides_file": overrides_path,
-                }
+        def section(field: str, name: str, values: list[tuple[str, Any]]) -> None:
+            configured[field] = Path(name) / values[0][0] if field.endswith("_file") else Path(name)
+            documents[field] = tuple(
+                (Path(name) / filename, _programmatic_value(value))
+                for filename, value in sorted(dict(values).items())
             )
-            return _CatalogBuilder(compiled_settings).build()
-        finally:
-            rmtree(root, ignore_errors=True)
+
+        for field, name, value in (
+            ("models_file", "models.yaml", self.models),
+            ("processors_file", "processors.yaml", {"processors": self.processors}),
+            ("rank_default_file", "rank_default.yaml", self.rank_defaults),
+        ):
+            section(field, "conf", [(name, value)])
+        profiles = {}
+        for name, profile in sorted(self.search_profiles.items()):
+            raw = _programmatic_value(profile)
+            if isinstance(raw, dict):
+                raw.pop("name", None)
+            profiles[name] = raw
+        section("search_profiles_file", "conf", [("search_profiles.yaml", {"profiles": profiles})])
+        for family in (
+            "collections",
+            "views",
+            "artifacts",
+            "packages",
+            "computers",
+            "programs",
+            "agents",
+            "context_policies",
+            "toolsets",
+        ):
+            values = getattr(self, family)
+            field = f"{family}_dir"
+            if not values and family in {
+                "computers",
+                "programs",
+                "agents",
+                "context_policies",
+                "toolsets",
+            }:
+                configured[field] = None
+                documents[field] = ()
+            else:
+                section(field, family, [("python.yaml", {family: values})])
+        for family, values in (
+            ("derivations", self.derivations),
+            ("triggers", self.triggers),
+            ("mcp", self.mcps),
+        ):
+            section(
+                f"{family}_dir",
+                family,
+                [(f"{_programmatic_value(value).get('name')}.yaml", value) for value in values],
+            )
+        configured["search_profile_overrides_file"] = None
+        documents["search_profile_overrides_file"] = ()
+        if self.deployment_overrides is not None:
+            section(
+                "search_profile_overrides_file",
+                "conf",
+                [("deployment_overrides.yaml", self.deployment_overrides)],
+            )
+        import_task_modules(settings.task_modules)
+        return _CatalogBuilder(settings.model_copy(update=configured), documents=documents).build()
 
 
 _dump = dump_definition
@@ -348,6 +306,15 @@ def _check_json_schema(schema: dict[str, Any], path: Path, field: str) -> None:
         ) from exc
 
 
+# Which Computer capability each tool-source kind consumes.  Sources absent from
+# this map need none: they operate on evidence the run already carries.
+_TOOL_SOURCE_CAPABILITY = {
+    "filesystem": "filesystem",
+    "exec": "exec",
+    "mcp_server": "network",
+}
+
+
 @dataclass(frozen=True, slots=True)
 class DefinitionCatalog:
     """One immutable, fully resolved startup snapshot."""
@@ -368,6 +335,7 @@ class DefinitionCatalog:
     programs: Mapping[tuple[str, int], ProgramDefinition]
     agents: Mapping[tuple[str, int], AgentDefinition]
     context_policies: Mapping[tuple[str, int], ContextPolicyDefinition]
+    toolsets: Mapping[tuple[str, int], ToolsetDefinition]
     mcps: Mapping[tuple[str, int], McpDefinition]
     packages: Mapping[tuple[str, str], PackageDefinition]
     deployment_bindings: Mapping[str, str]
@@ -490,6 +458,30 @@ class DefinitionCatalog:
         except KeyError as exc:
             raise KeyError(f"unknown context policy {name}@{resolved_version}") from exc
 
+    def resolve_toolset(self, reference: str, version: int | None = None) -> ToolsetDefinition:
+        """Resolve an exact toolset version.
+
+        Like an MCP interface, a toolset has no active alias: an Agent binds one
+        exact tool surface, because a surface that could change under a pinned
+        Agent is not a surface at all.
+        """
+
+        if "@" in reference:
+            if version is not None:
+                raise ValueError("toolset version supplied twice")
+            name, resolved = split_exact_reference(reference)
+            resolved_version = int(resolved)
+        else:
+            if version is None:
+                raise ValueError("toolset reference must be exact name@version")
+            if version < 1:
+                raise ValueError("toolset version must be positive")
+            name, resolved_version = reference, version
+        try:
+            return self.toolsets[(name, resolved_version)]
+        except KeyError as exc:
+            raise KeyError(f"unknown toolset {name}@{resolved_version}") from exc
+
     def resolve_mcp(self, reference: str, version: int | None = None) -> McpDefinition:
         """Resolve an exact MCP interface version.
 
@@ -567,8 +559,14 @@ class DefinitionCatalog:
 
 
 class _CatalogBuilder:
-    def __init__(self, settings: Settings) -> None:
+    def __init__(
+        self,
+        settings: Settings,
+        *,
+        documents: Mapping[str, tuple[tuple[Path, Any], ...]] | None = None,
+    ) -> None:
         self.settings = settings
+        self.documents = documents
         self.models: ModelCatalog | None = None
         self.processors: dict[str, ProcessorDefinition] = {}
         self.score_owners: dict[str, str] = {}
@@ -583,6 +581,7 @@ class _CatalogBuilder:
         self.programs: dict[tuple[str, int], ProgramDefinition] = {}
         self.agents: dict[tuple[str, int], AgentDefinition] = {}
         self.context_policies: dict[tuple[str, int], ContextPolicyDefinition] = {}
+        self.toolsets: dict[tuple[str, int], ToolsetDefinition] = {}
         self.mcps: dict[tuple[str, int], McpDefinition] = {}
         self.packages: dict[tuple[str, str], PackageDefinition] = {}
         self.paths: dict[tuple[str, Any], Path] = {}
@@ -595,6 +594,16 @@ class _CatalogBuilder:
         self.active_context_policies: dict[str, int] = {}
         self.bindings: dict[str, str] = {}
         self.processor_config_hashes: dict[str, str] = {}
+
+    def _documents(self, field: str, *, missing_ok: bool = False) -> tuple[tuple[Path, Any], ...]:
+        if self.documents is not None:
+            return self.documents.get(field, ())
+        path = getattr(self.settings, field)
+        if path is None or (missing_ok and not path.exists()):
+            return ()
+        fragments = field in {"processors_file", "search_profiles_file"} and path.is_dir()
+        paths = yaml_files(path) if field.endswith("_dir") or fragments else (path,)
+        return tuple((item, load_yaml_file(item, required=not missing_ok)) for item in paths)
 
     def build(self) -> DefinitionCatalog:
         self._load_models()
@@ -609,6 +618,8 @@ class _CatalogBuilder:
         self._load_computers()
         self._load_programs()
         self._load_context_policies()
+        # Toolsets bind views and artifacts, and Agents bind toolsets.
+        self._load_toolsets()
         self._load_agents()
         self._validate_computer_task_references()
         self._load_mcps()
@@ -628,8 +639,8 @@ class _CatalogBuilder:
         self.paths[(kind, key)] = path
 
     def _load_models(self) -> None:
-        path = self.settings.models_file
-        self.models = _parse(ModelCatalog, load_yaml_file(path), path)
+        path, raw = self._documents("models_file")[0]
+        self.models = _parse(ModelCatalog, raw, path)
         # Provider *references* are checked by ModelCatalog itself; what needs
         # the runtime registry is whether each named connection's adapter exists
         # and can do what the definitions ask of it.
@@ -677,9 +688,8 @@ class _CatalogBuilder:
             )
 
     def _load_processors(self) -> None:
-        paths = _catalog_files(self.settings.processors_file)
-        for path in paths:
-            root = _mapping(load_yaml_file(path), path, "processor catalog")
+        for path, document in self._documents("processors_file"):
+            root = _mapping(document, path, "processor catalog")
             for index, raw in enumerate(_sequence(root, "processors", path)):
                 definition = _parse(
                     ProcessorDefinition,
@@ -839,8 +849,8 @@ class _CatalogBuilder:
         return current if isinstance(current, dict) else None
 
     def _load_rank(self) -> None:
-        path = self.settings.rank_default_file
-        self.rank_defaults = _parse(RankDefaults, load_yaml_file(path), path)
+        path, raw = self._documents("rank_default_file")[0]
+        self.rank_defaults = _parse(RankDefaults, raw, path)
         scorer_names = frozenset(self.score_owners)
         normalized: dict[str, Any] = {}
         for mode, expression in self.rank_defaults.variants.items():
@@ -855,8 +865,8 @@ class _CatalogBuilder:
         self.rank_defaults = self.rank_defaults.model_copy(update={"variants": normalized})
 
     def _load_search_profiles(self) -> None:
-        for path in _catalog_files(self.settings.search_profiles_file):
-            root = _mapping(load_yaml_file(path), path, "search profile catalog")
+        for path, document in self._documents("search_profiles_file"):
+            root = _mapping(document, path, "search profile catalog")
             profiles = root.get("profiles")
             if set(root) != {"profiles"} or not isinstance(profiles, dict):
                 raise DefinitionError(
@@ -899,8 +909,8 @@ class _CatalogBuilder:
                 self.search_profiles[name] = _hashed(definition)
 
     def _load_collections(self) -> None:
-        for path in _optional_yaml_files(self.settings.collections_dir):
-            root = _mapping(load_yaml_file(path), path, "collection file")
+        for path, document in self._documents("collections_dir"):
+            root = _mapping(document, path, "collection file")
             for index, raw in enumerate(_sequence(root, "collections", path)):
                 definition = _parse(
                     CollectionDefinition, raw, path, context=f"collections[{index}]"
@@ -1109,8 +1119,8 @@ class _CatalogBuilder:
         return schema.get("type") == expected
 
     def _load_derivations_and_inline_triggers(self) -> None:
-        for path in _optional_yaml_files(self.settings.derivations_dir):
-            raw = _mapping(load_yaml_file(path), path, "derivation")
+        for path, document in self._documents("derivations_dir"):
+            raw = _mapping(document, path, "derivation")
             definition = _parse(PipelineDefinition, raw, path)
             self._duplicate("processor", definition.name, path)
             definition = self._resolve_derivation(definition, path)
@@ -1958,11 +1968,8 @@ class _CatalogBuilder:
         )
 
     def _load_standalone_triggers(self) -> None:
-        directory = self.settings.triggers_dir
-        if directory is None or not directory.exists():
-            return
-        for path in yaml_files(directory):
-            raw = _mapping(load_yaml_file(path), path, "standalone trigger")
+        for path, document in self._documents("triggers_dir", missing_ok=True):
+            raw = _mapping(document, path, "standalone trigger")
             trigger = _parse(StandaloneTrigger, raw, path)
             if not trigger.automatic:
                 raise DefinitionError("trigger", "standalone trigger has no conditions", file=path)
@@ -1979,8 +1986,8 @@ class _CatalogBuilder:
             self._add_trigger(trigger, path)
 
     def _load_views(self) -> None:
-        for path in _optional_yaml_files(self.settings.views_dir):
-            root = _mapping(load_yaml_file(path), path, "view file")
+        for path, document in self._documents("views_dir"):
+            root = _mapping(document, path, "view file")
             for index, raw in enumerate(_sequence(root, "views", path)):
                 definition = _parse(ViewDefinition, raw, path, context=f"views[{index}]")
                 key = (definition.name, definition.version)
@@ -2515,8 +2522,8 @@ class _CatalogBuilder:
                 )
 
     def _load_artifacts(self) -> None:
-        for path in _optional_yaml_files(self.settings.artifacts_dir):
-            root = _mapping(load_yaml_file(path), path, "artifact file")
+        for path, document in self._documents("artifacts_dir"):
+            root = _mapping(document, path, "artifact file")
             for index, raw in enumerate(_sequence(root, "artifacts", path)):
                 definition = _parse(ArtifactDefinition, raw, path, context=f"artifacts[{index}]")
                 key = (definition.name, definition.version)
@@ -2731,8 +2738,8 @@ class _CatalogBuilder:
                 )
 
     def _load_computers(self) -> None:
-        for path in _optional_yaml_files(self.settings.computers_dir):
-            root = _mapping(load_yaml_file(path), path, "computer file")
+        for path, document in self._documents("computers_dir"):
+            root = _mapping(document, path, "computer file")
             for index, raw in enumerate(_sequence(root, "computers", path)):
                 definition = _parse(ComputerDefinition, raw, path, context=f"computers[{index}]")
                 key = (definition.name, definition.version)
@@ -2773,8 +2780,8 @@ class _CatalogBuilder:
             )
 
     def _load_programs(self) -> None:
-        for path in _optional_yaml_files(self.settings.programs_dir):
-            root = _mapping(load_yaml_file(path), path, "program file")
+        for path, document in self._documents("programs_dir"):
+            root = _mapping(document, path, "program file")
             for index, raw in enumerate(_sequence(root, "programs", path)):
                 definition = _parse(ProgramDefinition, raw, path, context=f"programs[{index}]")
                 key = (definition.name, definition.version)
@@ -2805,8 +2812,8 @@ class _CatalogBuilder:
             )
 
     def _load_context_policies(self) -> None:
-        for path in _optional_yaml_files(self.settings.context_policies_dir):
-            root = _mapping(load_yaml_file(path), path, "context policy file")
+        for path, document in self._documents("context_policies_dir"):
+            root = _mapping(document, path, "context policy file")
             for index, raw in enumerate(_sequence(root, "context_policies", path)):
                 definition = _parse(
                     ContextPolicyDefinition,
@@ -2832,10 +2839,117 @@ class _CatalogBuilder:
                 file=self.settings.context_policies_dir,
             )
 
+    def _load_toolsets(self) -> None:
+        """Load the inbound tool surfaces Agents may bind.
+
+        A catalog with no toolsets is the normal case, so absence of the
+        directory is not an error the way an empty ``agents/`` would be.
+        """
+
+        for path, document in self._documents("toolsets_dir", missing_ok=True):
+            root = _mapping(document, path, "toolset file")
+            for index, raw in enumerate(_sequence(root, "toolsets", path)):
+                definition = _parse(ToolsetDefinition, raw, path, context=f"toolsets[{index}]")
+                key = (definition.name, definition.version)
+                self._duplicate("toolset", key, path)
+                self._validate_toolset_targets(definition, path)
+                self.toolsets[key] = _hashed(definition)
+
+    def _validate_toolset_targets(self, definition: ToolsetDefinition, path: Path) -> None:
+        """Check the catalog references a toolset makes on its own.
+
+        Anything that depends on *which Computer* will run the toolset is
+        checked in :meth:`_load_agents` instead, because toolsets load first and
+        a toolset does not name a Computer.
+        """
+
+        for index, source in enumerate(definition.sources):
+            where = f"sources[{index}]"
+            if source.kind == "view":
+                self._validate_toolset_view(source, path, where)
+            elif source.kind == "skill":
+                self._validate_toolset_skill(source, path, where)
+
+    def _validate_toolset_view(self, source: ToolSourceDefinition, path: Path, where: str) -> None:
+        assert source.view is not None
+        name, version = split_exact_reference(source.view)
+        view = self.views.get((name, int(version)))
+        if view is None:
+            raise DefinitionError(
+                "reference",
+                f"toolset source {source.name!r} references unknown view {source.view!r}",
+                file=path,
+                path=f"{where}.view",
+            )
+        if self.active_views.get(name) != int(version):
+            raise DefinitionError(
+                "reference",
+                f"toolset source {source.name!r} names view {source.view!r}, "
+                "which is not the active version",
+                file=path,
+                path=f"{where}.view",
+            )
+        # A view tool takes no parameters from the model: the whole point is a
+        # declared, pre-authorized read.  So every parameter must already be
+        # satisfied here, by an argument, by a default, or by the entity the
+        # run is about.
+        arguments = source.arguments or {}
+        unknown = set(arguments) - set(view.parameters)
+        missing = {
+            parameter
+            for parameter, config in view.parameters.items()
+            if config.required
+            and config.default is None
+            and parameter not in arguments
+            and parameter != "entity"
+        }
+        if unknown or missing:
+            raise DefinitionError(
+                "view_args",
+                f"invalid view arguments; unknown={sorted(unknown)}, missing={sorted(missing)}",
+                file=path,
+                path=f"{where}.arguments",
+            )
+        for argument, value in arguments.items():
+            if not parameter_value_matches(view.parameters[argument], value):
+                raise DefinitionError(
+                    "parameter_type",
+                    f"argument {argument!r} does not match view parameter type",
+                    file=path,
+                    path=f"{where}.arguments.{argument}",
+                )
+
+    def _validate_toolset_skill(self, source: ToolSourceDefinition, path: Path, where: str) -> None:
+        assert source.artifact is not None
+        name, version = split_exact_reference(source.artifact)
+        artifact = self.artifacts.get((name, int(version)))
+        if artifact is None:
+            raise DefinitionError(
+                "reference",
+                f"toolset source {source.name!r} references unknown artifact {source.artifact!r}",
+                file=path,
+                path=f"{where}.artifact",
+            )
+        if artifact.kind != "skill":
+            raise DefinitionError(
+                "reference",
+                f"toolset skill {source.artifact!r} is not a skill artifact",
+                file=path,
+                path=f"{where}.artifact",
+            )
+        if artifact.description is None:
+            raise DefinitionError(
+                "skill_description",
+                f"skill artifact {source.artifact!r} needs a description: a skill is "
+                "offered to a model by name and description before its body is loaded",
+                file=path,
+                path=f"{where}.artifact",
+            )
+
     def _load_agents(self) -> None:
         assert self.models is not None
-        for path in _optional_yaml_files(self.settings.agents_dir):
-            root = _mapping(load_yaml_file(path), path, "agent file")
+        for path, document in self._documents("agents_dir"):
+            root = _mapping(document, path, "agent file")
             for index, raw in enumerate(_sequence(root, "agents", path)):
                 definition = _parse(AgentDefinition, raw, path, context=f"agents[{index}]")
                 key = (definition.name, definition.version)
@@ -2882,6 +2996,8 @@ class _CatalogBuilder:
                         file=path,
                         path=f"agents[{index}].context_policy",
                     )
+                if definition.toolset is not None:
+                    self._validate_agent_toolset(definition, path, index)
                 self.agents[key] = _hashed(definition)
                 if definition.active:
                     self._set_active(
@@ -2893,6 +3009,49 @@ class _CatalogBuilder:
                     )
         if not self.agents and self.settings.agents_dir is not None:
             raise DefinitionError("empty_catalog", "no agents found", file=self.settings.agents_dir)
+
+    def _validate_agent_toolset(self, definition: AgentDefinition, path: Path, index: int) -> None:
+        """Check a bound toolset against every Computer the Agent may run on.
+
+        A toolset does not name a Computer, so capability is checked here, where
+        both halves are known.  The Computer stays the ceiling: a toolset may
+        narrow what it grants and may never widen it.
+        """
+
+        assert definition.toolset is not None
+        where = f"agents[{index}].toolset"
+        name, version = split_exact_reference(definition.toolset)
+        toolset = self.toolsets.get((name, int(version)))
+        if toolset is None:
+            raise DefinitionError(
+                "reference",
+                f"agent references unknown toolset {definition.toolset!r}",
+                file=path,
+                path=where,
+            )
+        for computer_ref in definition.computers:
+            computer_name, computer_version = split_exact_reference(computer_ref)
+            computer = self.computers[(computer_name, int(computer_version))]
+            declared = {item.path for item in computer.writeback}
+            capabilities = computer.capabilities
+            for source in toolset.sources:
+                if source.kind == "writeback" and source.path not in declared:
+                    raise DefinitionError(
+                        "computer_capability",
+                        f"toolset writeback {source.path!r} is not declared by "
+                        f"computer {computer_ref!r}",
+                        file=path,
+                        path=where,
+                    )
+                needed = _TOOL_SOURCE_CAPABILITY.get(source.kind)
+                if needed is not None and not getattr(capabilities, needed):
+                    raise DefinitionError(
+                        "computer_capability",
+                        f"toolset source {source.name!r} needs the {needed} capability, "
+                        f"which computer {computer_ref!r} denies",
+                        file=path,
+                        path=where,
+                    )
 
     def _validate_computer_task_references(self) -> None:
         """Resolve Computer-backed Tasks after all four execution families load."""
@@ -2967,13 +3126,8 @@ class _CatalogBuilder:
     def _load_mcps(self) -> None:
         """Load package-curated MCP interfaces from their own definition family."""
 
-        directory = self.settings.mcp_dir
-        # MCP is opt-in at the package level.  A catalog without an ``mcp/``
-        # directory remains a valid catalog whose packages expose no tools.
-        if directory is None or not directory.exists():
-            return
-        for path in yaml_files(directory):
-            raw = _mapping(load_yaml_file(path), path, "MCP definition")
+        for path, document in self._documents("mcp_dir", missing_ok=True):
+            raw = _mapping(document, path, "MCP definition")
             definition = _parse(McpDefinition, raw, path)
             key = (definition.name, definition.version)
             self._duplicate("mcp", key, path)
@@ -3017,8 +3171,8 @@ class _CatalogBuilder:
                 )
 
     def _load_packages(self) -> None:
-        for path in _optional_yaml_files(self.settings.packages_dir):
-            raw = _mapping(load_yaml_file(path), path, "package")
+        for path, document in self._documents("packages_dir"):
+            raw = _mapping(document, path, "package")
             documents = raw.pop("packages", None) if set(raw) == {"packages"} else None
             if documents is None:
                 documents = [raw]
@@ -3040,6 +3194,7 @@ class _CatalogBuilder:
             ("program", definition.programs, self.programs),
             ("agent", definition.agents, self.agents),
             ("context policy", definition.context_policies, self.context_policies),
+            ("toolset", definition.toolsets, self.toolsets),
         )
         for kind, references, catalog in exact_groups:
             for reference in references:
@@ -3065,6 +3220,11 @@ class _CatalogBuilder:
                     path="mcp",
                 )
             self._validate_package_mcp_binding(definition, mcp, path)
+        for reference in definition.toolsets:
+            toolset_name, toolset_version = split_exact_reference(reference)
+            self._validate_package_toolset_binding(
+                definition, self.toolsets[(toolset_name, int(toolset_version))], path
+            )
         for processor in definition.processors:
             if processor not in self.processors and processor not in self.derivations:
                 raise DefinitionError(
@@ -3114,6 +3274,30 @@ class _CatalogBuilder:
                     "cron", str(exc), file=path, path=f"retentions.{retention.name}.cron"
                 ) from exc
         self._validate_package_closure(definition, path)
+
+    @staticmethod
+    def _validate_package_toolset_binding(
+        package: PackageDefinition, toolset: ToolsetDefinition, path: Path
+    ) -> None:
+        """Ensure a toolset cannot widen the package's declared surface."""
+
+        for index, source in enumerate(toolset.sources):
+            if source.kind == "view" and source.view not in set(package.views):
+                raise DefinitionError(
+                    "package_dependency",
+                    f"toolset source {source.name!r} targets view {source.view!r} "
+                    "omitted from its package",
+                    file=path,
+                    path=f"toolsets.sources[{index}].view",
+                )
+            if source.kind == "skill" and source.artifact not in set(package.artifacts):
+                raise DefinitionError(
+                    "package_dependency",
+                    f"toolset source {source.name!r} targets artifact {source.artifact!r} "
+                    "omitted from its package",
+                    file=path,
+                    path=f"toolsets.sources[{index}].artifact",
+                )
 
     @staticmethod
     def _validate_package_mcp_binding(
@@ -3216,6 +3400,11 @@ class _CatalogBuilder:
         context_policy_keys = {
             (name, int(version))
             for reference in package.context_policies
+            for name, version in [split_exact_reference(reference)]
+        }
+        toolset_keys = {
+            (name, int(version))
+            for reference in package.toolsets
             for name, version in [split_exact_reference(reference)]
         }
         processors = set(package.processors)
@@ -3492,6 +3681,22 @@ class _CatalogBuilder:
                 "context policy",
                 f"agent {agent.name}@{agent.version}",
             )
+            if agent.toolset is not None:
+                require_exact(
+                    agent.toolset,
+                    toolset_keys,
+                    "toolset",
+                    f"agent {agent.name}@{agent.version}",
+                )
+
+        for key in toolset_keys:
+            toolset = self.toolsets[key]
+            owner = f"toolset {toolset.name}@{toolset.version}"
+            for source in toolset.sources:
+                if source.view is not None:
+                    require_exact(source.view, view_keys, "view", owner)
+                if source.artifact is not None:
+                    require_exact(source.artifact, artifact_keys, "artifact", owner)
 
         used_profiles = {
             profile
@@ -3556,8 +3761,7 @@ class _CatalogBuilder:
     def _load_overrides(self) -> None:
         overrides = DeploymentOverrides()
         path = self.settings.search_profile_overrides_file
-        if path is not None:
-            raw = load_yaml_file(path, required=False)
+        for path, raw in self._documents("search_profile_overrides_file", missing_ok=True):
             if raw is not None:
                 overrides = _parse(DeploymentOverrides, raw, path)
         collection_names = {name for name, _ in self.collections}
@@ -3960,6 +4164,11 @@ class _CatalogBuilder:
                 [task.use for definition in self.derivations.values() for task in definition.tasks]
             ),
         }
+        if self.toolsets:
+            # Conditional, and load-bearing: `catalog_hash` gates readback, so a
+            # catalog that declares no toolsets must hash exactly as it did
+            # before this family existed.
+            payload["toolsets"] = [_dump(self.toolsets[key]) for key in sorted(self.toolsets)]
         frozen_models = deep_freeze(self.models)
         frozen_processors = {name: deep_freeze(value) for name, value in self.processors.items()}
         frozen_rank = deep_freeze(self.rank_defaults)
@@ -3975,6 +4184,7 @@ class _CatalogBuilder:
         frozen_context_policies = {
             key: deep_freeze(value) for key, value in self.context_policies.items()
         }
+        frozen_toolsets = {key: deep_freeze(value) for key, value in self.toolsets.items()}
         frozen_mcps = {key: deep_freeze(value) for key, value in self.mcps.items()}
         frozen_packages = {key: deep_freeze(value) for key, value in self.packages.items()}
         return DefinitionCatalog(
@@ -3994,6 +4204,7 @@ class _CatalogBuilder:
             programs=MappingProxyType(frozen_programs),
             agents=MappingProxyType(frozen_agents),
             context_policies=MappingProxyType(frozen_context_policies),
+            toolsets=MappingProxyType(frozen_toolsets),
             mcps=MappingProxyType(frozen_mcps),
             packages=MappingProxyType(frozen_packages),
             deployment_bindings=MappingProxyType(dict(self.bindings)),

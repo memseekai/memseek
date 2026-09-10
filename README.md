@@ -85,6 +85,13 @@ and the deterministic `examples/computer_renewal_catalog` fixture. Computers
 are reusable resources selected per run; the entity remains the stable identity
 and controlled front door.
 
+Run the short Computer example with `make computer-demo` (Docker Compose and
+`uv` required), or `make computer-demo SCRIPTED=1` for fixed replies and verified
+outcomes. Local mode needs no model credentials. `MODE=cloudflare` selects real
+execution explicitly; `ADVANCED=1` opens the full interactive desk. See the
+[example setup README](examples/README.md) for setup and the
+`client.invocations.bind(...)` SDK interface.
+
 ## A mini catalog with reflection
 
 Suppose an agent should remember messages, periodically reflect on them, and
@@ -371,6 +378,21 @@ surface to match your application:
 | [`crm_profile_catalog`](examples/crm_profile_catalog/) | Current customer facts and summaries derived from CRM history |
 | [`gbrain_catalog`](examples/gbrain_catalog/) | A larger knowledge catalog with facts, graph edges, concepts, patterns, synthesis, and repair |
 
+Draw any of them before you read the files. `catalog-graph` compiles a catalog
+directory through the same validation a publish runs and writes one
+self-contained page of the compiled result:
+
+```sh
+make catalog-graph                                     # the renewal fixture
+make catalog-graph CATALOG=examples/gbrain_catalog     # or any other catalog
+uv run memseek catalog-graph --dir ./my-catalog --out my-catalog.html
+```
+
+Parts are laid out left to right in flow order — what a Pipeline reads sits to
+its left, what it writes to its right — and clicking one shows its compiled
+definition, the budgets and paths it commits to, and every reference into and
+out of it. It needs no database, no workspace, and no server.
+
 Publish the finished package atomically to a workspace. Every request then
 resolves against that exact catalog, so schemas, processing rules, retrieval
 contracts, and the agent tool surface move together.
@@ -458,6 +480,7 @@ before operating a long-lived or Internet-facing deployment.
 | Give Claude Code project memory | [Claude Code plugin](https://memseekai.github.io/memseek/claude-code-plugin/) |
 | Use the SDK or HTTP API | [SDK](https://memseekai.github.io/memseek/sdk/) and [API surface](https://memseekai.github.io/memseek/api-surface/) |
 | Operate and evolve a catalog | [Operations](https://memseekai.github.io/memseek/operations/) and [Changing definitions](https://memseekai.github.io/memseek/changing-definitions/) |
+| See what a package actually wires together | [Packages](https://memseekai.github.io/memseek/packages/#seeing-the-package) |
 
 The complete documentation site is available at
 [memseekai.github.io/memseek](https://memseekai.github.io/memseek/). To preview
