@@ -1,448 +1,239 @@
 ---
-/**
- * Public benchmark source of truth.
- *
- * The measured implementation and frozen reproduction recipes live in the
- * MemBukkit repository. Memseek is the context engine that exposes the search
- * method in the product. Keep that product/research distinction explicit here.
- */
 import BaseLayout from '../layouts/BaseLayout.astro';
-import { longMemEvalFieldRows, pairedFindings } from '../lib/benchmark-data';
+import Atmosphere from '../components/Atmosphere.astro';
+import BenchLab from '../components/BenchLab.astro';
+import { BENCHMARK_GUIDE_URL, MEMBUKKIT_REPO_URL } from '../lib/links';
+import '../styles/bench.css';
 
-const repo = 'https://github.com/memseekai/membukkit';
-const repro = `${repo}/blob/main/docs/guide/benchmarks.md`;
-const judges = `${repro}#who-judges-what`;
-const method = `${repo}/blob/main/docs/METHOD.md`;
-const rag = `${repo}/blob/main/docs/RAG.md`;
-
-const memoryRows = [
-  {
-    benchmark: 'LongMemEval-S',
-    recipe: 'longmemeval-gpt54',
-    stack: 'gpt-5.4 reader + distiller',
-    protocol: 'official gpt-4o judge',
-    result: '92.6%',
-    tone: 'headline',
-  },
-  {
-    benchmark: 'LongMemEval-S',
-    recipe: 'longmemeval-gemma',
-    stack: 'Gemma 4 26B reader + distiller',
-    protocol: 'official gpt-4o judge',
-    result: '88.8%',
-    tone: 'open',
-  },
-  {
-    benchmark: 'LongMemEval-S',
-    recipe: 'longmemeval-gpt4o-mini',
-    stack: 'gpt-4o-mini + fine-tuned encoder',
-    protocol: 'official gpt-4o judge',
-    result: '82.0%',
-    tone: 'budget',
-  },
-  {
-    benchmark: 'LoCoMo',
-    recipe: 'locomo-mem0',
-    stack: 'gpt-4o-mini + fine-tuned encoder',
-    protocol: 'Mem0 reader + judge protocol',
-    result: '87.5%',
-    tone: 'neutral',
-  },
-];
-
-const beamRows = [
-  { scale: '100K', recipe: 'beam-100k-gemma', result: '0.535' },
-  { scale: '1M', recipe: 'beam-1m-gemma', result: '0.498' },
-  { scale: '10M', recipe: 'beam-10m-gemma', result: '0.447' },
+const howItWorks = [
+  ['01', 'Group related memory.', 'Topic buckets create useful regions to search as the history grows.'],
+  ['02', 'Spend the scan budget wisely.', 'Route the question to promising buckets, then rank the evidence inside them.'],
+  ['03', 'Follow the receipts.', 'Review source references, buckets opened, and the budget used for the result.'],
 ];
 ---
 
 <BaseLayout
-  title="MemBukkit benchmarks — Memseek"
-  description="Reproduce MemBukkit's agent-memory benchmarks, including 92.6% on LongMemEval-S, and learn about the SOTA search method coming to hosted Memseek."
+  title="Memory benchmarks — Memseek"
+  description="92.6% on LongMemEval-S: 463 of 500 answers judged correct by the official GPT-4o judge. The published configuration, all eleven comparison series, and how to reproduce the result."
 >
-  <section class="hero">
-    <div class="wrap hero-grid">
-      <div>
-        <span class="eyebrow" style="--hue:var(--green)">MemBukkit benchmark lab · open reproduction</span>
-        <h1><span class="score">92.6%</span> on LongMemEval-S.<br />When LongMemEval judges, MemBukkit leads.</h1>
-        <p class="lede">
-          <b>Memseek is our context engine.</b> <b>MemBukkit is our open agent-memory
-          showcase and benchmark harness.</b> The SOTA-performing search method demonstrated there
-          will be available as a search method in the hosted version of Memseek.
-        </p>
-        <div class="ctas">
-          <a class="btn btn-primary" href={repro}>Reproduce the result →</a>
-          <a class="btn btn-ghost" href="/membukkit/">Meet MemBukkit</a>
-        </div>
-        <p class="provenance">LongMemEval-S · 500 questions · frozen recipe · official benchmark judge</p>
-      </div>
-
-      <aside class="identity" aria-label="How Memseek, MemBukkit, and the search method relate">
-        <div class="identity-row product">
-          <span class="tag">product</span>
-          <div><b>Memseek</b><small>Context engine for production agents</small></div>
-        </div>
-        <span class="connector" aria-hidden="true">hosted version will include</span>
-        <div class="identity-row method">
-          <span class="tag">capability</span>
-          <div><b>SOTA search method</b><small>Bucketed, budgeted, hybrid retrieval</small></div>
-        </div>
-        <span class="connector" aria-hidden="true">demonstrated by</span>
-        <div class="identity-row project">
-          <span class="tag">open showcase</span>
-          <div><b>MemBukkit</b><small>Library, CLI, GUI, eval harness</small></div>
-        </div>
-      </aside>
-    </div>
-  </section>
-
-  <section id="results" class="alt">
+  <div class="finish-membukkit">
     <div class="wrap">
-      <div class="sec-head">
-        <span class="eyebrow">frozen, named recipes</span>
-        <h2>Agent-memory results you can rerun.</h2>
-        <p>
-          These are the claims registered in MemBukkit. Each recipe pins the reader, distiller,
-          judge, encoder, routing flags, and output directory. Different protocols are labeled;
-          they should not be blended into one ranking.
-        </p>
-      </div>
-
-      <div class="table-scroll">
-        <table>
-          <thead>
-            <tr>
-              <th>Benchmark</th>
-              <th>Frozen recipe</th>
-              <th>Reader / distiller</th>
-              <th>Scoring protocol</th>
-              <th class="num">Expected</th>
-            </tr>
-          </thead>
-          <tbody>
-            {memoryRows.map((row) => (
-              <tr class={row.tone}>
-                <th scope="row">{row.benchmark}</th>
-                <td><code>{row.recipe}</code></td>
-                <td>{row.stack}</td>
-                <td>{row.protocol}</td>
-                <td class="num result">{row.result}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      <p class="table-note">
-        LongMemEval and LoCoMo report answer accuracy. Reproductions pass within ±3 percentage
-        points because LLM readers and judges are nondeterministic. “Official judge” applies to the
-        three LongMemEval rows; LoCoMo deliberately follows the separate Mem0 protocol.
-      </p>
-
-      <div class="field-comparison">
-        <div class="field-head">
-          <span class="eyebrow" style="--hue:var(--green)">LongMemEval-S · who judges what</span>
-          <h3>Same benchmark. Different judges. MemBukkit leads under the official one.</h3>
+      <section class="benchmark-head" data-atmosphere="hero">
+        <Atmosphere scene="hero" />
+        <div>
+          <h1>The memory behind Memseek,<br />put to the test.</h1>
           <p>
-            Higher reported scores exist, but they do not all use LongMemEval’s official gpt-4o
-            judge. The pattern and protocol columns keep that distinction visible instead of
-            flattening every number into one leaderboard.
+            Memseek uses an open-source memory engine called <strong>MemBukkit</strong>. These
+            benchmarks test that engine on questions about long conversation histories.
           </p>
-          <a href={judges}>Open the current MemBukkit comparison ↗</a>
         </div>
-
-        <div class="table-scroll">
-          <table class="rank-table">
-            <thead>
-              <tr>
-                <th>System</th>
-                <th>Reported accuracy</th>
-                <th>Judge protocol</th>
-              </tr>
-            </thead>
-            <tbody>
-              {longMemEvalFieldRows.map((row) => (
-                <tr class={`${row.tone} ${row.protocol}`}>
-                  <th scope="row">{row.name}</th>
-                  <td class="score-cell">
-                    <div class={`rank-bar ${row.tone}`} style={`--w:${row.width}`}>
-                      <i></i><b>{row.score}</b>
-                    </div>
-                  </td>
-                  <td class="judge-cell">
-                    <span class={`protocol-badge ${row.protocol}`}>
-                      {row.protocol === 'official' ? 'official judge' : 'alternate judge'}
-                    </span>
-                    <small>{row.judge}</small>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div>
+          <div class="actions">
+            <a class="btn" href="/start/">Try Memseek <span class="arrow" aria-hidden="true">↗</span></a>
+            <a class="textlink" href={BENCHMARK_GUIDE_URL} target="_blank" rel="noopener noreferrer">
+              Reproduce the result <span class="arrow" aria-hidden="true">↗</span>
+            </a>
+          </div>
+          <span class="small">Open code · Published methods</span>
         </div>
-        <p class="table-note">
-          Restricted to systems scored by the official gpt-4o judge, MemBukkit’s 92.6% is the
-          highest published result in the current field. Patterned rows use another judge and are
-          included as context, not as like-for-like rankings.
-        </p>
+      </section>
 
-        <div class="paired-findings" aria-label="What MemBukkit's paired LongMemEval runs show">
-          {pairedFindings.map((finding) => (
-            <article>
-              <b>{finding.value}</b>
-              <span>{finding.label}</span>
-              <p>{finding.detail}</p>
+      <BenchLab />
+    </div>
+
+    <section class="section wrap">
+      <div class="split">
+        <div>
+          <h2>The facts change.<br />The evidence stays.</h2>
+          <p>
+            MemBukkit retains dated facts, earlier states and the sources behind them. An agent can
+            work from the current knowledge and still explain how it changed.
+          </p>
+          <p>Ask about a date. Retrieve the evidence that applied then.</p>
+          <a class="textlink" href="/#company-learning">
+            See the learning loop <span class="arrow" aria-hidden="true">↗</span>
+          </a>
+        </div>
+        <div class="timeline">
+          <div class="time-record">
+            <div class="meta"><span>Previous state</span><span class="tag old">History</span></div>
+            <p>Earlier facts, their dates and their original sources.</p>
+          </div>
+          <div class="time-record">
+            <div class="meta"><span>Current state</span><span class="tag">Latest evidence</span></div>
+            <p>Updated facts, with a record of what changed.</p>
+          </div>
+          <div class="inline-note">A current answer does not erase the past.</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section tint">
+      <div class="wrap">
+        <div class="section-head">
+          <h2>How the memory works.</h2>
+          <p>MemBukkit groups related information into topic buckets, then searches for the evidence a question needs.</p>
+        </div>
+        <div class="grid3">
+          {howItWorks.map(([n, title, body]) => (
+            <article class="problem">
+              <div class="number">{n}</div>
+              <h3>{title}</h3>
+              <p>{body}</p>
             </article>
           ))}
         </div>
       </div>
+    </section>
 
-      <div class="beam">
-        <div class="beam-copy">
-          <span class="eyebrow" style="--hue:var(--violet)">long-horizon scale</span>
-          <h3>BEAM, from 100K to 10M tokens.</h3>
+    <section class="section wrap">
+      <div class="split">
+        <div>
+          <h2>Only need the memory engine?</h2>
           <p>
-            The Gemma recipes use BEAM’s vendored official judge and report its average across
-            nine ability categories. That metric is not LongMemEval accuracy.
+            Developers can also use MemBukkit independently in an existing agent. Use the Python
+            library or CLI, try the local demo and inspect the memory it retrieves.
           </p>
+          <p class="small">
+            The demo needs a configured model and may incur model costs. Initial setup downloads
+            dependencies and model weights.
+          </p>
+          <a class="textlink" href={MEMBUKKIT_REPO_URL} target="_blank" rel="noopener noreferrer">
+            Open MemBukkit on GitHub <span class="arrow" aria-hidden="true">↗</span>
+          </a>
         </div>
-        <div class="beam-scores">
-          {beamRows.map((row) => (
-            <div class="beam-score">
-              <span>{row.scale}</span>
-              <b>{row.result}</b>
-              <code>{row.recipe}</code>
-            </div>
-          ))}
+        <div>
+          <pre class="api" id="install-code">git clone {MEMBUKKIT_REPO_URL}
+cd membukkit
+pip install -e ".[all]"
+
+<span class="comment"># Configure your model credentials first.
+# Open the bundled memory demo:</span>
+membukkit ui --demo personal-assistant</pre>
+          <p class="caption">Use the repository documentation for model configuration.</p>
         </div>
       </div>
-    </div>
-  </section>
+    </section>
 
-  <section id="search">
-    <div class="wrap search-grid">
-      <div class="sec-head">
-        <span class="eyebrow" style="--hue:var(--cyan)">the search method</span>
-        <h2>Search is the shared capability—not the product name.</h2>
-        <p>
-          MemBukkit exposes the method in a small, inspectable agent-memory system. Memseek makes
-          that search available inside a broader context engine that also maintains state,
-          provenance, policies, and prompt-time context.
-        </p>
-        <a href={method}>Read the implementation walkthrough →</a>
+    <section class="section spotlight">
+      <div class="wrap split">
+        <div>
+          <h2>Build with Memseek.</h2>
+          <p>
+            Give your existing agents knowledge that stays current. Run Memseek yourself, or work
+            with us on the source connections, updates and delivery for your workflow.
+          </p>
+          <a class="btn light" href="/start/">Try Memseek <span class="arrow" aria-hidden="true">↗</span></a>
+        </div>
+        <div class="memory-diagram">
+          <div class="diagram-head">Memseek</div>
+          <p>The self-learning context engine</p>
+          <div class="memory-core">
+            <strong>Remember → understand → act</strong>
+            <p>One place to keep your agents’ knowledge current.</p>
+          </div>
+        </div>
       </div>
-
-      <ol class="pipeline">
-        <li><span>01</span><div><b>Partition</b><small>Organize evidence into topic buckets.</small></div></li>
-        <li><span>02</span><div><b>Route</b><small>Open the best buckets under a scan budget.</small></div></li>
-        <li><span>03</span><div><b>Rank</b><small>Fuse semantic and relevance signals.</small></div></li>
-        <li><span>04</span><div><b>Answer</b><small>Read the selected evidence with receipts.</small></div></li>
-      </ol>
-    </div>
-
-    <div class="wrap rag-panel">
-      <div>
-        <span class="mini-label">separate multi-hop search evaluation</span>
-        <h3>MuSiQue · 2WikiMultiHopQA · HotpotQA</h3>
-        <p>
-          MemBukkit also ships the research evaluator for the SOTA search path: shared public
-          splits, HippoRAG-compatible EM/F1 and Recall@k scoring, and zero LLM calls at index time.
-          This evaluator is separate from the frozen agent-memory recipes above.
-        </p>
-      </div>
-      <pre><code><span>$</span> membukkit rag-eval \
-  --datasets musique,2wiki,hotpot \
-  --methods dense,coremem \
-  --embedder nvidia/NV-Embed-v2 \
-  --coremem-encoder nvidia/NV-Embed-v2 \
-  --coremem-decompose</code></pre>
-      <a href={rag}>Open the RAG evaluation guide →</a>
-    </div>
-  </section>
-
-  <section id="reproduce" class="alt">
-    <div class="wrap repro-grid">
-      <div class="sec-head">
-        <span class="eyebrow" style="--hue:var(--amber)">reproduce it</span>
-        <h2>Start cheap. Then run the full recipe.</h2>
-        <p>
-          The lite run validates keys, dataset download, and model weights on a small subset. It
-          is a smoke test, not a comparable score. Drop <code>--lite</code> for the published run,
-          then use <code>--check</code> against the frozen tolerance band.
-        </p>
-      </div>
-
-      <div class="terminal">
-        <div class="terminal-head"><span></span><span></span><span></span><b>terminal</b></div>
-        <pre><code><span class="comment"># install the open showcase</span>
-<span class="prompt">$</span> git clone https://github.com/memseekai/membukkit
-<span class="prompt">$</span> cd membukkit
-<span class="prompt">$</span> pip install -e ".[all]"
-<span class="prompt">$</span> export OPENAI_API_KEY=sk-...
-
-<span class="comment"># inspect every frozen recipe</span>
-<span class="prompt">$</span> membukkit bench --list
-
-<span class="comment"># low-cost smoke test</span>
-<span class="prompt">$</span> membukkit bench --repro longmemeval-gpt4o-mini --lite
-
-<span class="comment"># published 92.6% recipe, then verify</span>
-<span class="prompt">$</span> membukkit bench --repro longmemeval-gpt54
-<span class="prompt">$</span> membukkit bench --repro longmemeval-gpt54 --check</code></pre>
-      </div>
-    </div>
-  </section>
-
-  <section class="closer">
-    <div class="wrap">
-      <span class="eyebrow">pick the right door</span>
-      <h2>Inspect the memory system. Build with the context engine.</h2>
-      <p>
-        Use MemBukkit to explore the method, run demos, and reproduce the evidence. Use Memseek
-        when you need that search inside a governed context layer for your agents.
-      </p>
-      <div class="ctas">
-        <a class="btn btn-primary" href="/membukkit/">Explore MemBukkit →</a>
-        <a class="btn btn-ghost" href="/#quickstart">Build with Memseek</a>
-        <a class="text-link" href={repo}>MemBukkit on GitHub ↗</a>
-      </div>
-    </div>
-  </section>
+    </section>
+  </div>
 </BaseLayout>
 
+<script>
+  import '../scripts/bench-lab';
+</script>
+
 <style>
-  section { padding-block: clamp(3.2rem, 7vw, 6rem); }
-  .alt { background: var(--surface); border-block: 1px solid var(--border); }
-  .hero { overflow: hidden; position: relative; }
-  .hero::before { content: ""; position: absolute; width: 48rem; height: 32rem; right: -14rem; top: -14rem; background: radial-gradient(circle, color-mix(in srgb, var(--green) 18%, transparent), transparent 68%); pointer-events: none; }
-  .hero-grid { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(18rem, .75fr); gap: clamp(2rem, 7vw, 6rem); align-items: center; position: relative; }
-  h1 { font-size: var(--step-3); margin-top: 1rem; max-width: 17ch; }
-  h1 .score { color: var(--green); }
-  .lede { color: var(--muted); font-size: var(--step-1); line-height: 1.6; max-width: 65ch; margin-top: 1.2rem; }
-  .lede b { color: var(--text); }
-  .ctas { display: flex; flex-wrap: wrap; align-items: center; gap: .85rem; margin-top: 1.7rem; }
-  .provenance { margin-top: 1.3rem; color: var(--faint); font-family: var(--mono); font-size: .7rem; }
-
-  .identity { border: 1px solid var(--border-strong); border-radius: 16px; padding: 1rem; background: color-mix(in srgb, var(--surface) 94%, transparent); box-shadow: var(--shadow); }
-  .identity-row { border: 1px solid var(--border); border-radius: 11px; padding: 1rem; display: grid; grid-template-columns: 5.4rem 1fr; gap: .8rem; align-items: center; }
-  .identity-row.product { border-color: color-mix(in srgb, var(--orange) 55%, var(--border)); }
-  .identity-row.method { border-color: color-mix(in srgb, var(--cyan) 55%, var(--border)); }
-  .identity-row.project { border-color: color-mix(in srgb, var(--green) 55%, var(--border)); }
-  .identity-row .tag { font-family: var(--mono); font-size: .58rem; text-transform: uppercase; letter-spacing: .11em; color: var(--faint); }
-  .identity-row b { display: block; font-family: var(--mono); font-size: .86rem; }
-  .identity-row small { display: block; color: var(--muted); font-size: .76rem; margin-top: .15rem; line-height: 1.35; }
-  .connector { display: block; width: max-content; margin: .35rem auto; font-family: var(--mono); font-size: .58rem; color: var(--faint); text-transform: uppercase; letter-spacing: .08em; }
-  .connector::before, .connector::after { content: "↓"; color: var(--border-strong); margin-inline: .5rem; }
-
-  .sec-head { max-width: 66ch; margin-bottom: clamp(1.8rem, 4vw, 2.8rem); }
-  .sec-head h2 { font-size: var(--step-2); margin-top: .85rem; }
-  .sec-head p { color: var(--muted); font-size: var(--step-1); line-height: 1.55; margin-top: .9rem; }
-  .sec-head code { font-family: var(--mono); font-size: .88em; color: var(--text); }
-  .sec-head > a { display: inline-block; margin-top: 1rem; font-family: var(--mono); font-size: var(--step--1); }
-
-  .table-scroll { overflow-x: auto; border: 1px solid var(--border); border-radius: 14px; background: var(--bg); }
-  table { border-collapse: collapse; width: 100%; min-width: 780px; font-size: var(--step--1); }
-  th, td { padding: .9rem 1rem; text-align: left; border-bottom: 1px solid var(--border); }
-  thead th { font-family: var(--mono); color: var(--faint); font-size: .63rem; font-weight: 500; text-transform: uppercase; letter-spacing: .1em; }
-  tbody tr:last-child th, tbody tr:last-child td { border-bottom: 0; }
-  tbody th { color: var(--text); }
-  tbody td { color: var(--muted); }
-  tbody code { font-family: var(--mono); font-size: .72rem; color: var(--text); }
-  .num { text-align: right; font-family: var(--mono); font-variant-numeric: tabular-nums; }
-  .result { font-size: 1rem; font-weight: 700; color: var(--text); }
-  tr.headline { background: color-mix(in srgb, var(--green) 8%, transparent); }
-  tr.headline th { box-shadow: inset 3px 0 0 var(--green); }
-  tr.headline .result { color: var(--green); }
-  tr.open .result { color: var(--violet); }
-  tr.budget .result { color: var(--cyan); }
-  .table-note { color: var(--faint); font-family: var(--mono); font-size: .7rem; line-height: 1.55; max-width: 92ch; margin-top: 1rem; }
-
-  .field-comparison { margin-top: clamp(3rem, 7vw, 5rem); padding-top: clamp(2.5rem, 5vw, 3.8rem); border-top: 1px solid var(--border); }
-  .field-head { max-width: 68ch; margin-bottom: 1.7rem; }
-  .field-head h3 { margin-top: .8rem; font-size: var(--step-2); }
-  .field-head p { margin-top: .85rem; color: var(--muted); font-size: var(--step-1); line-height: 1.55; }
-  .field-head > a { display: inline-block; margin-top: .9rem; font-family: var(--mono); font-size: var(--step--1); }
-  .rank-table { min-width: 820px; }
-  .rank-table th:first-child { width: 24%; }
-  .rank-table .score-cell { width: 38%; }
-  .rank-table .judge-cell { width: 38%; }
-  .rank-table tr.us { background: color-mix(in srgb, var(--green) 8%, transparent); }
-  .rank-table tr.us th { box-shadow: inset 3px 0 0 var(--green); }
-  .rank-table tr.altg { background: color-mix(in srgb, var(--rose) 5%, transparent); }
-  .rank-bar { position: relative; height: 24px; overflow: hidden; border-radius: 5px; background: var(--surface-2); }
-  .rank-bar > i { position: absolute; inset: 0; width: 100%; border-radius: 5px; clip-path: inset(0 calc(100% - var(--w) * 1%) 0 0 round 5px); }
-  .rank-bar.us > i { background: linear-gradient(90deg, var(--green), var(--cyan)); }
-  .rank-bar.other > i { background: var(--border-strong); }
-  .rank-bar.full > i { background: linear-gradient(90deg, color-mix(in srgb, var(--rose) 45%, var(--surface-2)), var(--rose)); }
-  .rank-bar.altg > i { background: repeating-linear-gradient(45deg, color-mix(in srgb, var(--rose) 30%, var(--surface-2)) 0 5px, var(--surface-2) 5px 11px); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--rose) 45%, transparent); }
-  .rank-bar b { position: absolute; right: .55rem; top: 50%; transform: translateY(-50%); color: var(--muted); font-family: var(--mono); font-size: .7rem; }
-  .rank-bar.us b { right: calc(100% - var(--w) * 1% + .55rem); color: #0a1510; }
-  .rank-bar.altg b { color: color-mix(in srgb, var(--rose) 80%, var(--muted)); font-style: italic; }
-  .judge-cell small { display: block; margin-top: .3rem; color: var(--faint); font-family: var(--mono); font-size: .64rem; }
-  .protocol-badge { display: inline-flex; align-items: center; gap: .4rem; border: 1px solid var(--border-strong); border-radius: 999px; padding: .18rem .5rem; color: var(--muted); font-family: var(--mono); font-size: .6rem; text-transform: uppercase; letter-spacing: .06em; }
-  .protocol-badge::before { content: ""; width: .48rem; height: .48rem; border-radius: 50%; background: var(--border-strong); }
-  .protocol-badge.official { color: var(--green); border-color: color-mix(in srgb, var(--green) 45%, var(--border)); }
-  .protocol-badge.official::before { background: var(--green); }
-  .protocol-badge.alternate { color: var(--rose); border-style: dashed; border-color: color-mix(in srgb, var(--rose) 55%, var(--border)); }
-  .protocol-badge.alternate::before { background: transparent; border: 1px dashed var(--rose); }
-  .paired-findings { display: grid; grid-template-columns: repeat(3, 1fr); gap: .8rem; margin-top: 1.2rem; }
-  .paired-findings article { padding: 1.1rem; border: 1px solid var(--border); border-top: 2px solid var(--green); border-radius: 11px; background: var(--bg); }
-  .paired-findings b, .paired-findings span { display: block; font-family: var(--mono); }
-  .paired-findings b { color: var(--green); font-size: 1.3rem; }
-  .paired-findings span { margin-top: .15rem; color: var(--text); font-size: .7rem; font-weight: 700; }
-  .paired-findings p { margin-top: .55rem; color: var(--muted); font-size: .76rem; line-height: 1.5; }
-
-  .beam { display: grid; grid-template-columns: .8fr 1.2fr; gap: 2rem; margin-top: 2.5rem; padding: 1.4rem; border: 1px solid var(--border); border-radius: 14px; background: var(--bg); }
-  .beam h3 { font-size: var(--step-1); margin-top: .7rem; }
-  .beam p { color: var(--muted); font-size: var(--step--1); line-height: 1.55; margin-top: .7rem; }
-  .beam-scores { display: grid; grid-template-columns: repeat(3, 1fr); gap: .7rem; }
-  .beam-score { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: .9rem; }
-  .beam-score span { display: block; color: var(--faint); font-family: var(--mono); font-size: .65rem; }
-  .beam-score b { display: block; color: var(--violet); font-family: var(--mono); font-size: 1.55rem; margin-block: .15rem .3rem; }
-  .beam-score code { color: var(--muted); font-family: var(--mono); font-size: .61rem; overflow-wrap: anywhere; }
-
-  .search-grid { display: grid; grid-template-columns: .8fr 1.2fr; gap: clamp(2rem, 7vw, 6rem); align-items: start; }
-  .pipeline { list-style: none; display: grid; grid-template-columns: 1fr 1fr; gap: .8rem; }
-  .pipeline li { border: 1px solid var(--border); border-radius: 12px; padding: 1.1rem; background: var(--surface); display: flex; gap: .8rem; min-height: 7rem; }
-  .pipeline li > span { color: var(--cyan); font-family: var(--mono); font-size: .65rem; }
-  .pipeline b { display: block; font-family: var(--mono); font-size: .9rem; }
-  .pipeline small { display: block; color: var(--muted); line-height: 1.45; margin-top: .35rem; }
-  .rag-panel { margin-top: 2.6rem; display: grid; grid-template-columns: 1fr minmax(21rem, .9fr); gap: 1.2rem 2rem; align-items: center; border: 1px solid color-mix(in srgb, var(--cyan) 40%, var(--border)); border-radius: 14px; padding-block: 1.5rem; background: linear-gradient(135deg, color-mix(in srgb, var(--cyan) 6%, var(--surface)), var(--surface)); }
-  .mini-label { font-family: var(--mono); font-size: .62rem; color: var(--cyan); text-transform: uppercase; letter-spacing: .12em; }
-  .rag-panel h3 { font-size: var(--step-1); margin-top: .55rem; }
-  .rag-panel p { color: var(--muted); font-size: var(--step--1); line-height: 1.55; margin-top: .65rem; }
-  .rag-panel pre { background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 1rem; overflow-x: auto; }
-  .rag-panel code { font-family: var(--mono); font-size: .68rem; line-height: 1.75; color: var(--text); }
-  .rag-panel code span { color: var(--cyan); }
-  .rag-panel > a { font-family: var(--mono); font-size: var(--step--1); }
-
-  .repro-grid { display: grid; grid-template-columns: .7fr 1.3fr; gap: clamp(2rem, 7vw, 6rem); align-items: center; }
-  .terminal { min-width: 0; background: var(--bg); border: 1px solid var(--border-strong); border-radius: 14px; overflow: hidden; box-shadow: var(--shadow); }
-  .terminal-head { display: flex; align-items: center; gap: .35rem; height: 2.3rem; padding-inline: .8rem; border-bottom: 1px solid var(--border); background: var(--surface-2); }
-  .terminal-head > span { width: .55rem; height: .55rem; border-radius: 50%; background: var(--border-strong); }
-  .terminal-head b { margin-left: auto; color: var(--faint); font-family: var(--mono); font-size: .6rem; font-weight: 500; }
-  .terminal pre { padding: 1.2rem; overflow-x: auto; }
-  .terminal code { font-family: var(--mono); color: var(--text); font-size: .7rem; line-height: 1.8; }
-  .terminal .comment { color: var(--faint); }
-  .terminal .prompt { color: var(--orange); }
-
-  .closer { text-align: center; }
-  .closer h2 { font-size: var(--step-2); margin-top: .8rem; }
-  .closer p { color: var(--muted); max-width: 65ch; margin: 1rem auto 0; }
-  .closer .ctas { justify-content: center; }
-  .text-link { font-family: var(--mono); font-size: var(--step--1); padding: .75rem; }
-
-  @media (max-width: 880px) {
-    .hero-grid, .search-grid, .repro-grid, .beam { grid-template-columns: 1fr; }
-    .hero-grid { gap: 2.5rem; }
-    .identity { max-width: 38rem; }
-    .rag-panel { grid-template-columns: 1fr; }
+  .benchmark-head {
+    display: grid;
+    grid-template-columns: 1.15fr 1fr;
+    gap: 60px;
+    align-items: end;
+    padding: 64px 0 48px;
   }
-  @media (max-width: 620px) {
-    .pipeline, .beam-scores, .paired-findings { grid-template-columns: 1fr; }
-    .pipeline li { min-height: auto; }
-    .identity-row { grid-template-columns: 1fr; gap: .3rem; }
-    .rag-panel { margin-inline: 1rem; width: calc(100% - 2rem); }
+  .benchmark-head h1 { max-width: 780px; font-size: clamp(40px, 4.7vw, 61px); line-height: 1.08; }
+  .benchmark-head > div:first-child > p { max-width: 560px; margin: 22px 0 0; font-size: 18px; line-height: 1.6; }
+  .benchmark-head .small { display: block; margin-top: 16px; font-size: 13px; color: var(--muted); }
+
+  .split { display: grid; grid-template-columns: 1fr 1fr; gap: 80px; align-items: center; }
+  .split h2 { margin-bottom: 24px; }
+  .split p { max-width: 520px; margin-bottom: var(--s-4); }
+  .split p.small { font-size: 13px; color: var(--muted); }
+
+  .section-head { max-width: 640px; margin-bottom: 32px; }
+  .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 35px; }
+  .problem .number { font-size: 14px; line-height: 1.5; color: #4e638b; }
+  .problem h3 { margin: 18px 0 10px; font-size: 27px; line-height: 1.2; letter-spacing: -.035em; }
+  .problem p { margin: 0; font-size: 16px; line-height: 1.6; }
+
+  .timeline { display: grid; gap: 14px; }
+  .time-record { padding: 20px 22px; border: 1px solid var(--line); border-radius: var(--r); background: var(--paper); }
+  .time-record .meta { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 10px; font-size: 12px; color: var(--muted); }
+  .time-record p { margin: 0; font-size: 15px; }
+  .tag { padding: 3px 8px; border-radius: var(--r-xs); background: var(--blue-soft); color: var(--deep); font-size: 11px; }
+  /* A superseded state is still a state. Grey marks it retained, not deleted. */
+  .tag.old { background: var(--silver); color: var(--muted); }
+  .inline-note {
+    padding: 16px 20px;
+    border-left: 3px solid #91a7c3;
+    background: var(--silver);
+    font-size: 14px;
+    line-height: 1.6;
+    color: var(--muted);
+  }
+
+  .api {
+    margin: 0;
+    padding: 29px;
+    border: 1px solid #cbd8f7;
+    border-radius: 20px;
+    background: linear-gradient(145deg, #eef3ff, #fff 70%);
+    box-shadow: inset 0 1px 0 #fff, 0 20px 46px -28px #375cc457;
+    color: #35486c;
+    font-family: var(--mono);
+    font-size: 14px;
+    line-height: 1.85;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+  .api .comment { color: #596e9b; }
+  .caption { margin: 12px 0 0; font-size: 12px; color: var(--muted); }
+
+  /* Named for what it does, not what it used to be: this band is a light
+     lilac wash with one saturated card inside it. */
+  .section.spotlight { background: linear-gradient(125deg, #e6efff, #eee9ff); color: var(--ink); }
+
+  .memory-diagram {
+    padding: 30px;
+    border: 1px solid #d5def2;
+    border-radius: 20px;
+    background: linear-gradient(135deg, #ffffffed, #f7f9ffcf);
+    box-shadow: inset 0 1px 0 #fff, 0 2px 4px #29469306, 0 20px 46px -28px #375cc457;
+    color: #375b79;
+  }
+  .diagram-head { margin-bottom: 10px; font-size: 24px; font-weight: 550; letter-spacing: -.035em; color: var(--ink); }
+  .memory-diagram > p { margin: 0 0 24px; font-size: 14px; }
+  .memory-core {
+    padding: 24px;
+    border: 1px solid #9db4ff;
+    border-radius: 14px;
+    background: linear-gradient(130deg, #4b75ee, #5e43d8);
+    box-shadow: inset 0 1px 0 #ffffff70, 0 12px 23px -15px #294cd18c;
+    color: #fff;
+  }
+  .memory-core strong { display: block; margin-bottom: 10px; font-size: 18px; font-weight: 550; color: #fff; }
+  .memory-core p { margin: 0; font-size: 14px; color: #e5eaff; }
+
+  @media (max-width: 1000px) {
+    .benchmark-head { grid-template-columns: 1fr; gap: 28px; }
+    .split { gap: 40px; }
+    .grid3 { grid-template-columns: 1fr; gap: 26px; }
+  }
+  @media (max-width: 760px) {
+    .benchmark-head { padding: 42px 0 32px; }
+    .benchmark-head h1 { font-size: 40px; }
+    .split { grid-template-columns: 1fr; gap: 35px; }
+    .api { padding: 20px; font-size: 12px; border-radius: 16px; }
+    .memory-diagram { padding: 24px; }
+    .problem h3 { font-size: 25px; }
   }
 </style>

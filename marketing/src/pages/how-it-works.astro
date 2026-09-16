@@ -1,0 +1,332 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Atmosphere from '../components/Atmosphere.astro';
+import { stages, responsibilities, faq } from '../data/how-it-works';
+---
+
+<BaseLayout
+  title="How it works — Memseek"
+  description="Connect your sources. Memseek keeps useful facts current and prepares the information your agents need for each task: connect, organise, maintain, serve, learn."
+>
+  <div class="finish-product">
+    <section class="hero center wrap" data-atmosphere="hero">
+      <Atmosphere scene="hero" />
+      <h1>How Memseek works.</h1>
+      <p>
+        Connect your sources. Memseek keeps useful facts current and prepares the information your
+        agents need for each task.
+      </p>
+      <div class="actions">
+        <a class="btn" href="/start/">Try Memseek <span class="arrow" aria-hidden="true">↗</span></a>
+      </div>
+      <nav class="flow-index" aria-label="How Memseek works">
+        {stages.map((s) => (
+          <a href={`#${s.id}`} data-jump><span>{s.n}</span>{s.short}<b aria-hidden="true">↘</b></a>
+        ))}
+      </nav>
+    </section>
+
+    <section class="wrap team-agent-explanation">
+      <div>
+        <h2>An AI-native company remembers, recognizes what matters and follows through.</h2>
+        <p>Memseek maintains the knowledge. Your agents act on it. Your team reviews decisions and improvements.</p>
+      </div>
+      <dl>
+        <div>
+          <dt>Context agents</dt>
+          <dd>Read new information, connect related issues and flag missing facts. Prepare findings people can check against the sources.</dd>
+        </div>
+        <div>
+          <dt>Your action agents</dt>
+          <dd>Use those findings in your existing tools. Prepare an informed response, alert an owner or request a decision.</dd>
+        </div>
+        <div>
+          <dt>Shared memory</dt>
+          <dd>Keep current facts, useful history and outcomes available, so your team spends less time explaining what already happened.</dd>
+        </div>
+      </dl>
+    </section>
+
+    <div class="wrap">
+      {stages.map((s) => (
+        <section class="detail-row" id={s.id}>
+          <div class="big-num">{s.n}</div>
+          <div>
+            <h2>{s.title}</h2>
+            {s.body.map((p) => <p>{p}</p>)}
+          </div>
+          <div class="detail-visual">
+            {s.visual.kind === 'sources' && (
+              <div class="source-types">
+                {s.visual.types.map((t) => (
+                  <div class="source-type"><strong>{t.title}</strong><span>{t.detail}</span></div>
+                ))}
+              </div>
+            )}
+            {s.visual.kind === 'brief' && (
+              <div class="context-result">
+                <div class="label"><span>{s.visual.label}</span></div>
+                <h4>{s.visual.heading}</h4>
+                <p>{s.visual.body.map((line, i) => <>{i > 0 && <br />}{line}</>)}</p>
+              </div>
+            )}
+            {s.visual.kind !== 'sources' && s.visual.kind !== 'brief' && s.visual.caption && (
+              <span class="visual-caption">{s.visual.caption}</span>
+            )}
+            {s.visual.lines.map((l) => (
+              <div class="flowline">
+                {l.strong === 'left' ? <strong>{l.left}</strong> : l.left && <span>{l.left}</span>}
+                {l.strong === 'left' ? <span>{l.right}</span> : <strong>{l.right}</strong>}
+              </div>
+            ))}
+            {s.visual.kind === 'lines' && s.visual.note && <div class="inline-note">{s.visual.note}</div>}
+          </div>
+        </section>
+      ))}
+    </div>
+
+    <section class="section tint">
+      <div class="wrap">
+        <h2>Who handles what.</h2>
+        <div class="table-scroll">
+          <table class="comparison">
+            <caption class="sr-only">Responsibilities in a managed Memseek pilot</caption>
+            <thead><tr><th>Stage</th><th>Your team</th><th>Memseek</th></tr></thead>
+            <tbody>
+              {responsibilities.map(([stage, yours, ours]) => (
+                <tr><td>{stage}</td><td>{yours}</td><td>{ours}</td></tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section class="section wrap">
+      <div class="split">
+        <div>
+          <h2>Fits the agents you already use.</h2>
+          <p>
+            Connect through an API or MCP. Your agents and application logic stay in place; Memseek
+            prepares the knowledge they work from.
+          </p>
+          <a class="btn" href="/start/">Try Memseek <span class="arrow" aria-hidden="true">↗</span></a>
+        </div>
+        <div>
+          <pre class="api"><span class="comment">// Conceptual flow, not SDK syntax</span>
+
+Your AI asks for context
+  question: “What changed for this account?”
+  scope:    “Customer account”
+
+Memseek returns
+  relevant facts
+  source references
+  available change history
+
+Your agent answers or prepares an action
+  → Your workflow applies its approval rules
+  → Useful outcomes return to Memseek</pre>
+        </div>
+      </div>
+    </section>
+
+    <section class="section tint">
+      <div class="wrap faq" id="faq">
+        <h2>Questions before you connect.</h2>
+        {faq.map(([q, a]) => (
+          <details><summary>{q}</summary><p>{a}</p></details>
+        ))}
+      </div>
+    </section>
+
+    <section class="section wrap">
+      <div class="cta">
+        <div><h2>Help your company learn faster than the world changes.</h2></div>
+        <a class="btn" href="/start/">Try Memseek <span class="arrow" aria-hidden="true">↗</span></a>
+      </div>
+    </section>
+  </div>
+</BaseLayout>
+
+<style>
+  .hero.center { max-width: 880px; margin: auto; padding: 64px 0 38px; }
+  .finish-product .hero h1 { max-width: 850px; font-size: clamp(52px, 6.2vw, 82px); }
+  .finish-product .hero > p { max-width: 650px; margin: 22px 0; font-size: 18px; line-height: 1.65; }
+  .hero .actions { justify-content: flex-start; }
+
+  /* A row of five, divided by hairlines rather than raised into cards: it is
+     an index, not five things to choose between. */
+  .flow-index {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    margin-top: 48px;
+    border-block: 1px solid #d6deec;
+    text-align: left;
+  }
+  .flow-index a {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 18px 20px;
+    border-right: 1px solid #d6deec;
+    font-size: 15px;
+    text-decoration: none;
+    transition: background .25s;
+  }
+  .flow-index a:first-child { padding-left: 0; }
+  .flow-index a:last-child { border-right: 0; }
+  .flow-index a:hover { background: var(--blue-soft); }
+  .flow-index a > span { font-size: 12px; color: #687ea7; }
+  .flow-index b { margin-left: auto; font-weight: 400; color: #486ce4; }
+
+  .team-agent-explanation {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 80px;
+    overflow: hidden;
+    padding: 34px 36px;
+    border: 1px solid #e5dfd4;
+    border-radius: 22px;
+    background: #f7f4ed;
+    box-shadow: inset 0 1px 0 #fff;
+  }
+  .team-agent-explanation h2 { font-size: clamp(34px, 3vw, 42px); line-height: 1.12; color: #183256; }
+  .team-agent-explanation p { max-width: 410px; margin-top: 18px; font-size: 16px; }
+  .team-agent-explanation dl { margin: 0; }
+  .team-agent-explanation dl > div { padding: 15px 0; border-bottom: 1px solid #dfe5ef; }
+  .team-agent-explanation dl > div:first-child { padding-top: 0; }
+  .team-agent-explanation dt { margin-bottom: 7px; font-size: 17px; font-weight: 550; color: #214aad; }
+  .team-agent-explanation dd { margin: 0; font-size: 16px; line-height: 1.6; color: #526888; }
+
+  .detail-row {
+    display: grid;
+    grid-template-columns: 80px 1fr 1fr;
+    gap: 34px;
+    padding: 60px 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .detail-row:last-child { border: 0; }
+  .detail-row > .big-num { font-size: 30px; letter-spacing: -.05em; color: #6d84a3; }
+  .detail-row h2 { margin-bottom: 18px; font-size: clamp(31px, 2.9vw, 38px); }
+  .detail-row p { font-size: 16px; }
+
+  .detail-visual { padding: 25px; border: 1px solid var(--line); border-radius: var(--r); background: var(--silver); }
+  .visual-caption { display: block; margin-bottom: 16px; font-size: 13px; line-height: 1.5; color: #56719b; }
+  .source-types { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: var(--s-4); }
+  .source-type { padding: 18px 14px; border: 1px solid var(--line); border-radius: var(--r-xs); background: var(--paper); }
+  .source-type strong { display: block; margin-bottom: 5px; font-size: 15px; font-weight: 500; }
+  .source-type span { font-size: 12px; color: var(--muted); }
+
+  .flowline {
+    display: flex;
+    justify-content: space-between;
+    gap: 20px;
+    padding: 14px 0;
+    border-bottom: 1px solid var(--line);
+    font-size: 14px;
+  }
+  .flowline:last-child { border: 0; }
+  .flowline span { color: var(--muted); }
+  .flowline strong { font-weight: 500; }
+
+  .context-result { margin-bottom: var(--s-4); padding: 17px; border: 1px solid var(--line); border-radius: var(--r-sm); background: var(--paper); }
+  .context-result .label { display: flex; justify-content: space-between; margin-bottom: 14px; font-size: 12px; color: var(--muted); }
+  .context-result h4 { margin-bottom: 15px; font-size: 17px; line-height: 1.45; letter-spacing: -.015em; }
+  .context-result p { margin: 14px 0 0; font-size: 16px; }
+
+  .inline-note {
+    margin-top: var(--s-4);
+    padding: 18px 22px;
+    border-left: 3px solid #91a7c3;
+    background: var(--silver);
+    font-size: 14px;
+    line-height: 1.6;
+    color: var(--muted);
+  }
+
+  .comparison { width: 100%; margin-top: 35px; border-collapse: collapse; }
+  .comparison th, .comparison td {
+    padding: 21px 20px;
+    border-bottom: 1px solid var(--line);
+    font-size: 15px;
+    line-height: 1.5;
+    text-align: left;
+    vertical-align: top;
+  }
+  .comparison th { font-weight: 550; color: var(--blue); }
+  .comparison th:first-child, .comparison td:first-child { width: 27%; padding-left: 0; }
+  /* The last column is what Memseek does. Tinting it is the whole point of
+     the table: you can read one column and know the answer. */
+  .comparison td:last-child { background: var(--blue-soft); }
+
+  .split { display: grid; grid-template-columns: 1fr 1fr; gap: 80px; align-items: center; }
+  .split h2 { margin-bottom: 24px; }
+  .split p { max-width: 520px; margin-bottom: var(--s-5); }
+
+  .api {
+    margin: 0;
+    padding: 29px;
+    border: 1px solid #cbd8f7;
+    border-radius: 20px;
+    background: linear-gradient(145deg, #eef3ff, #fff 70%);
+    box-shadow: inset 0 1px 0 #fff, 0 20px 46px -28px #375cc457;
+    color: #35486c;
+    font-family: var(--mono);
+    font-size: 14px;
+    line-height: 1.85;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+  .api .comment { color: #596e9b; }
+
+  .faq { max-width: 850px; }
+  .faq details { padding: 23px 0; border-bottom: 1px solid var(--line); }
+  .faq summary { font-size: 19px; line-height: 1.5; cursor: pointer; }
+  .faq p { margin: 17px 0 0; font-size: 16px; }
+
+  .cta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 40px;
+    padding: 62px;
+    border-radius: 14px;
+    background: var(--blue-soft);
+  }
+  .cta h2 { max-width: 650px; font-size: clamp(34px, 3.2vw, 43px); }
+  .cta .btn { flex-shrink: 0; }
+
+  @media (max-width: 1100px) {
+    .team-agent-explanation { gap: 50px; }
+    .flow-index a { padding: 18px 12px; gap: 8px; }
+  }
+  @media (max-width: 1000px) {
+    .split { gap: 40px; }
+    .cta { padding: 40px; }
+    .detail-row { grid-template-columns: 40px 1fr 1fr; gap: 23px; }
+  }
+  @media (max-width: 760px) {
+    .hero.center { padding: 46px 0 24px; }
+    .finish-product .hero h1 { font-size: 49px; line-height: 1.07; }
+    .finish-product .hero > p { font-size: 17px; }
+    .flow-index { grid-template-columns: repeat(3, 1fr); margin-top: 30px; }
+    .flow-index a { display: block; padding: 15px 12px; border-right: 0; font-size: 13px; }
+    .flow-index a:first-child { padding-left: 12px; }
+    .flow-index a:nth-child(n+4) { border-top: 1px solid #d6deec; }
+    .flow-index a > span { display: block; margin-bottom: 6px; font-size: 11px; }
+    .flow-index b { display: none; }
+    .team-agent-explanation { grid-template-columns: 1fr; gap: 27px; border-radius: 17px; padding: 26px 21px; }
+    .team-agent-explanation h2 { font-size: 34px; }
+    .detail-row { grid-template-columns: 35px 1fr; gap: 15px; padding: 36px 0; }
+    .detail-visual { grid-column: 2; padding: 18px; }
+    .detail-row h2 { font-size: 31px; }
+    .detail-row > .big-num { font-size: 24px; }
+    .comparison th, .comparison td { padding: 14px 9px; font-size: 13px; }
+    .split { grid-template-columns: 1fr; gap: 35px; }
+    .api { padding: 20px; font-size: 12px; border-radius: 16px; }
+    .cta { display: block; padding: 30px; }
+    .cta h2 { font-size: 34px; }
+    .cta .btn { margin-top: 25px; }
+  }
+</style>

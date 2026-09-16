@@ -1,0 +1,137 @@
+---
+import OrgGraph from './OrgGraph.astro';
+import CaseCanvas from './CaseCanvas.astro';
+import Atmosphere from '../Atmosphere.astro';
+import { stages, scenes, sources, scope } from '../../data/renewal-story';
+import { docsPage } from '../../lib/links';
+
+/** Formats a fixture timestamp the way the evidence list reads it. */
+const stamp = (iso: string) => iso.replace('T', ' · ').replace(':00Z', ' UTC');
+---
+
+<section class="learn-loop-section" data-atmosphere="story">
+  <Atmosphere scene="story" />
+  <div class="wrap">
+    <div class="learn-section-heading">
+      <span class="case-section-label">Example · Customer renewal</span>
+      <h2 id="company-learning">A customer won’t renew<br />until their reports work.</h2>
+      <p>
+        Maya uses your reporting software, and her renewal is Friday. Watch Memseek connect her
+        emails with your team’s notes, alert her account manager and track the fix.
+      </p>
+    </div>
+
+    {/* The runway is the scroll distance; the shell inside it is what sticks.
+        sticky-story.ts sets the runway's height from the measured shell, so
+        with no JavaScript this is simply stage one, at its natural height. */}
+    <div class="learn-runway" data-org-story="home">
+      <div
+        class="learn-shell"
+        data-org-shell
+        data-active-stage="0"
+        data-loop-phase="notice"
+        role="region"
+        aria-label="Business case: Maya’s Friday renewal"
+      >
+        <div class="learn-board-heading">
+          <b>Example: Maya’s renewal <small>Illustrative case</small></b>
+          <span>Scroll <span aria-hidden="true">↓</span> <span data-org-counter>01 / {String(stages.length).padStart(2, '0')}</span></span>
+        </div>
+        <div class="learn-meter" aria-hidden="true"><span data-org-meter></span></div>
+
+        <div class="learn-stage-controls" role="group" aria-label="Follow Maya’s renewal case">
+          {stages.map((s, i) => (
+            <button type="button" data-org-step={i} aria-label={`0${i + 1} ${s.label}`} aria-pressed={i === 0}>
+              <span class="learn-step-number">0{i + 1}</span>
+              <span class="learn-step-name">{s.label}</span>
+            </button>
+          ))}
+        </div>
+
+        <div class="learn-scene-window" data-org-window>
+          <div class="learn-scene-content" data-org-content>
+            <OrgGraph />
+            <div class="learn-panels" data-org-panels>
+              {stages.map((s, i) => (
+                <section class="learn-panel" data-org-panel={i} aria-labelledby={`stage-${i}`}>
+                  <div class="learn-stage-copy">
+                    <span class="learn-stage-label">{s.when}</span>
+                    <h3 id={`stage-${i}`}>{scenes[i].title}</h3>
+                    <p>{scenes[i].body}</p>
+                    <button type="button" class="learn-evidence-button" data-org-evidence={i}>
+                      See the evidence <span aria-hidden="true">↗</span>
+                    </button>
+                  </div>
+                  <div class="learn-stage-example learn-scene-receipt">
+                    <div class="learn-receipt-path">
+                      <span>{scenes[i].from}</span>
+                      <span class="learn-receipt-arrow" aria-hidden="true">→</span>
+                      <strong>{scenes[i].to}</strong>
+                    </div>
+                    <p>{scenes[i].note}</p>
+                  </div>
+                </section>
+              ))}
+            </div>
+            <div class="learn-board-footer">
+              <a href="/how-it-works/">How the engine works <span class="arrow" aria-hidden="true">↗</span></a>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {stages.map((s, i) => (
+        <dialog class="learn-evidence-dialog" data-org-dialog={i} aria-labelledby={`evidence-${i}`}>
+          <div class="learn-dialog-head">
+            <div>
+              <span>Illustrative customer + product workflow · 0{i + 1}</span>
+              <h2 id={`evidence-${i}`}>{s.label}: the evidence</h2>
+            </div>
+            <button type="button" data-org-close aria-label="Close evidence">×</button>
+          </div>
+          <p class="learn-dialog-story">{s.body}</p>
+          <div class="learn-dialog-example"><CaseCanvas stage={i} /></div>
+          <ol class="learn-evidence-list">
+            {s.sources.map((key) => (
+              <li>
+                <span class="learn-source-kind">{sources[key].group}</span>
+                <h3>{sources[key].label}</h3>
+                <p>{sources[key].text}</p>
+                <small>{stamp(sources[key].at)}</small>
+              </li>
+            ))}
+          </ol>
+          <p class="learn-evidence-note">{scope}</p>
+        </dialog>
+      ))}
+    </div>
+
+    <details class="learn-mechanics">
+      <summary>What makes this work?</summary>
+      <div class="learn-mechanics-grid">
+        <div>
+          <h3>Decide when to look again.</h3>
+          <p>
+            Accumulate importance, count new complaints, wait for a quiet moment, or react to a
+            changed fact. These are configurable triggers. Here, 9 importance points refresh the
+            account; feedback from 4 different customers starts the product brief.
+          </p>
+          <a href={docsPage('triggers')} target="_blank" rel="noopener noreferrer">Read about triggers ↗</a>
+        </div>
+        <div>
+          <h3>Keep a current picture.</h3>
+          <p>
+            A derivation reads new evidence alongside the existing state, updates the facts that
+            changed, and keeps their sources. Memseek can emit the updated brief and a
+            source-backed escalation record. In this example, a connected Slack workflow delivers
+            that record as an alert; your agents use the briefs to act. External delivery is an
+            integration step, not a built-in side effect of the trigger. The product view is
+            scoped to authorized internal feedback.
+          </p>
+          <a href={docsPage('sdk-user-profile-quickstart')} target="_blank" rel="noopener noreferrer">Try the profile quickstart ↗</a>
+          <a href={docsPage('derivations')} target="_blank" rel="noopener noreferrer">Explore derivations ↗</a>
+        </div>
+      </div>
+    </details>
+  </div>
+</section>

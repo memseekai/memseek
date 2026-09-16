@@ -2,9 +2,11 @@
    Memseek documentation — Material for MkDocs, re-tinted to the
    marketing site's design tokens.
 
-   The token block below is lifted from marketing/src/styles/site.css
-   so the docs and the website are visibly the same product. If you
-   change a value there, change it here too.
+   The token block below mirrors marketing/src/styles/tokens.css so
+   the docs and the website are visibly the same product. That file is
+   the source; this is a hand-copy, because the docs build in a
+   different repo path with no access to it. If you change a value
+   there, change it here too.
 
    Everything under the token block maps a Material variable onto a
    site token, or restyles one Material component to match a piece of
@@ -15,112 +17,62 @@
    ============================================================ */
 
 /* ============================================================
-   Prose face — Inter v4, self-hosted
-   ============================================================
+   Prose face — DM Sans, self-hosted
 
-   docs.cognee.ai asks for four of Inter's legibility character variants.
-   Copying that line alone would have done nothing: Google Fonts serves a cut
-   of Inter with the character variants stripped, and `theme.font.text: Inter`
-   fetches exactly that cut. Checked rather than assumed — the Google file
-   carries only calt, ccmp, dnom, frac, kern, locl, mark, mkmk, numr, pnum,
-   tnum, and a lone wght axis. No cv01-cv14, no opsz. The declaration is dead
-   CSS on cognee's own site for the same reason: their build pulls Inter from
-   Google too, and ships a byte-identical file.
+   The site moved to DM Sans in the 2026-09 redesign, and these pages follow
+   so the docs and the website are visibly the same product. Two axes ship:
+   wght 100-1000, and opsz 9-40, which is what makes a 40px heading and 17px
+   body text look drawn for their sizes rather than scaled. font-optical-sizing
+   defaults to auto, so declaring the axis is the whole of it.
 
-   So the face comes from the upstream v4.1 release instead, subset to the
-   Latin ranges and served from here. That buys the two things the Google cut
-   cannot do:
+   Latin and Latin-ext are split so a page of English prose pulls 70KB rather
+   than 105KB. Licence: OFL-1.1, alongside the files in fonts/.
 
-     cv02  open 4   — the closed default fills in at body size
-     cv03  open 6   ┐ the pair that stops 6/8 and 9/8 from trading places
-     cv04  open 9   ┘ in a version string, a port, or a byte count
-     cv11  single-storey a — resolves against the double-storey g and o
-
-     opsz  optical size — the axis Google drops. Inter v4 redraws itself
-           across 14-32pt: open apertures and looser spacing down at body
-           size, tighter fit up at display size. `font-optical-sizing: auto`
-           is the default, so headings and prose each get the right cut for
-           free once the axis is actually present in the file.
-
-   Latin and Latin-ext are split so a page of English prose pulls 71K, not
-   197K. Google's Inter stays last in the stack as a fallback; because no
-   element resolves to it, its woff2 is never fetched. Licence: OFL-1.1,
-   alongside the files in fonts/. */
-
-@font-face {
-  font-family: "InterVariable";
-  font-style: normal;
-  font-weight: 100 900;
-  font-display: swap;
-  src: url("fonts/inter-v4-latin.woff2") format("woff2");
-  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6,
-    U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+2074, U+20AC,
-    U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
-}
-
-@font-face {
-  font-family: "InterVariable";
-  font-style: italic;
-  font-weight: 100 900;
-  font-display: swap;
-  src: url("fonts/inter-v4-latin-italic.woff2") format("woff2");
-  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6,
-    U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+2074, U+20AC,
-    U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
-}
-
-@font-face {
-  font-family: "InterVariable";
-  font-style: normal;
-  font-weight: 100 900;
-  font-display: swap;
-  src: url("fonts/inter-v4-latin-ext.woff2") format("woff2");
-  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7,
-    U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F,
-    U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F,
-    U+A720-A7FF;
-}
-
-@font-face {
-  font-family: "InterVariable";
-  font-style: italic;
-  font-weight: 100 900;
-  font-display: swap;
-  src: url("fonts/inter-v4-latin-ext-italic.woff2") format("woff2");
-  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7,
-    U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F,
-    U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F,
-    U+A720-A7FF;
-}
-
-/* Material builds its text stack as var(--md-text-font, _) plus system
+   Material builds its text stack as var(--md-text-font, _) plus system
    fallbacks, so redirecting that one variable moves every piece of prose onto
-   the self-hosted face without touching the theme's own rules. */
-:root {
-  --md-text-font: "InterVariable", "Inter";
+   the self-hosted face without touching the theme's own rules.
+   ============================================================ */
+
+@font-face {
+  font-family: "DM Sans";
+  font-style: normal;
+  font-weight: 100 1000;
+  font-display: swap;
+  src: url("fonts/dm-sans-latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6,
+    U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+2074, U+20AC,
+    U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
 
-/* Feature settings inherit, so one declaration at the root reaches prose,
-   tables, and chrome alike. Material resets code, kbd, and pre to "kern" on
-   its own, which is what we want — these are Inter's variants, and the mono
-   faces should keep their defaults. */
-html {
-  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+@font-face {
+  font-family: "DM Sans";
+  font-style: normal;
+  font-weight: 100 1000;
+  font-display: swap;
+  src: url("fonts/dm-sans-latin-ext.woff2") format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7,
+    U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F,
+    U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F,
+    U+A720-A7FF;
 }
 
 :root {
-  --ms-orange: #ff7a2f;
-  --ms-pink: #ff3d67;
-  --ms-cyan: #2fd4c4;
-  --ms-violet: #9b87ff;
-  --ms-green: #58d68d;
-  --ms-amber: #ffb14d;
-  --ms-grad: linear-gradient(120deg, var(--ms-orange), var(--ms-pink));
+  --md-text-font: "DM Sans";
+}
 
-  /* Display face: headings, nav, table headers, buttons — the site's voice.
-     Prose stays on Inter (declared via theme.font.text). */
-  --ms-display: "JetBrains Mono", ui-monospace, "SF Mono", SFMono-Regular, Menlo,
-    Consolas, monospace;
+:root {
+  /* One brand hue, plus a ramp for anything that needs several values a
+     reader must tell apart, plus one caution. Lifted from the site's
+     src/styles/tokens.css; change it there and mirror it here. */
+  --ms-blue: #2456ed;
+  --ms-deep: #173ed6;
+  --ms-lilac: #6b4fd8;
+  --ms-teal: #1779b2;
+  --ms-caution: #a6630d;
+
+  /* Display face: headings, nav, table headers, buttons. The site sets these
+     in DM Sans too, so the docs no longer speak in a second typeface. */
+  --ms-display: "DM Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
 
   /* Code face — deliberately NOT JetBrains Mono. Thirteen pages here draw
      ASCII schematics with box-drawing glyphs (U+2500–257F), and Google Fonts
@@ -148,15 +100,23 @@ html {
 
 /* ---------- dark scheme (site parity: this is the default) ---------- */
 [data-md-color-scheme="slate"] {
-  --ms-bg: #0c0e11;
-  --ms-surface: #12161b;
-  --ms-surface-2: #1a1f27;
-  --ms-border: #232a33;
-  --ms-border-strong: #33404c;
-  --ms-text: #e8eaed;
-  --ms-muted: #9aa1ab;
-  --ms-faint: #7d8794;
-  --ms-code-bg: #0f1318;
+  --ms-bg: #0d1526;
+  --ms-surface: #131c30;
+  --ms-surface-2: #1a2440;
+  --ms-border: #27334d;
+  --ms-border-strong: #3a4766;
+  --ms-text: #e8ecf5;
+  --ms-muted: #a8b3c9;
+  --ms-faint: #7784a2;
+  --ms-code-bg: #101a2e;
+
+  /* Cobalt reads at 2.6:1 on this ground, so links and accents use the
+     lifted values rather than the brand hue itself. */
+  --ms-blue: #7e9bff;
+  --ms-deep: #5f81ff;
+  --ms-lilac: #a48cf5;
+  --ms-teal: #5fb0e0;
+  --ms-caution: #e0a860;
 
   --md-default-bg-color: var(--ms-bg);
   --md-default-fg-color: var(--ms-text);
@@ -164,8 +124,8 @@ html {
   --md-default-fg-color--lighter: var(--ms-faint);
   --md-default-fg-color--lightest: #3a434e;
   --md-typeset-color: var(--ms-text);
-  --md-typeset-a-color: var(--ms-cyan);
-  --md-typeset-mark-color: rgba(255, 177, 77, 0.22);
+  --md-typeset-a-color: var(--ms-blue);
+  --md-typeset-mark-color: color-mix(in srgb, var(--ms-caution) 22%, transparent);
 
   /* Header and footer sit on the page background, separated by a hairline —
      the site's chrome, not Material's colored bar. */
@@ -174,8 +134,8 @@ html {
   --md-primary-fg-color--dark: var(--ms-bg);
   --md-primary-bg-color: var(--ms-text);
   --md-primary-bg-color--light: var(--ms-muted);
-  --md-accent-fg-color: var(--ms-orange);
-  --md-accent-fg-color--transparent: rgba(255, 122, 47, 0.1);
+  --md-accent-fg-color: var(--ms-blue);
+  --md-accent-fg-color--transparent: color-mix(in srgb, var(--ms-blue) 10%, transparent);
   --md-accent-bg-color: #16090b;
 
   --md-code-bg-color: var(--ms-code-bg);
@@ -193,24 +153,22 @@ html {
 
 /* ---------- light scheme ---------- */
 [data-md-color-scheme="default"] {
-  --ms-bg: #f7f7f5;
+  --ms-bg: #faf9f5;
   --ms-surface: #ffffff;
-  --ms-surface-2: #f1f2ef;
-  --ms-border: #e3e4df;
-  --ms-border-strong: #cfd1ca;
-  --ms-text: #16191c;
-  --ms-muted: #55606a;
-  --ms-faint: #666f78;
-  --ms-code-bg: #fbfbf9;
+  --ms-surface-2: #f2f5fa;
+  --ms-border: #d8e0ef;
+  --ms-border-strong: #c2cde3;
+  --ms-text: #111a30;
+  --ms-muted: #626f87;
+  --ms-faint: #697385;
+  --ms-code-bg: #f6f8fd;
 
-  /* The light palette's accents, darkened for contrast on a pale ground —
-     same values the site uses in its light theme. */
-  --ms-orange: #e0641c;
-  --ms-pink: #e02a54;
-  --ms-cyan: #0e9e90;
-  --ms-violet: #6d4ae0;
-  --ms-green: #1f9d57;
-  --ms-amber: #c07d16;
+  /* The site's light values, which clear 4.5:1 on both #faf9f5 and #fff. */
+  --ms-blue: #2456ed;
+  --ms-deep: #173ed6;
+  --ms-lilac: #6b4fd8;
+  --ms-teal: #1779b2;
+  --ms-caution: #a6630d;
 
   --md-default-bg-color: var(--ms-bg);
   --md-default-fg-color: var(--ms-text);
@@ -218,16 +176,16 @@ html {
   --md-default-fg-color--lighter: var(--ms-faint);
   --md-default-fg-color--lightest: #b8bcb4;
   --md-typeset-color: var(--ms-text);
-  --md-typeset-a-color: var(--ms-cyan);
-  --md-typeset-mark-color: rgba(192, 125, 22, 0.2);
+  --md-typeset-a-color: var(--ms-blue);
+  --md-typeset-mark-color: color-mix(in srgb, var(--ms-caution) 20%, transparent);
 
   --md-primary-fg-color: var(--ms-bg);
   --md-primary-fg-color--light: var(--ms-surface);
   --md-primary-fg-color--dark: var(--ms-bg);
   --md-primary-bg-color: var(--ms-text);
   --md-primary-bg-color--light: var(--ms-muted);
-  --md-accent-fg-color: var(--ms-orange);
-  --md-accent-fg-color--transparent: rgba(224, 100, 28, 0.1);
+  --md-accent-fg-color: var(--ms-blue);
+  --md-accent-fg-color--transparent: color-mix(in srgb, var(--ms-blue) 10%, transparent);
   --md-accent-bg-color: #ffffff;
 
   --md-code-bg-color: var(--ms-code-bg);
@@ -249,13 +207,13 @@ html {
    part of the same design in either scheme. */
 [data-md-color-scheme="slate"],
 [data-md-color-scheme="default"] {
-  --md-code-hl-color: rgba(255, 122, 47, 0.16);
-  --md-code-hl-number-color: var(--ms-amber);
-  --md-code-hl-special-color: var(--ms-pink);
-  --md-code-hl-function-color: var(--ms-cyan);
-  --md-code-hl-constant-color: var(--ms-violet);
-  --md-code-hl-keyword-color: var(--ms-violet);
-  --md-code-hl-string-color: var(--ms-green);
+  --md-code-hl-color: color-mix(in srgb, var(--ms-blue) 16%, transparent);
+  --md-code-hl-number-color: var(--ms-caution);
+  --md-code-hl-special-color: var(--ms-lilac);
+  --md-code-hl-function-color: var(--ms-blue);
+  --md-code-hl-constant-color: var(--ms-lilac);
+  --md-code-hl-keyword-color: var(--ms-lilac);
+  --md-code-hl-string-color: var(--ms-teal);
   --md-code-hl-name-color: var(--ms-text);
   --md-code-hl-operator-color: var(--ms-muted);
   --md-code-hl-punctuation-color: var(--ms-muted);
@@ -265,7 +223,7 @@ html {
 }
 
 ::selection {
-  background: rgba(255, 122, 47, 0.28);
+  background: color-mix(in srgb, var(--ms-blue) 22%, transparent);
 }
 
 /* ============================================================
@@ -389,7 +347,7 @@ html {
   width: 2.4rem;
   height: 2px;
   margin-bottom: 0.9rem;
-  background: var(--ms-grad);
+  background: var(--ms-blue);
   opacity: 0.75;
 }
 
@@ -417,7 +375,7 @@ html {
 .md-typeset :is(h1, h2, h3, h4, h5, h6):hover .headerlink,
 .md-typeset .headerlink:focus-visible {
   opacity: 1;
-  color: var(--ms-orange);
+  color: var(--ms-blue);
 }
 
 /* --- the `eyebrow:` front-matter kicker, rendered by overrides/main.html --- */
@@ -427,7 +385,7 @@ html {
   font-weight: 500;
   letter-spacing: 0.22em;
   text-transform: uppercase;
-  color: var(--ms-orange);
+  color: var(--ms-blue);
   display: flex;
   align-items: center;
   gap: 0.7em;
@@ -439,7 +397,7 @@ html {
   content: "";
   width: 2.4em;
   height: 2px;
-  background: var(--ms-orange);
+  background: var(--ms-blue);
   opacity: 0.7;
   flex: none;
 }
@@ -475,7 +433,7 @@ html {
 }
 
 .md-typeset li::marker {
-  color: var(--ms-orange);
+  color: var(--ms-blue);
   font-family: var(--ms-display);
 }
 
@@ -484,7 +442,7 @@ html {
 }
 
 .md-typeset blockquote {
-  border-left: 2px solid var(--ms-orange);
+  border-left: 2px solid var(--ms-blue);
   color: var(--ms-muted);
   padding-left: 1.2em;
 }
@@ -575,7 +533,7 @@ html {
 }
 
 .md-clipboard:hover {
-  color: var(--ms-orange);
+  color: var(--ms-blue);
 }
 
 /* ============================================================
@@ -636,26 +594,26 @@ html {
    (.md-typeset .admonition.warning, 0-3-0) — without them Material's colors
    win the border and the label keeps its tinted bar. */
 .md-typeset :is(.note, .info, .todo) {
-  --ms-callout: var(--ms-cyan);
+  --ms-callout: var(--ms-blue);
 }
 .md-typeset :is(.tip, .success, .check, .done, .abstract, .summary, .tldr) {
-  --ms-callout: var(--ms-green);
+  --ms-callout: var(--ms-teal);
 }
 .md-typeset :is(.warning, .caution, .attention) {
-  --ms-callout: var(--ms-amber);
+  --ms-callout: var(--ms-caution);
 }
 .md-typeset :is(.danger, .error, .failure, .fail, .missing, .bug) {
-  --ms-callout: var(--ms-pink);
+  --ms-callout: var(--ms-lilac);
 }
 .md-typeset :is(.example, .question, .help, .faq, .quote, .cite) {
-  --ms-callout: var(--ms-violet);
+  --ms-callout: var(--ms-lilac);
 }
 
 .md-typeset .admonition[class],
 .md-typeset details[class] {
   background: var(--ms-surface);
   border: 1px solid var(--ms-border);
-  border-left: 2px solid var(--ms-callout, var(--ms-cyan));
+  border-left: 2px solid var(--ms-callout, var(--ms-blue));
   border-radius: 8px;
   box-shadow: none;
   font-size: 0.75rem;
@@ -670,14 +628,14 @@ html {
   font-weight: 600;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: var(--ms-callout, var(--ms-cyan));
+  color: var(--ms-callout, var(--ms-blue));
 }
 
 /* Material draws the type icon as a masked ::before; tint it from the same
    variable so it can never disagree with the label beside it. */
 .md-typeset .admonition[class] > .admonition-title::before,
 .md-typeset details[class] > summary::before {
-  background-color: var(--ms-callout, var(--ms-cyan));
+  background-color: var(--ms-callout, var(--ms-blue));
 }
 
 .md-typeset .admonition > :last-child,
@@ -695,7 +653,7 @@ html {
 
 .md-typeset .tabbed-labels > label:hover,
 .md-typeset .tabbed-set > input:checked + label {
-  color: var(--ms-orange);
+  color: var(--ms-blue);
 }
 
 /* ============================================================
@@ -737,7 +695,7 @@ html {
 
 .md-header__button:hover {
   opacity: 1;
-  color: var(--ms-orange);
+  color: var(--ms-blue);
 }
 
 /* --- search --- */
@@ -813,7 +771,7 @@ html {
    in a sidebar that runs to forty entries. */
 .md-nav__item .md-nav__link--active,
 .md-nav__item .md-nav__link--active code {
-  color: var(--ms-orange);
+  color: var(--ms-blue);
   font-weight: 600;
 }
 
@@ -829,7 +787,7 @@ html {
   bottom: 0.25em;
   width: 2px;
   border-radius: 2px;
-  background: var(--ms-grad);
+  background: var(--ms-blue);
 }
 
 /* Top-level group labels in the sidebar (navigation.sections is off, so these
@@ -849,7 +807,7 @@ html {
 }
 
 .md-nav--secondary .md-nav__link--active {
-  color: var(--ms-orange);
+  color: var(--ms-blue);
 }
 
 .md-sidebar {
@@ -925,7 +883,7 @@ html {
 }
 
 .md-social__link:hover {
-  color: var(--ms-orange);
+  color: var(--ms-blue);
 }
 
 /* ============================================================
@@ -933,7 +891,7 @@ html {
    ============================================================ */
 
 :focus-visible {
-  outline: 2px solid var(--ms-orange);
+  outline: 2px solid var(--ms-blue);
   outline-offset: 3px;
   border-radius: 2px;
 }
@@ -949,18 +907,18 @@ html {
 
 .md-typeset .md-button:is(:hover, :focus) {
   background: transparent;
-  border-color: var(--ms-violet);
-  color: var(--ms-violet);
+  border-color: var(--ms-lilac);
+  color: var(--ms-lilac);
 }
 
 .md-typeset .md-button--primary {
-  background: var(--ms-grad);
+  background: var(--ms-blue);
   border-color: transparent;
   color: #16090b;
 }
 
 .md-typeset .md-button--primary:is(:hover, :focus) {
-  background: var(--ms-grad);
+  background: var(--ms-blue);
   border-color: transparent;
   color: #16090b;
   filter: brightness(1.07);
@@ -968,7 +926,7 @@ html {
 
 /* The instant-navigation progress bar, in the brand gradient. */
 .md-progress {
-  background: var(--ms-grad);
+  background: var(--ms-blue);
 }
 
 /* Below the sidebar breakpoint the drawer covers the page — give it the
@@ -994,4 +952,14 @@ html {
   .md-typeset :is(p, ul, ol, blockquote, h1, h2, h3, h4, h5, h6) {
     max-width: none;
   }
+}
+
+/* ---------- brand mark ---------- */
+/* Drawn in currentColor so it takes the header's foreground in either
+   scheme, which is why the partial carries no fill of its own. */
+.md-header__button.md-logo .ms-mark {
+  display: block;
+  width: 26px;
+  height: 26px;
+  color: var(--ms-blue);
 }

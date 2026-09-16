@@ -222,11 +222,11 @@
 
   .flow-shell {
     overflow: hidden;
-    border: 1px solid var(--border);
+    border: 1px solid var(--line);
     border-radius: 18px;
     background:
-      radial-gradient(circle at 48% 38%, color-mix(in srgb, var(--violet) 6%, transparent), transparent 28%),
-      var(--surface);
+      radial-gradient(circle at 48% 38%, color-mix(in srgb, var(--series-2) 6%, transparent), transparent 28%),
+      var(--paper);
   }
 
   .flow {
@@ -248,8 +248,8 @@
   .kicker--right { text-anchor: end; }
 
   .node > rect:first-child {
-    fill: color-mix(in srgb, var(--surface-2) 94%, transparent);
-    stroke: var(--border-strong);
+    fill: color-mix(in srgb, var(--silver) 94%, transparent);
+    stroke: var(--line);
     stroke-width: 1;
   }
 
@@ -261,7 +261,7 @@
   }
 
   .node .title {
-    fill: var(--text);
+    fill: var(--ink);
     font-size: 18px;
     font-weight: 700;
     letter-spacing: .035em;
@@ -269,32 +269,32 @@
 
   .node .copy {
     fill: var(--muted);
-    font-family: var(--sans);
+    font-family: var(--font);
     font-size: 15px;
   }
 
   .node--collection .accent,
-  .node--collection .records rect { fill: var(--cyan); }
+  .node--collection .records rect { fill: var(--series-1); }
   .node--enrichment .accent,
-  .node--enrichment .signals circle { fill: var(--green); }
-  .node--derivation .accent { fill: var(--violet); }
+  .node--enrichment .signals circle { fill: var(--series-3); }
+  .node--derivation .accent { fill: var(--series-2); }
   .node--view .accent,
-  .node--view .rank rect { fill: var(--cyan); }
+  .node--view .rank rect { fill: var(--series-1); }
   .node--artifact .accent,
-  .node--artifact .blocks rect { fill: var(--amber); }
-  .node--application .accent { fill: var(--orange); }
-  .node--application .status { fill: var(--green); }
+  .node--artifact .blocks rect { fill: var(--series-4); }
+  .node--application .accent { fill: var(--series-5); }
+  .node--application .status { fill: var(--series-3); }
 
   .mini-loop {
     fill: none;
-    stroke: var(--violet);
+    stroke: var(--series-2);
     stroke-width: 2;
     stroke-linecap: round;
   }
 
   .connectors line,
   .mobile-connectors line {
-    stroke: var(--border-strong);
+    stroke: var(--line);
     stroke-width: 2;
     marker-end: url(#context-arrow);
   }
@@ -302,23 +302,23 @@
   .mobile-connectors line { marker-end: url(#context-arrow-mobile); }
 
   #context-arrow path,
-  #context-arrow-mobile path { fill: var(--border-strong); }
+  #context-arrow-mobile path { fill: var(--line); }
 
   .feedback {
     fill: none;
-    stroke: var(--orange);
+    stroke: var(--series-5);
     stroke-width: 2;
     stroke-dasharray: 8 7;
     marker-end: url(#context-feedback-arrow);
   }
 
-  #context-feedback-arrow path { fill: var(--orange); }
+  #context-feedback-arrow path { fill: var(--series-5); }
 
   .feedback--mobile { marker-end: url(#context-feedback-arrow-mobile); }
-  #context-feedback-arrow-mobile path { fill: var(--orange); }
+  #context-feedback-arrow-mobile path { fill: var(--series-5); }
 
   .feedback-label {
-    fill: var(--amber);
+    fill: var(--series-4);
     font-size: 11px;
     font-weight: 700;
     letter-spacing: .1em;

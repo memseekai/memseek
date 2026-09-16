@@ -1,0 +1,167 @@
+---
+import Atmosphere from '../Atmosphere.astro';
+import CustomerDemo from './CustomerDemo.astro';
+---
+
+<section class="clear-hero" data-brand-hero data-atmosphere="hero">
+  <Atmosphere scene="hero" />
+  <div class="wrap">
+    <div class="clear-hero-main">
+      <div class="clear-hero-copy">
+        {/* The second line is the word the reveal animates. It carries the
+            brand colour, which is the one place colour is spent on type. */}
+        <h1>Make intelligence<br /><span data-word-reveal>compound.</span></h1>
+        <p class="clear-mission">A self-learning context engine<br />for your company.</p>
+        <p class="clear-description">
+          Memseek connects your documents, chats and business records. It keeps your company’s
+          knowledge current, spots recurring problems and gives your agents the context to act.
+        </p>
+        <div class="actions">
+          <a class="btn" href="/start/">Try Memseek <span class="arrow" aria-hidden="true">↗</span></a>
+          <a class="textlink" href="#company-learning" data-jump>
+            See an example <span class="arrow" aria-hidden="true">↓</span>
+          </a>
+        </div>
+
+        <div class="clear-proof" role="group" aria-label="Published benchmark result for the engine powering Memseek">
+          <strong class="clear-score">92.6<span>%</span></strong>
+          <div class="clear-proof-claim">
+            <b>Published results.</b>
+            <span>Reproduce them yourself.</span>
+          </div>
+          <p>
+            <strong>LongMemEval-S benchmark score</strong>
+            <span class="clear-proof-explainer">Our underlying engine, tested on long conversations.</span>
+            <span class="clear-proof-config">GPT-5.4 · official GPT-4o judge</span>
+          </p>
+          <a class="textlink" href="/benchmarks/">
+            See the test &amp; reproduce the result <span class="arrow" aria-hidden="true">↗</span>
+          </a>
+        </div>
+      </div>
+
+      <CustomerDemo />
+    </div>
+  </div>
+</section>
+
+<style is:global>
+  .clear-hero { overflow: clip; background: #edf0fa; }
+  .clear-hero > .wrap { position: relative; }
+
+  .clear-hero-main {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    grid-template-columns: 1.06fr 1fr;
+    align-items: start;
+    gap: 62px;
+    min-height: 716px;
+    padding: 38px 0;
+  }
+  .clear-hero-copy { position: relative; z-index: 1; padding-top: 19px; }
+
+  .clear-hero h1 {
+    margin: 0;
+    font-size: clamp(66px, 6.3vw, 92px);
+    font-weight: 560;
+    line-height: 1.03;
+    letter-spacing: -.055em;
+  }
+  .clear-hero h1 > span {
+    position: relative;
+    display: inline-block;
+    color: var(--blue);
+  }
+
+  .clear-hero .clear-mission {
+    max-width: 520px;
+    margin: 30px 0 19px;
+    font-size: 25px;
+    line-height: 1.42;
+    letter-spacing: -.025em;
+    color: #303d56;
+  }
+  .clear-hero .clear-description { max-width: 440px; margin: 0; font-size: 17px; line-height: 1.6; color: #5d6980; }
+  .clear-hero .actions { margin-top: 31px; gap: 26px; }
+  .clear-hero .actions .textlink { font-size: 15px; color: #263754; }
+
+  /* The proof sits under the actions rather than beside the headline: it is
+     evidence for the claim above it, not a second claim. */
+  .clear-proof {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    align-items: center;
+    gap: 8px 22px;
+    margin-top: 32px;
+    padding: 23px 0 0;
+    border-top: 1px solid #c4cddd;
+  }
+  .clear-proof .clear-score { grid-column: 1; grid-row: 1 / 3; }
+  .clear-score {
+    font-size: 82px;
+    font-weight: 550;
+    line-height: 1;
+    letter-spacing: -.065em;
+    white-space: nowrap;
+    color: var(--blue);
+  }
+  .clear-score > span { font-size: 37px; }
+  .clear-proof-claim b { display: block; font-size: 19px; font-weight: 550; line-height: 1.3; color: #1a2e52; }
+  .clear-proof-claim > span { display: block; margin-top: 3px; font-size: 15px; line-height: 1.5; color: #536680; }
+  .clear-hero .clear-proof > p { grid-column: 2; margin: 0; font-size: 12px; line-height: 1.55; color: #516380; }
+  .clear-proof-explainer { display: block; margin-top: 4px; }
+  .clear-proof-config { display: block; }
+  .clear-proof > .textlink {
+    grid-column: 1 / -1;
+    width: fit-content;
+    margin: 5px 0 0;
+    font-size: 13px;
+    line-height: 1.5;
+    color: #2853bb;
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .clear-hero-copy { animation: hq-arrival .8s var(--ease) both; }
+    .clear-proof { animation: hq-arrival .8s .2s var(--ease) both; }
+    .customer-demo { animation: hq-arrival 1s .12s var(--ease) both; }
+  }
+  @keyframes hq-arrival {
+    from { opacity: 0; transform: translateY(14px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  @media (max-width: 1100px) {
+    .clear-hero-main { grid-template-columns: 1fr 1fr; gap: 28px; padding-top: 42px; min-height: 730px; }
+    .clear-hero h1 { font-size: clamp(58px, 7.1vw, 78px); }
+    .clear-hero h1 > br { display: none; }
+    .clear-hero h1 > span { display: block; }
+    .clear-hero .clear-mission { font-size: 23px; }
+    .clear-proof { gap: 10px 16px; }
+    .clear-score { font-size: 66px; }
+    .clear-proof-claim b { font-size: 17px; }
+    .clear-proof-claim > span { font-size: 14px; }
+  }
+
+  @media (max-width: 760px) {
+    /* The two columns stop being columns: copy, then the demo, in reading
+       order, which is why the demo carries order: 2 rather than a row span. */
+    .clear-hero-main { display: contents; }
+    .clear-hero-copy { padding: 42px 0 8px; }
+    .clear-hero h1 { font-size: clamp(52px, 12.7vw, 83px); line-height: 1.02; }
+    .clear-hero .clear-mission { margin: 24px 0 17px; font-size: 22px; }
+    .clear-hero .clear-mission br { display: none; }
+    .clear-hero .clear-description { max-width: 420px; font-size: 16px; line-height: 1.55; }
+    .clear-proof { grid-template-columns: auto 1fr; gap: 12px 17px; margin-top: 27px; padding: 23px 0 12px; }
+    .clear-proof .clear-score { grid-row: 1; }
+    .clear-score { font-size: 69px; }
+    .clear-score > span { font-size: 30px; }
+    .clear-proof-claim b { font-size: 16px; line-height: 1.4; }
+    .clear-proof-claim > span { font-size: 14px; line-height: 1.4; }
+    .clear-hero .clear-proof > p { grid-column: 1 / -1; font-size: 13px; line-height: 1.65; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .clear-hero-copy, .customer-demo, .clear-proof { animation: none !important; }
+  }
+</style>

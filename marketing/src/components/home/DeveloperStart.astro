@@ -1,0 +1,48 @@
+---
+import CodeBlock from '../CodeBlock.astro';
+import { REPO_URL } from '../../lib/links';
+---
+
+<section class="section wrap team-developer">
+  <div>
+    <h2>Run Memseek<br />with your agent.</h2>
+    <p>Start the open-source setup, add records and connect your agent through MCP or the API.</p>
+    <div class="actions">
+      <a class="btn" href="/start/">Get started <span class="arrow" aria-hidden="true">↗</span></a>
+      <a class="textlink" href={REPO_URL} target="_blank" rel="noopener noreferrer">
+        Open the code <span class="arrow" aria-hidden="true">↗</span>
+      </a>
+    </div>
+  </div>
+  <div>
+    <CodeBlock>git clone {REPO_URL}.git
+cd memseek
+
+# Add your OPENAI_API_KEY to .env, then:
+make up</CodeBlock>
+    <p class="team-code-note">
+      Requires Docker Compose and a model API key. Your provider’s model charges apply.
+    </p>
+  </div>
+</section>
+
+<style is:global>
+  .team-developer {
+    position: relative;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 65px;
+    align-items: center;
+    padding: 90px 0;
+  }
+  .team-developer h2 { font-size: clamp(36px, 3.5vw, 50px); line-height: 1.11; letter-spacing: -.045em; }
+  .team-developer p { max-width: 455px; margin: 20px 0 0; font-size: 18px; line-height: 1.6; color: #536780; }
+  .team-developer > div { min-width: 0; }
+  .team-code-note { margin: 12px 0 0; font-size: 13px; line-height: 1.6; color: #63718a; }
+  @media (max-width: 1100px) { .team-developer { gap: 50px; } }
+  @media (max-width: 760px) {
+    .team-developer { grid-template-columns: 1fr; gap: 28px; padding: 55px 0; }
+    .team-developer h2 { font-size: 36px; }
+    .team-developer p { font-size: 16px; margin-top: 18px; }
+  }
+</style>

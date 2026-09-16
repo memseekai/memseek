@@ -1,0 +1,78 @@
+---
+import { graphSources, stages } from '../../data/renewal-story';
+
+const first = stages[0];
+---
+
+{/* The organization stays put; what changes inside it is the evidence, the
+    brief and the outcome. Every text node the story rewrites carries a
+    data-* hook, so sticky-story.ts never rebuilds this markup. */}
+<div class="learn-case-graph">
+  <div
+    class="learn-topology"
+    role="group"
+    aria-label="The AI-native organization: Maya’s emails, Leo’s account notes, Nina’s team messages and Sam’s product issue feed Memseek. Current briefs support their decisions, and outcomes update the account."
+  >
+    <div class="learn-inputs">
+      {graphSources.map((s, i) => (
+        <div
+          class={`learn-source learn-source-${s.slot}`}
+          data-case-source={i}
+          data-source-app={s.app.toLowerCase()}
+          aria-label={`${s.app} · ${s.person}, ${s.role}`}
+        >
+          <div class="graph-source-heading">
+            <span class="graph-app-icon" aria-hidden="true">
+              <img src={`/apps/${s.app.toLowerCase()}.svg`} alt="" width="48" height="48" loading="lazy" />
+            </span>
+            <div class="graph-source-identity">
+              <b class="graph-source-app">{s.app}</b>
+              <span class="graph-source-person" title={`${s.person} · ${s.role}`}>{s.person}</span>
+            </div>
+          </div>
+          <p data-source-status={i}>{first.statuses[i]}</p>
+        </div>
+      ))}
+      <div class="learn-focus-message">
+        <span data-org-focus-source>{first.focus[0]}</span>
+        <p data-org-focus-text>{first.focus[1]}</p>
+      </div>
+    </div>
+
+    <div class="learn-edge learn-edge-in" aria-hidden="true"><span></span></div>
+
+    <div class="learn-engine" aria-label="Memseek, self-learning context engine">
+      <div class="learn-engine-head"><strong>Memseek</strong></div>
+      <span class="learn-engine-descriptor">Self-learning context engine</span>
+      <div class="learn-engine-state" data-org-engine>{first.engine}</div>
+    </div>
+
+    <div class="learn-edge learn-edge-out" aria-hidden="true"><span></span></div>
+
+    <div class="learn-recipients">
+      <div class="learn-recipient learn-human">
+        <span><b data-case-person="0">{first.people[0]}</b><small data-case-person="1">{first.people[1]}</small></span>
+      </div>
+      <div class="learn-recipient learn-agent">
+        <span><b data-case-person="2">{first.people[2]}</b><small data-case-person="3">{first.people[3]}</small></span>
+      </div>
+    </div>
+
+    <div class="learn-edge learn-edge-result" aria-hidden="true"><span></span></div>
+
+    <div class="learn-result">
+      <span class="learn-result-symbol" data-result-symbol aria-hidden="true">…</span>
+      <b data-org-result>{first.outcome}</b>
+    </div>
+
+    <div class="learn-feedback" aria-label="Customer confirmations and product updates return to Memseek">
+      <span>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M5 8a8 8 0 1 1-1 7M5 3v5h5" />
+        </svg>
+        <span class="learn-full-label">Customer replies + product updates keep the account current</span>
+        <span class="learn-short-label">Outcomes become memory</span>
+      </span>
+    </div>
+  </div>
+</div>

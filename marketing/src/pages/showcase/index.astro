@@ -13,14 +13,14 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
  */
 const projectsAndTools = [
   {
-    href: '/membukkit/',
+    href: '/benchmarks/',
     slug: 'membukkit',
     kind: 'open agent-memory project',
     title: 'MemBukkit',
     blurb: 'Rent changes from €800 to €950. Ask what is true now—or what was true before.',
     status: 'runnable · separate repository',
     action: 'Explore project →',
-    accent: 'var(--orange)',
+    accent: 'var(--blue)',
   },
   {
     slug: 'workspace-explorer',
@@ -29,7 +29,7 @@ const projectsAndTools = [
     blurb: 'Connect a workspace and follow definitions, records, runs, views, and outputs.',
     status: 'live · read-only connection',
     action: 'Open explorer →',
-    accent: 'var(--cyan)',
+    accent: 'var(--blue)',
   },
 ];
 
@@ -45,7 +45,7 @@ const showcases = [
     title: 'The agent memory reactor',
     blurb: 'Watch Alice’s migration rules become facts, project context, and a safer answer.',
     status: 'simulation + runnable example',
-    accent: 'var(--green)',
+    accent: 'var(--blue)',
   },
   {
     slug: 'generative-agents',
@@ -53,7 +53,7 @@ const showcases = [
     title: 'Generative agents',
     blurb: 'Follow a party rumor, an overnight reflection, and a correction across three days.',
     status: 'simulation + runnable example',
-    accent: 'var(--violet)',
+    accent: 'var(--lilac)',
   },
   {
     slug: 'gbrain',
@@ -61,7 +61,7 @@ const showcases = [
     title: 'An entire brain, declared',
     blurb: 'Five Markdown pages become a graph, fact index, durable memory, and cited answers.',
     status: 'simulation + runnable example',
-    accent: 'var(--orange)',
+    accent: 'var(--blue)',
   },
   {
     slug: 'self-audit',
@@ -69,7 +69,7 @@ const showcases = [
     title: 'The self-auditing mind',
     blurb: 'Two reasonable strategies collide, and every belief opens back to its evidence.',
     status: 'simulation + runnable example',
-    accent: 'var(--pink)',
+    accent: 'var(--lilac)',
   },
   {
     slug: 'dreams',
@@ -77,7 +77,7 @@ const showcases = [
     title: 'dreams × memseek',
     blurb: 'Merge duplicates, replace stale memory, and review the proposed store as a diff.',
     status: 'design simulation · blueprint',
-    accent: 'var(--amber)',
+    accent: 'var(--caution)',
   },
   {
     slug: 'living-profile',
@@ -85,7 +85,7 @@ const showcases = [
     title: 'The living profile',
     blurb: 'Four CRM events become one current profile, with evidence behind every field.',
     status: 'simulation + runnable example',
-    accent: 'var(--cyan)',
+    accent: 'var(--blue)',
   },
   {
     slug: 'skill',
@@ -93,7 +93,7 @@ const showcases = [
     title: 'The maintained skill',
     blurb: 'A bad refund rule produces a cited replacement that only a person can approve.',
     status: 'simulation + runnable example',
-    accent: 'var(--green)',
+    accent: 'var(--blue)',
   },
   {
     slug: 'mcp',
@@ -101,12 +101,13 @@ const showcases = [
     title: 'Plug it into an existing agent',
     blurb: 'Turn a five-item allowlist into safe search, calendar, prompt, and citation tools.',
     status: 'simulation + runnable example',
-    accent: 'var(--violet)',
+    accent: 'var(--lilac)',
   },
 ];
 ---
 
 <BaseLayout
+  theme="adaptive"
   title="Showcases — Memseek"
   description="Scroll-driven case studies of the Memseek context engine, with the modeled problem, YAML contract, resulting writes, and evidence trail made explicit."
 >
@@ -185,8 +186,8 @@ const showcases = [
   .sc-hero::before {
     content: ""; position: absolute; inset: -60% -10% auto; height: 460px; z-index: 0; pointer-events: none;
     background:
-      radial-gradient(38% 60% at 18% 40%, color-mix(in srgb, var(--orange) 26%, transparent), transparent 70%),
-      radial-gradient(38% 56% at 62% 20%, color-mix(in srgb, var(--violet) 22%, transparent), transparent 72%);
+      radial-gradient(38% 60% at 18% 40%, color-mix(in srgb, var(--blue) 26%, transparent), transparent 70%),
+      radial-gradient(38% 56% at 62% 20%, color-mix(in srgb, var(--lilac) 22%, transparent), transparent 72%);
     opacity: .85;
   }
   .sc-hero .wrap { position: relative; z-index: 1; }
@@ -196,17 +197,17 @@ const showcases = [
     max-width: 62ch; margin-top: 1.1rem;
     color: var(--muted); font-size: .93rem; line-height: 1.65;
   }
-  .primer-note strong { color: var(--text); font-weight: 650; }
+  .primer-note strong { color: var(--ink); font-weight: 650; }
 
   .simulation-note {
     max-width: 62ch; margin-top: 1rem; padding: .8rem .95rem;
-    border: 1px solid color-mix(in srgb, var(--orange) 28%, var(--border));
-    border-left: 3px solid var(--orange); border-radius: 8px;
-    background: color-mix(in srgb, var(--orange) 6%, var(--surface));
+    border: 1px solid color-mix(in srgb, var(--blue) 28%, var(--line));
+    border-left: 3px solid var(--blue); border-radius: 8px;
+    background: color-mix(in srgb, var(--blue) 6%, var(--paper));
     color: var(--muted); font-size: var(--step--1); line-height: 1.55;
   }
   .simulation-note strong {
-    color: var(--text); font-family: var(--mono); font-size: .68rem;
+    color: var(--ink); font-family: var(--mono); font-size: .68rem;
     letter-spacing: .08em; text-transform: uppercase;
   }
 
@@ -222,13 +223,13 @@ const showcases = [
 
   .card {
     position: relative;
-    border: 1px solid var(--border); border-radius: 14px;
-    background: var(--surface); box-shadow: var(--shadow);
+    border: 1px solid var(--line); border-radius: 14px;
+    background: var(--paper); box-shadow: var(--shadow-card);
     overflow: hidden; display: flex; flex-direction: column;
     transition: border-color .18s, transform .18s;
   }
   .card::before { content: ""; position: absolute; inset: 0 0 auto; height: 2px; background: var(--hue); }
-  .card:hover { border-color: var(--border-strong); transform: translateY(-2px); }
+  .card:hover { border-color: var(--line); transform: translateY(-2px); }
   /* One stretched link keeps the whole card clickable without nesting anchors. */
   .hit { position: absolute; inset: 0; z-index: 2; }
 
@@ -239,7 +240,7 @@ const showcases = [
     font-family: var(--mono); font-size: .62rem; letter-spacing: .12em;
     text-transform: uppercase; color: var(--hue);
   }
-  :root[data-theme="light"] .kind { color: color-mix(in srgb, var(--hue) 72%, var(--text)); }
+  :root[data-theme="light"] .kind { color: color-mix(in srgb, var(--hue) 72%, var(--ink)); }
   .card h3 { font-size: var(--step-1); line-height: 1.25; }
   .card:hover h3 { color: var(--hue); }
   .card p { color: var(--muted); font-size: .93rem; line-height: 1.55; }
@@ -250,7 +251,7 @@ const showcases = [
   }
   .status::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--hue); }
 
-  .read { margin-top: auto; padding-top: .7rem; font-family: var(--mono); font-size: var(--step--1); color: var(--cyan); }
+  .read { margin-top: auto; padding-top: .7rem; font-family: var(--mono); font-size: var(--step--1); color: var(--blue); }
 
   @media (max-width: 700px) {
     .category-heading { align-items: start; flex-direction: column; gap: .5rem; }

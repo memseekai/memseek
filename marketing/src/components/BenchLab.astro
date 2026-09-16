@@ -1,0 +1,303 @@
+---
+import { series, rankedRows, pairedRun, type Series } from '../lib/benchmark-data';
+import { BENCHMARK_GUIDE_URL, MEMBUKKIT_REPO_URL } from '../lib/links';
+
+/* Chart geometry. Cost is logarithmic because the series span four orders of
+   magnitude; on a linear axis ten of the eleven would sit on the y-axis. */
+const X = (cost: number) => 65 + (Math.log10(cost) + 4) * 193;
+const Y = (accuracy: number) => 450 - (accuracy - 50) * 7.2;
+
+/** Where the unpriced series sit: a labelled column, not a cost position. */
+const UNPRICED_X = 919;
+
+/* Label anchors are fixed rather than computed. Auto-placement moves labels
+   as series are toggled, and a label that jumps is worse than one that sits
+   slightly far from its point. */
+const LABELS: [number, number][] = [
+  [77, 101], [80, 288], [510, 69], [625, 249], [652, 402], [288, 245],
+  [945, 302], [300, 58], [560, 173], [945, 110], [945, 206],
+];
+
+const COLOR: Record<Series['kind'], string> = {
+  mem: '#143b70',
+  other: '#667b96',
+  alt: '#a16b57',
+};
+
+const money = (v: number) => `$${Number(v.toPrecision(3))}`;
+const priceLabel = (d: Series) =>
+  d.cost === null
+    ? 'cost not reported'
+    : `${d.basis === 'chart-estimate' ? 'approximate original chart cost position ' : 'estimated model cost '}${money(d.cost)} per answer`;
+
+const official = rankedRows.filter((r) => r.protocol === 'official');
+const alternate = rankedRows.filter((r) => r.protocol === 'alternate');
+const errorDrop = Math.round(pairedRun.relativeErrorReduction);
+const contextFactor = Math.round(pairedRun.fullContextTokens / pairedRun.membukkitContextTokens);
+---
+
+<section class="bench-lab" aria-label="MemBukkit benchmark comparison" data-multiplier="1">
+  <div class="bench-banner">
+    <div>
+      <div class="result-score">92.6<span>%</span></div>
+      <h2>LongMemEval-S<br />benchmark score</h2>
+      <p class="result-explainer">
+        <strong>463 of 500 answers judged correct.</strong>
+        <span>GPT-5.4 reader + distiller<br />Official GPT-4o judge · published configuration</span>
+      </p>
+    </div>
+    <a href={BENCHMARK_GUIDE_URL} target="_blank" rel="noopener noreferrer">Explore the methodology ↗</a>
+  </div>
+
+  <div class="bench-grid">
+    <div class="bench-ranking">
+      <h3>Published memory results</h3>
+      <div class="bench-label">
+        Official GPT-4o judge<br />Different published reader configurations · Includes historical results
+      </div>
+      <div class="bench-official">
+        {official.map((r) => (
+          <div class:list={['bench-rank', r.kind]}>
+            <div class="bench-rank-top"><span>{r.short}</span><b>{r.score}</b></div>
+            <div class="bench-track" aria-hidden="true"><span class="bench-fill" style={`width:${r.accuracy}%`}></span></div>
+            <small>{r.judge}</small>
+          </div>
+        ))}
+      </div>
+
+      {/* Alternate-judge results open by default. Hiding the caveat behind a
+          closed disclosure would make the comparison look cleaner than it is. */}
+      <details class="bench-alt" open>
+        <summary>Compare results using other judges</summary>
+        <div class="bench-label">
+          These reported scores use different grading models. They are shown separately because
+          they are not directly comparable to the official-judge scores.
+        </div>
+        {alternate.map((r) => (
+          <div class="bench-rank alt">
+            <div class="bench-rank-top"><span>{r.short}</span><b>{r.score}</b></div>
+            <div class="bench-track" aria-hidden="true"><span class="bench-fill" style={`width:${r.accuracy}%`}></span></div>
+            <small>{r.judge}</small>
+          </div>
+        ))}
+      </details>
+    </div>
+
+    <div class="bench-cost">
+      <div class="bench-cost-heading">
+        <div>
+          <h3>Accuracy vs. estimated cost</h3>
+          <div class="bench-label">Higher and further left is better ↖</div>
+        </div>
+        <div class="bench-unit" aria-label="Cost display">
+          <button type="button" data-bench-unit="1" aria-pressed="true">Per answer</button>
+          <button type="button" data-bench-unit="1000000" aria-pressed="false">Per 1M</button>
+        </div>
+      </div>
+
+      <fieldset class="bench-filters">
+        <legend>Compare systems</legend>
+        <div class="bench-filter-grid">
+          {series.map((d, i) => (
+            <label class:list={['bench-filter', d.kind]}>
+              <input type="checkbox" data-series-toggle={d.key} checked />
+              <span class="point-number">{i + 1}</span>{d.short}
+            </label>
+          ))}
+        </div>
+      </fieldset>
+      <div class="bench-series-summary" data-visible-count aria-live="polite">
+        {series.length} of {series.length} series shown
+      </div>
+
+      <div class="bench-chart">
+        <svg viewBox="0 0 1120 525" aria-labelledby="cost-title cost-description">
+          <title id="cost-title">All systems: answer accuracy versus estimated model cost</title>
+          <desc id="cost-description">
+            All eleven series are visible initially. Use the checkboxes to hide or show each series.
+            Circles show MemBukkit, squares other official-judge results, dashed diamonds alternate
+            judges. Approximate positions recovered from the original chart are marked with a tilde.
+            Zep, OMEGA and Mem0 OSS have no comparable published cost and appear in a separate
+            unpriced-results column; their entries there are a list, not cost coordinates. Select
+            any point for details.
+          </desc>
+
+          <rect x="886" y="71" width="224" height="379" rx="8" fill="#f5f2ee" />
+          <line x1="878" y1="71" x2="878" y2="450" stroke="#b0b8c3" stroke-dasharray="4 5" />
+          <text class="unknown-title" x="999" y="43" text-anchor="middle" font-size="16" fill="#6c695f">Unpriced results</text>
+
+          {[50, 60, 70, 80, 90, 100].map((a) => (
+            <>
+              <line x1="65" y1={Y(a)} x2="837" y2={Y(a)} stroke="#dde1e7" />
+              <text class="axis-text" x="52" y={Y(a) + 5} text-anchor="end" font-size="15" fill="#495c75">{a}</text>
+            </>
+          ))}
+          {[0.0001, 0.001, 0.01, 0.1, 1].map((c) => (
+            <>
+              <line x1={X(c)} y1="90" x2={X(c)} y2="450" stroke="#eaedf0" />
+              <text class="axis-text" x={X(c)} y="482" text-anchor="middle" font-size="15" fill="#495c75" data-dollar={c}>{money(c)}</text>
+            </>
+          ))}
+          <text class="axis-title" x="65" y="35" font-size="15" fill="#495c75">Accuracy (%) ↑</text>
+          <text class="axis-title" x="451" y="515" text-anchor="middle" font-size="15" fill="#495c75" data-cost-axis>
+            Estimated model cost per answer · USD · log scale →
+          </text>
+
+          {series.map((d, i) => {
+            const [lx, ly] = LABELS[i];
+            const xx = d.cost === null ? UNPRICED_X : X(d.cost);
+            const yy = d.cost === null ? ly + 7 : Y(d.accuracy);
+            const color = COLOR[d.kind];
+            const approx = d.basis === 'chart-estimate';
+            return (
+              <g
+                class="bench-point"
+                data-series={d.key}
+                data-bench-point={i}
+                data-name={d.name}
+                data-cost={d.cost ?? ''}
+                data-accuracy={d.accuracy.toFixed(1)}
+                data-basis={d.basis}
+                data-judge={d.judge}
+                tabindex="0"
+                role="button"
+                aria-pressed={d.key === 'mb-gpt54'}
+                aria-label={`${d.name}: ${d.accuracy.toFixed(1)}% accuracy; ${priceLabel(d)}`}
+              >
+                <title>{d.name}: {d.accuracy.toFixed(1)}% · {priceLabel(d)}</title>
+                <circle class="hit" cx={xx} cy={yy} r="22" />
+                <circle class="halo" cx={xx} cy={yy} r="11" />
+                {d.kind === 'mem' && <circle class="dot" cx={xx} cy={yy} r="7" fill={color} stroke="white" stroke-width="2" />}
+                {d.kind === 'alt' && (
+                  <path class="dot" d={`M ${xx} ${yy - 9} L ${xx + 9} ${yy} L ${xx} ${yy + 9} L ${xx - 9} ${yy} Z`}
+                    fill="white" stroke={color} stroke-width="2" stroke-dasharray="3 2" />
+                )}
+                {d.kind === 'other' && <rect class="dot" x={xx - 6} y={yy - 6} width="12" height="12" fill={color} stroke="white" stroke-width="2" />}
+                <text class="mobile-point-label" x={xx + 13} y={yy - 13} fill={color}>{i + 1}</text>
+                <g class="desktop-point-label">
+                  <path class="leader" d={`M ${xx} ${yy} L ${lx + 15} ${ly + 29}`} stroke={color} fill="none" opacity=".4" />
+                  <text x={lx} y={ly} font-size="15" font-weight="600" fill={color}>{d.short}</text>
+                  <text x={lx} y={ly + 21} font-size="14" fill={color}>
+                    {d.accuracy.toFixed(1)}% · {d.cost === null
+                      ? 'no cost data'
+                      : <tspan data-dollar={d.cost} data-approx={approx ? '' : undefined}>{approx ? '≈' : ''}{money(d.cost)}</tspan>}
+                  </text>
+                </g>
+              </g>
+            );
+          })}
+        </svg>
+      </div>
+      <div class="bench-empty" data-bench-empty hidden>
+        All series are hidden. Select a checkbox above to bring one back.
+      </div>
+
+      <div class="bench-legend">
+        <span><i></i>MemBukkit</span>
+        <span class="other"><i></i>Other results</span>
+        <span class="alt"><i></i>Alternate judge</span>
+        <span>Select a point for details</span>
+      </div>
+
+      <div class="bench-selection" aria-live="polite">
+        <div>
+          <strong data-selected-name>MemBukkit · GPT-5.4</strong>
+          <span data-selected-score>92.6% accuracy · Official GPT-4o</span>
+        </div>
+        <b>
+          <span data-selected-cost style="font:inherit;color:inherit">$0.015</span>
+          <small data-selected-unit>estimated model cost / answer</small>
+        </b>
+      </div>
+
+      {/* The same numbers as the chart, as text. On a narrow screen this is
+          the chart; on a wide one it is the table behind it. */}
+      <details class="bench-data" open>
+        <summary>Chart values and model names</summary>
+        {series.map((d, i) => (
+          <div class="bench-data-row" data-series={d.key}>
+            <span>{i + 1}. {d.name}</span>
+            <b>{d.accuracy.toFixed(1)}%</b>
+            <small>
+              {d.cost === null
+                ? 'Cost not reported'
+                : <span data-dollar={d.cost} data-approx={d.basis === 'chart-estimate' ? '' : undefined}>{d.basis === 'chart-estimate' ? '≈' : ''}{money(d.cost)}</span>}
+              {' · '}{d.judge}{d.basis === 'chart-estimate' ? ' · approximate original chart position' : ''}
+            </small>
+          </div>
+        ))}
+      </details>
+    </div>
+  </div>
+
+  <div class="bench-evidence">
+    <div>
+      <div class="bench-paired-title">
+        <h4>Same reader. Higher accuracy.</h4>
+        <strong>+{(pairedRun.membukkitAccuracy - pairedRun.fullContextAccuracy).toFixed(1)} pts</strong>
+      </div>
+      <div class="bench-minirow">
+        <span>MemBukkit</span>
+        <div class="bench-track"><span class="bench-fill" style={`width:${pairedRun.membukkitAccuracy}%`}></span></div>
+        <b>{pairedRun.membukkitAccuracy.toFixed(1)}%</b>
+      </div>
+      <div class="bench-minirow">
+        <span>Full context</span>
+        <div class="bench-track"><span class="bench-fill" style={`width:${pairedRun.fullContextAccuracy}%`}></span></div>
+        <b>{pairedRun.fullContextAccuracy.toFixed(1)}%</b>
+      </div>
+      <div class="bench-label">Paired GPT-4o-mini run · Same reader, judge and ingestion · {errorDrop}% fewer errors</div>
+    </div>
+    <div>
+      <div class="bench-paired-title">
+        <h4>Less context to read.</h4>
+        <strong>~{contextFactor}× less</strong>
+      </div>
+      <div class="bench-minirow">
+        <span>MemBukkit</span>
+        <div class="bench-track"><span class="bench-fill" style={`width:${(pairedRun.membukkitContextTokens / pairedRun.fullContextTokens) * 100}%`}></span></div>
+        <b>~{pairedRun.membukkitContextTokens / 1000}k</b>
+      </div>
+      <div class="bench-minirow">
+        <span>Full context</span>
+        <div class="bench-track"><span class="bench-fill" style="width:100%"></span></div>
+        <b>~{pairedRun.fullContextTokens / 1000}k</b>
+      </div>
+      <div class="bench-label">Answer-context tokens in that paired run</div>
+    </div>
+  </div>
+
+  <div class="bench-method">
+    Cost plot: query-time model estimates. ≈ marks approximate positions recovered from the
+    original site chart. Ingestion, distillation, infrastructure and hidden reasoning are excluded.
+    Dashed diamonds use alternate judges; reader configurations differ.
+    <details>
+      <summary>Sources, comparison scope and reproduction</summary>
+      <p>
+        Values are reproduced from the published MemBukkit comparison; they have not been
+        independently rerun for this site. Both plots use the published LongMemEval-S results. The
+        92.6% result uses GPT-5.4; the paired {pairedRun.membukkitAccuracy.toFixed(1)}% result uses
+        GPT-4o-mini. Gemini is the independent full-context measurement cited in the methodology.
+      </p>
+      <p>
+        Supermemory, Mem0 Cloud and Hindsight use historical approximate horizontal positions
+        recovered from the original site chart, converted using its logarithmic axis. They are
+        marked ≈ and are not measured costs. Zep, OMEGA and Mem0 OSS appear in the separate
+        “Unpriced results” list because comparable costs were not published. Alternate-judge scores
+        use dashed diamonds.
+      </p>
+      <p>
+        Zep’s 90.2% result uses a GPT-5.4 reader and GPT-5.4 judge, as documented on
+        <a href="https://www.getzep.com/research/" target="_blank" rel="noopener noreferrer">Zep’s research page</a>,
+        checked 11 September 2026. It replaces the older 71.2% configuration, and that
+        configuration’s chart cost estimate no longer applies. Other competitor entries retain the
+        published configurations from the original comparison; this is not a current leaderboard.
+      </p>
+      <p>
+        <a href={BENCHMARK_GUIDE_URL} target="_blank" rel="noopener noreferrer">Run the published benchmark recipes ↗</a>
+        {' · '}
+        <a href={MEMBUKKIT_REPO_URL} target="_blank" rel="noopener noreferrer">MemBukkit on GitHub ↗</a>
+      </p>
+    </details>
+  </div>
+</section>

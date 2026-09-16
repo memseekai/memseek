@@ -233,11 +233,11 @@
 
   .architecture-shell {
     overflow: hidden;
-    border: 1px solid var(--border);
+    border: 1px solid var(--line);
     border-radius: 18px;
     background:
-      radial-gradient(circle at 50% 76%, color-mix(in srgb, var(--cyan) 8%, transparent), transparent 31%),
-      var(--surface);
+      radial-gradient(circle at 50% 76%, color-mix(in srgb, var(--series-1) 8%, transparent), transparent 31%),
+      var(--paper);
   }
 
   .architecture {
@@ -257,32 +257,32 @@
   }
 
   .node rect {
-    fill: color-mix(in srgb, var(--surface-2) 92%, transparent);
-    stroke: var(--border-strong);
+    fill: color-mix(in srgb, var(--silver) 92%, transparent);
+    stroke: var(--line);
     stroke-width: 1.5;
   }
 
   .node--goal rect,
   .node--control rect {
-    fill: color-mix(in srgb, var(--orange) 7%, var(--surface));
-    stroke: color-mix(in srgb, var(--orange) 58%, var(--border));
+    fill: color-mix(in srgb, var(--series-5) 7%, var(--paper));
+    stroke: color-mix(in srgb, var(--series-5) 58%, var(--line));
   }
 
   .node--search rect,
   .node--world rect {
-    fill: color-mix(in srgb, var(--violet) 7%, var(--surface));
-    stroke: color-mix(in srgb, var(--violet) 52%, var(--border));
+    fill: color-mix(in srgb, var(--series-2) 7%, var(--paper));
+    stroke: color-mix(in srgb, var(--series-2) 52%, var(--line));
   }
 
   .node--memory rect:not(.memory-halo) {
-    fill: color-mix(in srgb, var(--cyan) 9%, var(--surface));
-    stroke: color-mix(in srgb, var(--cyan) 72%, var(--border));
+    fill: color-mix(in srgb, var(--series-1) 9%, var(--paper));
+    stroke: color-mix(in srgb, var(--series-1) 72%, var(--line));
     stroke-width: 2;
   }
 
   .node--memory .memory-halo {
     fill: none;
-    stroke: color-mix(in srgb, var(--cyan) 19%, transparent);
+    stroke: color-mix(in srgb, var(--series-1) 19%, transparent);
     stroke-width: 10;
   }
 
@@ -295,14 +295,14 @@
   }
 
   .node-title {
-    fill: var(--text);
+    fill: var(--ink);
     font-size: 17px;
     font-weight: 700;
     text-anchor: middle;
   }
 
   .memory-title {
-    fill: var(--text);
+    fill: var(--ink);
     font-size: 27px;
     font-weight: 700;
     letter-spacing: -.03em;
@@ -316,7 +316,7 @@
   }
 
   .memory-emphasis {
-    fill: var(--cyan);
+    fill: var(--series-1);
     font-size: 13px;
     font-weight: 700;
     text-anchor: middle;
@@ -335,51 +335,51 @@
   }
 
   .runtime-edges {
-    stroke: color-mix(in srgb, var(--orange) 78%, var(--muted));
+    stroke: color-mix(in srgb, var(--series-5) 78%, var(--muted));
     marker-end: url(#runtime-arrow);
   }
 
   .model-edges {
-    stroke: color-mix(in srgb, var(--violet) 82%, var(--muted));
+    stroke: color-mix(in srgb, var(--series-2) 82%, var(--muted));
     marker-end: url(#model-arrow);
   }
 
   .memory-edges {
-    stroke: color-mix(in srgb, var(--cyan) 82%, var(--muted));
+    stroke: color-mix(in srgb, var(--series-1) 82%, var(--muted));
     marker-end: url(#memory-arrow);
   }
 
   .mobile-runtime-edges {
-    stroke: color-mix(in srgb, var(--orange) 78%, var(--muted));
+    stroke: color-mix(in srgb, var(--series-5) 78%, var(--muted));
     marker-end: url(#mobile-runtime-arrow);
   }
 
   .mobile-model-edges {
-    stroke: color-mix(in srgb, var(--violet) 82%, var(--muted));
+    stroke: color-mix(in srgb, var(--series-2) 82%, var(--muted));
     marker-end: url(#mobile-model-arrow);
   }
 
   .mobile-memory-edges {
-    stroke: color-mix(in srgb, var(--cyan) 82%, var(--muted));
+    stroke: color-mix(in srgb, var(--series-1) 82%, var(--muted));
     marker-end: url(#mobile-memory-arrow);
   }
 
   #runtime-arrow path,
-  #mobile-runtime-arrow path { fill: var(--orange); }
+  #mobile-runtime-arrow path { fill: var(--series-5); }
 
   #model-arrow path,
-  #mobile-model-arrow path { fill: var(--violet); }
+  #mobile-model-arrow path { fill: var(--series-2); }
 
   #memory-arrow path,
-  #mobile-memory-arrow path { fill: var(--cyan); }
+  #mobile-memory-arrow path { fill: var(--series-1); }
 
   .edge-label {
     fill: var(--faint);
     font-size: 11px;
   }
 
-  .edge-label--model { fill: var(--violet); }
-  .edge-label--memory { fill: var(--cyan); }
+  .edge-label--model { fill: var(--series-2); }
+  .edge-label--memory { fill: var(--series-1); }
 
   figcaption {
     max-width: 78ch;

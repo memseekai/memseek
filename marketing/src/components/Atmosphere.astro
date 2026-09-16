@@ -1,0 +1,102 @@
+---
+interface Props {
+  /** 'hero' is a contained wash behind a page head. 'story' is the full-bleed
+      plane the pinned six-step scene sits over, and sticks for its duration. */
+  scene?: 'hero' | 'story';
+}
+const { scene = 'hero' } = Astro.props;
+---
+
+{/* Scenery on its own plane at z-index -1, so nothing here can take a
+    pointer event or sit inside a transformed sticky ancestor. */}
+<div class="atmosphere-scene" data-scene={scene} aria-hidden="true">
+  <div class="atmosphere-frame">
+    <div class="atmosphere-wash atmosphere-wash-sky"></div>
+    <div class="atmosphere-wash atmosphere-wash-lilac"></div>
+    <div class="atmosphere-fold"></div>
+  </div>
+</div>
+
+<style is:global>
+  [data-atmosphere] { position: relative; isolation: isolate; background: none; }
+
+  .atmosphere-scene { position: absolute; inset: 0; z-index: -1; pointer-events: none; overflow: clip; }
+  .atmosphere-frame { position: relative; width: 100%; height: 100%; overflow: clip; background: var(--ambient); }
+
+  .atmosphere-wash {
+    position: absolute;
+    inset: -15%;
+    pointer-events: none;
+    will-change: transform;
+    transform: translate3d(var(--ambient-x, 0px), var(--ambient-y, 0px), 0);
+  }
+  .atmosphere-wash-sky {
+    background: radial-gradient(ellipse at 88% 30%, #b6d6fc 0, #d9e8fb 27%, #eef1f680 52%, transparent 70%);
+    opacity: .9;
+  }
+  /* The lilac drifts against the sky rather than with it, which is what keeps
+     the two reading as separate planes instead of one moving image. */
+  .atmosphere-wash-lilac {
+    background: radial-gradient(ellipse at 67% 100%, #c8bcf2 0, #e5e0f599 32%, transparent 65%);
+    opacity: .55;
+    transform: translate3d(calc(var(--ambient-x, 0px) * -.6), calc(var(--ambient-y, 0px) * -.5), 0);
+  }
+  .atmosphere-fold {
+    position: absolute;
+    right: -20%;
+    top: 8%;
+    width: 68%;
+    aspect-ratio: 3 / 2;
+    background: url('/glass-fold.webp') center / contain no-repeat;
+    transform: translate3d(var(--fold-x, 0px), var(--fold-y, 0px), 0) rotate(var(--fold-turn, -13deg));
+    mix-blend-mode: multiply;
+    opacity: .2;
+    mask-image: radial-gradient(ellipse at 56% 51%, #000 27%, transparent 68%);
+    will-change: transform;
+  }
+
+  /* A page head that is not the homepage hero gets a quieter, full-bleed wash. */
+  [data-atmosphere='hero']:not(.clear-hero) .atmosphere-scene { inset: 0 calc(50% - 50vw); }
+  [data-atmosphere='hero']:not(.clear-hero) .atmosphere-fold { width: min(600px, 52vw); top: -20%; right: -9%; opacity: .15; }
+  [data-atmosphere='hero']:not(.clear-hero) .atmosphere-wash-sky { opacity: .5; }
+  [data-atmosphere='hero']:not(.clear-hero) .atmosphere-wash-lilac { opacity: .4; }
+
+  /* The six-step scene stays pinned over one environment that changes slowly
+     underneath it, so the frame sticks while the runway scrolls past. */
+  [data-atmosphere='story'] { background: #e8effa; }
+  [data-atmosphere='story'] .atmosphere-scene { overflow: visible; }
+  [data-atmosphere='story'] .atmosphere-frame {
+    position: sticky;
+    top: 0;
+    height: 100svh;
+    min-height: 600px;
+    background: #edf0fa;
+  }
+  [data-atmosphere='story'] .atmosphere-wash-sky {
+    background: radial-gradient(ellipse at 10% 35%, #aacbf5 0, #d9e6fa80 39%, transparent 70%);
+    opacity: var(--story-sky, .75);
+    transition: opacity 1s ease;
+  }
+  [data-atmosphere='story'] .atmosphere-wash-lilac {
+    background: radial-gradient(ellipse at 95% 75%, #c3b4ed 0, #e1d9f8a8 34%, transparent 68%);
+    opacity: var(--story-lilac, .5);
+    transition: opacity 1s ease;
+  }
+  [data-atmosphere='story'] .atmosphere-fold {
+    width: 55%; right: -30%; top: 20%; opacity: .14;
+    mask-image: radial-gradient(ellipse at 45% 48%, #000 25%, transparent 68%);
+  }
+
+  @media (max-width: 760px) {
+    .atmosphere-fold { top: 34%; right: -34%; width: 120%; opacity: .16; }
+    .atmosphere-wash-sky { background: radial-gradient(ellipse at 100% 55%, #c1dafb 0, #e3ecfa 37%, transparent 73%); }
+    .atmosphere-wash-lilac { opacity: .4; }
+    [data-atmosphere='hero']:not(.clear-hero) .atmosphere-fold { width: 75vw; right: -28%; top: 8%; }
+    [data-atmosphere='story'] .atmosphere-fold { right: -60%; width: 110%; opacity: .12; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .atmosphere-wash, .atmosphere-fold { transform: none !important; will-change: auto; }
+    [data-atmosphere='story'] .atmosphere-wash { transition: none; }
+  }
+</style>

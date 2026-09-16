@@ -1,34 +1,29 @@
-:root,
-:root[data-theme='dark'] {
-  --am-bg: #090c0f;
-  --am-panel: #11161b;
-  --am-panel-2: #171d23;
-  --am-line: rgba(255,255,255,.1);
-  --am-line-strong: rgba(255,255,255,.18);
-  --am-text: #f1f4f5;
-  --am-muted: #98a2aa;
-  --am-l0: #aeb7bf;
-  --am-l1: #6ee7a2;
-  --am-l2: #4fded2;
-  --am-l3: #ad91ff;
-  --am-green-rgb: 110,231,162;
-  --am-display: 'Manrope', var(--sans);
+/* This page kept its own palette and a third typeface. Both now defer to the
+   shared tokens, so it follows the theme toggle without a second set of
+   values to maintain. The --am-* names stay because the rest of the sheet is
+   written against them.
+
+   L0-L3 are four memory tiers a reader has to tell apart, which is what the
+   series ramp exists for; L0 is deliberately the neutral one, because "no
+   tier" should not look like a fifth tier. */
+:root {
+  --am-bg: var(--ambient);
+  --am-panel: var(--paper);
+  --am-panel-2: var(--silver);
+  --am-line: var(--line);
+  --am-line-strong: var(--line-soft);
+  --am-text: var(--ink);
+  --am-muted: var(--muted);
+  --am-l0: var(--muted);
+  --am-l1: var(--series-1);
+  --am-l2: var(--series-3);
+  --am-l3: var(--series-2);
+  --am-display: var(--font);
 }
 
-:root[data-theme='light'] {
-  --am-bg: #f5f7f5;
-  --am-panel: #ffffff;
-  --am-panel-2: #eff3f0;
-  --am-line: rgba(17,25,30,.1);
-  --am-line-strong: rgba(17,25,30,.2);
-  --am-text: #11191e;
-  --am-muted: #5e6a72;
-  --am-l0: #64717a;
-  --am-l1: #168849;
-  --am-l2: #087f79;
-  --am-l3: #694acb;
-  --am-green-rgb: 22,136,73;
-}
+/* Used inside rgba(); a custom property cannot supply the alpha form. */
+:root { --am-green-rgb: 36, 86, 237; }
+:root[data-theme='dark'] { --am-green-rgb: 126, 155, 255; }
 
 body { background: var(--am-bg); color: var(--am-text); }
 .am-nav { background: color-mix(in srgb, var(--am-bg) 88%, transparent); backdrop-filter: blur(18px); }

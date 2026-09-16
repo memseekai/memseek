@@ -1,0 +1,29 @@
+---
+import AppIcon, { type Mark } from '../AppIcon.astro';
+import { sources } from '../../data/renewal-story';
+
+interface Props {
+  /** Key into renewal-story `sources`. */
+  record: string;
+  /** Compact drops the padding so several fit inside a dialog. */
+  compact?: boolean;
+}
+const { record, compact = false } = Astro.props;
+const s = sources[record];
+const app = (s.app ?? 'Gmail') as Mark;
+const author = s.author ?? 'Maya';
+---
+
+<article class:list={['demo-message', { 'is-compact': compact }, `from-${app.toLowerCase()}`]} data-evidence-ref={record}>
+  <div class="demo-app-header">
+    <span><AppIcon app={app} /><b>{app}</b><span>{s.channel ?? 'Customer email'}</span></span>
+    <time>{s.displayTime}</time>
+  </div>
+  <div class="demo-message-body">
+    <span class={`demo-avatar avatar-${app.toLowerCase()}`} aria-hidden="true">{author.slice(0, 1)}</span>
+    <div>
+      <div class="demo-sender"><b>{author}</b><span>{s.role ?? 'Customer'}</span></div>
+      <p>{s.text}</p>
+    </div>
+  </div>
+</article>

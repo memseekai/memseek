@@ -1,0 +1,1036 @@
+/* ============================================================
+   The six-step renewal story.
+
+   One scene, not a page of independent components: the graph, the
+   panel, the counter and the meter are all projections of one
+   active stage, and sticky-story.ts moves between them by writing
+   data-loop-phase on .learn-shell. Styling that lives beside a
+   single component cannot express "the recipients light up during
+   prepare and act", so the whole scene is styled here.
+
+   Read it as four layers:
+     the runway and the shell that sticks inside it
+     the topology — sources, engine, recipients, result, feedback
+     the panel under the graph
+     the evidence dialog and its six worked scenes
+
+   Colour is spent on one thing: what changed at this stage. The
+   muted state is the default and the lit state is the exception,
+   which is why nearly every phase rule adds emphasis rather than
+   removing it.
+   ============================================================ */
+
+
+/* ---------- The section and its heading ---------- */
+
+.learn-loop-section {padding:70px 0 64px;border-block:1px solid #dbe3f0;background:radial-gradient(ellipse at 70% 20%,#e4ecff70,transparent 65%),#f1f5fb}
+.learn-section-heading h2 {font-size:clamp(32px,3.2vw,46px);line-height:1.16;letter-spacing:-.045em;max-width:940px}
+.learn-section-heading h2 span {color:#5570bf}
+.learn-section-heading>p {font-size:17px;color:#67758f;max-width:690px;margin:23px 0 26px}
+
+/* ---------- The runway, and the shell that pins inside it ---------- */
+
+.learn-runway {position:relative}
+.learn-shell {border:1px solid #fff;border-radius:22px;background:linear-gradient(150deg,#fffffffa,#f9fbfffa);box-shadow:0 0 0 1px #d1ddef,0 28px 52px -40px #3a55a07a;overflow:hidden}
+.learn-runway.is-enhanced:not(.is-flow) {height:calc(var(--org-height) + var(--org-travel))}
+.learn-runway.is-enhanced .learn-shell {position:sticky;top:var(--org-top,18px);z-index:3}
+.learn-board-heading {display:flex;justify-content:space-between;align-items:center;gap:18px;padding:19px 28px;color:#345081}
+.learn-board-heading>b {font-size:15px;font-weight:550;letter-spacing:-.01em}
+.learn-board-heading>span {font-size:12px;color:#788aa8;white-space:nowrap}
+.learn-board-heading [data-org-counter] {margin-left:22px;color:#4c6bc0;font-variant-numeric:tabular-nums}
+.learn-meter {height:2px;background:#e9eef8;overflow:hidden}
+.learn-meter>span {display:block;height:100%;width:100%;background:linear-gradient(90deg,#3f66eb,#8575df);transform:scaleX(0);transform-origin:left}
+
+/* ---------- The topology: what the organization looks like ---------- */
+
+.learn-topology {display:grid;grid-template-columns:1.15fr 40px 1.2fr 40px 1fr 34px .8fr;grid-template-rows:auto 44px;align-items:center;margin:26px 28px 16px;position:relative}
+.learn-inputs {display:grid;grid-template-columns:1fr 1fr;gap:9px;align-content:center}
+.learn-source {border:1px solid #dbe4f2;border-radius:10px;background:linear-gradient(125deg,#fff,#f5f8ff);min-height:74px;padding:12px 8px;display:flex;flex-direction:column;gap:7px;align-items:center;justify-content:center;color:#627699;transition:border-color .32s,box-shadow .32s,color .32s,background .32s}
+.learn-source svg {width:20px;height:20px}
+.learn-source span {font-size:14px;text-align:center;line-height:1.25}
+
+/* ---------- Memseek, the one saturated surface in the scene ---------- */
+
+.learn-engine {align-self:stretch;display:flex;flex-direction:column;justify-content:center;border:1px solid #adc2ff;border-radius:15px;background:linear-gradient(145deg,#5e7aff,#2a4acd);padding:19px 15px 0;color:white;box-shadow:inset 0 1px 0 #c2d0ff,0 10px 23px -12px #3a5cc099;min-height:158px;position:relative;transition:box-shadow .35s}
+.learn-engine-head {display:flex;align-items:center;justify-content:center;gap:9px}
+.learn-engine-head strong {font-size:25px;letter-spacing:-.045em;font-weight:550}
+.learn-engine-descriptor {font-size:12px;text-align:center;color:#e0e8ff;margin-top:7px;line-height:1.4}
+.learn-engine-state {font-size:14px;text-align:center;color:white;margin:16px 0;line-height:1.3;min-height:19px}
+
+/* ---------- Edges. Dimmed by default; a phase lights the live ones ---------- */
+
+.learn-edge {position:relative;padding:0 5px;opacity:.22;transition:opacity .4s}
+.learn-edge>span {display:block;height:1px;width:100%;background:#829ad3;position:relative}
+.learn-edge>span:after {content:'';position:absolute;right:0;top:-3px;width:6px;height:6px;border-top:1px solid #829ad3;border-right:1px solid #829ad3;transform:rotate(45deg)}
+.learn-edge-in:before,.learn-edge-out:before {content:'';position:absolute;left:5px;right:5px;top:-40px;height:80px;border:1px solid #b2c2e3;border-left:0;border-radius:0 8px 8px 0}
+.learn-edge-in>span {width:60%;margin-left:40%;background:transparent}
+.learn-edge-in:before {right:40%;border-left:0}
+.learn-edge-out:before {left:40%;border-left:1px solid #b2c2e3;border-right:0;border-radius:8px 0 0 8px}
+.learn-edge-out>span {width:55%;background:#829ad3}
+.learn-edge-out>span:after {display:none}
+
+/* ---------- Who receives the brief, and what comes of it ---------- */
+
+.learn-recipients {display:grid;gap:12px}
+.learn-recipient {display:flex;align-items:center;gap:10px;min-height:69px;padding:12px;border:1px solid #dbe3f1;border-radius:10px;background:#fff;color:#687daa;transition:box-shadow .35s,border-color .35s,background .35s}
+.learn-recipient>svg {width:23px;height:23px;flex:0 0 23px}
+.learn-recipient b {font-size:15px;font-weight:550;color:#344c79;display:block}
+.learn-recipient small {font-size:12px;line-height:1.4;display:block;margin-top:4px;white-space:nowrap}
+.learn-result {border:1px solid #d9dff1;border-radius:11px;padding:14px 10px;min-height:125px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;background:#f6f7ff;color:#7779a6;text-align:center;transition:background .35s,border-color .35s,color .35s}
+.learn-result svg {width:23px;height:23px;border:1px solid #d0d5ef;border-radius:50%;padding:3px}
+.learn-result b {font-size:14px;line-height:1.3;font-weight:500}
+.learn-result>span {font-size:12px;line-height:1.3;color:#8990ac}
+
+/* ---------- The return path: outcomes become memory ---------- */
+
+.learn-feedback {grid-column:3/8;grid-row:2;align-self:stretch;border:1px solid #d9deef;border-top:0;border-radius:0 0 12px 12px;position:relative;margin:0 28% 0 48%;color:#8793b5;transition:border-color .4s,color .4s}
+.learn-feedback:before {content:'';position:absolute;top:-1px;left:-4px;width:7px;height:7px;border-top:1px solid currentColor;border-left:1px solid currentColor;transform:rotate(45deg)}
+.learn-feedback>span {display:flex;align-items:center;justify-content:center;gap:6px;position:absolute;bottom:-9px;left:50%;transform:translateX(-50%);background:#fbfcff;padding:0 10px;white-space:nowrap;font-size:12px}
+.learn-short-label {display:none!important}
+.learn-feedback svg {height:14px;width:14px}
+.learn-feedback:after {content:'';position:absolute;right:-1px;top:calc(-1 * var(--return-overhang,0px));height:var(--return-overhang,0px);border-right:1px solid currentColor}
+.learn-edge-result:before {content:'';position:absolute;left:5px;right:40%;top:-39px;height:78px;border:1px solid #b2c2e3;border-left:0;border-radius:0 8px 8px 0}
+.learn-edge-result>span {width:60%;margin-left:40%}
+
+/* ---------- Per-phase emphasis. The story is these rules ---------- */
+
+.learn-shell[data-loop-phase="notice"] .learn-source-customers,.learn-shell[data-loop-phase="notice"] .learn-source-team,.learn-shell[data-loop-phase="connect"] .learn-source-docs,.learn-shell[data-loop-phase="connect"] .learn-source-systems {border-color:#7a97ed;color:#355ecf;background:#f3f6ff;box-shadow:0 0 0 3px #5176e40a}
+.learn-shell:not([data-loop-phase="notice"]) .learn-edge-in {opacity:1}
+.learn-shell[data-loop-phase="connect"] .learn-engine {box-shadow:inset 0 1px 0 #d3deff,0 0 0 5px #486cef15,0 13px 28px -10px #3a5cc055}
+.learn-shell[data-loop-phase="prepare"] .learn-edge-out,.learn-shell[data-loop-phase="prepare"] .learn-edge-result,.learn-shell[data-loop-phase="act"] .learn-edge {opacity:1}
+.learn-shell[data-loop-phase="prepare"] .learn-recipient,.learn-shell[data-loop-phase="act"] .learn-recipient {border-color:#9bade8;background:#f7f9ff;box-shadow:0 0 0 3px #587bd80b}
+.learn-shell[data-loop-phase="prepare"] .learn-result,.learn-shell[data-loop-phase="act"] .learn-result {background:#efedff;border-color:#b8aff0;color:#6757b1}
+.learn-shell[data-loop-phase="act"] .learn-feedback {border-color:#8f80d6;color:#7060b4}
+.learn-shell[data-loop-phase="learn"] .learn-engine-state {background:#ffffff0b}
+
+/* ---------- Stage controls, and the panel under the graph ---------- */
+
+.learn-stage-controls {display:flex;gap:0;margin:10px 28px 0;border-bottom:1px solid #dfe6f3}
+.learn-stage-controls button {flex:1;padding:14px 9px;border:0;border-bottom:2px solid transparent;background:transparent;color:#74829c;font-size:14px;display:flex;align-items:center;gap:8px;justify-content:center;transition:color .3s,background .3s,border-color .3s;min-height:48px;cursor:pointer}
+.learn-stage-controls button>span {font-size:12px;color:#9aa8c0;font-variant-numeric:tabular-nums}
+.learn-stage-controls button[aria-pressed=true] {color:#355cd4;border-bottom-color:#5575e0;background:linear-gradient(0deg,#edf2ff88,transparent)}
+.learn-stage-controls button[aria-pressed=true]>span {color:#6c86d0}
+.learn-stage-controls button:hover {background:#f1f5fe;color:#365cbd}
+.learn-stage-controls button:focus-visible,.learn-evidence-button:focus-visible,.learn-dialog-head button:focus-visible {outline:3px solid #6585ea;outline-offset:2px}
+.learn-panels {position:relative;margin:0 28px}
+.learn-panel {display:grid;grid-template-columns:1fr 1fr;column-gap:55px;row-gap:14px;padding:28px 0 20px;align-items:center}
+.learn-panel[hidden] {display:none}
+.learn-stage-label {display:block;font-size:12px;color:#798aab;margin-bottom:10px}
+.learn-panel h3 {font-size:29px;line-height:1.17;letter-spacing:-.035em;max-width:470px}
+.learn-panel .learn-stage-copy>p {font-size:16px;line-height:1.55;color:#6c7c98;margin:14px 0 12px;max-width:460px}
+.learn-evidence-button {background:transparent;border:0;padding:7px 0;min-height:36px;font-size:14px;color:#4d69ae;cursor:pointer}
+.learn-evidence-button span {margin-left:6px}
+.learn-evidence-button:hover {color:#284bca}
+.learn-stage-example {min-width:0}
+.learn-board-footer {display:flex;justify-content:space-between;gap:18px;padding:14px 28px;border-top:1px solid #e0e7f3;color:#8996af;background:#f6f9fd;font-size:12px}
+.learn-board-footer .textlink {font-size:13px}
+
+/* ---------- The evidence dialog ---------- */
+
+.learn-evidence-dialog {border:1px solid #d3dff1;border-radius:18px;padding:0;max-width:620px;width:calc(100% - 36px);max-height:85dvh;background:#fafcff;color:#26334d;box-shadow:0 30px 100px #20357433}
+.learn-evidence-dialog::backdrop {background:#25396266;backdrop-filter:blur(5px)}
+.learn-dialog-head {display:flex;align-items:flex-start;gap:20px;justify-content:space-between;padding:25px 26px 20px;border-bottom:1px solid #dce4f2;background:#f2f6ff;position:sticky;top:0;z-index:1}
+.learn-dialog-head span {font-size:12px;color:#7888a7;display:block;margin-bottom:7px}
+.learn-dialog-head h2 {font-size:24px;line-height:1.2;letter-spacing:-.025em;margin:0}
+.learn-dialog-head button {width:36px;height:36px;flex:0 0 36px;background:white;border:1px solid #d7e1f2;border-radius:8px;color:#667da8;font-size:25px;cursor:pointer}
+
+/* ---------- The records behind a stage ---------- */
+
+.learn-evidence-list {list-style:none;padding:0;margin:0}
+.learn-evidence-dialog .learn-evidence-list {padding:4px 26px 0}
+.learn-evidence-list li {padding:20px 0;border-bottom:1px solid #dce4f0}
+.learn-source-kind {font-size:12px;color:#8393af}
+.learn-evidence-list h3 {font-size:17px;line-height:1.4;margin:5px 0 8px;font-weight:500}
+.learn-evidence-list p {font-size:16px;line-height:1.6;color:#617493;margin:0 0 9px}
+.learn-evidence-list small {font-size:12px;color:#8491aa}
+.learn-evidence-note {font-size:13px!important;line-height:1.6!important;color:#7a89a3;padding:18px 26px 24px;margin:0}
+@media(max-width:1100px) {
+  .learn-topology {grid-template-columns:1.1fr 29px 1.2fr 29px 1fr 24px .85fr;margin-inline:22px}
+  .learn-inputs {gap:7px}
+  .learn-source {padding:10px 4px}
+  .learn-source span {font-size:12px}
+  .learn-source-systems span {max-width:78px}
+  .learn-engine {padding-inline:12px}
+  .learn-engine-head strong {font-size:24px}
+  .learn-recipient {padding:12px 8px;gap:7px}
+  .learn-recipient small {white-space:normal}
+  .learn-recipient b {font-size:14px}
+  .learn-recipient>svg {width:20px;flex-basis:20px}
+  .learn-result {padding:12px 7px}
+  .learn-result b {font-size:13px}
+  .learn-result>span {font-size:12px}
+  .learn-panel {gap:16px 32px}
+  .learn-panel h3 {font-size:27px}
+}
+.learn-runway.is-flow .learn-panels {display:none}
+.learn-runway.is-flow .learn-shell {background:#fbfcff}
+.learn-runway.is-flow .learn-panel {grid-template-columns:1fr 1fr;padding-inline:16px}
+.learn-runway.is-flow .learn-board-footer {display:none}
+@media(max-width:760px) {
+  .learn-loop-section {padding:43px 0}
+  .learn-section-heading h2 {font-size:33px;line-height:1.14}
+  .learn-section-heading>p {font-size:16px;margin:20px 0}
+  .learn-board-heading {padding:15px 14px;gap:10px}
+  .learn-board-heading>b {font-size:13px}
+  .learn-board-heading>span {font-size:12px}
+  .learn-board-heading [data-org-counter] {margin-left:8px}
+  .learn-shell {border-radius:15px}
+  .learn-topology {grid-template-columns:1fr 1fr;grid-template-rows:auto 18px auto 18px auto 28px;column-gap:12px;margin:16px 14px 11px}
+  .learn-inputs {grid-column:1/-1;grid-row:1;display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+  .learn-source {min-height:52px;padding:8px 3px;gap:5px;border-radius:7px;flex-direction:row;flex-wrap:wrap}
+  .learn-source>svg {width:16px;height:16px}
+  .learn-source span {font-size:12px;line-height:1.2}
+  .learn-source .learn-full-label {display:none}
+  .learn-source .learn-short-label {display:inline!important}
+  .learn-edge-in {grid-column:1/-1;grid-row:2;height:18px;width:1px;justify-self:center;padding:0}
+  .learn-edge-in:before {display:none}
+  .learn-edge-in>span {width:1px;height:100%;margin:0;background:#829ad3!important}
+  .learn-edge-in>span:after {top:auto;bottom:0;left:-3px;transform:rotate(135deg)}
+  .learn-engine {grid-column:1/-1;grid-row:3;min-height:84px;padding:12px 14px;display:grid;grid-template-columns:1fr 1fr;grid-template-rows:auto auto;column-gap:12px;border-radius:10px}
+  .learn-engine-head {justify-content:flex-start;gap:7px}
+  .learn-engine-head strong {font-size:23px}
+  .learn-engine-descriptor {grid-column:1;grid-row:2;font-size:12px;text-align:left;margin-top:6px;max-width:170px}
+  .learn-engine-state {grid-column:2;grid-row:1/3;font-size:14px;line-height:1.4;text-align:left;margin:0;padding-left:12px;align-self:center;border-left:1px solid #ffffff3b}
+  .learn-edge-out {grid-column:1/-1;grid-row:4;height:18px;padding:0;justify-self:center;width:1px}
+  .learn-edge-out:before {display:none}
+  .learn-edge-out>span {width:1px;height:100%}
+  .learn-edge-out>span:after {display:block;top:auto;bottom:0;left:-3px;transform:rotate(135deg)}
+  .learn-recipients {grid-column:1/-1;grid-row:5;grid-template-columns:1fr 1fr;gap:10px}
+  .learn-recipient {padding:10px 11px;min-height:47px;gap:10px;border-radius:8px}
+  .learn-recipient b {font-size:14px}
+  .learn-recipient>svg {width:20px;height:20px;flex-basis:20px}
+  .learn-recipient small {display:none}
+  .learn-edge-result {display:none}
+  .learn-result {grid-column:2;grid-row:6;display:flex;flex-direction:row;border:0;padding:10px 0 0;min-height:0;gap:5px;background:transparent!important;align-self:start;text-align:right;justify-content:flex-end}
+  .learn-result>span {display:none}
+  .learn-result>svg {display:none}
+  .learn-result>b {font-size:12px;line-height:1.3;white-space:nowrap}
+  .learn-feedback {grid-column:1;grid-row:6;margin:0;align-self:center;border:0;height:18px}
+  .learn-feedback:before,.learn-feedback:after {display:none}
+  .learn-feedback>span {position:static;transform:none;padding:7px 0 0;background:none;font-size:12px;justify-content:flex-start;gap:5px}
+  .learn-feedback .learn-full-label {display:none}
+  .learn-feedback .learn-short-label {display:inline!important}
+  .learn-stage-controls {margin:2px 14px 0}
+  .learn-stage-controls button {padding:13px 3px;min-height:45px;gap:0;font-size:13px}
+  .learn-stage-controls button>span {display:none}
+  .learn-runway.is-flow .learn-panel {grid-template-columns:1fr;padding-inline:4px;gap:18px}
+  .learn-stage-label {font-size:12px;margin-bottom:12px}
+  .learn-panel h3 {font-size:30px;line-height:1.14}
+  .learn-panel .learn-stage-copy>p {font-size:16px;line-height:1.6;margin:15px 0 8px}
+  .learn-dialog-head {padding:21px 20px 17px}
+  .learn-dialog-head h2 {font-size:23px}
+  .learn-evidence-dialog .learn-evidence-list {padding-inline:20px}
+  .learn-evidence-note {padding-inline:20px}
+  .learn-evidence-dialog {max-height:88dvh}
+}
+@media(max-width:760px) {
+  .learn-board-heading {padding:13px 14px}
+  .learn-board-heading>b {white-space:nowrap;font-size:13px}
+  .learn-topology {margin-top:12px;margin-bottom:8px;grid-template-rows:auto 14px auto 14px auto 26px}
+  .learn-source {min-height:34px;padding:7px 1px;display:flex;flex-direction:row}
+  .learn-source>svg {display:none}
+  .learn-source span {font-size:14px;white-space:nowrap}
+  .learn-engine {min-height:64px;grid-template-rows:1fr;padding:12px 14px}
+  .learn-engine-descriptor {display:none}
+  .learn-engine-head {grid-row:1}
+  .learn-engine-state {grid-row:1;font-size:14px}
+  .learn-edge-in,.learn-edge-out {height:14px}
+  .learn-recipient {min-height:43px;padding-block:9px}
+  .learn-stage-controls {margin-top:0}
+}
+@media(max-width:370px) {
+  .learn-board-heading {padding-inline:11px}
+  .learn-board-heading>b {font-size:12px}
+  .learn-board-heading>span {font-size:12px}
+  .learn-board-heading [data-org-counter] {display:none}
+  .learn-topology {margin-inline:11px}
+  .learn-inputs {gap:4px}
+  .learn-source {flex-direction:column;min-height:58px}
+  .learn-source span {font-size:12px}
+  .learn-engine {padding:11px}
+  .learn-engine-head strong {font-size:21px}
+  .learn-engine-descriptor {font-size:12px}
+  .learn-engine-state {font-size:13px;padding-left:9px}
+  .learn-recipient {padding:10px 8px;gap:6px}
+  .learn-result>b {white-space:normal;max-width:130px}
+}
+.clear-hero+.learn-loop-section {margin-top:0}
+.learn-section-heading {margin-bottom:36px}
+.learn-section-heading h2 {font-size:clamp(36px,3.6vw,49px)}
+.learn-section-heading>p {max-width:680px;font-size:17px;margin-bottom:0}
+.learn-panel {column-gap:65px;padding-top:30px;padding-bottom:28px;row-gap:0}
+.learn-panel h3 {font-size:31px;line-height:1.19;max-width:480px}
+.learn-panel .learn-stage-copy>p {font-size:17px;line-height:1.6;max-width:500px;margin:15px 0 10px}
+.learn-stage-label {font-size:13px;color:#7789af}
+.learn-stage-controls button {font-size:14px}
+.learn-result-symbol {display:grid;place-items:center;width:27px;height:27px;border:1px solid #d2d9ec;border-radius:50%;font-size:18px;line-height:1;color:#8c9aba}
+.learn-result>.learn-result-symbol {font-size:18px;color:#889aba}
+.learn-shell[data-loop-phase="act"] .learn-result-symbol,.learn-shell[data-loop-phase="learn"] .learn-result-symbol {color:#6b5ab6;border-color:#c1b6e8}
+.learn-shell[data-loop-phase="act"] .learn-edge,.learn-shell[data-loop-phase="learn"] .learn-edge {opacity:1}
+.learn-shell[data-loop-phase="act"] .learn-source-customers,.learn-shell[data-loop-phase="act"] .learn-source-systems {border-color:#8c9ee5;color:#405ebf;background:#f3f5ff}
+.learn-shell[data-loop-phase="learn"] .learn-feedback {border-color:#8f80d6;color:#7060b4}
+.learn-shell[data-loop-phase="learn"] .learn-engine {box-shadow:inset 0 1px 0 #d3deff,0 0 0 5px #7162cb15,0 13px 28px -10px #7460bc44}
+.learn-shell[data-loop-phase="learn"] .learn-result {background:#efedff;border-color:#b8aff0;color:#6757b1}
+.learn-shell[data-loop-phase="prepare"] .learn-result {background:#f6f7ff;border-color:#d9dff1;color:#7779a6}
+.learn-runway.is-flow .learn-panel {padding-inline:8px}
+@media(max-width:1100px) {
+  .learn-panel {column-gap:36px}
+  .learn-panel h3 {font-size:28px}
+  .learn-panel .learn-stage-copy>p {font-size:16px}
+}
+@media(max-width:760px) {
+  .learn-section-heading {margin-bottom:28px}
+  .learn-section-heading h2 {font-size:35px;line-height:1.14}
+  .learn-section-heading>p {font-size:16px;margin-top:18px}
+  .learn-topology {margin-top:12px}
+  .learn-result>.learn-result-symbol {display:none}
+  .learn-stage-controls button {font-size:13px;white-space:nowrap;padding-inline:2px}
+  .learn-panel h3 {font-size:29px;line-height:1.19}
+  .learn-panel .learn-stage-copy>p {font-size:16px;line-height:1.6;margin-bottom:8px}
+  .learn-runway.is-flow .learn-panel {padding-inline:4px;gap:20px}
+  .learn-stage-label {font-size:12px}
+}
+@media(max-width:370px) {
+  .learn-stage-controls button {font-size:12px}
+}
+@media(prefers-reduced-motion:reduce) {
+  .learn-shell * {transition:none!important;scroll-behavior:auto!important}
+}
+.clear-hero .demo-message p,.learn-panel .demo-message p {font-size:15px;line-height:1.5;letter-spacing:-.008em;color:#4c5b73;margin:0}
+.learn-shell[data-loop-phase="escalate"] .learn-engine {box-shadow:inset 0 1px 0 #d3deff,0 0 0 5px #5878dd19,0 15px 30px -11px #496ac966}
+.learn-shell[data-loop-phase="escalate"] .learn-edge {opacity:1}
+.learn-shell[data-loop-phase="escalate"] .learn-human,.learn-shell[data-loop-phase="escalate"] .learn-source-team {border-color:#b4a2d8;background:#f6f2ff}
+.learn-shell[data-loop-phase="escalate"] .learn-result {background:#f0ebff;border-color:#c6b9e9;color:#7560b0}
+.learn-shell[data-loop-phase="escalate"] .learn-feedback {opacity:.5}
+@media(max-width:760px) {
+  .learn-stage-controls button {font-size:12px;padding-inline:1px}
+}
+.learn-source .app-mark {width:22px;height:22px;flex-basis:22px}
+.learn-source .app-mark svg {width:21px;height:21px}
+.learn-source small {color:#8a9ab3;font-size:10px;line-height:1.35;text-align:center}
+.learn-source {gap:5px;min-height:82px}
+.learn-topology {grid-template-columns:1.25fr 36px 1.15fr 36px 1fr 30px .85fr}
+.learn-shell[data-loop-phase="notice"] .learn-source-customers,.learn-shell[data-loop-phase="notice"] .learn-source-systems,
+.learn-shell[data-loop-phase="connect"] .learn-source-customers,.learn-shell[data-loop-phase="connect"] .learn-source-systems,
+.learn-shell[data-loop-phase="prepare"] .learn-source-team,.learn-shell[data-loop-phase="act"] .learn-source-docs,
+.learn-shell[data-loop-phase="learn"] .learn-source-docs,.learn-shell[data-loop-phase="learn"] .learn-source-customers {border-color:#a9bdec;background:linear-gradient(125deg,#fff,#eef3ff);box-shadow:0 3px 9px -5px #4c72c644}
+.learn-panel {column-gap:48px}
+.learn-panel .learn-stage-copy>p {font-size:16px;line-height:1.65}
+.learn-panel h3 {font-size:31px;max-width:435px}
+.learn-panel .case-current>p,.learn-panel .case-task>p {font-size:13px;line-height:1.5;color:#7c8ca8;margin:0 0 12px}
+.learn-panel .case-resolution p {font-size:12px;line-height:1.6;color:#8497b5;margin:0}
+.learn-panel .case-resolution p>b {font-size:13px;color:#6c83a9}
+@media(min-width:761px) and (max-width:1100px) {
+  .learn-source small {font-size:9px}
+  .learn-topology {grid-template-columns:1.2fr 25px 1.2fr 25px 1fr 21px .9fr}
+}
+@media(max-width:760px) {
+  .learn-topology {grid-template-columns:1fr 1fr}
+  .learn-source {min-height:36px;gap:4px}
+  .learn-source .app-mark {display:flex!important;width:14px;height:14px;flex-basis:14px}
+  .learn-source .app-mark svg {width:13px;height:13px}
+  .learn-source small {display:none}
+  .learn-panel h3 {font-size:27px}
+}
+@media(max-width:370px) {
+  .learn-source {flex-direction:row;min-height:36px}
+  .learn-source .app-mark {display:none!important}
+}
+
+/* ---------- The mechanics disclosure ---------- */
+
+.learn-mechanics { border-top:1px solid #d7e1ef; margin-top:36px; padding-top:20px; }
+.learn-mechanics summary { width:fit-content; color:#536d9f; font-size:15px; cursor:pointer; text-underline-offset:4px; }
+.learn-mechanics summary:hover { color:#3257b0; }
+.learn-mechanics summary:focus-visible { outline:2px solid #5275dc; outline-offset:6px; }
+.learn-mechanics-grid { display:grid; grid-template-columns:1fr 1fr; gap:60px; padding:23px 0 8px; }
+.learn-mechanics h3 { font-size:21px; font-weight:500; color:#40587f; letter-spacing:-.03em; margin:0; }
+.learn-mechanics p { font-size:15px; line-height:1.65; color:#718199; margin:13px 0; }
+.learn-mechanics a { display:inline-block; color:#4e6db6; font-size:13px; margin:0 14px 8px 0; text-underline-offset:4px; }
+@media(max-width:760px) {
+  .learn-mechanics {margin-top:16px}
+  .learn-mechanics-grid {grid-template-columns:1fr;gap:25px}
+}
+.learn-traffic {position:absolute;inset:0;width:100%;height:100%;overflow:visible;pointer-events:none;z-index:1}
+.learn-traffic .action-wire-active,.learn-traffic .action-wire-tip {stroke:#6b62d6;stroke-width:2.4}
+.learn-topology>.learn-feedback>span {z-index:2}
+.learn-topology[data-traffic] .learn-edge-out,.learn-topology[data-traffic] .learn-edge-result {opacity:.1}
+.learn-topology[data-traffic="learn"] .learn-feedback {border-color:transparent}
+.learn-topology[data-traffic="learn"] .learn-feedback:before,.learn-topology[data-traffic="learn"] .learn-feedback:after {opacity:0}
+@media(min-width:761px) {
+  .learn-topology {margin-top:20px;margin-bottom:12px}
+  .learn-source {padding-block:9px;min-height:76px}
+  .learn-panel {padding-top:26px;padding-bottom:24px}
+}
+@media(max-width:760px) {
+  .learn-topology[data-traffic] .learn-edge-out,.learn-topology[data-traffic] .learn-edge-result {opacity:0}
+}
+@media(prefers-reduced-motion:reduce) {
+  [data-action-flow] *, .learn-traffic * {animation:none!important;transition:none!important}
+}
+.learn-section-heading h2 {max-width:920px}
+.learn-section-heading>p {max-width:725px}
+.learn-board-heading {padding:20px 28px 18px}
+.learn-board-heading>b {font-size:18px;letter-spacing:-.025em;color:#334666}
+.learn-board-heading>b>small {font-size:12px;font-weight:400;color:#94a0b6;letter-spacing:0;margin-left:15px}
+.learn-stage-controls {margin:5px 28px 0}
+.learn-stage-controls button {min-height:52px;padding:14px 6px;font-size:13px;line-height:1.4;gap:7px;color:#7c89a0}
+.learn-stage-controls button>span {font-size:11px;color:#a2acbc}
+.learn-panels {display:grid;align-items:center}
+.learn-panel {grid-template-columns:minmax(270px,.8fr) minmax(0,1.2fr);gap:48px;padding:32px 0 28px;align-items:center}
+.learn-panel h3 {font-size:34px;line-height:1.16;letter-spacing:-.035em;max-width:415px;color:#26344b}
+.learn-stage-label {font-size:13px;color:#7285ae;margin-bottom:18px;letter-spacing:.01em}
+.learn-panel .learn-stage-copy>p {font-size:16px;line-height:1.7;color:#788498;max-width:395px;margin-top:21px;margin-bottom:17px}
+.learn-evidence-button {font-size:13px}
+.learn-stage-example .demo-app-header {padding:8px 17px;background:#f7f9fd}
+.learn-stage-example .demo-app-header b {font-size:11px;color:#8996ae;font-weight:400}
+.learn-stage-example .demo-app-header .app-mark {width:14px;height:14px;flex-basis:14px}
+.learn-stage-example .demo-app-header .app-mark svg {width:13px;height:13px}
+.learn-stage-example .demo-message-body {padding:18px 19px 20px}
+.learn-stage-example .demo-sender b {font-size:15px;color:#4b5b75}
+.learn-stage-example .demo-sender>span {font-size:12px;color:#8e99ac}
+.learn-stage-example .demo-sender {margin-bottom:9px}
+.learn-panel .learn-stage-example .demo-message p {font-size:16px;line-height:1.6;color:#52627c}
+.learn-stage-example .demo-avatar {width:33px;height:33px;flex-basis:33px;font-size:13px;border-radius:10px}
+.learn-stage-example .case-crm-context {margin-top:4px;padding:17px 20px}
+.learn-stage-example .case-crm-context>span>b {font-size:13px}
+.learn-stage-example .case-crm-context>span>small {margin-left:auto;font-size:11px;color:#96a3b9}
+.learn-stage-example .case-crm-context .app-mark {width:14px;height:14px;flex-basis:14px}
+.learn-stage-example .case-crm-context .app-mark svg {width:13px;height:13px}
+.learn-stage-example .case-crm-context strong {font-size:15px}
+.learn-stage-example .case-crm-context>div>span {font-size:12px}
+.learn-panel .case-business-brief .case-current>p {font-size:14px;line-height:1.6;max-width:450px}
+.learn-stage-example .case-run-row {font-size:14px;grid-template-columns:80px 100px 16px minmax(0,1fr);padding-block:12px}
+.learn-stage-example .case-run-row strong {font-size:15px}
+.learn-stage-example .case-run-row s {font-size:13px}
+.learn-stage-example .case-task-head .app-mark {width:15px;height:15px;flex-basis:15px}
+.learn-stage-example .case-task-head .app-mark svg {width:14px;height:14px}
+.learn-stage-example .case-task-head b {font-size:11px;color:#8790aa}
+.learn-stage-example .case-owner b {font-size:13px}
+.learn-stage-example .case-owner small {font-size:12px;line-height:1.5}
+.learn-board-footer {padding:0 28px 17px;border-top:0;justify-content:flex-end}
+.learn-board-footer>span {font-size:11px;color:#95a0b3}
+@media(min-width:761px) and (max-width:1000px) {
+  .learn-panel {gap:30px;grid-template-columns:minmax(230px,.8fr) minmax(0,1.2fr)}
+  .learn-panel h3 {font-size:30px}
+  .learn-stage-controls button {font-size:12px;gap:4px}
+  .learn-stage-controls button>span {display:none}
+  .learn-stage-example .case-run-row {grid-template-columns:60px 67px 14px minmax(0,1fr);gap:5px;font-size:12px}
+  .learn-stage-example .case-run-row strong {font-size:13px}
+}
+@media(max-width:760px) {
+  .learn-section-heading h2 {font-size:34px}
+  .learn-section-heading>p {font-size:16px}
+  .learn-board-heading {padding:15px 16px 13px;gap:8px}
+  .learn-board-heading>b {font-size:16px;max-width:205px}
+  .learn-board-heading>b>small {display:block;margin:4px 0 0;font-size:10px}
+  .learn-board-heading>span {font-size:11px}
+  .learn-board-heading [data-org-counter] {margin-left:8px}
+  .learn-stage-controls {display:grid;grid-template-columns:repeat(3,minmax(0,1fr));margin:4px 12px 10px;border:0;gap:2px 3px}
+  .learn-stage-controls button {padding:8px 3px;min-height:42px;font-size:12px;line-height:1.3;white-space:normal;border-bottom:0;border-radius:5px}
+  .learn-stage-controls button:after {display:none}
+  .learn-stage-controls button[aria-pressed=true] {background:#eef2ff;color:#4463be}
+  .learn-runway.is-flow .learn-panel {grid-template-columns:1fr;gap:25px;padding-top:32px;padding-bottom:35px}
+  .learn-panel h3 {font-size:29px;max-width:380px}
+  .learn-stage-label {font-size:12px;margin-bottom:13px}
+  .learn-panel .learn-stage-copy>p {font-size:16px;line-height:1.7;margin-top:17px;margin-bottom:15px}
+  .learn-stage-example .demo-message-body {padding:16px 14px 19px}
+  .learn-stage-example .demo-sender {flex-wrap:wrap;row-gap:3px}
+  .learn-stage-example .demo-sender b {font-size:14px}
+  .learn-stage-example .demo-sender>span {font-size:11px}
+  .learn-panel .learn-stage-example .demo-message p {font-size:15px;line-height:1.6}
+  .learn-stage-example .demo-avatar {width:29px;height:29px;flex-basis:29px}
+  .learn-stage-example .case-crm-context {padding:16px;margin-left:10px}
+  .learn-stage-example .case-crm-context strong {font-size:14px;line-height:1.4}
+  .learn-stage-example .case-run-row {grid-template-columns:59px 64px 12px minmax(0,1fr);gap:4px;font-size:12px}
+  .learn-stage-example .case-run-row strong {font-size:12px}
+  .learn-stage-example .case-run-row s {font-size:11px}
+  .learn-stage-example .case-owner small {font-size:11px}
+}
+.learn-case-graph .learn-topology {grid-template-columns:1.45fr 34px 1.05fr 34px 1fr 28px .75fr;grid-template-rows:auto 31px;margin:22px 28px 17px}
+.learn-case-graph .learn-inputs {gap:8px;grid-template-rows:repeat(2,87px)}
+.learn-case-graph .learn-source {min-height:0;min-width:0;padding:10px 11px;align-items:stretch;justify-content:flex-start;gap:7px;border-radius:10px;background:#fff}
+.graph-source-heading {display:flex;justify-content:space-between;align-items:center;gap:5px;min-width:0}
+.graph-source-heading>b {font-size:12px;line-height:1.3;font-weight:550;color:#4b6287;white-space:nowrap}
+.graph-source-heading>b>span {font-size:11px;font-weight:400;color:#8a99b0;line-height:inherit;text-align:left}
+.graph-source-app {display:inline-flex;align-items:center;flex:0 0 13px}
+.graph-source-app>.app-mark {width:13px;height:13px;flex-basis:13px;opacity:.65}
+.graph-source-app .app-mark svg {width:12px;height:12px}
+.graph-source-app>span:last-child {display:none}
+.learn-case-graph .learn-source p {font-size:13px;line-height:1.45;color:#607699;margin:0;text-align:left;letter-spacing:-.008em}
+.learn-case-graph .learn-source[data-source-pending="true"] {background:#fafbfe!important;border-color:#e0e6f0!important;box-shadow:none!important}
+.learn-case-graph .learn-source[data-source-pending="true"] p {color:#a0abbd}
+.learn-case-graph .learn-engine {min-height:176px;padding:20px 16px;justify-content:center;align-items:center;border:1px solid #8eaafa;border-radius:15px;background:linear-gradient(145deg,#6888ff,#3153d5);box-shadow:inset 0 1px 0 #dce5ff90,0 0 0 4px #dae4ff77,0 13px 24px -15px #3d60bb66}
+.learn-case-graph .learn-engine-head strong {font-size:25px;letter-spacing:-.035em;color:white}
+.learn-case-graph .learn-engine-descriptor {font-size:11px;margin-top:5px;color:#e0e8ff}
+.learn-case-graph .learn-engine-state {font-size:17px;line-height:1.4;margin:20px 0 0;max-width:210px;min-height:0;text-align:center;color:white}
+.learn-case-graph .learn-recipients {gap:10px}
+.learn-case-graph .learn-recipient {min-height:68px;padding:13px 14px;border-radius:10px}
+.learn-case-graph .learn-recipient b {font-size:14px;line-height:1.35;font-weight:550;color:#4a6086}
+.learn-case-graph .learn-recipient small {font-size:12px;line-height:1.4;margin-top:6px;color:#8493ae;white-space:normal}
+.learn-case-graph .learn-result {min-height:122px;padding:15px 12px;border-radius:11px;gap:10px}
+.learn-case-graph .learn-result b {font-size:15px;line-height:1.4;white-space:normal;font-weight:500;color:#7866ae}
+.learn-case-graph .learn-result-symbol {display:grid;color:#8872c1;border-color:#c8bde8}
+.learn-case-graph .learn-feedback>span {font-size:11px;padding-inline:9px;bottom:-8px;color:#8794ad}
+.learn-panel {padding-top:24px;padding-bottom:25px}
+.learn-panel h3 {font-size:31px;line-height:1.18}
+.learn-panel .learn-stage-copy>p {margin-top:17px;margin-bottom:12px;line-height:1.65}
+.learn-stage-label {margin-bottom:13px}
+.learn-panel .case-business-brief .case-root-note {font-size:12px;line-height:1.4;margin:0 0 9px}
+.learn-board-footer {padding-bottom:18px}
+@media(min-width:761px) and (max-width:1100px) {
+  .learn-case-graph .learn-topology {grid-template-columns:1.4fr 24px 1fr 24px 1fr 20px .72fr}
+  .graph-source-heading>b>span {display:none}
+  .learn-case-graph .learn-source {padding:9px}
+  .learn-case-graph .learn-source p {font-size:12px;line-height:1.4}
+  .learn-case-graph .learn-engine-head strong {font-size:23px}
+  .learn-case-graph .learn-engine-state {font-size:15px}
+  .learn-case-graph .learn-engine-descriptor {font-size:10px}
+  .learn-case-graph .learn-recipient {padding:11px}
+  .learn-case-graph .learn-recipient b {font-size:12px}
+  .learn-case-graph .learn-recipient small {font-size:11px}
+  .learn-case-graph .learn-result b {font-size:13px}
+  .learn-case-graph .learn-feedback>span {font-size:10px;max-width:90%;white-space:normal;text-align:center}
+}
+@media(max-width:760px) {
+  .learn-case-graph .learn-topology {grid-template-columns:1fr 1fr;grid-template-rows:auto 14px 63px 14px auto auto;margin:10px 14px 10px}
+  .learn-case-graph .learn-inputs {grid-column:1/-1;grid-row:1;grid-template-columns:repeat(4,minmax(0,1fr));grid-template-rows:48px;gap:5px}
+  .learn-case-graph .learn-source {padding:7px 4px;align-items:center;justify-content:center;gap:3px;min-height:48px}
+  .learn-case-graph .learn-source p,.graph-source-app,.graph-source-heading>b>span {display:none}
+  .graph-source-heading {justify-content:center}
+  .graph-source-heading>b {font-size:12px}
+  .learn-case-graph .learn-edge-in {grid-column:1/-1;grid-row:2}
+  .learn-case-graph .learn-engine {grid-column:1/-1;grid-row:3;display:grid;grid-template-columns:99px minmax(0,1fr);gap:12px;min-height:63px;padding:11px 13px;align-items:center;border-radius:11px}
+  .learn-case-graph .learn-engine-head {justify-content:flex-start}
+  .learn-case-graph .learn-engine-head strong {font-size:21px;letter-spacing:-.035em}
+  .learn-case-graph .learn-engine-descriptor {display:none}
+  .learn-case-graph .learn-engine-state {grid-column:2;grid-row:1;margin:0;padding-left:12px;border-left:1px solid #a7baff70;text-align:left;font-size:13px;line-height:1.45;max-width:none;min-height:0}
+  .learn-case-graph .learn-edge-out {grid-column:1/-1;grid-row:4}
+  .learn-case-graph .learn-recipients {grid-column:1/-1;grid-row:5;grid-template-columns:1fr 1fr;gap:7px}
+  .learn-case-graph .learn-recipient {min-height:59px;padding:9px;align-items:center;border-radius:8px}
+  .learn-case-graph .learn-recipient b {font-size:11px;line-height:1.3}
+  .learn-case-graph .learn-recipient small {display:block;font-size:10px;line-height:1.35;margin-top:4px;white-space:normal}
+  .learn-case-graph .learn-result {grid-column:2;grid-row:6;display:flex;justify-content:flex-end;align-items:flex-start;min-height:0;padding:9px 0 0;gap:0;background:none!important;border:0}
+  .learn-case-graph .learn-result-symbol {display:none}
+  .learn-case-graph .learn-result b {font-size:11px;line-height:1.35;text-align:right;white-space:normal}
+  .learn-case-graph .learn-feedback {grid-column:1;grid-row:6;align-self:start;min-height:0;height:auto;margin:9px 0 0;border:0}
+  .learn-case-graph .learn-feedback:before,.learn-case-graph .learn-feedback:after {display:none}
+  .learn-case-graph .learn-feedback>span {font-size:10px;position:static;transform:none;padding:0;justify-content:flex-start;white-space:normal;line-height:1.4;background:none}
+  .learn-case-graph .learn-feedback .learn-short-label {font-size:10px}
+  .learn-case-graph .learn-feedback svg {width:12px;height:12px;flex:0 0 12px}
+  .learn-panel h3 {font-size:28px}
+}
+.clear-hero .demo-message p,.learn-panel .demo-message p {font-size:16px;line-height:1.52;color:#394b66}
+.demo-memory,.demo-message,.learn-engine {transform-style:preserve-3d}
+.learn-loop-section {padding:85px 0 72px;background:linear-gradient(180deg,#f2f6fd,#edf3fe 55%,#f4f7fc);border-color:#e0e7f3}
+.learn-section-heading {margin-bottom:39px}
+.learn-section-heading h2 {font-size:clamp(36px,3.7vw,54px);letter-spacing:-.045em;line-height:1.12;margin-top:14px}
+.learn-section-heading>p {color:#52637e;font-size:18px;line-height:1.6;max-width:760px;margin-top:22px}
+.learn-shell {border:1px solid #fff;border-radius:24px;background:linear-gradient(155deg,#fff,#fafcff);box-shadow:0 0 0 1px #ced9ed,0 7px 10px -7px #152d620f,0 30px 65px -35px #2c4d9580}
+.learn-board-heading {padding:17px 26px;color:#263c60}
+.learn-board-heading>b {font-size:17px;font-weight:600}
+.learn-board-heading small {font-size:12px!important;color:#65758f!important}
+.learn-board-heading>span {font-size:12px;color:#5d6f8e}
+.learn-board-heading [data-org-counter] {font-size:13px;color:#2855ca}
+.learn-meter {height:3px;background:#e8eef9}
+.learn-meter>span {background:linear-gradient(90deg,#2f67ff,#2950e0)}
+.learn-case-graph .learn-topology {grid-template-columns:1.49fr 38px 1.06fr 38px 1fr 32px .76fr;grid-template-rows:auto 32px;margin:20px 26px 13px}
+.learn-case-graph .learn-inputs {gap:9px;grid-template-rows:repeat(2,110px)}
+.learn-case-graph .learn-source {padding:10px 11px;border:1px solid #cbd8ee;border-radius:13px;gap:8px;background:#fff;box-shadow:0 4px 9px -6px #183b8147}
+.graph-source-heading {display:flex;width:100%;justify-content:space-between;align-items:baseline;gap:8px}
+.graph-source-heading .graph-source-app {display:inline-block;flex:0 0 auto;font-size:14px;line-height:1.3;font-weight:650;color:#2953b5}
+.graph-source-heading .graph-source-person {font-size:13px;line-height:1.3;color:#536780;text-align:right}
+.learn-case-graph .learn-source p {font-size:14px;line-height:1.35;color:#465d7e;letter-spacing:-.01em;margin:0}
+.learn-case-graph .learn-source[data-source-pending=true] {background:#f5f7fb!important;border-color:#dde4f0!important}
+.learn-case-graph .learn-source[data-source-pending=true] p {color:#697993}
+.learn-source-team .graph-source-app {color:#6647ac}
+.learn-source-docs .graph-source-app {color:#484aae}
+.learn-case-graph .learn-engine {min-height:207px;padding:21px 18px;border:1px solid #2455e4;border-radius:20px;background:radial-gradient(ellipse at 25% 0,#5e8cff88,transparent 75%),linear-gradient(135deg,#3166ff,#163fdf);box-shadow:inset 0 1px 0 #dfe8ff99,0 0 0 5px #e4ebff,0 14px 29px -12px #174ada6b;overflow:hidden}
+.learn-case-graph .learn-engine-head strong {font-size:29px;font-weight:600;letter-spacing:-.04em}
+.learn-case-graph .learn-engine-descriptor {font-size:12px;color:#d8e5ff;line-height:1.4}
+.learn-case-graph .learn-engine-state {font-size:18px;line-height:1.38;max-width:240px;margin-top:22px;font-weight:450}
+.learn-case-graph .learn-recipients {gap:12px}
+.learn-case-graph .learn-recipient {min-height:78px;padding:13px 14px;border-radius:13px;border-color:#cbd7ed;background:#fff;box-shadow:0 3px 7px -5px #2549883d}
+.learn-case-graph .learn-recipient b {font-size:15px;font-weight:550;color:#263b5d}
+.learn-case-graph .learn-recipient small {font-size:14px;line-height:1.35;margin-top:6px;color:#5d7092;white-space:normal}
+.learn-case-graph .learn-result {min-height:133px;padding:14px;border:1px solid #b6c9f4;background:#eaf0ff;border-radius:15px;color:#2546a0}
+.learn-case-graph .learn-result b {font-size:16px;font-weight:550;color:#314f9c}
+.learn-case-graph .learn-result-symbol {width:32px;height:32px;background:#fff9;font-size:22px;border-color:#b8c9ef;color:#3056bb}
+.learn-case-graph .learn-feedback>span {font-size:12px;color:#637a9d;background:#fcfdff;line-height:1.2;bottom:-8px}
+.learn-feedback {color:#7a91be;border-color:#a0b4dc}
+.learn-stage-controls {margin:11px 26px 0;border-bottom:1px solid #d2dcef;gap:5px}
+.learn-stage-controls button {min-height:45px;padding:11px 5px;font-size:13px;line-height:1.3;color:#5e6e88;transition:color .2s,background .2s;border-radius:8px 8px 0 0}
+.learn-stage-controls button>span {font-size:12px;color:#7a8aa4}
+.learn-stage-controls button[aria-pressed=true] {background:#eaf0ff;color:#234fc8;border-bottom-color:#285bff;font-weight:550}
+.learn-panels {margin:0 26px}
+.learn-panel {padding-top:20px;padding-bottom:17px;column-gap:50px}
+.learn-panel h3 {font-size:30px;line-height:1.17;letter-spacing:-.04em;color:#182b49;font-weight:550}
+.learn-panel .learn-stage-copy>p {font-size:16px;line-height:1.57;color:#53647d;margin-top:16px;margin-bottom:12px}
+.learn-stage-label {font-size:13px;color:#516e9e;margin-bottom:12px}
+.learn-evidence-button {font-size:14px;color:#2e5ac3;min-height:40px}
+.learn-board-footer {padding:6px 26px 16px}
+.learn-board-footer .textlink {font-size:13px;color:#456393}
+.learn-stage-example .demo-message {border-radius:13px}
+.learn-stage-example .demo-app-header {padding:8px 15px}
+.learn-stage-example .demo-message-body {padding:13px 16px 15px}
+.learn-stage-example .demo-message p {font-size:16px;line-height:1.45;color:#3d506e}
+.learn-stage-example .demo-sender b {font-size:14px}
+.learn-stage-example .demo-sender>span {font-size:12px}
+.learn-stage-example .demo-app-header time {font-size:12px}
+.learn-stage-example .demo-app-header .app-mark {width:24px;height:24px;flex-basis:24px}
+.learn-stage-example .demo-app-header .app-mark svg {width:22px;height:22px}
+.learn-stage-example .case-run-row strong {font-size:14px;color:#2151ba;font-weight:550}
+.learn-topology[data-traffic] .learn-edge-in {opacity:0}
+.learn-topology[data-traffic=notice] .learn-edge-out,.learn-topology[data-traffic=connect] .learn-edge-out {opacity:.18}
+.learn-topology[data-traffic=prepare] .learn-edge-out,.learn-topology[data-traffic=prepare] .learn-edge-result {opacity:.55}
+.learn-shell[data-loop-phase=act] .learn-result,.learn-shell[data-loop-phase=learn] .learn-result,.learn-shell[data-loop-phase=escalate] .learn-result {background:#e4edff;border-color:#a8c0f5;color:#254cac}
+.learn-shell[data-loop-phase=escalate] .learn-human,.learn-shell[data-loop-phase=act] .learn-recipient {background:#f0f5ff;border-color:#abc3f3}
+.learn-case-graph .learn-engine {background-position:var(--shine-x,25%) var(--shine-y,0)}
+@media(min-width:761px) and (max-width:1100px) {
+  .learn-case-graph .learn-topology {grid-template-columns:1.3fr 26px 1fr 26px 1fr 22px .78fr;margin-inline:20px}
+  .learn-case-graph .learn-inputs {grid-template-rows:repeat(2,133px);gap:7px}
+  .learn-case-graph .learn-source {padding:10px 8px}
+  .graph-source-heading {gap:5px}
+  .learn-case-graph .learn-source p {font-size:14px}
+  .learn-case-graph .learn-engine {padding-inline:12px;min-height:230px}
+  .learn-case-graph .learn-engine-head strong {font-size:25px}
+  .learn-case-graph .learn-engine-state {font-size:16px}
+  .learn-case-graph .learn-recipient {padding:11px;min-height:85px}
+  .learn-case-graph .learn-recipient b {font-size:14px}
+  .learn-case-graph .learn-recipient small {font-size:14px}
+  .learn-case-graph .learn-result {padding:12px 8px}
+  .learn-case-graph .learn-result b {font-size:14px}
+  .learn-case-graph .learn-feedback>span {max-width:100%;font-size:12px}
+  .learn-panel {column-gap:30px}
+  .learn-panel h3 {font-size:28px}
+  .learn-stage-controls button {font-size:12px}
+  .learn-stage-controls button>span {display:none}
+}
+@media(max-width:760px) {
+  .learn-loop-section {padding:57px 0 47px}
+  .learn-section-heading {margin-bottom:28px}
+  .learn-section-heading h2 {font-size:36px;line-height:1.14}
+  .learn-section-heading>p {font-size:17px;line-height:1.55}
+  .learn-shell {border-radius:18px}
+  .learn-board-heading {padding:12px 14px;gap:9px}
+  .learn-board-heading>b {font-size:15px}
+  .learn-board-heading small {font-size:12px!important}
+  .learn-board-heading>span {font-size:12px}
+  .learn-board-heading [data-org-counter] {margin-left:7px;font-size:12px}
+  .learn-case-graph .learn-topology {grid-template-columns:1fr 1fr;grid-template-rows:auto 14px 74px 14px auto auto;margin:11px 13px 8px}
+  .learn-case-graph .learn-inputs {grid-column:1/-1;grid-template-columns:repeat(2,minmax(0,1fr));grid-template-rows:repeat(2,110px);gap:7px}
+  .learn-case-graph .learn-source {padding:10px;min-height:110px;border-radius:10px;justify-content:flex-start;align-items:stretch;gap:7px;flex-direction:column;flex-wrap:nowrap}
+  .graph-source-heading {justify-content:space-between;text-align:left;gap:5px}
+  .graph-source-heading .graph-source-app {font-size:14px}
+  .graph-source-heading .graph-source-person {font-size:13px}
+  .learn-case-graph .learn-source p {display:block;font-size:14px;line-height:1.35}
+  .learn-case-graph .learn-engine {grid-template-columns:94px minmax(0,1fr);min-height:74px;gap:9px;padding:12px;border-radius:13px;box-shadow:inset 0 1px 0 #dce7ff99,0 0 0 3px #e1eaff,0 8px 13px -8px #2b55c575}
+  .learn-case-graph .learn-engine-head strong {font-size:22px}
+  .learn-case-graph .learn-engine-descriptor {display:none}
+  .learn-case-graph .learn-engine-state {font-size:14px;line-height:1.3;margin:0;max-width:none;padding-left:10px}
+  .learn-case-graph .learn-recipients {gap:7px}
+  .learn-case-graph .learn-recipient {min-height:116px;padding:9px;border-radius:9px;box-shadow:none;align-items:flex-start}
+  .learn-case-graph .learn-recipient b {font-size:14px;line-height:1.3}
+  .learn-case-graph .learn-recipient small {font-size:14px;line-height:1.3;margin-top:5px}
+  .learn-case-graph .learn-result {min-height:0;padding:9px 0 0;justify-content:flex-end;background:none!important;border:0;box-shadow:none}
+  .learn-case-graph .learn-result b {font-size:12px;line-height:1.3}
+  .learn-case-graph .learn-result-symbol {display:none}
+  .learn-case-graph .learn-feedback>span,.learn-case-graph .learn-feedback .learn-short-label {font-size:12px;line-height:1.3;color:#55709f;background:none}
+  .learn-stage-controls {margin:6px 13px 9px;gap:3px}
+  .learn-stage-controls button {font-size:12px;min-height:39px;padding:7px 2px;white-space:normal;border-radius:7px}
+  .learn-stage-controls button[aria-pressed=true] {background:#e7efff;border-color:transparent;box-shadow:inset 0 0 0 1px #b8cdf7;color:#204fbd}
+  .learn-stage-controls button>span {display:none}
+  .learn-panel h3 {font-size:29px}
+  .learn-panel .learn-stage-copy>p {font-size:16px;line-height:1.6}
+  .learn-stage-example .demo-message-body {padding:13px;gap:8px}
+  .learn-stage-example .demo-app-header {padding:9px 11px}
+  .learn-stage-example .demo-app-header time {font-size:12px}
+  .learn-stage-example .demo-message p {font-size:15px;line-height:1.5}
+  .learn-stage-example .case-run-row {font-size:13px;grid-template-columns:62px 61px 12px minmax(0,1fr)}
+  .learn-stage-example .case-run-row strong {font-size:13px}
+  .learn-stage-example .case-run-row s {font-size:12px}
+  .learn-mechanics {font-size:14px}
+}
+.learn-runway.is-staged {height:calc(var(--org-height) + var(--org-travel))}
+.learn-snap-anchor {position:absolute;left:0;width:1px;height:1px;pointer-events:none;scroll-snap-align:start}
+.learn-runway.is-staged .learn-shell {position:sticky;top:var(--org-top,12px)}
+.learn-runway.is-readable {height:auto!important}
+.learn-runway.is-readable .learn-shell {position:relative;top:auto}
+.learn-scene-window {position:relative}
+.learn-scene-content {display:flow-root}
+.learn-stage-controls {margin:0 26px;padding:0;position:relative;background:#fcfdff}
+.learn-stage-controls button .learn-step-name {display:inline;font:inherit;color:inherit}
+.learn-stage-controls button .learn-step-number {font-size:12px;color:#7386a6}
+.learn-case-graph .learn-topology {margin-top:24px;margin-bottom:25px;grid-template-columns:1.6fr 38px 1fr 38px 1fr 32px .76fr}
+.learn-case-graph .learn-inputs {grid-template-rows:repeat(2,132px)}
+.learn-case-graph .learn-source {position:relative;padding:9px 11px;gap:7px;background:linear-gradient(145deg,#fff,#f8faff);border-color:#ccd9ef;box-shadow:0 2px 3px #18345b05,0 9px 17px -13px #254c9659;transition:background .3s,border-color .3s,box-shadow .3s,transform .3s}
+.learn-case-graph .graph-source-heading {flex-direction:row;align-items:center;justify-content:flex-start;gap:10px}
+.graph-source-identity {display:flex;flex-direction:column;align-items:flex-start;gap:4px;min-width:0}
+.graph-source-heading .graph-source-app {font-size:15px;font-weight:650;line-height:1.2;color:#203655}
+.graph-source-heading .graph-source-person {font-size:13px;text-align:left;color:#5f6f87;line-height:1.2}
+.learn-case-graph .graph-app-icon {display:grid;place-items:center;position:relative;flex:0 0 48px;width:48px;height:48px;border:1px solid #d8e2f3;border-radius:13px;background:linear-gradient(145deg,#fff 50%,#edf3ff);box-shadow:inset 0 1px 0 #fff,0 2px 2px #1e3b6507,0 6px 10px -5px #28456929;isolation:isolate}
+.learn-case-graph .graph-app-icon>img {display:block;width:35px;height:35px;object-fit:contain;position:relative;z-index:1}
+.learn-case-graph .graph-app-icon:after {content:'';position:absolute;inset:-4px;border:1px solid var(--app-accent,#3263eb);border-radius:17px;opacity:0;pointer-events:none}
+.learn-source[data-source-app=gmail] {--app-accent:#d94c69}
+.learn-source[data-source-app=hubspot] {--app-accent:#f06637}
+.learn-source[data-source-app=slack] {--app-accent:#885ac6}
+.learn-source[data-source-app=linear] {--app-accent:#656bd9}
+.learn-case-graph .learn-source[data-source-focus=true] {border-color:#9ab6f0;box-shadow:0 0 0 2px #3663ed09,0 10px 20px -15px #2652b77a}
+.learn-case-graph .learn-source[data-source-focus=true] .graph-app-icon {border-color:#c1d3f4;background:#fff;box-shadow:0 2px 3px #17376309,0 8px 13px -7px #3763b657}
+.learn-case-graph .learn-source[data-source-pending=true] .graph-app-icon {box-shadow:0 3px 7px -5px #28456922}
+.learn-case-graph .learn-source[data-source-pending=true] .graph-app-icon>img {opacity:.65}
+@media(hover:hover) and (pointer:fine) {
+  .learn-case-graph .learn-source:hover {transform:translateY(-3px);border-color:#8fabeb;box-shadow:0 14px 22px -14px #254a9870}
+  .learn-case-graph .learn-source:hover .graph-app-icon {box-shadow:0 3px 5px #1737630c,0 9px 13px -6px #3763b659}
+}
+.learn-focus-message {display:none}
+.learn-case-graph .learn-engine {min-height:0}
+.learn-case-graph .learn-recipients {grid-template-rows:96px 96px}
+.learn-case-graph .learn-recipient {min-height:0}
+.learn-panels {border-top:1px solid #dce4f2;display:grid;align-items:start}
+.learn-panel[hidden] {display:none!important}
+.learn-panel {grid-template-columns:minmax(0,1.05fr) minmax(0,1fr);gap:44px;padding:23px 0 20px;align-items:center}
+.learn-panel h3 {font-size:28px;line-height:1.18;max-width:510px;margin:0}
+.learn-panel .learn-stage-copy>p {font-size:16px;line-height:1.5;margin:10px 0 3px;max-width:530px}
+.learn-stage-label {font-size:13px;line-height:1.3;margin:0 0 8px}
+.learn-evidence-button {min-height:32px;padding:6px 0;font-size:14px}
+.learn-scene-receipt {border:1px solid #cbd9f4;border-radius:15px;background:linear-gradient(120deg,#f2f6ff,#fff);padding:22px 23px;box-shadow:0 6px 18px -14px #2450a0;min-height:132px;display:flex;flex-direction:column;justify-content:center}
+.learn-receipt-path {display:grid;grid-template-columns:1fr 30px 1.15fr;align-items:center;gap:14px}
+.learn-receipt-path>span:first-child {font-size:15px;line-height:1.4;color:#526783}
+.learn-receipt-arrow {font-size:27px;color:#3162e8;text-align:center}
+.learn-receipt-path>strong {font-size:18px;line-height:1.3;letter-spacing:-.02em;color:#244cba;font-weight:550}
+.learn-scene-receipt>p {font-size:14px;line-height:1.45;color:#5b6e8b;margin:15px 0 0;padding-top:13px;border-top:1px solid #dbe4f4}
+.learn-board-footer {padding:10px 26px;border-top:1px solid #e0e7f3}
+.learn-board-footer .textlink {font-size:14px}
+.learn-dialog-story {font-size:16px;line-height:1.55;color:#4d607f;margin:0;padding:22px 26px 0}
+.learn-dialog-example {margin:24px 26px}
+.learn-dialog-example .case-canvas {max-width:none}
+@media(min-width:1001px) and (max-height:780px) {
+  .learn-board-heading {padding-block:12px}
+  .learn-case-graph .learn-topology {margin-top:19px;margin-bottom:23px}
+  .learn-panel {padding-top:17px;padding-bottom:13px}
+}
+@media(max-width:1000px) {
+  .learn-board-heading {padding:12px 18px}
+  .learn-board-heading>b {font-size:15px}
+  .learn-board-heading>b>small {display:none}
+  .learn-stage-controls {display:flex;gap:4px;margin:0 18px;border:0;padding:0}
+  .learn-stage-controls button {min-height:38px;padding:8px 4px;border:0;border-radius:7px;gap:5px}
+  .learn-stage-controls button .learn-step-name {font-size:12px}
+  .learn-case-graph .learn-topology {grid-template-columns:1fr 1fr;grid-template-rows:auto 14px 62px 16px 76px 30px;margin:14px 18px 13px;column-gap:10px}
+  .learn-case-graph .learn-inputs {grid-column:1/-1;grid-row:1;grid-template-columns:repeat(4,minmax(0,1fr));grid-template-rows:70px auto;gap:7px}
+  .learn-case-graph .learn-source {min-height:0;padding:7px 5px;display:flex;flex-direction:column;justify-content:center;align-items:center;border-radius:9px;gap:0}
+  .learn-case-graph .learn-source p {display:none}
+  .graph-source-heading {display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px}
+  .learn-case-graph .graph-source-heading {flex-direction:row;gap:9px;justify-content:center}
+  .learn-case-graph .graph-app-icon {flex-basis:38px;width:38px;height:38px;border-radius:10px}
+  .learn-case-graph .graph-app-icon>img {width:28px;height:28px}
+  .learn-case-graph .graph-app-icon:after {border-radius:14px}
+  .graph-source-heading .graph-source-app {display:block;font-size:14px;line-height:1.2}
+  .graph-source-heading .graph-source-person {display:block;font-size:12px;line-height:1.2}
+  .learn-case-graph .learn-source[data-source-focus=true] {border-color:#638beb;box-shadow:0 0 0 2px #3868ed12}
+  .learn-focus-message {grid-column:1/-1;display:block;border:1px solid #d5e1f3;border-radius:10px;padding:9px 12px;background:#f3f7ff;min-height:68px}
+  .learn-focus-message>span {font-size:12px;color:#4b66a0;line-height:1.25;display:block;margin-bottom:4px}
+  .learn-focus-message>p {font-size:14px;line-height:1.35;color:#283e61;margin:0;letter-spacing:-.008em}
+  .learn-case-graph .learn-edge-in {grid-column:1/-1;grid-row:2;height:14px;width:1px;justify-self:center;padding:0}
+  .learn-case-graph .learn-edge-in:before,.learn-case-graph .learn-edge-out:before {display:none}
+  .learn-case-graph .learn-edge-in>span,.learn-case-graph .learn-edge-out>span {width:1px;height:100%;margin:0;background:#829ad3!important}
+  .learn-case-graph .learn-edge-in>span:after,.learn-case-graph .learn-edge-out>span:after {display:block;top:auto;bottom:0;left:-3px;transform:rotate(135deg)}
+  .learn-case-graph .learn-engine {grid-column:1/-1;grid-row:3;display:grid;grid-template-columns:106px minmax(0,1fr);grid-template-rows:1fr;gap:12px;min-height:0;padding:10px 14px;border-radius:13px;box-shadow:inset 0 1px 0 #dce7ff99,0 0 0 3px #e1eaff,0 8px 13px -8px #2b55c575;align-items:center}
+  .learn-case-graph .learn-engine-head {grid-row:1;justify-content:flex-start}
+  .learn-case-graph .learn-engine-head strong {font-size:24px}
+  .learn-case-graph .learn-engine-descriptor {display:none}
+  .learn-case-graph .learn-engine-state {grid-column:2;grid-row:1;margin:0;padding-left:12px;border-left:1px solid #a7baff70;text-align:left;font-size:14px;line-height:1.35;max-width:none;min-height:0}
+  .learn-case-graph .learn-edge-out {grid-column:1/-1;grid-row:4;height:16px;justify-self:center;width:1px;padding:0}
+  .learn-case-graph .learn-recipients {grid-column:1/-1;grid-row:5;grid-template-columns:1fr 1fr;grid-template-rows:76px;gap:8px}
+  .learn-case-graph .learn-recipient {min-height:0;padding:9px 11px;border-radius:10px;box-shadow:none;align-items:center}
+  .learn-case-graph .learn-recipient b {font-size:14px;line-height:1.25}
+  .learn-case-graph .learn-recipient small {display:block;font-size:14px;line-height:1.25;margin-top:4px}
+  .learn-case-graph .learn-edge-result {display:none}
+  .learn-case-graph .learn-result {grid-column:2;grid-row:6;display:flex;flex-direction:row;min-height:0;padding:7px 0 0;border:0;background:none!important;box-shadow:none;align-self:start;justify-content:flex-end}
+  .learn-case-graph .learn-result b {font-size:12px;line-height:1.25;text-align:right;white-space:normal}
+  .learn-case-graph .learn-result-symbol {display:none}
+  .learn-case-graph .learn-feedback {grid-column:1;grid-row:6;align-self:start;height:auto;min-height:0;margin:0;border:0;padding-top:7px}
+  .learn-case-graph .learn-feedback:before,.learn-case-graph .learn-feedback:after {display:none}
+  .learn-case-graph .learn-feedback>span {position:static;transform:none;padding:0;justify-content:flex-start;white-space:normal;font-size:12px;line-height:1.25;background:none;gap:4px}
+  .learn-case-graph .learn-feedback .learn-full-label {display:none}
+  .learn-case-graph .learn-feedback .learn-short-label {display:inline!important;font-size:12px;line-height:1.25}
+  .learn-case-graph .learn-feedback svg {width:13px;height:13px;flex-basis:13px}
+  .learn-panels {margin:0 18px}
+  .learn-panel {gap:25px;padding:18px 0 14px}
+  .learn-panel h3 {font-size:25px}
+  .learn-scene-receipt {padding:17px}
+  .learn-receipt-path {gap:8px;grid-template-columns:1fr 22px 1fr}
+  .learn-receipt-path>strong {font-size:16px}
+  .learn-board-footer {padding:8px 18px}
+}
+@media(max-width:600px) {
+  .learn-loop-section>.wrap {padding-inline:0}
+  .learn-shell {border-radius:18px}
+  .learn-board-heading {padding:11px 13px;gap:5px}
+  .learn-board-heading>b {font-size:14px}
+  .learn-board-heading>span {font-size:12px}
+  .learn-stage-controls {margin:0 13px;gap:5px;padding:0}
+  .learn-stage-controls button {min-height:32px;padding:6px 2px;flex:1;border-radius:6px}
+  .learn-stage-controls button .learn-step-number {display:block;font-size:14px;line-height:1.2;color:inherit}
+  .learn-stage-controls button .learn-step-name {position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+  .learn-stage-controls button:after {display:none}
+  .learn-case-graph .learn-topology {margin:11px 13px 11px;grid-template-rows:auto 12px 60px 14px 72px 30px}
+  .learn-case-graph .learn-inputs {grid-template-rows:68px 72px;gap:6px}
+  .learn-case-graph .learn-source {padding:2px 3px}
+  .learn-case-graph .graph-source-heading {flex-direction:column;gap:3px}
+  .learn-case-graph .graph-source-identity {align-items:center;gap:1px}
+  .learn-case-graph .graph-app-icon {flex-basis:26px;width:26px;height:26px;border:0;border-radius:8px;background:transparent;box-shadow:none!important}
+  .learn-case-graph .graph-app-icon>img {width:26px;height:26px}
+  .learn-case-graph .graph-app-icon:after {inset:-3px;border-radius:10px}
+  .learn-case-graph .graph-source-app {font-size:14px;line-height:1.2}
+  .learn-case-graph .graph-source-person {font-size:12px;line-height:1.2;text-align:center}
+  .learn-focus-message {min-height:0;padding:8px 10px}
+  .learn-case-graph .learn-engine {grid-template-columns:94px minmax(0,1fr);gap:8px;padding:9px 11px}
+  .learn-case-graph .learn-engine-head strong {font-size:22px}
+  .learn-case-graph .learn-engine-state {padding-left:9px;font-size:14px;line-height:1.3}
+  .learn-case-graph .learn-edge-in {height:12px}
+  .learn-case-graph .learn-edge-out {height:14px}
+  .learn-case-graph .learn-recipients {grid-template-rows:72px;gap:7px}
+  .learn-case-graph .learn-recipient {padding:8px 9px}
+  .learn-panels {margin:0 13px}
+  .learn-panel {grid-template-columns:1fr;gap:0;padding:15px 0 9px}
+  .learn-panel h3 {font-size:23px;line-height:1.16;max-width:none;letter-spacing:-.035em}
+  .learn-panel .learn-stage-copy>p {font-size:16px;line-height:1.4;margin:8px 0 4px;max-width:none}
+  .learn-stage-label {font-size:12px;line-height:1.2;margin-bottom:6px}
+  .learn-panel .learn-stage-example {display:none}
+  .learn-evidence-button {min-height:30px;padding:4px 0;font-size:14px}
+  .learn-board-footer {padding:8px 13px}
+  .learn-board-footer .textlink {font-size:13px}
+  .learn-dialog-story {padding-inline:20px}
+  .learn-dialog-example {margin-inline:20px}
+}
+@media(max-width:600px) and (max-height:720px) {
+  .learn-board-heading {padding-block:9px}
+  .learn-case-graph .learn-topology {margin-top:9px;margin-bottom:9px;grid-template-rows:auto 10px 56px 12px 68px 28px}
+  .learn-case-graph .learn-inputs {grid-template-rows:68px 70px;gap:5px}
+  .learn-case-graph .learn-edge-in {height:10px}
+  .learn-case-graph .learn-edge-out {height:12px}
+  .learn-case-graph .learn-recipients {grid-template-rows:68px}
+  .learn-panel {padding-top:12px;padding-bottom:7px}
+  .learn-board-footer {padding-block:7px}
+}
+.learn-shell {background:linear-gradient(145deg,#fffffffa,#fcfdfffa);box-shadow:0 0 0 1px #cbd7ea,0 10px 16px -14px #17396444,0 35px 75px -36px #405d997a}
+.learn-section-heading {position:relative}
+.learn-section-heading h2 {scroll-margin-top:60px}
+@media(min-width:1001px) and (max-height:780px) {
+  .learn-panel {grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:32px}
+  .learn-panel h3,.learn-panel .learn-stage-copy>p {max-width:none}
+}
+.case-memseek-run {border:1px solid #b6c9f6;background:linear-gradient(120deg,#f0f5ff,#f9fbff);border-radius:12px;overflow:hidden}
+.case-run-heading {display:flex;justify-content:space-between;align-items:center;gap:8px;padding:13px 18px;border-bottom:1px solid #dce5f8}
+.case-run-heading>span:first-child {display:flex;align-items:center;gap:7px;color:#4664b5}
+.case-run-heading b {font-size:15px;font-weight:550}
+.case-run-heading>span:last-child {font-size:12px;color:#7b8fb6}
+.case-run-row {display:grid;grid-template-columns:76px 94px 15px minmax(0,1fr);align-items:center;gap:8px;padding:12px 18px;font-size:13px;line-height:1.4}
+.case-run-row+.case-run-row {border-top:1px solid #e2eafa}
+.case-run-row>span:first-child {color:#7588aa}
+.case-run-row s {color:#99a7bd;text-decoration-color:#b7c4d8}
+.case-run-row>span:nth-child(3) {color:#8da7dc}
+.case-run-row strong {font-size:14px;font-weight:500;color:#4467b4}
+.case-run-published {padding:10px 18px;background:#e8efff;color:#6f86b6;font-size:12px;border-top:1px solid #d9e4fa}
+.case-run-published>span {margin-right:5px;color:#5279d8}
+.case-escalation .demo-message {margin-left:17px;border-color:#d4c8e9;background:#fdfcff}
+.case-escalation .demo-app-header {background:#f4f0fb}
+.case-escalation .demo-sender b {color:#7460a5}
+@media(max-width:760px) {
+  .case-run-heading {padding-inline:14px}
+  .case-run-heading>span:last-child {font-size:11px}
+  .case-run-row {grid-template-columns:63px 61px 12px minmax(0,1fr);gap:6px;padding:11px 14px;font-size:12px}
+  .case-run-row strong {font-size:13px}
+  .case-run-published {padding-inline:14px;font-size:11px}
+  .case-escalation .demo-message {margin-left:10px}
+}
+
+/* ---------- The six worked scenes inside the dialogs ---------- */
+
+.case-canvas {display:grid;gap:12px;min-width:0}
+.case-canvas .demo-message {border-radius:12px;box-shadow:0 6px 18px -13px #3b5f9755}
+.case-canvas .demo-message p {font-size:15px;line-height:1.52}
+.case-canvas .demo-message-body {padding:16px 17px 18px}
+.case-canvas .demo-app-header {background:#f9fbff}
+.case-canvas .demo-sender {margin-bottom:7px}
+.case-canvas .demo-sender b {font-size:13px}
+.case-canvas .is-compact .demo-message-body {padding-top:12px;padding-bottom:13px}
+.case-canvas .is-compact .demo-app-header {padding-block:8px}
+.case-canvas .is-compact .demo-sender {margin-bottom:5px}
+.case-canvas .is-compact p {font-size:14px}
+.case-crm-context {margin-left:21px;padding:14px 17px 15px;border:1px solid #dce6f6;border-radius:10px;background:#f5f8ff}
+.case-crm-context>span {display:flex;align-items:center;gap:7px}
+.case-crm-context>span>b {font-size:12px;font-weight:500;color:#6981aa}
+.case-crm-context>div {display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:13px 0 0}
+.case-crm-context>div>span {color:#8a9ab4;font-size:11px}
+.case-crm-context strong {display:block;font-weight:500;color:#59719a;font-size:13px;line-height:1.45;margin-top:4px}
+.case-repeat {gap:10px}
+.case-repeat .demo-message:nth-child(2) {border-color:#c8c9ed;background:#fdfcff}
+.case-repeat .demo-message:nth-child(2) .demo-app-header {background:#f5f3fd}
+.case-accumulation {display:flex;align-items:flex-start;padding:8px 10px 0;gap:10px}
+.case-signal-step {display:flex;align-items:center;gap:7px;flex-shrink:0}
+.case-signal-step>i {width:6px;height:13px;border-radius:3px;background:#b7ccf4}
+.case-signal-step:nth-of-type(2)>i {height:22px;background:#7399ef}
+.case-signal-step:nth-of-type(3)>i {height:31px;background:#8c76d5}
+.case-signal-step>span {display:block;font-size:10px;color:#8a9bb4;line-height:1.5}
+.case-signal-step b {display:block;font-size:11px;font-weight:500;color:#7286a6}
+.case-signal-step:last-child b {color:#8270b6}
+.case-signal-line {height:1px;background:#dce4f3;flex:1;margin-top:15px}
+.case-current {border:1px solid #bccff4;border-radius:12px;background:linear-gradient(115deg,#f2f6ff,#f9faff);padding:15px 20px 0}
+.case-current-head,.case-task-head {display:flex;align-items:center;justify-content:space-between;gap:10px}
+.case-current-head>span:first-child,.case-task-head>span:first-child {display:flex;align-items:center;gap:7px}
+.case-current-head b,.case-task-head b {font-size:12px;color:#5c74ad;font-weight:500}
+.case-current-head>span:last-child {font-size:10px;color:#899cc0}
+.case-canvas h4 {font-size:21px;line-height:1.25;letter-spacing:-.03em;font-weight:500;color:#3f5f9f;margin:13px 0 8px}
+.learn-panel .case-current>p,.learn-panel .case-task>p {font-size:13px;line-height:1.5;color:#7c8ca8;margin:0 0 12px}
+.case-change {display:grid;grid-template-columns:69px 1fr;gap:12px;padding:12px 0;border-top:1px solid #dce6f8}
+.case-change>span {font-size:11px;color:#8a9abb;padding-top:2px}
+.case-change>b {font-size:13px;line-height:1.5;color:#617cad;font-weight:500}
+.case-task {background:linear-gradient(125deg,#fafaff,#f4f3ff);border:1px solid #d8d9ef;border-radius:12px;padding:13px 19px 15px}
+.case-task-head>span:first-child>span:last-child {font-size:10px;color:#8d97b5;margin-left:2px}
+.case-priority {color:#7a6db0;border:1px solid #dcd4f3;border-radius:4px;background:#f1ecfc;padding:3px 6px;font-size:10px}
+.case-canvas .case-task h4 {font-size:20px;color:#6863a0}
+.case-owner {display:flex;gap:9px;align-items:center;border-top:1px solid #e3e0f3;padding-top:10px}
+.case-owner>span:last-child {display:flex;flex-direction:column;gap:3px}
+.case-owner b {font-size:11px;font-weight:500;color:#7b799d}
+.case-owner small {font-size:10px;color:#9794b0}
+.case-shipped {display:flex;align-items:center;gap:8px;padding:5px 14px;font-size:11px;color:#93a0b7}
+.case-shipped b {color:#7e8fb0;font-weight:500}
+.case-resolution {margin-left:20px;border:1px solid #ceddf4;border-radius:11px;background:#f1f6ff;padding:15px 17px}
+.case-resolution>span {display:flex;align-items:center;gap:7px;font-size:12px;color:#657fb2}
+.case-resolution b {font-weight:500}
+.case-resolved {display:block;font-size:19px;line-height:1.3;letter-spacing:-.025em;color:#4e70b2;margin:12px 0 8px}
+.learn-panel .case-resolution p {font-size:12px;line-height:1.6;color:#8497b5;margin:0}
+.learn-panel .case-resolution p>b {font-size:13px;color:#6c83a9}
+@media(min-width:761px) and (max-width:900px) {
+  .case-canvas .demo-app-header>span>span:last-child {display:none}
+}
+@media(max-width:760px) {
+  .case-canvas .demo-message p {font-size:14px}
+  .case-canvas .demo-message-body {padding:14px 13px 16px}
+  .case-canvas .demo-app-header>span>span:last-child {display:inline;max-width:116px;font-size:10px}
+  .case-crm-context {margin-left:12px;padding:13px 15px}
+  .case-crm-context>div {gap:11px}
+  .case-crm-context strong {font-size:12px}
+  .case-current {padding-inline:16px}
+  .case-current-head>span:last-child {font-size:9px}
+  .case-accumulation {gap:7px;padding-inline:1px}
+  .case-signal-step {gap:5px}
+  .case-signal-step b {font-size:10px}
+  .case-task {padding-inline:15px}
+  .case-task-head {gap:5px}
+  .case-priority {font-size:9px}
+  .case-resolution {margin-left:12px}
+}
+@media(max-width:370px) {
+  .case-canvas .demo-app-header>span>span:last-child {display:none}
+}
+.case-escalation .action-destination {margin-left:24px}
+.case-escalation .action-destination .demo-message,.case-action .action-destination .demo-message {margin:0;border:0;border-radius:0;box-shadow:none;background:transparent}
+.case-escalation {gap:0}
+.case-run-row {padding-block:10px}
+.case-run-row strong {width:fit-content;padding:3px 8px;border-radius:5px;background:#e1eafd;color:#345ac1}
+.case-run-row s {font-size:12px}
+.case-run-row:first-of-type strong {background:#ebe4ff;color:#6850b5}
+.case-run-published {display:flex;align-items:center;gap:6px;padding-block:9px}
+.case-run-published>span {margin-right:0}
+.case-run-published .action-check {background:#6580d7;color:white}
+.case-dispatch {display:flex;align-items:center;justify-content:space-between;gap:8px;margin-left:-28px;padding:8px 10px 8px 12px;border:1px solid #b9cdf4;border-radius:10px;background:linear-gradient(100deg,#eef4ff,#f9faff)}
+.case-dispatch>span {display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.case-dispatch b {font-size:13px;font-weight:550;color:#4d66ad}
+.case-dispatch small {font-size:12px;color:#8592af}
+.case-action {padding-left:28px;gap:15px}
+.case-action .case-task {padding-top:12px;padding-bottom:12px;margin:0}
+.case-action .case-task h4 {font-size:20px;margin-top:10px}
+.case-action .case-task>p {margin-bottom:8px}
+.case-action .case-owner {padding-top:9px}
+.case-action .demo-message-body {padding-bottom:11px!important}
+.case-action .action-destination {border-color:#cbd8ed}
+.case-action .action-receipt {background:#eef3ff;border-color:#dde7f8;color:#5671a9}
+.case-action .action-receipt .action-check {background:#6484cf}
+.case-action .action-receipt {position:absolute;right:10px;top:8px;padding:0;border:0;background:none;font-size:11px}
+.case-action .demo-app-header time {visibility:hidden;min-width:87px}
+@media(max-width:760px) {
+  .case-run-row {grid-template-columns:59px 64px 12px minmax(0,1fr);gap:4px}
+  .case-run-row strong {font-size:12px;padding:3px 5px}
+  .case-run-row s {font-size:11px}
+  .case-escalation .action-destination {margin-left:14px}
+  .case-dispatch {gap:3px;padding-right:6px}
+  .case-dispatch>span {column-gap:5px;row-gap:2px}
+  .case-dispatch small {font-size:11px;flex-basis:100%;padding-left:26px}
+  .case-action {padding-left:22px;gap:14px}
+  .case-dispatch {margin-left:-22px}
+  .case-action .case-task-head {flex-wrap:wrap;row-gap:6px}
+  .case-action .case-task h4 {font-size:20px}
+}
+.case-section-label {display:block;font-size:14px;color:#7183a7;margin-bottom:19px}
+.learn-stage-example .case-crm-context {margin-top:4px;padding:17px 20px}
+.learn-stage-example .case-crm-context>span>b {font-size:13px}
+.learn-stage-example .case-crm-context>span>small {margin-left:auto;font-size:11px;color:#96a3b9}
+.learn-stage-example .case-crm-context .app-mark {width:14px;height:14px;flex-basis:14px}
+.learn-stage-example .case-crm-context .app-mark svg {width:13px;height:13px}
+.learn-stage-example .case-crm-context strong {font-size:15px}
+.learn-stage-example .case-crm-context>div>span {font-size:12px}
+.case-business-brief {gap:0}
+.case-business-brief .case-current {margin-left:21px;padding-top:17px}
+.case-business-brief h4 {font-size:26px;line-height:1.3;margin:15px 0 11px;color:#3b5798}
+.learn-panel .case-business-brief .case-current>p {font-size:14px;line-height:1.6;max-width:450px}
+.case-business-brief .case-change {grid-template-columns:62px 1fr;padding:14px 0}
+.case-business-brief .case-change>b {font-size:14px;line-height:1.5}
+.case-run-heading .app-mark,.case-dispatch .app-mark,.case-current-head .app-mark {width:17px;height:17px;flex-basis:17px}
+.case-run-heading .app-mark svg,.case-dispatch .app-mark svg,.case-current-head .app-mark svg {width:16px;height:16px}
+.learn-stage-example .case-run-row {font-size:14px;grid-template-columns:80px 100px 16px minmax(0,1fr);padding-block:12px}
+.learn-stage-example .case-run-row strong {font-size:15px}
+.learn-stage-example .case-run-row s {font-size:13px}
+.learn-stage-example .case-task-head .app-mark {width:15px;height:15px;flex-basis:15px}
+.learn-stage-example .case-task-head .app-mark svg {width:14px;height:14px}
+.learn-stage-example .case-task-head b {font-size:11px;color:#8790aa}
+.learn-stage-example .case-owner b {font-size:13px}
+.learn-stage-example .case-owner small {font-size:12px;line-height:1.5}
+@media(min-width:761px) and (max-width:1000px) {
+  .learn-stage-example .case-run-row {grid-template-columns:60px 67px 14px minmax(0,1fr);gap:5px;font-size:12px}
+  .learn-stage-example .case-run-row strong {font-size:13px}
+}
+@media(max-width:760px) {
+  .case-section-label {font-size:12px;margin-bottom:15px}
+  .learn-stage-example .case-crm-context {padding:16px;margin-left:10px}
+  .learn-stage-example .case-crm-context strong {font-size:14px;line-height:1.4}
+  .case-business-brief .case-current {margin-left:12px}
+  .case-business-brief .case-current-head {align-items:flex-start}
+  .case-business-brief .case-current-head>span:first-child {align-items:flex-start;font-size:12px}
+  .case-business-brief .case-current-head>span:last-child {display:none}
+  .case-business-brief h4 {font-size:24px}
+  .case-business-brief .case-change {grid-template-columns:55px 1fr;gap:9px}
+  .learn-stage-example .case-run-row {grid-template-columns:59px 64px 12px minmax(0,1fr);gap:4px;font-size:12px}
+  .learn-stage-example .case-run-row strong {font-size:12px}
+  .learn-stage-example .case-run-row s {font-size:11px}
+  .case-action .action-receipt {font-size:10px;right:9px}
+  .learn-stage-example .case-owner small {font-size:11px}
+}
+.case-business-brief .case-current {padding-top:13px}
+.case-business-brief h4 {font-size:24px;line-height:1.25;margin-top:12px;margin-bottom:8px}
+.learn-panel .case-business-brief .case-root-note {font-size:12px;line-height:1.4;margin:0 0 9px}
+.case-business-brief .case-change {padding:10px 0 13px}
+.case-business-brief .action-bridge {height:33px}
+.case-section-label {font-size:13px!important;color:#3b5d96!important;letter-spacing:.02em!important}
+.case-current,.case-memseek-run,.case-action,.case-crm-context {border-color:#c6d5f1;border-radius:14px;background:linear-gradient(135deg,#f7faff,#edf3ff);box-shadow:inset 0 1px 0 #fff,0 4px 13px -10px #24509155}
+.case-run-heading {border-color:#d3e0f6}
+.case-run-heading b {font-size:15px;color:#244fba}
+.case-run-row {font-size:14px;color:#546b90}
+.learn-stage-example .case-run-row strong {font-size:14px;color:#2151ba;font-weight:550}
+.case-run-row>span:first-child {color:#536889}
+.case-run-row s {color:#7e8da7}
+.case-run-published {font-size:12px;color:#416399;background:#e2edff}
+.case-escalation .demo-message {border-color:#c4cef0;background:#fff}
+.case-escalation .demo-app-header {background:#f0f3ff}
+.case-escalation .demo-sender b {color:#334dab}
+.action-receipt,.case-priority {font-size:12px!important;color:#3b56a9!important}
+@media(max-width:760px) {
+  .learn-stage-example .case-run-row {font-size:13px;grid-template-columns:62px 61px 12px minmax(0,1fr)}
+  .learn-stage-example .case-run-row strong {font-size:13px}
+  .learn-stage-example .case-run-row s {font-size:12px}
+}
+.learn-dialog-example .case-canvas {max-width:none}
+

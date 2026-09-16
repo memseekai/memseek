@@ -1,0 +1,28 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import ClearHero from '../components/home/ClearHero.astro';
+import LearningLoop from '../components/home/LearningLoop.astro';
+import DeveloperStart from '../components/home/DeveloperStart.astro';
+import MemoryImpact from '../components/home/MemoryImpact.astro';
+import ClosingCta from '../components/home/ClosingCta.astro';
+import '../styles/story.css';
+---
+
+<BaseLayout
+  title="Memseek — Make intelligence compound."
+  description="Memseek is a self-learning context engine for your company. It connects your documents, chats and business records, keeps that knowledge current, and gives your agents the context to act."
+>
+  <div class="team-site">
+    <ClearHero />
+    <LearningLoop />
+    <DeveloperStart />
+    <MemoryImpact />
+    <ClosingCta />
+  </div>
+</BaseLayout>
+
+<script>
+  import '../scripts/customer-motion';
+  import '../scripts/sticky-story';
+  import '../scripts/feel-polish';
+</script>

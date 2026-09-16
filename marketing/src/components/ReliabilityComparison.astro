@@ -151,9 +151,9 @@
 
   .comparison-shell {
     overflow: hidden;
-    border: 1px solid var(--border);
+    border: 1px solid var(--line);
     border-radius: 18px;
-    background: var(--surface);
+    background: var(--paper);
   }
 
   .comparison {
@@ -166,7 +166,7 @@
   .comparison--mobile { display: none; }
 
   .grid line {
-    stroke: var(--border);
+    stroke: var(--line);
     stroke-width: 1;
   }
 
@@ -198,19 +198,19 @@
     stroke-linejoin: round;
   }
 
-  .series--pass { stroke: var(--violet); }
+  .series--pass { stroke: var(--series-2); }
   .series--reliability {
-    stroke: var(--orange);
+    stroke: var(--caution);
     stroke-dasharray: 9 7;
   }
 
-  .pass-points circle { fill: var(--violet); }
-  .reliability-points rect { fill: var(--orange); }
+  .pass-points circle { fill: var(--series-2); }
+  .reliability-points rect { fill: var(--caution); }
 
   .value-labels text,
   .direct-label text,
   .mobile-direct-label text {
-    fill: var(--text);
+    fill: var(--ink);
     font-size: 13px;
     font-weight: 700;
     text-anchor: middle;
@@ -219,9 +219,9 @@
   .value-labels .shared-value { text-anchor: start; }
 
   .direct-label line { stroke-width: 3; }
-  .direct-label--pass line { stroke: var(--violet); }
+  .direct-label--pass line { stroke: var(--series-2); }
   .direct-label--reliability line {
-    stroke: var(--orange);
+    stroke: var(--caution);
     stroke-dasharray: 8 6;
   }
 

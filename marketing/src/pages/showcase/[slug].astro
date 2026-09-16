@@ -1,0 +1,30 @@
+---
+/**
+ * Dev-only passthrough for the standalone showcases.
+ *
+ * The nine showcases are self-contained HTML in public/, which the production
+ * Worker serves directly at /showcase/<slug>/. The dev server does not resolve
+ * a trailing-slash directory to its index.html, so without this route they all
+ * 404 locally. Returning no paths at build time keeps the production output to
+ * the public/ copies alone, rather than emitting each page twice.
+ */
+export function getStaticPaths() {
+  if (!import.meta.env.DEV) return [];
+  /* Astro hoists getStaticPaths out of the frontmatter, so it cannot read a
+     const declared below it. The glob has to live in here. */
+  const pages = import.meta.glob('../../../public/showcase/*/index.html', {
+    query: '?raw',
+    import: 'default',
+    eager: true,
+  }) as Record<string, string>;
+
+  return Object.entries(pages).map(([path, html]) => ({
+    params: { slug: path.split('/').at(-2)! },
+    props: { html },
+  }));
+}
+
+const { html } = Astro.props;
+---
+
+<Fragment set:html={html} />

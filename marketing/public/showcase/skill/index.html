@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" data-theme="dark">
+<html lang="en" data-theme="light">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -19,17 +19,12 @@
       try {
         var t = localStorage.getItem('ms-theme');
         if (t === 'dark' || t === 'light') document.documentElement.setAttribute('data-theme', t);
-        else if (window.matchMedia('(prefers-color-scheme: light)').matches)
-          document.documentElement.setAttribute('data-theme', 'light');
+        else if (window.matchMedia('(prefers-color-scheme: dark)').matches)
+          document.documentElement.setAttribute('data-theme', 'dark');
       } catch (e) {}
     </script>
-
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap"
-      rel="stylesheet"
-    />
+    <link rel="preload" href="/fonts/dm-sans-latin.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="stylesheet" href="/chrome.css" />
     <link rel="stylesheet" href="../showcase.css" />
     <link rel="stylesheet" href="../showcase-page.css" />
   <!-- Cloudflare Web Analytics -->
@@ -45,60 +40,21 @@
       <symbol id="gh-mark" viewBox="0 0 16 16"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.1-.25-.36-1.07.08-2.2 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.13.18 1.95.08 2.2.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A7.995 7.995 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></symbol>
     </svg>
 
-    <header class="nav site-nav">
-      <div class="wrap nav-inner">
-        <a class="brand" href="/"><span class="dot"></span>memseek</a>
-        <nav class="nav-links" aria-label="Main navigation">
-          <div class="nav-menu">
-            <button class="nav-trigger" type="button" aria-expanded="false" aria-controls="navProduct">Product</button>
-            <div class="nav-panel" id="navProduct">
-              <a href="/#how">How it works</a>
-              <a href="/#catalog">The catalog</a>
-              <a href="/#designs">Memory designs</a>
-              <a href="/#quickstart">Run it locally</a>
-              <a href="/claude-code/">Claude Code plugin</a>
-              <a href="/#compare">Compare</a>
-              <a href="/benchmarks/" class="narrow-only">Benchmarks</a>
-            </div>
-          </div>
-          <a href="/benchmarks/" class="nav-bench">Benchmarks</a>
-          <div class="nav-menu">
-            <button class="nav-trigger" type="button" aria-expanded="false" aria-controls="navLearn" data-current>Resources</button>
-            <div class="nav-panel" id="navLearn">
-              <a href="https://memseekai.github.io/memseek/">Docs</a>
-              <a href="/context-engine/">Context engine</a>
-              <a href="/membukkit/">MemBukkit</a>
-              <a href="/showcase/" aria-current="page">Showcases</a>
-              <a href="/blog/">Blog</a>
-              <a href="/#faq">FAQ</a>
-            </div>
-          </div>
-          <a href="https://github.com/memseekai/memseek" class="nav-gh" aria-label="Memseek on GitHub"><svg aria-hidden="true"><use href="#gh-mark"/></svg></a>
-          <button class="theme-toggle" id="theme" type="button" aria-label="Toggle color theme">THEME</button>
-          <a href="/#waitlist" class="nav-cta"><span class="cta-wide">Join the waitlist</span><span class="cta-narrow">Join</span></a>
-          <div class="nav-menu nav-burger">
-            <button class="nav-trigger" type="button" aria-expanded="false" aria-controls="navAll" aria-label="Menu"><span class="bars" aria-hidden="true"></span></button>
-            <div class="nav-panel" id="navAll">
-              <div class="nav-group">Product</div>
-              <a href="/#how">How it works</a>
-              <a href="/#catalog">The catalog</a>
-              <a href="/#designs">Memory designs</a>
-              <a href="/#quickstart">Run it locally</a>
-              <a href="/claude-code/">Claude Code plugin</a>
-              <a href="/#compare">Compare</a>
-              <a href="/benchmarks/">Benchmarks</a>
-              <div class="nav-group">Resources</div>
-              <a href="https://memseekai.github.io/memseek/">Docs</a>
-              <a href="/context-engine/">Context engine</a>
-              <a href="/membukkit/">MemBukkit</a>
-              <a href="/showcase/" aria-current="page">Showcases</a>
-              <a href="/blog/">Blog</a>
-              <a href="/#faq">FAQ</a>
-              <div class="nav-group">Project</div>
-              <a href="https://github.com/memseekai/memseek">GitHub</a>
-            </div>
-          </div>
+    <header class="header site-nav">
+      <div class="wrap nav">
+        <a class="brand" href="/"><svg viewBox="0 0 32 32" fill="none" aria-hidden="true"><path d="M4 24V8l8 5 8-5v16l-8-5-8 5Z" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"/><path d="m20 8 8 5v11l-8-5M12 13v6" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"/></svg><span>memseek</span></a>
+        <nav class="navlinks" id="navlinks" aria-label="Main navigation">
+          <a href="/how-it-works/">How it works</a>
+          <a href="/benchmarks/">Benchmarks</a>
+          <a href="/blog/">Blog</a>
+          <a href="/showcase/" aria-current="page">Showcases</a>
+          <a href="https://memseekai.github.io/memseek/" target="_blank" rel="noopener noreferrer">Docs <span class="arrow" aria-hidden="true">&#8599;</span></a>
+          <a class="nav-gh" href="https://github.com/memseekai/memseek" target="_blank" rel="noopener noreferrer" aria-label="Memseek on GitHub"><svg aria-hidden="true"><use href="#gh-mark"/></svg></a>
+          <button class="theme-toggle" id="themeBtn" type="button" aria-pressed="false">Theme</button>
+          <a class="btn nav-cta" href="/start/">Try Memseek <span class="arrow" aria-hidden="true">&#8599;</span></a>
         </nav>
+        <a class="btn" href="/start/">Try Memseek <span class="arrow" aria-hidden="true">&#8599;</span></a>
+        <button class="menu" type="button" aria-expanded="false" aria-controls="navlinks">Menu</button>
       </div>
     </header>
 
@@ -211,7 +167,7 @@ await memseek.<span class="s">promote</span>(...)  <span class="c"># only a pers
             your application only appends what happened; Memseek does the deriving, keeps every
             conclusion linked to the evidence underneath it, and hands your agent a bounded
             briefing instead of a pile of text. Everything below is that file and what it
-            produces &mdash; <a href="/#how">how it works</a>.</p>
+            produces &mdash; <a href="/how-it-works/">how it works</a>.</p>
 
           <div class="why-words rv">
             <header><span>the words the rest of this page uses</span><span>plain english</span></header>
@@ -565,8 +521,8 @@ candidate[<span class="s">"divergence"</span>]     <span class="c"># what actual
             <h2>Run the loop, then refuse the draft.</h2>
             <p>The script installs a skill, binds a real render, reports outcomes against it, drafts a cited revision — and then stops and asks you. Declining is the interesting path: the skill never changes, and the proposal stays on the record.</p>
             <div class="hero-cta">
-              <a class="btn btn-primary" href="/#waitlist">Join the waitlist <span aria-hidden="true">→</span></a>
-              <a class="btn btn-ghost" href="/#quickstart">See the quickstart</a>
+              <a class="btn btn-primary" href="/start/">Try Memseek <span aria-hidden="true">&#8599;</span></a>
+              <a class="btn btn-ghost" href="/start/">See the quickstart</a>
             </div>
           </div>
 
@@ -606,16 +562,21 @@ candidate[<span class="s">"divergence"</span>]     <span class="c"># what actual
       </section>
     </main>
 
-    <footer>
-      <div class="wrap foot">
-        <span>memseek · the maintained skill</span>
-        <span class="foot-links">
-          <a href="https://memseekai.github.io/memseek/">Docs</a>
+    <footer class="footer">
+      <div class="wrap footer-row">
+        <div>
+          <a class="brand" href="/"><svg viewBox="0 0 32 32" fill="none" aria-hidden="true"><path d="M4 24V8l8 5 8-5v16l-8-5-8 5Z" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"/><path d="m20 8 8 5v11l-8-5M12 13v6" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"/></svg><span>memseek</span></a>
+          <p>memseek · the maintained skill</p>
+        </div>
+        <div class="footer-links">
           <a href="/showcase/">All showcases</a>
-          <a href="/#uses">Use cases</a>
+          <a href="/how-it-works/">How it works</a>
+          <a href="/benchmarks/">Benchmarks</a>
           <a href="/blog/">Blog</a>
-          <a class="gh" href="https://github.com/memseekai/memseek"><svg aria-hidden="true"><use href="#gh-mark"/></svg>GitHub</a>
-        </span>
+          <a href="https://memseekai.github.io/memseek/" target="_blank" rel="noopener noreferrer">Docs &#8599;</a>
+          <a class="gh" href="https://github.com/memseekai/memseek" target="_blank" rel="noopener noreferrer"><svg aria-hidden="true"><use href="#gh-mark"/></svg>Memseek on GitHub &#8599;</a>
+          <a class="gh" href="https://github.com/memseekai/membukkit" target="_blank" rel="noopener noreferrer"><svg aria-hidden="true"><use href="#gh-mark"/></svg>MemBukkit on GitHub &#8599;</a>
+        </div>
       </div>
     </footer>
 

@@ -1,24 +1,27 @@
 ---
-/** Mirrors the landing page footer, plus Blog and RSS. */
+import BrandMark from './BrandMark.astro';
+import { DOCS_URL, REPO_URL, MEMBUKKIT_REPO_URL } from '../lib/links';
 ---
 
-<footer>
-  <div class="wrap foot">
-    <a href="/" class="brand" style="font-size:.95rem;"><span class="dot"></span>memseek</a>
-    <div class="fl">
-      <a href="https://github.com/memseekai/memseek" class="gh"><svg aria-hidden="true"><use href="#gh-mark" /></svg>GitHub</a>
-      <a href="https://memseekai.github.io/memseek/">Docs</a>
-      <a href="/context-engine/">Context engine</a>
-      <a href="/membukkit/">MemBukkit</a>
-      <a href="/claude-code/">Claude Code plugin</a>
-      <a href="/#how">How it works</a>
-      <a href="/#designs">Memory designs</a>
+<footer class="footer">
+  <div class="wrap footer-row">
+    <div>
+      <a class="brand" href="/"><BrandMark /></a>
+      <p>Make intelligence compound.</p>
+    </div>
+    <div class="footer-links">
+      <a href="/how-it-works/">How it works</a>
       <a href="/benchmarks/">Benchmarks</a>
-      <a href="/#faq">FAQ</a>
-      <a href="/showcase/">Showcases</a>
       <a href="/blog/">Blog</a>
+      <a href="/showcase/">Showcases</a>
+      <a href={DOCS_URL} target="_blank" rel="noopener noreferrer">Docs <span aria-hidden="true">↗</span></a>
+      <a class="gh" href={REPO_URL} target="_blank" rel="noopener noreferrer">
+        <svg aria-hidden="true" focusable="false"><use href="#gh-mark" /></svg>Memseek on GitHub <span aria-hidden="true">↗</span>
+      </a>
+      <a class="gh" href={MEMBUKKIT_REPO_URL} target="_blank" rel="noopener noreferrer">
+        <svg aria-hidden="true" focusable="false"><use href="#gh-mark" /></svg>MemBukkit on GitHub <span aria-hidden="true">↗</span>
+      </a>
       <a href="/rss.xml">RSS</a>
     </div>
-    <div>Context engine for AI agents</div>
   </div>
 </footer>

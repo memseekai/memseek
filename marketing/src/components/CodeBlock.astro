@@ -1,0 +1,65 @@
+---
+interface Props {
+  /** Shown on the block's header bar. */
+  label?: string;
+  copyLabel?: string;
+}
+const { label = 'Terminal', copyLabel = 'Copy commands' } = Astro.props;
+---
+
+<div class="team-code" data-code-block>
+  <div class="team-code-head">
+    <span>{label}</span>
+    <button type="button" data-copy-code>{copyLabel}</button>
+  </div>
+  <pre><code><slot /></code></pre>
+</div>
+
+<style is:global>
+  .team-code {
+    min-width: 0;
+    overflow: hidden;
+    border: 1px solid #cad8ed;
+    border-radius: var(--r-lg);
+    background: linear-gradient(145deg, #f6f9ff, #eaf0fb);
+    box-shadow: inset 0 1px 0 #fff, 0 20px 44px -24px #5f73a36b;
+  }
+  .team-code-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--s-4);
+    padding: 12px 18px;
+    background: #e6eefb;
+    border-bottom: 1px solid #d6e1f2;
+    color: #3e557a;
+    font-size: 14px;
+  }
+  .team-code-head button {
+    min-height: 34px;
+    padding: 6px 9px;
+    border: 1px solid #c7d6ee;
+    border-radius: var(--r-xs);
+    background: #ffffffb5;
+    color: #4e6892;
+    font: inherit;
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .team-code-head button:hover { background: #fff; color: var(--deep); }
+  .team-code pre {
+    margin: 0;
+    padding: 25px;
+    overflow-x: auto;
+    color: #1c3764;
+    font-size: 14px;
+    line-height: 1.8;
+    tab-size: 2;
+  }
+  .team-code code { font-family: var(--mono); font-size: inherit; }
+
+  @media (max-width: 760px) {
+    .team-code pre { font-size: 13px; padding: 18px; }
+    .team-code-head { padding: 11px 14px; }
+  }
+</style>

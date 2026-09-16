@@ -1,0 +1,136 @@
+---
+import AppIcon from '../AppIcon.astro';
+import SourceMessage from './SourceMessage.astro';
+
+interface Props {
+  /** 0-5, matching the six stages. */
+  stage: number;
+}
+const { stage } = Astro.props;
+---
+
+{/* The worked scene inside an evidence dialog. Each stage shows the thing
+    that actually changed at that point, so the six are deliberately not one
+    parameterised layout. */}
+
+{stage === 0 && (
+  <div class="case-canvas case-opening">
+    <SourceMessage record="first-report" />
+    <div class="case-crm-context">
+      <span><AppIcon app="HubSpot" /><b>Leo’s renewal notes</b><small>HubSpot</small></span>
+      <div>
+        <span>Renewal call<strong>Friday, 18 September</strong></span>
+        <span>Maya’s preference<strong>Short email before the call</strong></span>
+      </div>
+    </div>
+  </div>
+)}
+
+{stage === 1 && (
+  <div class="case-canvas case-repeat">
+    <SourceMessage record="second-report" compact />
+    <SourceMessage record="third-report" compact />
+    <div class="case-accumulation">
+      <div class="case-signal-step"><i></i><span>Mon <b>Reported</b></span></div>
+      <span class="case-signal-line"></span>
+      <div class="case-signal-step"><i></i><span>Wed <b>Still broken</b></span></div>
+      <span class="case-signal-line"></span>
+      <div class="case-signal-step"><i></i><span>Thu <b>Renewal blocked</b></span></div>
+    </div>
+  </div>
+)}
+
+{stage === 2 && (
+  <div class="case-canvas case-brief case-business-brief" data-action-flow="escalate">
+    <div data-action-origin><SourceMessage record="team-chat" compact /></div>
+    <div class="action-bridge"><span>Added to Maya’s three reports</span></div>
+    <div class="case-current" data-action-target>
+      <div class="case-current-head">
+        <span><AppIcon app="Memseek" /><b>Memseek brief → Sam, product lead</b></span>
+        <span>6 reports linked</span>
+      </div>
+      <h4>4 customers affected.<br />1 renewal explicitly blocked.</h4>
+      <p class="case-root-note">Shared symptom · root cause unconfirmed</p>
+      <div class="case-change">
+        <span>Decision</span>
+        <b>Prioritize the export issue before Friday’s renewal?</b>
+      </div>
+    </div>
+  </div>
+)}
+
+{stage === 3 && (
+  <div class="case-canvas case-escalation" data-action-flow="escalate">
+    <div class="case-memseek-run" data-action-origin>
+      <div class="case-run-heading">
+        <span><AppIcon app="Memseek" /><b>Memseek</b></span>
+        <button type="button" class="action-replay" data-action-replay aria-label="Replay the action">
+          <span aria-hidden="true">↻</span> Replay
+        </button>
+      </div>
+      <div class="case-run-row">
+        <span>Renewal</span><s>Not flagged</s>
+        <span class="action-change-arrow" aria-hidden="true">→</span><strong>Blocked</strong>
+      </div>
+      <div class="case-run-row">
+        <span>Follow-up</span><s>Not set</s>
+        <span class="action-change-arrow" aria-hidden="true">→</span><strong>Leo · before Friday</strong>
+      </div>
+      <div class="case-run-published">
+        <span class="action-check" aria-hidden="true">✓</span> Escalation prepared · sources attached
+      </div>
+    </div>
+    <div class="action-bridge"><span>Escalation + evidence</span></div>
+    <div class="action-destination" data-action-target>
+      <SourceMessage record="renewal-alert" compact />
+      <div class="action-receipt">
+        <span class="action-check" aria-hidden="true">✓</span>Delivered to #renewals · Leo notified
+      </div>
+    </div>
+  </div>
+)}
+
+{stage === 4 && (
+  <div class="case-canvas case-action" data-action-flow="branch">
+    <div class="case-dispatch" data-action-origin>
+      <span><AppIcon app="Memseek" /><b>Memseek</b><small>Account reply + product decision</small></span>
+      <button type="button" class="action-replay" data-action-replay aria-label="Replay the action">
+        <span aria-hidden="true">↻</span> Replay
+      </button>
+    </div>
+    <div class="action-destination" data-action-target>
+      <SourceMessage record="agent-followup" compact />
+      <div class="action-receipt"><span class="action-check" aria-hidden="true">✓</span>Sent to Maya</div>
+    </div>
+    <div class="case-task" data-action-target>
+      <div class="case-task-head">
+        <span><AppIcon app="Linear" /><b>Linear</b><span>EXP-247</span></span>
+        <span class="case-priority">High priority</span>
+      </div>
+      <h4>Fix report export timeouts</h4>
+      <p>4 customers affected · 6 linked reports<br />1 renewal explicitly blocked</p>
+      <div class="case-owner">
+        <span class="demo-avatar avatar-linear">S</span>
+        <span><b>Sam · product lead</b><small>Approved priority. Exports team assigned.</small></span>
+      </div>
+    </div>
+  </div>
+)}
+
+{stage === 5 && (
+  <div class="case-canvas case-outcome">
+    <div class="case-shipped">
+      <AppIcon app="Linear" /><b>EXP-247</b><span>Fix shipped · Friday, 09:00</span>
+    </div>
+    <SourceMessage record="customer-confirmation" />
+    <div class="case-resolution">
+      <span><AppIcon app="Memseek" /><b>Account + product updates</b></span>
+      <div>
+        <span class="case-resolved">Maya’s blocker is cleared.</span>
+        {/* The case does not close: three accounts have not confirmed, and
+            saying so is the point of the last stage. */}
+        <p><b>Product: 3 confirmations still open.</b><br />Next: follow up with the other 3 accounts.</p>
+      </div>
+    </div>
+  </div>
+)}

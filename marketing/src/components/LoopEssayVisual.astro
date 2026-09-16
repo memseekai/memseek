@@ -23,7 +23,7 @@
 <div class="reading-rail" aria-hidden="true"><span></span></div>
 
 <script>
-  const root = document.querySelector('.post.loop-essay');
+  const root = document.querySelector<HTMLElement>('.post.loop-essay');
 
   if (root) {
     const updateProgress = () => {

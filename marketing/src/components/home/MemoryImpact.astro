@@ -1,0 +1,128 @@
+---
+import { pairedRun } from '../../lib/benchmark-data';
+
+/* Every figure here is derived from the controlled pair, so the copy cannot
+   drift from the dataset. 58.7% relative error reduction rounds to 59, and
+   96.8% context reduction rounds to 97 — the page states the rounded forms,
+   which is what the benchmark package's own scope note does. */
+const errorDrop = Math.round(pairedRun.relativeErrorReduction);
+const contextDrop = Math.round(pairedRun.contextReductionPercent);
+const tokens = (n: number) => n.toLocaleString('en-US');
+---
+
+<section class="memory-impact wrap" aria-labelledby="memory-impact-title">
+  <div class="memory-impact-copy">
+    <h2 id="memory-impact-title">
+      Same AI model.<br /><span>{errorDrop}% fewer errors on this test.</span>
+    </h2>
+    <p>
+      In this separate comparison, the model scored {pairedRun.membukkitAccuracy}% using evidence
+      selected by our memory engine, versus {pairedRun.fullContextAccuracy}% when given the full
+      conversation history.
+    </p>
+    <div class="memory-context-saving">
+      <strong>About {contextDrop}% less text for the model to read.</strong>
+      <span>
+        Roughly {tokens(pairedRun.membukkitContextTokens)} tokens instead of
+        {' '}{tokens(pairedRun.fullContextTokens)} in the reported comparison.
+      </span>
+    </div>
+  </div>
+
+  <figure class="memory-comparison">
+    <figcaption>Accuracy on 500 memory questions</figcaption>
+    <div class="memory-bar-row">
+      <div class="memory-bar-label">
+        <span>Our memory engine</span>
+        <strong>{pairedRun.membukkitAccuracy}<span>%</span></strong>
+      </div>
+      <div class="memory-bar-track"><span class="memory-bar-fill" style={`width:${pairedRun.membukkitAccuracy}%`}></span></div>
+    </div>
+    <div class="memory-bar-row baseline">
+      <div class="memory-bar-label">
+        <span>Reading the full history</span>
+        <strong>{pairedRun.fullContextAccuracy}<span>%</span></strong>
+      </div>
+      <div class="memory-bar-track"><span class="memory-bar-fill" style={`width:${pairedRun.fullContextAccuracy}%`}></span></div>
+    </div>
+    <div class="memory-bar-scale" aria-hidden="true"><span>0%</span><span>100%</span></div>
+  </figure>
+
+  {/* The scope line is not optional garnish: these numbers come from a
+      different run than the 92.6% headline and must not be read together. */}
+  <div class="memory-impact-method">
+    <p>Separate GPT-4o-mini run · Same model, judge and source history.</p>
+    <a class="textlink" href="/benchmarks/">See how we measured it <span class="arrow" aria-hidden="true">↗</span></a>
+  </div>
+</section>
+
+<style is:global>
+  .memory-impact {
+    position: relative;
+    isolation: isolate;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    column-gap: 100px;
+    row-gap: 34px;
+    padding: 66px 0 75px;
+    border-block: 1px solid #d7e0ee;
+    margin-bottom: 34px;
+  }
+  /* A full-bleed ground behind a contained grid, so the band reads as its
+     own chapter without the content leaving the wrap. */
+  .memory-impact::before {
+    content: '';
+    position: absolute;
+    inset: 0 calc(50% - 50vw);
+    z-index: -1;
+    background: linear-gradient(120deg, #eef1fb, #f0eafa 70%, #f7f1f7);
+  }
+  .memory-impact h2 { margin: 0 0 18px; font-size: clamp(36px, 3.5vw, 50px); line-height: 1.11; letter-spacing: -.045em; }
+  .memory-impact h2 > span { color: #3456d9; white-space: nowrap; }
+  .memory-impact-copy > p { max-width: 420px; margin: 0; font-size: 16px; line-height: 1.65; color: #56657b; }
+  .memory-context-saving { margin-top: 28px; }
+  .memory-context-saving strong { display: block; font-size: 20px; font-weight: 550; line-height: 1.3; letter-spacing: -.02em; color: #273d68; }
+  .memory-context-saving > span { display: block; margin-top: 7px; font-size: 14px; line-height: 1.6; color: #5b6b84; }
+
+  .memory-comparison { min-width: 0; margin: 0; align-self: center; }
+  .memory-comparison figcaption { margin-bottom: 26px; font-size: 14px; line-height: 1.5; color: #5b6b84; }
+  .memory-bar-row { margin: 0 0 24px; }
+  .memory-bar-label { display: flex; align-items: baseline; justify-content: space-between; gap: 14px; margin-bottom: 11px; color: #2b4cd1; }
+  .memory-bar-label > span { font-size: 16px; font-weight: 550; line-height: 1.4; }
+  .memory-bar-label > strong { font-size: 38px; font-weight: 500; line-height: 1; letter-spacing: -.04em; font-variant-numeric: tabular-nums; }
+  .memory-bar-label > strong > span { font-size: 24px; }
+  .memory-bar-track { height: 14px; overflow: hidden; border-radius: 4px; background: #edf1f8; }
+  .memory-bar-fill { display: block; height: 100%; border-radius: 4px; background: #4162e4; }
+  /* The baseline is grey on purpose: it is the comparison, not a second result. */
+  .baseline .memory-bar-label { color: #596b89; }
+  .baseline .memory-bar-fill { background: #91a3c5; }
+  .memory-bar-scale { display: flex; justify-content: space-between; margin-top: -13px; font-size: 12px; color: #61718b; }
+
+  .memory-impact-method {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 20px;
+    padding-top: 22px;
+    border-top: 1px solid #e1e7f1;
+  }
+  .memory-impact-method > p { margin: 0; font-size: 13px; line-height: 1.55; color: #5b6b84; }
+  .memory-impact-method > .textlink { white-space: nowrap; font-size: 14px; }
+
+  @media (max-width: 1100px) { .memory-impact { column-gap: 60px; } }
+  @media (max-width: 760px) {
+    .memory-impact { grid-template-columns: 1fr; gap: 29px; padding: 38px 0 31px; margin-bottom: 16px; }
+    .memory-impact h2 { font-size: 36px; }
+    .memory-impact h2 > span { white-space: normal; }
+    .memory-impact-copy > p { max-width: none; }
+    .memory-context-saving { margin-top: 23px; }
+    .memory-context-saving strong { font-size: 19px; }
+    .memory-comparison figcaption { margin-bottom: 22px; }
+    .memory-impact-method { display: block; padding-top: 18px; }
+    .memory-impact-method > .textlink { display: inline-block; margin-top: 13px; }
+    .memory-bar-label > strong { font-size: 34px; }
+    .memory-bar-label > span { font-size: 15px; }
+  }
+  @media (max-width: 370px) { .memory-impact h2 { font-size: 31px; } }
+</style>

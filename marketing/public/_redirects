@@ -1,0 +1,13 @@
+# Routes retired by the 2026-09 redesign. Workers static assets honour this
+# file the same way it honours _headers.
+#
+# /claude-code/ pointed at a walkthrough that docs/claude-code-plugin.md
+# already mirrors, so the content survives the retirement.
+/membukkit/       /benchmarks/                                            301
+/membukkit        /benchmarks/                                            301
+/context-engine/  /how-it-works/                                          301
+/context-engine   /how-it-works/                                          301
+/claude-code/     https://memseekai.github.io/memseek/claude-code-plugin/  301
+/claude-code      https://memseekai.github.io/memseek/claude-code-plugin/  301
+/use-cases/       /#company-learning                                      301
+/index-v3.html    /                                                       301

@@ -1,20 +1,49 @@
 # memseek marketing site
 
-The public site: landing page, blog, and the interactive showcases. Astro 5 with
-MDX, deployed to Cloudflare as a Worker with static assets.
+The public site: marketing pages, blog, and the interactive showcases. Astro 5
+with MDX, deployed to Cloudflare as a Worker with static assets.
 
 | URL | Source | Notes |
 | --- | --- | --- |
-| `/` | [public/index.html](public/index.html) | Hand-written single file. Astro copies it verbatim and never parses it. |
-| `/membukkit/` | [src/pages/membukkit.astro](src/pages/membukkit.astro) | MemBukkit minisite and Memseek/MemBukkit product distinction. |
-| `/benchmarks/` | [src/pages/benchmarks.astro](src/pages/benchmarks.astro) | Frozen MemBukkit results, protocols, and reproduction commands. |
+| `/` | [src/pages/index.astro](src/pages/index.astro) | Hero demo, the six-step renewal story, developer start, benchmark band. |
+| `/how-it-works/` | [src/pages/how-it-works.astro](src/pages/how-it-works.astro) | Five stages, responsibilities, FAQ. Content in [src/data/how-it-works.ts](src/data/how-it-works.ts). |
+| `/benchmarks/` | [src/pages/benchmarks.astro](src/pages/benchmarks.astro) | All eleven LongMemEval-S series, the cost chart, reproduction detail. |
+| `/start/` | [src/pages/start.astro](src/pages/start.astro) | Local setup, then managed setup. |
 | `/blog/`, `/blog/<slug>/` | [src/content/blog/](src/content/blog/) | One `.md`/`.mdx` file per post. |
 | `/tags/<tag>/` | generated | One page per tag used by a published post. |
 | `/showcase/` | [src/pages/showcase/index.astro](src/pages/showcase/index.astro) | Hub listing the showcases. |
-| `/showcase/gbrain/`, `/showcase/dreams/` | [public/showcase/](public/showcase/) | Interactive pages, copied verbatim, sharing one system stylesheet. |
+| `/showcase/<slug>/` | [public/showcase/](public/showcase/) | Nine self-contained pages, copied verbatim, sharing one system stylesheet. |
 | `/rss.xml` | [src/pages/rss.xml.js](src/pages/rss.xml.js) | Published posts only. |
-| `/sitemap-index.xml` | generated | Includes the hand-written pages via `customPages`. |
+| `/sitemap-index.xml` | generated | Includes the `public/` showcases via `customPages`. |
 | `/404` | [src/pages/404.astro](src/pages/404.astro) | |
+
+Retired routes redirect from [public/_redirects](public/_redirects): `/membukkit/`
+and `/context-engine/` fold into the pages above, and `/claude-code/` goes to the
+docs page it always mirrored.
+
+## Where things live
+
+Marketing pages are light-only. The blog, the showcases and the docs also carry a
+dark theme, chosen with `data-theme` and persisted to `localStorage['ms-theme']`.
+
+- [src/styles/tokens.css](src/styles/tokens.css) is the **only** place colours,
+  spacing, radii and the type scale are declared. `scripts/sync-chrome.mjs`
+  generates `public/chrome.css` from it plus `site.css`, so the standalone
+  showcase pages under `public/` use the same values without a second copy.
+- [src/data/](src/data/) holds the editorial content the pages render: the
+  renewal story, the hero demo's four frames, the how-it-works stages and FAQ.
+  Change the words there, not in a component.
+- [src/lib/benchmark-data.ts](src/lib/benchmark-data.ts) is the single benchmark
+  dataset. The ranked bars are **derived** from it rather than restated.
+- [src/scripts/](src/scripts/) holds the behaviour. `sticky-story.ts` and
+  `customer-motion.ts` are load-bearing; `atmosphere.ts` and `feel-polish.ts`
+  are decorative and can be deleted without losing information.
+- `npm run check` runs `astro check`, then `scripts/check-tokens.mjs` (fails on
+  any `var(--x)` with no definition) and `scripts/check-contrast.mjs` (fails on
+  any ink-on-surface pair below its bar, in both themes).
+- `scripts/prepare-assets.sh` regenerates the DM Sans subsets and the decorative
+  WebP from the redesign package. The outputs are committed; it only needs
+  running when an original changes.
 
 ## Quick start
 
@@ -36,7 +65,7 @@ npm run dev      # http://localhost:4321
 | `npm run preview` | Builds, then serves through `wrangler dev` — the closest thing to production locally. |
 | `npm run deploy` | Builds, then `wrangler deploy`. See [Publishing](#publishing). |
 | `npm run cf-typegen` | Regenerates `worker-configuration.d.ts` from `wrangler.jsonc`. |
-| `npm run check` | `astro check`. Needs `npm i -D @astrojs/check typescript` first — they aren't installed yet, so the script prompts on first run. |
+| `npm run check` | `astro check`, then the token and contrast checks. |
 
 ## Layout
 
@@ -44,24 +73,30 @@ npm run dev      # http://localhost:4321
 marketing/
 ├─ astro.config.mjs        site URL, markdown pipeline, sitemap
 ├─ wrangler.jsonc          Cloudflare deploy config
+├─ scripts/                asset prep, chrome sync, the two checks
 ├─ public/                 copied to dist/ verbatim, never parsed
-│  ├─ index.html           the landing page
-│  ├─ index-v3.html        a draft landing page; excluded from the sitemap
+│  ├─ chrome.css           GENERATED from src/styles; do not edit
+│  ├─ fonts/               DM Sans subsets + the OFL licence
+│  ├─ apps/                the four app marks used on the org graph
+│  ├─ glass-fold.webp      the decorative fold behind page heads
 │  ├─ showcase/
-│  │  ├─ showcase.css      the showcase design system: tokens + chrome
+│  │  ├─ showcase.css      showcase-only layers; tokens come from chrome.css
 │  │  ├─ showcase.js       persisted theme toggle + scroll reveals
 │  │  └─ <slug>/index.html one page per showcase
 │  ├─ _headers             security + cache headers
+│  ├─ _redirects           retired routes
 │  ├─ robots.txt
 │  └─ og-default.png       fallback social card
 └─ src/
    ├─ content.config.ts    the blog frontmatter schema — the source of truth
    ├─ content/blog/        posts + colocated images
-   ├─ layouts/             BaseLayout (head, nav, theme), PostLayout
-   ├─ components/          SiteHeader, SiteFooter, PostCard
-   ├─ lib/posts.ts         sorting, tags, slugs, read time
+   ├─ data/                editorial content for the marketing pages
+   ├─ scripts/             page behaviour, imported per page
+   ├─ layouts/             BaseLayout (head, chrome, theme), PostLayout
+   ├─ components/          chrome, the homepage scene, the blog diagrams
+   ├─ lib/                 posts.ts, benchmark-data.ts, links.ts
    ├─ pages/               routed pages
-   └─ styles/              site.css (global), prose.css (article body)
+   └─ styles/              tokens.css, site.css, story.css, bench.css, prose.css
 ```
 
 ## Writing a blog post
@@ -231,28 +266,14 @@ visible immediately.
 
 ## Known rough edges
 
-- `package.json`'s description says "Cloudflare Pages"; the actual config
-  (`wrangler.jsonc`) deploys a Worker with static assets. Cosmetic only.
-- The landing page nav in [public/index.html](public/index.html) and
-  [src/components/SiteHeader.astro](src/components/SiteHeader.astro) are separate
-  copies of the same markup. Change both, or neither.
-- Design tokens are now declared in **three** places with identical values:
-  [src/styles/site.css](src/styles/site.css) (blog + Astro pages),
-  [public/index.html](public/index.html) (landing), and
-  [public/showcase/showcase.css](public/showcase/showcase.css) (showcases). The
-  showcases at least share one copy between them; collapsing all three needs the
-  landing page to stop being standalone.
-- **PRODUCT.md and DESIGN.md disagree about the binding visual world.**
-  PRODUCT.md's Brand Commitments describe a teal-black/sage "ledger" world and
-  cite `marketing/index-v3.html` as authority; DESIGN.md, `site.css`, the live
-  landing page, the blog and both showcases all implement the graphite
-  "instrument panel" world. Everything shipping follows DESIGN.md — PRODUCT.md's
-  section is stale and points at a path that has since moved to
-  `public/index-v3.html`.
-- The showcases previously linked into `docs/*.md` in this repo. Since the docs
-  site (MkDocs, `.github/workflows/docs.yml`) has no public URL wired up here,
-  those links now point at on-site destinations. Repoint them at the docs host
-  once it exists.
-- `public/index-v3.html` is a draft landing page. It's excluded from the sitemap
-  but is still publicly reachable at `/index-v3.html`. Delete it or move it out
-  of `public/` if that isn't wanted.
+- The nine showcase pages hardcode `https://memseek.ai/...` in their `canonical`
+  and `og:url`, and `public/robots.txt` hardcodes the sitemap host. `SITE_URL`
+  cannot reach any of them.
+- `public/_headers` sets no CSP. There is now one fewer external origin to allow
+  (fonts are self-hosted), so this is easier than it was.
+- The blog's cover images in [src/content/blog/images/](src/content/blog/images/)
+  are raster art in the retired dark palette. The SVG diagrams were recoloured;
+  these were not, because they need regenerating rather than remapping.
+- [docs/stylesheets/extra.css](../docs/stylesheets/extra.css) mirrors
+  `src/styles/tokens.css` by hand. The docs build from the repo root with no
+  access to this directory, so a change here needs copying there.

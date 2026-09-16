@@ -1,0 +1,218 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Atmosphere from '../components/Atmosphere.astro';
+import CodeBlock from '../components/CodeBlock.astro';
+import { REPO_URL, CONTACT_URL, docsPage } from '../lib/links';
+
+const steps = [
+  { n: '01', title: 'Get the code.' },
+  { n: '02', title: 'Add your model key.', body: 'Create a <code>.env</code> file in the repository root. Keep your key private.' },
+  { n: '03', title: 'Start Memseek.', body: 'The included command brings up the services and publishes the example memory setup.' },
+];
+
+const managed = [
+  ['Choose the task.', 'What should the agent know or do better?'],
+  ['Connect the sources.', 'We agree access, updates and the action boundaries.'],
+  ['Check the outcome.', 'Check what your agent receives, where it came from and what useful feedback can improve.'],
+];
+---
+
+<BaseLayout
+  title="Get started — Memseek"
+  description="Run Memseek locally with Docker, connect the agents you already use, or have us set up the sources and memory updates for your workflow."
+>
+  <section class="wrap team-start-hero" data-atmosphere="hero">
+    <Atmosphere scene="hero" />
+    <div>
+      <h1>Try Memseek.</h1>
+      <p>
+        Connect the agents you already use. Run Memseek locally, or let us set up the sources and
+        memory updates for your workflow.
+      </p>
+      <div class="actions">
+        <a class="btn" href={`${REPO_URL}#try-it-locally`} target="_blank" rel="noopener noreferrer">
+          Run it yourself <span class="arrow" aria-hidden="true">↗</span>
+        </a>
+        <a class="textlink" href="#managed-setup" data-jump>
+          Set it up with us <span class="arrow" aria-hidden="true">↓</span>
+        </a>
+      </div>
+      <span class="team-start-meta">Open source · Runs locally · API + MCP</span>
+    </div>
+
+    <div class="team-starter-card">
+      <span class="team-overline">Your starting point</span>
+      <h2>One stack.<br />A working memory setup.</h2>
+      <ul>
+        <li>Postgres for records and history</li>
+        <li>Memseek API and background worker</li>
+        <li>Included agent-memory configuration</li>
+        <li>An MCP endpoint for your agent</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="section wrap team-setup" aria-labelledby="team-setup-title">
+    <div class="team-section-heading">
+      <h2 id="team-setup-title">Get it running.</h2>
+      <p>
+        You’ll need Docker with Compose and an OpenAI-compatible model key with access to the
+        models in the example configuration.
+      </p>
+    </div>
+
+    {steps.map((step) => (
+      <div class="team-setup-step">
+        <div>
+          <span>{step.n}</span>
+          <h3>{step.title}</h3>
+          {step.body && <p set:html={step.body} />}
+        </div>
+        {step.n === '01' && (
+          <CodeBlock>git clone {REPO_URL}.git
+cd memseek</CodeBlock>
+        )}
+        {step.n === '02' && (
+          <div class="team-env-example">
+            <span>.env</span>
+            <code>OPENAI_API_KEY=your_model_key</code>
+            <p>Model usage is billed by your provider.</p>
+          </div>
+        )}
+        {step.n === '03' && <CodeBlock>make up</CodeBlock>}
+      </div>
+    ))}
+
+    <div class="team-start-next">
+      <h3>Then connect your agent.</h3>
+      <p>
+        The repository quickstart walks through the MCP connection. Use the API and CRM examples to
+        add records, retrieve facts and inspect a briefing.
+      </p>
+      <div class="actions">
+        <a class="textlink" href={`${REPO_URL}#connect-an-agent`} target="_blank" rel="noopener noreferrer">
+          Connect an agent <span class="arrow" aria-hidden="true">↗</span>
+        </a>
+        <a class="textlink" href={docsPage('getting-started')} target="_blank" rel="noopener noreferrer">
+          API walkthrough <span class="arrow" aria-hidden="true">↗</span>
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <section class="section team-managed" id="managed-setup">
+    <div class="wrap team-managed-grid">
+      <div>
+        <span class="team-overline">Managed setup</span>
+        <h2>Set up your agent’s company memory.</h2>
+        <p>
+          Bring an existing AI workflow. We’ll agree the sources, configure the updates and check
+          the information your agent receives against real tasks.
+        </p>
+        <a class="btn" href={CONTACT_URL} target="_blank" rel="noopener noreferrer">
+          Talk through your workflow <span class="arrow" aria-hidden="true">↗</span>
+        </a>
+      </div>
+      <ol>
+        {managed.map(([title, body]) => (
+          <li><b>{title}</b><span>{body}</span></li>
+        ))}
+      </ol>
+    </div>
+  </section>
+</BaseLayout>
+
+<style>
+  .team-start-hero {
+    display: grid;
+    grid-template-columns: 1.05fr .95fr;
+    gap: var(--s-7);
+    align-items: center;
+    padding-top: 80px;
+    padding-bottom: 64px;
+  }
+  .team-start-hero h1 { font-size: clamp(54px, 5.6vw, 82px); line-height: 1.06; letter-spacing: -.05em; }
+  .team-start-hero p { max-width: 530px; margin: var(--s-5) 0; font-size: 19px; color: #536682; }
+  .team-start-meta { display: inline-block; margin-top: var(--s-5); font-size: 13px; color: var(--muted); }
+
+  .team-starter-card {
+    padding: 28px 31px;
+    border: 1px solid #cfdbf2;
+    border-radius: 18px;
+    background: linear-gradient(130deg, #ecf2ff, #f4f1ff);
+    box-shadow: 0 18px 40px -34px #3754af;
+  }
+  .team-starter-card h2 { font-size: 33px; line-height: 1.2; letter-spacing: -.025em; color: #3c4f83; }
+  .team-starter-card ul { margin: 22px 0 0; padding: 0; list-style: none; }
+  .team-starter-card li { padding: 11px 0; border-top: 1px solid #d7e0f1; font-size: 14px; color: #5b6c91; }
+
+  .team-setup { border-top: 1px solid #dee5ef; padding-top: 55px; }
+  .team-section-heading {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 55px;
+    align-items: end;
+    margin-bottom: 36px;
+  }
+  .team-section-heading h2 { font-size: clamp(34px, 3.4vw, 49px); line-height: 1.1; letter-spacing: -.04em; }
+  .team-section-heading > p { max-width: 450px; margin: 0; color: #68768d; }
+
+  .team-setup-step {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 50px;
+    align-items: start;
+    padding: 27px 0;
+    border-top: 1px solid #e0e6f0;
+  }
+  .team-setup-step > div > span { font-size: 13px; color: #7590ba; }
+  .team-setup-step h3 { font-size: 27px; line-height: 1.2; margin: 8px 0 13px; }
+  .team-setup-step p { max-width: 430px; font-size: 15px; color: #71809a; }
+
+  .team-env-example { padding: 19px; border: 1px solid #d8e2f1; border-radius: var(--r-md); background: #f7f9fd; }
+  .team-env-example > span { display: block; margin-bottom: 15px; font-size: 12px; color: var(--muted); }
+  .team-env-example > code { display: block; overflow-x: auto; font: 14px/1.7 var(--mono); color: #49658e; }
+  .team-env-example p { margin: 15px 0 0; font-size: 12px; }
+
+  .team-start-next {
+    margin-top: 26px;
+    padding: 30px;
+    border: 1px solid #d9e2f1;
+    border-radius: 13px;
+    background: #f1f5fc;
+  }
+  .team-start-next h3 { font-size: 26px; margin-bottom: 13px; }
+  .team-start-next p { max-width: 800px; margin-bottom: var(--s-5); }
+
+  .team-managed { background: #eeeff9; border-top: 1px solid #dce4f3; }
+  .team-managed-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 50px; }
+  .team-managed-grid h2 { font-size: clamp(38px, 3.6vw, 46px); line-height: 1.1; }
+  .team-managed-grid p { max-width: 450px; margin: 22px 0; color: #697994; }
+  .team-managed ol { margin: 0; padding-left: 24px; }
+  .team-managed li { padding: 14px 0 20px 10px; border-bottom: 1px solid #d6e0f0; color: #8095bc; }
+  .team-managed li b { display: block; margin-bottom: 8px; font-size: 18px; font-weight: 550; color: #405783; }
+  .team-managed li span { display: block; font-size: 15px; line-height: 1.5; color: #71819c; }
+
+  .team-start-hero > div,
+  .team-setup-step > div,
+  .team-managed-grid > div,
+  .team-section-heading > * { min-width: 0; }
+
+  @media (max-width: 1000px) {
+    .team-start-hero { grid-template-columns: 1fr; gap: 33px; padding-top: 39px; padding-bottom: 42px; }
+    .team-start-hero h1 { font-size: 49px; line-height: 1.07; }
+    .team-start-hero p { font-size: 17px; margin-top: 20px; }
+    .team-starter-card { padding: 25px; }
+    .team-starter-card h2 { font-size: 31px; }
+    .team-section-heading { grid-template-columns: 1fr; gap: 21px; margin-bottom: 22px; }
+    .team-section-heading h2 { font-size: 36px; line-height: 1.12; }
+    .team-section-heading > p { font-size: 16px; }
+    .team-setup { padding-top: 40px; }
+    .team-setup-step { grid-template-columns: 1fr; gap: 12px; padding: 25px 0; }
+    .team-setup-step h3 { font-size: 26px; margin-top: 7px; }
+    .team-start-next { padding: 22px; margin-top: 15px; }
+    .team-start-next h3 { font-size: 25px; }
+    .team-managed-grid { grid-template-columns: 1fr; gap: 27px; }
+    .team-managed ol { padding-left: 20px; }
+  }
+</style>

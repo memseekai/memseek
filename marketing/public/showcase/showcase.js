@@ -1,9 +1,9 @@
 /* ============================================================
    Showcase system layer — shared behavior.
 
-   Theme persistence uses the same `ms-theme` key as the landing
-   page and BaseLayout.astro, so the choice follows a visitor
-   across the whole site instead of resetting per page.
+   Theme persistence uses the same `ms-theme` key as BaseLayout,
+   so the choice follows a visitor across the whole site instead of
+   resetting per page.
 
    Pair this with the inline pre-paint snippet in each showcase's
    <head>; this file only wires the toggle and the reveals.
@@ -13,68 +13,35 @@
   var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   /* ---------- theme toggle ---------- */
-  var btn = document.getElementById('theme');
+  var btn = document.getElementById('themeBtn');
   if (btn) {
     btn.addEventListener('click', function () {
-      var next = root.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+      var next = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
       root.setAttribute('data-theme', next);
-      btn.setAttribute('aria-pressed', String(next === 'light'));
+      btn.setAttribute('aria-pressed', String(next === 'dark'));
       try { localStorage.setItem('ms-theme', next); } catch (e) {}
     });
-    btn.setAttribute('aria-pressed', String(root.getAttribute('data-theme') === 'light'));
+    btn.setAttribute('aria-pressed', String(root.getAttribute('data-theme') === 'dark'));
   }
 
-  /* ---------- marketing-site navigation ---------- */
-  var menus = [].slice.call(document.querySelectorAll('.site-nav .nav-menu'));
-  if (menus.length) {
-    var hoverable = window.matchMedia && window.matchMedia('(hover: hover) and (pointer: fine)').matches;
-    var shut = null;
-
-    function closeMenu(menu) {
-      menu.classList.remove('open');
-      menu.querySelector('.nav-trigger').setAttribute('aria-expanded', 'false');
-    }
-    function closeMenus(except) {
-      menus.forEach(function (menu) { if (menu !== except) closeMenu(menu); });
-    }
-    function openMenu(menu) {
-      closeMenus(menu);
-      menu.classList.add('open');
-      menu.querySelector('.nav-trigger').setAttribute('aria-expanded', 'true');
-    }
-
-    menus.forEach(function (menu) {
-      var trigger = menu.querySelector('.nav-trigger');
-      trigger.addEventListener('click', function () {
-        if (shut) { clearTimeout(shut); shut = null; }
-        menu.classList.contains('open') ? closeMenu(menu) : openMenu(menu);
-      });
-      menu.addEventListener('click', function (event) {
-        if (event.target.closest('.nav-panel a')) closeMenu(menu);
-      });
-      if (hoverable) {
-        menu.addEventListener('mouseenter', function () {
-          if (shut) { clearTimeout(shut); shut = null; }
-          openMenu(menu);
-        });
-        menu.addEventListener('mouseleave', function () {
-          shut = setTimeout(function () { closeMenu(menu); shut = null; }, 140);
-        });
-      }
-      menu.addEventListener('focusout', function (event) {
-        if (!menu.contains(event.relatedTarget)) closeMenu(menu);
-      });
+  /* ---------- narrow-width nav ---------- */
+  var header = document.querySelector('.header');
+  var menu = header && header.querySelector('.menu');
+  if (menu) {
+    menu.addEventListener('click', function () {
+      var open = header.toggleAttribute('data-open');
+      menu.setAttribute('aria-expanded', String(open));
     });
-
-    document.addEventListener('click', function (event) {
-      if (!event.target.closest('.site-nav .nav-menu')) closeMenus(null);
+    header.addEventListener('click', function (event) {
+      if (!event.target.closest('.navlinks a')) return;
+      header.removeAttribute('data-open');
+      menu.setAttribute('aria-expanded', 'false');
     });
     document.addEventListener('keydown', function (event) {
-      if (event.key !== 'Escape') return;
-      var open = document.querySelector('.site-nav .nav-menu.open');
-      if (!open) return;
-      closeMenu(open);
-      open.querySelector('.nav-trigger').focus();
+      if (event.key !== 'Escape' || !header.hasAttribute('data-open')) return;
+      header.removeAttribute('data-open');
+      menu.setAttribute('aria-expanded', 'false');
+      menu.focus();
     });
   }
 

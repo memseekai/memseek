@@ -1,0 +1,195 @@
+/* ============================================================
+   Memseek design tokens — the single source of truth.
+
+   Every surface reads from here: the marketing pages, the blog,
+   the showcases in public/, and (by hand-copy, since it builds in
+   another repo path) docs/stylesheets/extra.css. The old site
+   declared these values three times over and drifted; don't
+   reintroduce a second copy.
+
+   Light is the whole story on the marketing pages. Reading
+   surfaces — blog, showcases, docs — also carry the dark set
+   below, chosen with [data-theme] and persisted to ms-theme.
+   ============================================================ */
+
+/* DM Sans carries two axes: wght 100-1000 and opsz 9-40. The opsz
+   axis is why headings and body text look like they were drawn for
+   their sizes rather than scaled: font-optical-sizing defaults to
+   auto, so declaring the axis is all it takes. Latin and Latin-ext
+   are split so a page of English prose pulls 70KB, not 105KB.
+   Licence: OFL-1.1, shipped at /fonts/OFL.txt. */
+@font-face {
+  font-family: 'DM Sans';
+  font-style: normal;
+  font-weight: 100 1000;
+  font-display: swap;
+  src: url('/fonts/dm-sans-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6,
+    U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+2074, U+20AC,
+    U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'DM Sans';
+  font-style: normal;
+  font-weight: 100 1000;
+  font-display: swap;
+  src: url('/fonts/dm-sans-latin-ext.woff2') format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7,
+    U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F,
+    U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F,
+    U+A720-A7FF;
+}
+
+:root {
+  /* Surfaces. --ambient is the page ground, --paper the raised one;
+     the redesign leans on that pair constantly, so both are tokens
+     rather than one plus an override. */
+  --ambient: #faf9f5;
+  --paper: #fff;
+  --silver: #f2f5fa;
+  --line: #d8e0ef;
+  --line-soft: #e4e9f2;
+
+  /* Ink. --copy is body text and --muted is metadata; the redesign
+     runs body copy several steps lighter than headings, and losing
+     that flattens every page. */
+  --ink: #111a30;
+  --copy: #47536b;
+  --muted: #626f87;
+
+  /* Cobalt is the only brand hue. Lilac is scenery and never carries
+     meaning on its own; --sky is the hero wash. */
+  --blue: #2456ed;
+  --deep: #173ed6;
+  --blue-soft: #eaf0ff;
+  --sky: #d6e7fd;
+  --lilac: #e6e0fb;
+  --ambient-ink: #16233c;
+
+  /* Signal hues, used only where a source must stay identifiable.
+     These are the app marks, not a decorative palette. */
+  --app-gmail: #4f70b5;
+  --app-hubspot: #6076a5;
+  --app-slack: #8870ba;
+  --app-linear: #6875cd;
+
+  /* The redesign hardcoded every radius, clustering at 10/12/13px.
+     Named steps, mapped to the nearest value it actually used. */
+  --r-xs: 5px;
+  --r-sm: 7px;
+  --r: 10px;
+  --r-md: 12px;
+  --r-lg: 16px;
+  --r-full: 999px;
+
+  /* 4px base. The redesign had no scale at all; these are the
+     clusters its spacing actually fell into. */
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 12px;
+  --s-4: 16px;
+  --s-5: 24px;
+  --s-6: 32px;
+  --s-7: 48px;
+  --s-8: 64px;
+  --s-9: 88px;
+
+
+  /* Reading surfaces need two things the marketing pages never do: a third
+     ink tier for footnotes and captions, and one non-cobalt accent for
+     caution. --caution is the only warm value in the system and exists so a
+     warning does not have to borrow the brand colour. */
+  --faint: #697385;
+  --code-bg: #f6f8fd;
+  --caution: #a6630d;
+  --mark: color-mix(in srgb, var(--caution) 16%, transparent);
+
+
+  /* Series ramp. The blog's diagrams need up to five lines a reader has to
+     tell apart at a glance, which one brand hue cannot do. These walk cobalt
+     round to orchid rather than reaching for a second temperature, so a
+     diagram still reads as part of this system. Shape and direct labels do
+     the real work; colour only has to separate. */
+  --series-1: #2456ed;
+  --series-2: #6b4fd8;
+  --series-3: #1779b2;
+  --series-4: #4a6a9e;
+  --series-5: #8b5cc4;
+
+  /* Fluid type scale. The marketing pages size their own display type, but
+     a blog post is read at length and needs a scale that tracks the viewport
+     rather than five hand-picked clamps. */
+  --step--1: clamp(.78rem, .76rem + .1vw, .84rem);
+  --step-0: clamp(.95rem, .92rem + .18vw, 1.05rem);
+  --step-1: clamp(1.1rem, 1rem + .5vw, 1.35rem);
+  --step-2: clamp(1.5rem, 1.2rem + 1.4vw, 2.3rem);
+  --step-3: clamp(2.1rem, 1.5rem + 3vw, 4rem);
+
+  --shadow-card: 0 1px 2px #243e5110, 0 14px 30px -18px #3f5d8c55;
+  --shadow-raised: inset 0 1px 0 #fff, 0 0 0 5px #ffffff60, 0 24px 55px -26px #405b9d80;
+  --shadow-btn: inset 0 1px 0 #ffffff6e, 0 3px 4px #1742b014, 0 8px 20px -10px #1b4bd080;
+
+  --ease: cubic-bezier(.22, .8, .22, 1);
+  --font: 'DM Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --mono: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+  --maxw: 1280px;
+  --focus: #285aff;
+
+  color-scheme: light;
+}
+
+/* ============================================================
+   Dark — reading surfaces only (blog, showcases, docs).
+
+   Derived from the light set, not sampled from a design: the
+   redesign ships no dark mode. Two values are deliberately not
+   straight inversions:
+
+   --blue lifts from #2456ed to #6f8dff, because the cobalt reads
+   at 2.6:1 on the dark ground and fails as link text.
+   --lilac lifts for the same reason; at #e6e0fb it is a light-mode
+   wash, and at dark-mode opacity it disappears entirely.
+   ============================================================ */
+:root[data-theme='dark'] {
+  --ambient: #0d1526;
+  --paper: #131c30;
+  --silver: #1a2440;
+  --line: #27334d;
+  --line-soft: #202b45;
+
+  --ink: #e8ecf5;
+  --copy: #a8b3c9;
+  --muted: #7c8aa5;
+
+  --blue: #7e9bff;
+  --deep: #5f81ff;
+  --blue-soft: #1a2647;
+  --sky: #1c2c4e;
+  --lilac: #a99cf0;
+  --ambient-ink: #cbd5ea;
+
+  --app-gmail: #8fa8e0;
+  --app-hubspot: #9db0da;
+  --app-slack: #b39ee0;
+  --app-linear: #9ba6ee;
+
+
+
+  --series-1: #7e9bff;
+  --series-2: #a48cf5;
+  --series-3: #5fb0e0;
+  --series-4: #8aa5cf;
+  --series-5: #c197e8;
+
+  --faint: #7784a2;
+  --code-bg: #101a2e;
+  --caution: #e0a860;
+  --mark: color-mix(in srgb, var(--caution) 22%, transparent);
+
+  --shadow-card: 0 1px 2px #0006, 0 14px 30px -18px #0009;
+  --shadow-raised: inset 0 1px 0 #ffffff12, 0 0 0 5px #ffffff06, 0 24px 55px -26px #000a;
+  --shadow-btn: inset 0 1px 0 #ffffff2e, 0 3px 4px #0003, 0 8px 20px -10px #0006;
+
+  --focus: #7e9bff;
+  color-scheme: dark;
+}

@@ -3,12 +3,12 @@
   "type": "module",
   "private": true,
   "version": "0.1.0",
-  "description": "Memseek marketing site + blog (Astro, deployed to Cloudflare Pages)",
+  "description": "Memseek marketing site + blog (Astro, deployed as a Cloudflare Worker with static assets)",
   "scripts": {
-    "dev": "astro dev",
-    "build": "astro build",
+    "dev": "node scripts/sync-chrome.mjs && astro dev",
+    "build": "node scripts/sync-chrome.mjs && astro build",
     "preview": "npm run build && wrangler dev",
-    "check": "astro check",
+    "check": "astro check && node scripts/check-tokens.mjs && node scripts/check-contrast.mjs",
     "deploy": "npm run build && wrangler deploy",
     "cf-typegen": "wrangler types"
   },
@@ -26,6 +26,8 @@
     "sharp": "^0.34.5"
   },
   "devDependencies": {
+    "@astrojs/check": "^0.9.10",
+    "typescript": "^5.9.3",
     "wrangler": "^4.114.0"
   }
 }

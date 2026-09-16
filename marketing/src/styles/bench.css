@@ -1,0 +1,264 @@
+/* ============================================================
+   The benchmark chart.
+
+   One dataset, three renderings: ranked bars on the left, a
+   log-scale scatter on the right, and the same numbers as text in
+   the values disclosure. The text version is not a fallback — it
+   is the only rendering that works at 400px, which is why it is
+   revealed rather than hidden on narrow screens.
+
+   The kinds carry meaning and must stay visually distinct:
+     mem    MemBukkit, filled circle
+     other  another result under the official judge, filled square
+     alt    a different grading model, dashed diamond
+   The dashes are the caveat. They say "this number was produced
+   under different rules" without a footnote.
+   ============================================================ */
+
+.benchmark-head {display:flex;justify-content:space-between;align-items:center;gap:30px;padding:43px 0 29px}
+.benchmark-head h1 {font-size:clamp(44px,5vw,63px)}
+.benchmark-head p {font-size:17px;max-width:620px;margin:16px 0 0}
+.benchmark-head .actions {justify-content:end}
+.benchmark-head .small {margin-top:9px;color:var(--muted)}
+@media(max-width:760px) {
+  .benchmark-head {display:block;padding-top:39px}
+  .benchmark-head .actions {justify-content:start}
+}
+.bench-lab {background:white;border:1px solid #cdd3db;border-radius:16px;overflow:hidden}
+.bench-banner {display:flex;align-items:center;justify-content:space-between;gap:24px;padding:22px 28px;background:#17283f;color:white}
+.bench-banner h2 {font-size:27px;letter-spacing:-.035em}
+.bench-banner p {font-size:13px;color:#d2d9e3;margin:7px 0 0}
+.bench-banner a {font-size:14px;color:#dbeaff;white-space:nowrap;text-decoration:underline;text-underline-offset:4px}
+.bench-grid {display:grid;grid-template-columns:310px minmax(0,1fr)}
+.bench-ranking {padding:26px 24px;border-right:1px solid var(--line)}
+.bench-ranking h3,.bench-cost h3 {font-size:20px;letter-spacing:-.025em}
+.bench-label {font-size:12px;color:var(--muted);line-height:1.55;margin:8px 0 22px}
+.bench-rank {margin:0 0 19px}
+.bench-rank-top {display:flex;justify-content:space-between;gap:8px;align-items:center;font-size:14px;line-height:1.5}
+.bench-rank-top b {font-size:18px;font-weight:600}
+.bench-rank.mem .bench-rank-top {color:var(--blue)}
+.bench-rank small {display:block;font-size:12px;color:var(--muted);margin-top:5px}
+.bench-track {height:9px;border-radius:2px;overflow:hidden;background:#eaecef;margin-top:8px}
+.bench-fill {display:block;height:100%;background:#8599b3}
+.bench-rank.mem .bench-fill {background:#143b70}
+.bench-rank.alt .bench-fill {background:repeating-linear-gradient(135deg,#abb4bf 0px,#abb4bf 3px,#e2e5e8 3px,#e2e5e8 6px)}
+.bench-alt {border-top:1px solid var(--line);padding-top:18px}
+.bench-alt summary {cursor:pointer;font-size:14px;line-height:1.5}
+.bench-alt .bench-label {margin-bottom:20px}
+.bench-alt[open] summary {margin-bottom:12px}
+.bench-cost {padding:26px 25px 20px;min-width:0}
+.bench-cost-heading {display:flex;justify-content:space-between;gap:18px;align-items:start}
+.bench-unit {display:flex;border:1px solid #bdc4cd;padding:3px;border-radius:5px;flex-shrink:0}
+.bench-unit button {font-size:12px;border:0;padding:7px 9px;background:transparent;color:var(--blue);border-radius:3px;white-space:nowrap}
+.bench-unit button[aria-pressed=true] {background:var(--blue);color:white}
+.bench-chart {margin:10px -5px 0}
+.bench-chart svg {width:100%;height:auto;display:block;overflow:visible}
+.bench-point {cursor:pointer;outline:none}
+.bench-point .hit {fill:transparent}
+.bench-point .halo {fill:none;stroke:transparent;stroke-width:9}
+.bench-point[aria-pressed=true] .halo {stroke:#a1b7d588}
+.bench-point:hover .dot,.bench-point:focus-visible .dot {stroke:#4b7cdb;stroke-width:4}
+.bench-point:focus-visible .halo {stroke:#a5c5ff88}
+.bench-legend {display:flex;gap:17px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin:7px 0 16px}
+.bench-legend i {display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--blue);margin-right:6px}
+.bench-legend .other i {background:#7b8ca0;border-radius:1px}
+.bench-selection {padding:16px 18px;background:#e9eef4;border:1px solid #cdd5df;border-radius:7px;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px}
+.bench-selection strong {display:block;font-weight:550;font-size:15px;margin-bottom:6px}
+.bench-selection span {font-size:12px;color:var(--muted);line-height:1.5}
+.bench-selection b {font-size:24px;letter-spacing:-.045em;font-weight:550;text-align:right;align-self:center}
+.bench-selection b small {display:block;font-size:12px;font-weight:400;color:var(--muted);letter-spacing:0;margin-top:3px}
+.bench-evidence {border-top:1px solid var(--line);padding:21px 28px;display:grid;grid-template-columns:1fr 1fr;gap:40px}
+.bench-evidence h4 {font-size:16px;line-height:1.5;margin:0 0 13px}
+.bench-paired-title {display:flex;justify-content:space-between;align-items:center;gap:12px}
+.bench-paired-title strong {font-size:21px;color:var(--blue);font-weight:550;letter-spacing:-.025em}
+.bench-minirow {display:grid;grid-template-columns:107px minmax(0,1fr) 52px;gap:12px;align-items:center;margin:10px 0;font-size:12px}
+.bench-minirow .bench-track {margin:0;height:8px}
+.bench-minirow:first-of-type .bench-fill {background:var(--blue)}
+.bench-minirow b {text-align:right;font-size:14px;font-weight:550}
+.bench-method {border-top:1px solid var(--line);padding:17px 28px;color:var(--muted);font-size:12px;line-height:1.65}
+.bench-method summary {cursor:pointer;font-size:13px;color:var(--ink)}
+.bench-method p {font-size:13px;margin:14px 0 0}
+.bench-method a {text-decoration:underline;text-underline-offset:3px}
+.bench-data {display:none}
+.bench-data summary {font-size:13px;cursor:pointer;padding:15px 0}
+.bench-data-row {display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px 18px;border-top:1px solid var(--line);padding:12px 0;font-size:14px}
+.bench-data-row small {grid-column:1/-1;font-size:12px;color:var(--muted)}
+.benchmark-head h1 {font-size:clamp(40px,4.7vw,61px)}
+@media(max-width:1100px) {
+  .bench-grid {grid-template-columns:270px minmax(0,1fr)}
+  .bench-cost {padding:25px 18px 20px}
+  .bench-ranking {padding:25px 20px}
+  .bench-cost-heading {flex-direction:column;gap:8px}
+  .bench-label {margin-bottom:15px}
+  .bench-chart {margin-top:0}
+}
+@media(max-width:900px) {
+  .bench-grid {grid-template-columns:1fr}
+  .bench-ranking {border-right:0;border-bottom:1px solid var(--line)}
+  .bench-official {display:grid;grid-template-columns:1fr 1fr;gap:0 28px}
+  .bench-cost-heading {flex-direction:row}
+  .bench-cost {padding:25px}
+  .bench-banner {align-items:start}
+  .bench-banner h2 {font-size:24px}
+  .bench-evidence {gap:26px}
+  .bench-minirow {grid-template-columns:94px minmax(0,1fr) 48px;gap:8px}
+}
+@media(max-width:580px) {
+  .bench-banner {display:block;padding:22px}
+  .bench-banner a {display:inline-block;margin-top:12px}
+  .bench-official {grid-template-columns:1fr}
+  .bench-cost {padding:23px 18px}
+  .bench-cost-heading {display:block}
+  .bench-unit {display:inline-flex;margin-top:11px}
+  .bench-chart {margin:15px 0 0}
+  .bench-chart .desktop-point-label {display:none}
+  .bench-chart .mobile-point-label {display:block}
+  .bench-chart svg {overflow:visible}
+  .bench-data {display:block}
+  .bench-legend {font-size:12px;margin-top:13px;gap:10px}
+  .bench-selection {grid-template-columns:1fr;padding:15px}
+  .bench-selection b {text-align:left;font-size:25px}
+  .bench-evidence {grid-template-columns:1fr;padding:24px 20px;gap:26px}
+  .bench-method {padding:17px 20px}
+  .bench-paired-title strong {font-size:19px}
+  .bench-chart svg .axis-text {font-size:31px}
+  .bench-chart svg .mobile-point-label {font-size:27px}
+  .bench-chart svg .axis-title {display:none}
+}
+@media(min-width:581px) {
+  .bench-chart .mobile-point-label {display:none}
+}
+.bench-grid {display:flex;flex-direction:column}
+.bench-cost {order:-1;padding:27px 28px}
+.bench-ranking {border-right:0;border-top:1px solid var(--line);display:grid;grid-template-columns:1fr 1fr;gap:0 40px;padding:26px 28px}
+.bench-ranking>h3,.bench-ranking>.bench-label {grid-column:1/-1}
+.bench-official {display:block}
+.bench-alt {border:0;padding:0}
+.bench-chart {margin:0}
+.bench-filters {border:0;padding:0;margin:15px 0 10px;min-width:0}
+.bench-filters legend {font-size:13px;color:var(--muted);margin-bottom:11px}
+.bench-filter-grid {display:flex;flex-wrap:wrap;gap:8px}
+.bench-filter {display:inline-flex;align-items:center;gap:7px;font-size:13px;line-height:1.45;padding:7px 10px;border:1px solid var(--line);border-radius:5px;cursor:pointer;background:#eff2f6}
+.bench-filter:has(input:not(:checked)) {background:white;color:#637c9d}
+.bench-filter input {width:15px;height:15px;margin:0;accent-color:#143b70}
+.bench-filter.alt {border-style:dashed}
+.bench-filter .point-number {font-size:11px;color:var(--muted)}
+.bench-point.is-off {display:none}
+.bench-legend .alt i {background:transparent;border:2px dashed #a16b57}
+.bench-series-summary {font-size:12px;color:var(--muted);margin:12px 0}
+.bench-empty {padding:25px;text-align:center;background:var(--silver);font-size:15px;border-radius:6px}
+.bench-chart svg .axis-text {font-size:15px}
+.bench-point .leader {stroke-width:1.3}
+.bench-point .desktop-point-label text {paint-order:stroke;stroke:white;stroke-width:5px;stroke-linejoin:round}
+.bench-data-row.is-off {display:none}
+@media(max-width:760px) {
+  .bench-ranking {grid-template-columns:1fr;gap:15px;padding:23px}
+  .bench-ranking>h3,.bench-ranking>.bench-label {grid-column:auto}
+  .bench-cost {padding:23px 18px}
+  .bench-cost-heading {display:flex;flex-direction:row}
+  .bench-filters {margin-top:18px}
+  .bench-filter {font-size:12px;padding:6px 8px}
+  .bench-chart .desktop-point-label {display:none}
+  .bench-chart .mobile-point-label {display:block;font-size:28px;font-weight:600}
+  .bench-chart svg .axis-text {font-size:27px}
+  .bench-chart svg .axis-title {display:none}
+  .bench-data {display:block}
+  .bench-chart svg {min-width:690px}
+  .bench-chart {overflow-x:auto;padding-bottom:10px}
+  .bench-chart .unknown-title {font-size:23px}
+  .bench-selection {grid-template-columns:1fr auto}
+  .bench-selection b {text-align:right}
+}
+@media(min-width:761px) {
+  .bench-chart .mobile-point-label {display:none}
+}
+.benchmark-head h1 {font-size:clamp(48px,6vw,82px);letter-spacing:-.065em}
+.bench-lab {border-color:#d5d9e3}
+.bench-banner {background:#edf1ff;color:#26355f}
+.bench-filter {border-radius:3px}
+.bench-filter:has(input:checked) {border-color:#acbaf0;background:#edf1ff}
+.bench-filter input {accent-color:var(--blue)}
+.bench-chart {border-radius:2px}
+.bench-ranking {background:#fff}
+.bench-unit button {border-radius:2px}
+.bench-method summary {color:var(--blue)}
+@media(max-width:760px) {
+  .benchmark-head h1 {font-size:47px}
+}
+.finish-membukkit .benchmark-head {padding-top:64px;padding-bottom:42px;gap:45px}
+.finish-membukkit .benchmark-head h1 {font-size:clamp(48px,5.4vw,76px);line-height:1.03;max-width:850px}
+.finish-membukkit .benchmark-head p {max-width:610px;font-size:18px}
+.finish-membukkit .benchmark-head .actions {margin-bottom:16px}
+.finish-membukkit .bench-lab {border:1px solid #cedbf5;border-radius:23px;box-shadow:0 2px 4px #29469306,0 20px 46px -28px #375cc457;overflow:hidden;background:#fff}
+.finish-membukkit .bench-banner {padding:30px 34px;border-radius:0;background:radial-gradient(ellipse at 90% 0,#c7bfff9c,transparent 60%),linear-gradient(115deg,#ecf3ff,#e8eaff);border-bottom:1px solid #d3dff8;color:#293c6d}
+.finish-membukkit .bench-banner>div {display:grid;grid-template-columns:auto 1fr;align-items:center;column-gap:24px}
+.finish-membukkit .result-score {font-size:96px;font-weight:450;letter-spacing:-.05em;line-height:1;grid-row:1/3;color:#3653d6}
+.finish-membukkit .result-score>span {font-size:49px}
+.finish-membukkit .bench-banner h2 {font-size:27px;letter-spacing:-.04em;margin:0}
+.finish-membukkit .bench-banner p {font-size:12px;margin:8px 0 0;color:#5e709a}
+.finish-membukkit .bench-banner>a {color:#3652bd;font-size:14px}
+.finish-membukkit .bench-grid {padding:26px;gap:24px}
+.finish-membukkit .bench-ranking {border-radius:15px;border-color:#dbe4f6;background:#fbfcff}
+.finish-membukkit .bench-rank.mem .bench-fill {background:linear-gradient(90deg,#3576fb,#7350eb)}
+.finish-membukkit .bench-rank.other .bench-fill {background:#7999e1}
+.finish-membukkit .bench-rank.alt .bench-fill {background:#a18dd2}
+.finish-membukkit .bench-filter {border-radius:8px;transition:background .2s,border-color .2s}
+.finish-membukkit .bench-filter:has(input:checked) {background:#eef3ff;border-color:#b6c8f8}
+.finish-membukkit .bench-filter.mem:has(input:checked) {background:#e7edff;border-color:#93aaf1}
+.finish-membukkit .bench-filter.alt:has(input:checked) {background:#f4f0ff;border-color:#d5c7ee}
+.finish-membukkit .bench-unit {border-radius:9px;background:#edf2ff;padding:3px}
+.finish-membukkit .bench-unit button {border-radius:7px}
+.finish-membukkit .bench-unit button[aria-pressed=true] {background:white;color:#3558cb;box-shadow:0 2px 5px #264aa81f}
+.finish-membukkit .bench-chart {border-radius:13px;background:#fff}
+.finish-membukkit .bench-selection {border-radius:10px;background:#eef3ff;border-color:#cfddff}
+.finish-membukkit .bench-method,.finish-membukkit .bench-evidence {border-radius:12px;background:#f5f7fe}
+.finish-membukkit .bench-method summary {color:#395bbd}
+@media(max-width:1100px) {
+  .finish-membukkit .bench-banner {padding:26px}
+  .finish-membukkit .result-score {font-size:78px}
+  .finish-membukkit .bench-banner h2 {font-size:23px}
+}
+@media(max-width:760px) {
+  .finish-membukkit .benchmark-head {padding-top:42px;padding-bottom:30px;gap:18px}
+  .finish-membukkit .benchmark-head h1 {font-size:46px}
+  .finish-membukkit .benchmark-head p {font-size:17px}
+  .finish-membukkit .bench-lab {border-radius:17px}
+  .finish-membukkit .bench-banner {padding:24px 20px;gap:17px}
+  .finish-membukkit .bench-banner>div {display:block}
+  .finish-membukkit .result-score {font-size:86px;margin-bottom:16px}
+  .finish-membukkit .result-score>span {font-size:43px}
+  .finish-membukkit .bench-banner h2 {font-size:27px}
+  .finish-membukkit .bench-banner p {font-size:12px}
+  .finish-membukkit .bench-grid {padding:14px;gap:20px}
+  .finish-membukkit .bench-ranking {padding:18px}
+  .finish-membukkit .bench-banner>a {font-size:13px}
+  .finish-membukkit .bench-filter {font-size:12px}
+  .finish-membukkit .bench-cost-heading {flex-wrap:wrap;gap:13px}
+}
+.finish-membukkit .benchmark-head h1 {max-width:800px}
+.finish-membukkit .bench-banner {background:#edf3ff}
+.finish-membukkit .bench-banner h2 {font-size:24px;max-width:350px;line-height:1.2}
+.finish-membukkit .result-score {font-variant-numeric:tabular-nums;letter-spacing:-.055em}
+.finish-membukkit .bench-banner p {line-height:1.65}
+.finish-membukkit .bench-cost-heading {font-family:'DM Sans',sans-serif}
+.finish-membukkit .bench-cost-heading h3 {font-size:24px;letter-spacing:-.035em}
+.finish-membukkit .bench-label {font-family:'DM Sans',sans-serif;letter-spacing:0;font-size:13px}
+@media(max-width:760px) {
+  .finish-membukkit .bench-banner h2 {font-size:26px;max-width:290px}
+  .finish-membukkit .bench-filter {min-height:40px;font-size:12px}
+  .finish-membukkit .bench-unit button {min-height:40px}
+  .finish-membukkit .bench-cost-heading h3 {font-size:23px}
+}
+.finish-membukkit .bench-banner .result-explainer {margin-top:8px}
+.finish-membukkit .bench-banner .result-explainer>strong {display:block;font-size:15px;line-height:1.5;font-weight:500;color:#344c80}
+.finish-membukkit .bench-banner .result-explainer>span {display:block;font-size:12px;line-height:1.6;margin-top:8px;color:#5b6b84}
+@media(max-width:760px) {
+  .finish-membukkit .bench-banner .result-explainer>strong {font-size:14px}
+}
+.benchmark-head p {font-size:18px;color:#52647f}
+.bench-lab {border-color:#c7d6ee!important;background:#f4f8ff!important;box-shadow:inset 0 1px 0 #fff,0 20px 45px -30px #2d4e8552;border-radius:22px!important}
+.bench-lab h2 {color:#173053}
+.bench-lab button {font-size:13px!important}
+@media(max-width:760px) {
+  .benchmark-head p {font-size:17px}
+}
