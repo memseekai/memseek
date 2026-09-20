@@ -1,0 +1,21 @@
+---
+interface Props { updated?: boolean }
+const { updated = false } = Astro.props;
+---
+<div class:list={['campaign-ad', { updated }]} aria-label={updated ? 'Revised sample ad: Spanish copy and a city setting for a Bogotá audience brief' : 'First sample ad: English copy and a beach setting'}>
+  <div class="ad-brand">CARRY / EVERYDAY</div>
+  <svg viewBox="0 0 320 160" aria-hidden="true">
+    {updated ? <g fill="currentColor" opacity=".16"><path d="M0 150V65h38v85h12V35h48v115h12V80h33v70h96V55h37v95h12V20h32v140H0Z" /></g> : <g fill="none" stroke="currentColor" opacity=".2" stroke-width="2"><path d="M0 120Q80 80 160 120T320 120M0 136Q80 96 160 136T320 136"/><circle cx="260" cy="35" r="24"/></g>}
+    <g fill="#344b40" stroke="#20382d" stroke-width="3"><path d="M139 37v-7c0-24 42-24 42 0v7" fill="none" stroke-width="7"/><rect x="112" y="33" width="96" height="112" rx="23"/><rect x="122" y="89" width="76" height="43" rx="10" fill="#496452"/><path d="M130 62h60M133 101h54" stroke="#d1d8bc"/><path d="M111 57q-15 30-10 71M209 57q15 30 10 71" fill="none" stroke-width="7"/></g>
+  </svg>
+  <strong>{updated ? 'Tu ciudad. Tu ritmo.' : 'Take the scenic route.'}</strong>
+  <span class="ad-cta">{updated ? 'Encuentra tu mochila ↗' : 'Find your everyday bag ↗'}</span>
+</div>
+<style>
+  .campaign-ad { background: #f2e8d5; color: #4c513e; padding: 18px 22px 22px; border-radius: 14px; overflow: hidden; }
+  .campaign-ad.updated { background: #e0e8db; color: #304f43; }
+  .ad-brand { font-size: 10px; font-weight: 700; letter-spacing: .16em; }
+  svg { display: block; width: 100%; height: 146px; margin: 4px 0 10px; }
+  strong { display: block; font-size: 26px; line-height: 1.15; letter-spacing: -.04em; }
+  .ad-cta { display: block; margin-top: 13px; font-size: 12px; }
+</style>

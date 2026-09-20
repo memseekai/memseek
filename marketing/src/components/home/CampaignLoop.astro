@@ -1,0 +1,85 @@
+---
+import CampaignAd from './CampaignAd.astro';
+import { campaignSteps, creativeRule, learnedRule } from '../../data/campaign-story';
+interface Props { compact?: boolean }
+const { compact = false } = Astro.props;
+const prefix = compact ? 'campaign-preview' : 'campaign-detail';
+---
+<div class:list={['campaign-loop', { compact }]} data-campaign-loop>
+  <div class="campaign-heading"><b>{compact ? 'A campaign that learns.' : 'Your ecommerce agent team'}</b><span>Illustrative workflow</span></div>
+  <div class="campaign-agents" aria-label="Agents and their skills in your application">
+    <span>Catalog <small>Product skill</small></span><span class="creative">Creative <small>Creative skill</small></span><span>Performance <small>Analysis skill</small></span>
+  </div>
+  <div class="campaign-controls" role="group" aria-label="Explore the campaign learning loop" hidden>
+    {campaignSteps.map((step, i) => <button type="button" data-campaign-step={i} aria-pressed={i === 0} aria-controls={`${prefix}-${i}`}><span>0{i + 1}</span>{step.label}</button>)}
+  </div>
+  <div class="campaign-frames">
+    {campaignSteps.map((step, i) => <section id={`${prefix}-${i}`} data-campaign-frame={i} aria-label={step.label}>
+      <div class="campaign-narrative"><span class="campaign-eyebrow">{step.actor}</span><h3>{step.title}</h3>{!compact && <p>{step.body}</p>}</div>
+      <div class="campaign-scene">
+        <div class="campaign-artifact">
+          <div class="artifact-heading"><b>Memseek</b><span>{i === 2 ? 'Learning agent' : 'Shared skills'}</span></div>
+          <div class="skill-label">Creative skill <b>{i === 3 ? 'v2' : 'v1'}</b></div>
+          <p class="skill-rule">{creativeRule}</p>
+          {i >= 2 && <div class="skill-addition"><span>{i === 2 ? '+ Proposed addition · v2' : '✓ Approved addition'}</span><p>{learnedRule}</p></div>}
+          <div class="artifact-status">{i === 2 ? 'Evidence → proposed revision → review' : i === 3 ? 'Approved version served on the next run' : 'Retrieved by your creative agent'}</div>
+        </div>
+        <div class="campaign-output">
+          {(i === 0 || i === 3) ? <><CampaignAd updated={i === 3}/><p class="output-caption">{i === 0 ? 'First campaign · English / beach setting' : 'Next campaign · Spanish / city setting'}</p></> : i === 1 ? <div class="feedback-card"><span class="campaign-eyebrow">Campaign feedback</span><b>Engagement is weaker in Colombia.</b><span class="feedback-source">Performance agent · campaign report</span><blockquote>“We’re reaching commuters in Bogotá. This beach creative doesn’t fit their day.”</blockquote><span class="feedback-source">Marketer · creative review</span></div> : <div class="review-card"><span class="campaign-eyebrow">Review the change</span><b>A lesson the next run can use.</b><p>Grounded in the campaign report and the marketer’s feedback.</p><div class="review-approval">✓ Marketer approves v2</div><span class="feedback-source">Approval shown as part of this example</span></div>}
+        </div>
+      </div>
+      <div class="campaign-receipt"><span>{step.status}</span>{i === 3 && <b>↻ New results feed the next cycle</b>}</div>
+      {!compact && i >= 2 && <details class="campaign-evidence"><summary>Why this changed</summary><p>The campaign report flags weaker engagement in Colombia; the marketer’s review identifies a mismatch with the Bogotá commuter audience brief. This supports testing a more relevant creative direction, without establishing the cause of the performance difference.</p><p>Version history retains creative skill v1, the report, the review, the proposed revision, and approval. Skill v2 keeps the product imagery instruction and adds guidance for using each campaign’s audience brief.</p></details>}
+    </section>)}
+  </div>
+  <div class="campaign-footer">{compact ? <a href="#company-learning">Explore the learning loop ↓</a> : <span>Agents act → feedback returns → a skill improves → agents use it again</span>}<button type="button" data-campaign-next hidden>Next: Observe →</button></div>
+  <span class="sr-only" data-campaign-announcement aria-live="polite"></span>
+</div>
+<script>
+  import '../../scripts/campaign-loop';
+</script>
+<style>
+  .campaign-loop { color: #243651; border: 1px solid #c9d5e9; background: #ffffffd9; border-radius: 22px; overflow: hidden; box-shadow: 0 22px 70px -45px #46649a70; }
+  .campaign-heading { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 22px 28px 16px; }
+  .campaign-heading b { font-size: 16px; font-weight: 600; }
+  .campaign-heading > span, .feedback-source { color: #596a81; font-size: 12px; }
+  .campaign-agents { display: flex; gap: 8px; padding: 0 28px 22px; }
+  .campaign-agents > span { flex: 1; border: 1px solid #dae1ec; border-radius: 9px; padding: 10px 14px; font-size: 13px; }
+  .campaign-agents small { display: block; font-size: 11px; color: #596a81; margin-top: 3px; }
+  .campaign-agents .creative { background: #eff3ff; border-color: #bdcdf6; color: #234ac1; }
+  .campaign-controls { display: flex; border-block: 1px solid #dae1ec; background: #f6f8fc; }
+  [hidden] { display: none !important; }
+  .campaign-controls button { flex: 1; padding: 16px 8px; border: 0; background: transparent; font: inherit; font-size: 14px; color: #596a81; cursor: pointer; box-shadow: inset 0 -2px transparent; }
+  .campaign-controls button span { font-size: 11px; margin-right: 8px; }
+  .campaign-controls button[aria-pressed='true'] { color: #234ac1; background: #ecf1ff; box-shadow: inset 0 -2px #315bea; }
+  button:focus-visible, a:focus-visible, summary:focus-visible { outline: 2px solid #315bea; outline-offset: -3px; }
+  .campaign-frames { display: grid; }
+  [data-campaign-frame] { min-width: 0; padding: 26px 28px 18px; }
+  .campaign-loop[data-enhanced] [data-campaign-frame] { grid-area: 1 / 1; }
+  .campaign-loop[data-enhanced] [data-campaign-frame][hidden] { display: block !important; visibility: hidden; pointer-events: none; }
+  .campaign-eyebrow { display: block; color: #3154b1; font-size: 11px; letter-spacing: .07em; text-transform: uppercase; font-weight: 600; }
+  h3 { font-size: 29px; line-height: 1.15; letter-spacing: -.035em; margin: 9px 0 12px; font-weight: 550; }
+  .campaign-narrative > p { max-width: 700px; font-size: 15px; line-height: 1.6; color: #596a81; margin: 0 0 22px; }
+  .campaign-scene { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; align-items: stretch; }
+  .campaign-artifact { background: #f2f5ff; border: 1px solid #d4dff7; border-radius: 14px; padding: 20px; display: flex; flex-direction: column; }
+  .artifact-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; color: #234ac1; padding-bottom: 20px; }
+  .artifact-heading b { font-size: 18px; }.artifact-heading span { font-size: 11px; }
+  .skill-label { font-size: 12px; color: #596a81; }.skill-label b { color: #234ac1; margin-left: 6px; }
+  .skill-rule { font-size: 19px; line-height: 1.45; margin: 10px 0 18px; letter-spacing: -.02em; }
+  .skill-addition { border-left: 2px solid #398166; padding: 10px 12px; background: #e6f1e9; margin-bottom: 15px; color: #28533f; }
+  .skill-addition span { font-size: 11px; font-weight: 600; }.skill-addition p { font-size: 14px; line-height: 1.5; margin: 7px 0 0; }
+  .artifact-status { margin-top: auto; padding-top: 12px; border-top: 1px solid #d4dff7; font-size: 11px; color: #596a81; }
+  .output-caption { color: #596a81; font-size: 11px; margin: 9px 0 0; }
+  .feedback-card, .review-card { border: 1px solid #dce3ed; border-radius: 14px; padding: 24px; height: 100%; box-sizing: border-box; }
+  .feedback-card > b, .review-card > b { display: block; margin: 16px 0 10px; font-size: 23px; line-height: 1.25; letter-spacing: -.025em; font-weight: 550; }
+  blockquote { margin: 24px 0 10px; padding: 14px 0 0; border-top: 1px solid #dce3ed; font-size: 17px; line-height: 1.5; }
+  .review-card p { font-size: 15px; line-height: 1.6; color: #596a81; }.review-approval { background: #e6f1e9; color: #28533f; padding: 12px; border-radius: 8px; margin: 24px 0 10px; font-size: 14px; }
+  .campaign-receipt { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; color: #596a81; font-size: 12px; margin-top: 19px; }.campaign-receipt b { color: #28533f; font-weight: 500; }
+  .campaign-evidence { margin-top: 16px; font-size: 13px; color: #596a81; }.campaign-evidence summary { cursor: pointer; color: #3154b1; }.campaign-evidence p { line-height: 1.6; }
+  .campaign-footer { border-top: 1px solid #dae1ec; padding: 16px 28px; display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 12px; color: #596a81; }
+  .campaign-footer a { color: #3154b1; text-decoration: none; }.campaign-footer button { border: 0; background: #edf2ff; color: #234ac1; font: inherit; padding: 10px 12px; border-radius: 7px; cursor: pointer; white-space: nowrap; }
+  .compact { width: 100%; max-width: 550px; }.compact .campaign-heading { padding: 18px 20px 14px; }.compact .campaign-agents { padding: 0 20px 18px; }.compact .campaign-agents > span { padding: 9px; }
+  .compact [data-campaign-frame] { padding: 20px; }.compact h3 { font-size: 24px; }.compact .campaign-scene { gap: 12px; }.compact .campaign-artifact { padding: 14px; }.compact .artifact-heading { flex-wrap: wrap; padding-bottom: 14px; }.compact .skill-rule { font-size: 16px; }.compact .skill-addition { padding: 8px; }.compact .skill-addition p { font-size: 12px; }
+  .compact .feedback-card, .compact .review-card { padding: 15px; }.compact .feedback-card > b, .compact .review-card > b { font-size: 19px; }.compact blockquote { font-size: 14px; margin-top: 16px; }.compact .review-card p { font-size: 13px; }.compact .campaign-footer { padding: 14px 20px; }
+  @media(max-width: 760px) { .campaign-loop[data-enhanced] [data-campaign-frame][hidden] { display: none !important; } .campaign-heading { padding: 18px; }.campaign-heading > span { font-size: 10px; }.campaign-agents { padding: 0 18px 18px; }.campaign-agents > span { padding: 9px; }.campaign-controls button { font-size: 12px; }.campaign-controls button span { margin-right: 4px; }[data-campaign-frame] { padding: 20px 18px; }h3 { font-size: 25px; }.campaign-scene, .compact .campaign-scene { grid-template-columns: 1fr; }.campaign-artifact { padding: 18px; }.campaign-footer { padding: 14px 18px; flex-wrap: wrap; }.compact { margin: 12px auto 26px; }.artifact-heading { padding-bottom: 12px; } }
+</style>
