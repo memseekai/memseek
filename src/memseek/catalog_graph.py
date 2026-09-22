@@ -710,6 +710,7 @@ class _GraphBuilder:
             ("instructions", definition.instructions),
             ("skills", _joined(definition.skills)),
             ("tools", definition.toolset or _joined(definition.tools)),
+            ("harness", definition.harness or "built-in"),
             ("computers", _joined(definition.computers)),
             ("context policy", definition.context_policy),
             (
@@ -929,6 +930,7 @@ class _GraphBuilder:
                                     ("path", source.path),
                                     ("root", source.root),
                                     ("url", source.url),
+                                    ("pack", source.pack),
                                     ("modes", _joined(source.modes or ())),
                                 )
                                 if value

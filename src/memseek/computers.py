@@ -508,6 +508,15 @@ async def execute_agent(
                     "capability",
                     f"mcp_server tool {tool.get('name')!r} is declared but not yet executable",
                 )
+            if tool.get("kind") == "skillpack" and computer.provider == "cloudflare":
+                raise ComputerExecutionError(
+                    "capability",
+                    f"skillpack tool {tool.get('name')!r} is not yet executable on cloudflare",
+                )
+    if agent.harness is not None and computer.provider == "cloudflare":
+        raise ComputerExecutionError(
+            "capability", f"harness {agent.harness!r} is not yet executable on cloudflare"
+        )
     model_alias = catalog.models.aliases[agent.model]
     context_bytes = sum(len(value.encode("utf-8")) for value in context_files.values())
     input_bytes = len(_canonical_bytes(input_value))

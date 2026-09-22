@@ -1064,12 +1064,16 @@ class AgentDefinition(VersionedDefinition):
     computers: tuple[str, ...]
     context_policy: str
     limits: AgentLimits = Field(default_factory=AgentLimits)
+    # The agent loop that runs this Agent, named by its `harnesses/<name>/`
+    # module. None is the Computer's built-in loop.
+    harness: PublicName | None = None
 
     @model_serializer(mode="wrap")
     def _serialize(self, handler: Any) -> dict[str, Any]:
         dumped = dict(handler(self))
-        if self.toolset is None:
-            dumped.pop("toolset", None)
+        for field_name in ("toolset", "harness"):
+            if getattr(self, field_name) is None:
+                dumped.pop(field_name, None)
         return dumped
 
     @model_validator(mode="after")
@@ -1285,11 +1289,13 @@ def _require_exact_definition_reference(reference: str, kind: str) -> None:
         raise ValueError(f"{kind} must be an exact name@version reference") from exc
 
 
-ToolSourceKind = Literal["filesystem", "exec", "recall", "writeback", "skill", "view", "mcp_server"]
+ToolSourceKind = Literal[
+    "filesystem", "exec", "recall", "writeback", "skill", "view", "mcp_server", "skillpack"
+]
 FilesystemMode = Literal["read", "ls", "find", "grep", "write", "edit", "delete"]
 
 # What each source kind requires and what it may additionally carry.  Stating
-# the exclusivity rule once as data keeps seven kinds from becoming seven
+# the exclusivity rule once as data keeps eight kinds from becoming eight
 # near-identical branches; the checks that are genuinely per-kind — exact
 # references, path prefixes, URL scheme — stay explicit in the validator.
 _TOOL_SOURCE_FIELDS: Mapping[str, tuple[frozenset[str], frozenset[str]]] = {
@@ -1300,6 +1306,7 @@ _TOOL_SOURCE_FIELDS: Mapping[str, tuple[frozenset[str], frozenset[str]]] = {
     "skill": (frozenset({"artifact"}), frozenset({"skill_name"})),
     "view": (frozenset({"view"}), frozenset({"arguments", "mode"})),
     "mcp_server": (frozenset({"url"}), frozenset({"allowed_tools"})),
+    "skillpack": (frozenset({"pack"}), frozenset()),
 }
 _TOOL_SOURCE_BINDINGS = frozenset(
     {
@@ -1313,6 +1320,7 @@ _TOOL_SOURCE_BINDINGS = frozenset(
         "arguments",
         "mode",
         "url",
+        "pack",
         "allowed_tools",
     }
 )
@@ -1361,6 +1369,7 @@ class ToolSourceDefinition(StrictModel):
     mode: Literal["snapshot", "live"] | None = None
     url: str | None = None
     allowed_tools: tuple[PublicName, ...] | None = None
+    pack: PublicName | None = None
 
     @model_serializer(mode="wrap")
     def _serialize(self, handler: Any) -> dict[str, Any]:
@@ -1386,7 +1395,12 @@ class ToolSourceDefinition(StrictModel):
                 raise ValueError(f"{self.kind} tool source requires {field_name}")
             if declared and field_name not in required and field_name not in optional:
                 raise ValueError(f"{self.kind} tool source forbids {field_name}")
-        if self.kind == "skill":
+        if self.kind == "skillpack":
+            if self.description is not None:
+                raise ValueError(
+                    "skillpack tool source forbids description; the pack's skill carries it"
+                )
+        elif self.kind == "skill":
             if self.description is not None:
                 raise ValueError(
                     "skill tool source forbids description; it belongs on the artifact"
@@ -1480,6 +1494,10 @@ class ToolsetDefinition(DefinitionModel):
         ensure_unique(
             [source.path for source in self.sources if source.kind == "writeback"],
             "toolset writeback paths",
+        )
+        ensure_unique(
+            [source.pack for source in self.sources if source.kind == "skillpack"],
+            "toolset skill packs",
         )
         return self
 
