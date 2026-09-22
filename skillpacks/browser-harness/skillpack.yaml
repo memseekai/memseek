@@ -1,0 +1,14 @@
+name: browser-harness
+version: 1
+requires:
+  - {bin: browser-harness, install: "uv tool install --python 3.12 browser-harness"}
+skill:
+  # Its stdout becomes SKILL.md.
+  command: [browser-harness, skill]
+env:
+  pass: [BU_CDP_URL, BU_NAME]
+  # {state} is fresh for each run, or kept per entity when the run persists
+  # browser-harness's own helpers.
+  set: {BH_HOME: "{state}"}
+capabilities: [exec, network]
+learns: true

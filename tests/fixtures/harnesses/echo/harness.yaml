@@ -1,0 +1,8 @@
+name: echo
+version: 3
+entry: [python3, run.py]
+requires:
+  - {bin: python3, install: "https://www.python.org"}
+skills_dir: .agents/skills
+model_env:
+  anthropic: ECHO_MODEL_KEY

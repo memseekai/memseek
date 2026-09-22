@@ -1,0 +1,14 @@
+name: pi
+version: 1
+entry: [node, run.mjs]
+requires:
+  - {bin: node, install: "https://nodejs.org (Node.js 20 or newer)"}
+  - {bin: pi, install: "npm i -g --ignore-scripts @earendil-works/pi-coding-agent"}
+# Where pi discovers project skills, relative to the Computer root. run.mjs also
+# passes each mounted skill with --skill, so discovery does not depend on pi
+# trusting the project directory.
+skills_dir: .agents/skills
+model_env:
+  anthropic: ANTHROPIC_API_KEY
+  openai: OPENAI_API_KEY
+  openrouter: OPENROUTER_API_KEY

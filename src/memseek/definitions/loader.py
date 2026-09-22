@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from types import MappingProxyType
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from croniter import croniter
 from jsonschema import Draft202012Validator, FormatChecker
@@ -76,6 +76,9 @@ from .models import (
     parameter_value_matches,
 )
 from .yaml import load_yaml_file, yaml_files
+
+if TYPE_CHECKING:
+    from memseek.skillpacks import SkillPackManifest
 
 
 def _programmatic_value(value: Any) -> Any:
@@ -2869,6 +2872,24 @@ class _CatalogBuilder:
                 self._validate_toolset_view(source, path, where)
             elif source.kind == "skill":
                 self._validate_toolset_skill(source, path, where)
+            elif source.kind == "skillpack":
+                self._skillpack(source, path, f"{where}.pack")
+
+    def _skillpack(self, source: ToolSourceDefinition, path: Path, where: str) -> SkillPackManifest:
+        # Imported here: skill packs sit above the definitions package.
+        from memseek.harnesses.contract import ManifestError
+        from memseek.skillpacks import load_skillpack
+
+        assert source.pack is not None
+        try:
+            return load_skillpack(source.pack, self.settings.skillpack_paths)
+        except ManifestError as exc:
+            raise DefinitionError(
+                "reference",
+                f"toolset source {source.name!r} names skill pack {source.pack!r}: {exc}",
+                file=path,
+                path=where,
+            ) from exc
 
     def _validate_toolset_view(self, source: ToolSourceDefinition, path: Path, where: str) -> None:
         assert source.view is not None
@@ -2998,6 +3019,8 @@ class _CatalogBuilder:
                     )
                 if definition.toolset is not None:
                     self._validate_agent_toolset(definition, path, index)
+                if definition.harness is not None:
+                    self._validate_agent_harness(definition.harness, path, index)
                 self.agents[key] = _hashed(definition)
                 if definition.active:
                     self._set_active(
@@ -3009,6 +3032,20 @@ class _CatalogBuilder:
                     )
         if not self.agents and self.settings.agents_dir is not None:
             raise DefinitionError("empty_catalog", "no agents found", file=self.settings.agents_dir)
+
+    def _validate_agent_harness(self, harness: str, path: Path, index: int) -> None:
+        from memseek.harnesses.contract import ManifestError
+        from memseek.harnesses.registry import load_harness
+
+        try:
+            load_harness(harness, self.settings.harness_paths)
+        except ManifestError as exc:
+            raise DefinitionError(
+                "reference",
+                f"agent names harness {harness!r}: {exc}",
+                file=path,
+                path=f"agents[{index}].harness",
+            ) from exc
 
     def _validate_agent_toolset(self, definition: AgentDefinition, path: Path, index: int) -> None:
         """Check a bound toolset against every Computer the Agent may run on.
@@ -3052,6 +3089,40 @@ class _CatalogBuilder:
                         file=path,
                         path=where,
                     )
+                if source.kind == "skillpack":
+                    self._validate_skillpack_computer(source, computer, computer_ref, path, where)
+
+    def _validate_skillpack_computer(
+        self,
+        source: ToolSourceDefinition,
+        computer: ComputerDefinition,
+        computer_ref: str,
+        path: Path,
+        where: str,
+    ) -> None:
+        from memseek.skillpacks import LEARNINGS_PATH
+
+        pack = self._skillpack(source, path, where)
+        missing = set(pack.capabilities) - computer.capabilities.enabled
+        if missing:
+            raise DefinitionError(
+                "computer_capability",
+                f"skill pack {pack.name!r} needs {sorted(missing)}, which computer "
+                f"{computer_ref!r} denies",
+                file=path,
+                path=where,
+            )
+        if pack.learns and not any(
+            item.path == LEARNINGS_PATH and item.type == "observations"
+            for item in computer.writeback
+        ):
+            raise DefinitionError(
+                "computer_capability",
+                f"skill pack {pack.name!r} learns, so computer {computer_ref!r} must declare "
+                f"{LEARNINGS_PATH} as an observations writeback",
+                file=path,
+                path=where,
+            )
 
     def _validate_computer_task_references(self) -> None:
         """Resolve Computer-backed Tasks after all four execution families load."""

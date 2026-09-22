@@ -15,6 +15,8 @@ from dotenv import dotenv_values
 from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
+_REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
+
 
 @cache
 def _env_file_values(path: str) -> Mapping[str, str]:
@@ -164,6 +166,13 @@ class Settings(BaseSettings):
     computer_runtime_token: str = ""
     computer_request_timeout_s: int = 300
     computer_response_max_bytes: int = 16_777_216
+
+    # The `local` Computer provider runs each session in a directory below this
+    # root, on the machine the worker runs on.
+    local_computer_root: Path = Field(default_factory=lambda: Path.home() / ".memseek/computers")
+    # Where harness and skill pack modules are discovered, first match wins.
+    harness_paths: tuple[Path, ...] = (_REPOSITORY_ROOT / "harnesses",)
+    skillpack_paths: tuple[Path, ...] = (_REPOSITORY_ROOT / "skillpacks",)
 
     worker_poll_ms: int = 500
     worker_concurrency: int = 4

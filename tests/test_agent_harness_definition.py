@@ -87,3 +87,85 @@ def test_skillpack_source_forbids_a_description(renewal_root: Path) -> None:
 
     assert caught.value.code == "schema"
     assert "skillpack tool source forbids description" in str(caught.value)
+
+
+def _grant_browser_pack(root: Path) -> None:
+    _replace(
+        root / "toolsets" / "renewal.yaml",
+        "      - name: shell\n",
+        "      - {name: browser, kind: skillpack, pack: browser-harness}\n      - name: shell\n",
+    )
+
+
+def test_an_unknown_harness_is_a_reference_error(renewal_root: Path) -> None:
+    agents = renewal_root / "agents" / "renewal_analyst.yaml"
+    _replace(agents, "    toolset: renewal@1\n", "    toolset: renewal@1\n    harness: codex\n")
+
+    with pytest.raises(DefinitionError) as caught:
+        load_definition_catalog(_settings(renewal_root))
+
+    assert caught.value.code == "reference"
+    assert caught.value.path == "agents[1].harness"
+    assert "agent names harness 'codex': no harness.yaml for 'codex'" in str(caught.value)
+
+
+def test_an_unknown_skill_pack_is_a_reference_error(renewal_root: Path) -> None:
+    _replace(
+        renewal_root / "toolsets" / "renewal.yaml",
+        "      - name: shell\n",
+        "      - {name: browser, kind: skillpack, pack: nope}\n      - name: shell\n",
+    )
+
+    with pytest.raises(DefinitionError) as caught:
+        load_definition_catalog(_settings(renewal_root))
+
+    assert caught.value.code == "reference"
+    assert caught.value.path == "sources[1].pack"
+
+
+def test_a_pack_cannot_need_more_than_the_computer_allows(renewal_root: Path) -> None:
+    _grant_browser_pack(renewal_root)
+
+    with pytest.raises(DefinitionError) as caught:
+        load_definition_catalog(_settings(renewal_root))
+
+    assert caught.value.code == "computer_capability"
+    assert str(caught.value).endswith(
+        "skill pack 'browser-harness' needs ['network'], which computer "
+        "'research_workspace@1' denies"
+    )
+
+
+def test_a_learning_pack_requires_the_learnings_writeback(renewal_root: Path) -> None:
+    _grant_browser_pack(renewal_root)
+    computers = renewal_root / "computers" / "workspaces.yaml"
+    _replace(
+        computers,
+        "      fallback_requires: explicit_policy\n"
+        "    capabilities: {filesystem: true, exec: true, network: false}",
+        "      fallback_requires: explicit_policy\n"
+        "    capabilities: {filesystem: true, exec: true, network: true}",
+    )
+
+    with pytest.raises(DefinitionError) as caught:
+        load_definition_catalog(_settings(renewal_root))
+
+    assert caught.value.code == "computer_capability"
+    assert str(caught.value).endswith(
+        "skill pack 'browser-harness' learns, so computer 'research_workspace@1' must declare "
+        "/outbox/learnings.jsonl as an observations writeback"
+    )
+
+    _replace(
+        computers,
+        "      - {path: /outbox/observations.jsonl,",
+        "      - {path: /outbox/learnings.jsonl, type: observations, review: false, "
+        "collection: task_observations@1, record_type: observation}\n"
+        "      - {path: /outbox/observations.jsonl,",
+    )
+    toolset = load_definition_catalog(_settings(renewal_root)).toolsets[("renewal", 1)]
+    assert toolset.sources[1].model_dump(mode="json") == {
+        "name": "browser",
+        "kind": "skillpack",
+        "pack": "browser-harness",
+    }
