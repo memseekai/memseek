@@ -300,6 +300,28 @@ def _remote_computer_provider(settings: Settings) -> RemoteComputerProvider:
     return provider
 
 
+def _local_computer_provider(settings: Settings) -> ComputerProvider:
+    # Imported here because the local provider is built on this module.
+    from memseek.local_computer import LocalComputerProvider
+
+    provider = LocalComputerProvider(settings)
+    register_computer_provider("local", provider, replace=True)
+    return provider
+
+
+# Providers built from the running process's settings rather than registered
+# once at import.
+_SETTINGS_PROVIDERS: dict[str, Callable[[Settings], ComputerProvider]] = {
+    "cloudflare": _remote_computer_provider,
+    "local": _local_computer_provider,
+}
+
+
+def _provider_for(settings: Settings, name: str) -> ComputerProvider:
+    factory = _SETTINGS_PROVIDERS.get(name)
+    return factory(settings) if factory is not None else computer_provider(name)
+
+
 def configure_remote_computer_provider(settings: Settings) -> None:
     _remote_computer_provider(settings)
 
@@ -438,11 +460,7 @@ async def execute_program(
             else None
         ),
     )
-    provider = (
-        _remote_computer_provider(settings)
-        if computer.provider == "cloudflare"
-        else computer_provider(computer.provider)
-    )
+    provider = _provider_for(settings, computer.provider)
     result = await provider.execute(request)
     if result.awaiting_input:
         raise ComputerExecutionError("validation", "Programs cannot await user input")
@@ -570,11 +588,7 @@ async def execute_agent(
             },
         },
     )
-    provider = (
-        _remote_computer_provider(settings)
-        if computer.provider == "cloudflare"
-        else computer_provider(computer.provider)
-    )
+    provider = _provider_for(settings, computer.provider)
     result = await provider.execute(request)
     _validate_json(output_schema, result.value, "Agent output")
     encoded = _canonical_bytes(result.value)

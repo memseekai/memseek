@@ -540,6 +540,9 @@ async def execute_invocation(
                     "kind": task.get("kind"),
                     "prompt": task.get("prompt"),
                     "turns": invocation["turns"],
+                    # Run options for the provider. Absent unless given, so
+                    # existing request bodies are unchanged.
+                    **({"input": task["input"]} if task.get("input") is not None else {}),
                 },
                 source_ids=context_ids,
                 citation_ids=context_ids,

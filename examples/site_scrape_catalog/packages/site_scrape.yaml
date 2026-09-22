@@ -1,0 +1,10 @@
+name: site_scrape
+version: 1.0.0
+collections: [scrape_tasks@1, skill_learnings@1, skill_eval_runs@1]
+views: [current_task@1, site_learnings@1]
+artifacts: [scraper_instructions@1, skill_playbook@1]
+computers: [scrape_workspace@1]
+agents: [site_scraper@1]
+toolsets: [scraper@1]
+context_policies: [scrape_budget@1]
+search_profiles: [pg_default]

@@ -1,0 +1,21 @@
+computers:
+  - name: scrape_workspace
+    version: 1
+    active: true
+    # Runs the harness on the worker's own machine, where pi and
+    # browser-harness are installed and a browser is reachable.
+    provider: local
+    writable: [/workspace, /outbox]
+    runtime: {default: container}
+    capabilities: {filesystem: true, exec: true, network: true}
+    # The learning loop's read half: the playbook, rendered for this run's
+    # entity. Skill packs never name it; the provider hands each learning pack
+    # its own section.
+    context:
+      - {path: /.memseek/playbook.md, artifact: skill_playbook@1}
+    # The only two outbox paths anywhere. learnings.jsonl is the write half of
+    # the learning loop, declared once here for every pack with `learns: true`.
+    writeback:
+      - {path: /outbox/learnings.jsonl, type: observations, review: false, collection: skill_learnings@1, record_type: learning}
+      - {path: /outbox/final-result.json, type: final_result, review: false}
+    retention: {workspace_days: 7, preserve: [/outbox]}
