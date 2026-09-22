@@ -1,0 +1,50 @@
+# Scrape tasks for `memseek eval skill-learning`. Each task trains on some pages
+# of a site and tests on pages it never trained on, so a gain measures reused
+# site knowledge rather than a memorized answer. Checks are deterministic: the
+# value must satisfy `schema`, hold at least `min_items` rows, and have each
+# `field_coverage` field non-null on at least that fraction of rows.
+- id: hn-front
+  domain: news.ycombinator.com
+  train:
+    - {url: "https://news.ycombinator.com/", goal: "top 30 stories: title, url, points"}
+  test:
+    - {url: "https://news.ycombinator.com/news?p=2", goal: "stories on page 2: title, url, points"}
+  check:
+    schema:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            type: object
+            required: [title, url]
+            properties:
+              title: {type: string, minLength: 1}
+              url: {type: string, minLength: 1}
+              points: {type: [integer, "null"]}
+    min_items: 25
+    field_coverage: {points: 0.9}
+
+- id: books-catalogue
+  domain: books.toscrape.com
+  train:
+    - {url: "https://books.toscrape.com/catalogue/page-1.html", goal: "every book on the page: title, price, availability"}
+  test:
+    - {url: "https://books.toscrape.com/catalogue/page-3.html", goal: "every book on the page: title, price, availability"}
+  check:
+    schema:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            type: object
+            required: [title, price]
+            properties:
+              title: {type: string, minLength: 1}
+              price: {type: [string, number]}
+              availability: {type: [string, "null"]}
+    min_items: 20
+    field_coverage: {price: 1.0, availability: 0.9}

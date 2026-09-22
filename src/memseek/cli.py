@@ -130,6 +130,26 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="validate credentials and print the selected MCP interface without starting stdio",
     )
+
+    evaluate = subparsers.add_parser("eval", help="run an evaluation against a running API")
+    evaluations = evaluate.add_subparsers(dest="eval_command", required=True)
+    learning = evaluations.add_parser(
+        "skill-learning", help="compare scrape runs with and without learned skills"
+    )
+    learning.add_argument("--suite", type=Path, required=True)
+    learning.add_argument("--trials", type=int, default=3)
+    learning.add_argument(
+        "--arms",
+        default="cold,native,playbook,playbook+native",
+        help="comma-separated: cold, native, playbook, playbook+native",
+    )
+    learning.add_argument("--k-train", type=int, default=3, help="training runs per trial")
+    learning.add_argument("--computer", default="scrape_workspace@1")
+    learning.add_argument("--agent", default="site_scraper@1")
+    learning.add_argument("--context-policy", default="scrape_budget@1")
+    learning.add_argument("--url", default=os.environ.get("MEMSEEK_URL", "http://127.0.0.1:8000"))
+    learning.add_argument("--api-key", default=os.environ.get("MEMSEEK_API_KEY"))
+    learning.add_argument("--json", action="store_true", help="print the report as JSON")
     return parser
 
 
@@ -341,7 +361,43 @@ async def _run_command(args: argparse.Namespace, settings: Settings) -> int:
             return 0
         await run_stdio_mcp(base_url=args.url, api_key=args.api_key)
         return 0
+    if args.command == "eval":
+        return await _run_skill_learning_eval(args)
     raise AssertionError(f"unhandled command: {args.command}")
+
+
+async def _run_skill_learning_eval(args: argparse.Namespace) -> int:
+    from memseek.evals.skill_learning import (
+        ApiBackend,
+        load_suite,
+        parse_arms,
+        render_table,
+        run_suite,
+        summarize,
+    )
+    from memseek.sdk import MemseekClient
+
+    if not args.api_key:
+        raise ValueError("eval requires --api-key or MEMSEEK_API_KEY")
+    arms = parse_arms(args.arms)
+    if args.trials < 1 or args.k_train < 0:
+        raise ValueError("--trials must be at least 1 and --k-train at least 0")
+    suite = load_suite(args.suite)
+    async with MemseekClient(args.url, args.api_key) as client:
+        backend = ApiBackend(
+            client,
+            computer=args.computer,
+            agent=args.agent,
+            context_policy=args.context_policy,
+            results_entity=f"eval:{args.suite.stem}",
+        )
+        rows = await run_suite(suite, backend, arms=arms, trials=args.trials, k_train=args.k_train)
+    report = summarize(rows)
+    if args.json:
+        print(json.dumps(report, sort_keys=True))
+    else:
+        print(render_table(report))
+    return 0
 
 
 def main(argv: Sequence[str] | None = None) -> int:
