@@ -124,6 +124,8 @@ class LocalComputerProvider:
         _prepare_root(root, context_files, request.input)
 
         skills_root = root / manifest.skills_dir
+        # Regenerated every run, so a resumed session never keeps a stale playbook.
+        shutil.rmtree(skills_root, ignore_errors=True)
         mounts = _mount_materialized_skills(root, context_files, skills_root)
         for pack in packs:
             env.update(

@@ -8,6 +8,7 @@ a skill pack are each only a directory.
 from __future__ import annotations
 
 import contextlib
+import hashlib
 import shutil
 from pathlib import Path
 from typing import Any
@@ -77,7 +78,7 @@ class ScrapeWorkspace:
         async with self.pool.connection() as conn:
             await conn.execute(
                 "insert into workspace (id, api_key_hash) values (%s, %s)",
-                (self.workspace, "a" * 64),
+                (self.workspace, hashlib.sha256(self.workspace.encode()).hexdigest()),
             )
 
     async def settle(self) -> None:

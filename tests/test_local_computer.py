@@ -262,3 +262,40 @@ async def test_invalid_run_options_are_refused(site: ScrapeWorkspace) -> None:
     assert failed["status"] == "failed"
     assert failed["error"]["kind"] == "validation"
     assert failed["error"]["detail"].startswith("invalid run options:")
+
+
+async def test_cloudflare_refuses_skill_packs_and_harnesses_before_calling_out(
+    settings: Settings, db_pool: DatabasePool, tmp_path: Path
+) -> None:
+    scrape_settings = site_scrape_settings(settings, tmp_path)
+    assert scrape_settings.computers_dir is not None
+    computer = scrape_settings.computers_dir / "scrape_workspace.yaml"
+    computer.write_text(computer.read_text().replace("provider: local", "provider: cloudflare"))
+    toolset = scrape_settings.toolsets_dir
+    assert toolset is not None
+    workspace = ScrapeWorkspace(db_pool, scrape_settings, "scrape-cloudflare")
+    await workspace.create()
+    await workspace.write_task(ENTITY, URL, "top 30 stories")
+
+    failed = await workspace.invoke(ENTITY, PROMPT)
+
+    assert failed["error"] == {
+        "kind": "capability",
+        "detail": "skillpack tool 'browser' is not yet executable on cloudflare",
+    }
+
+    (toolset / "scraper.yaml").write_text(
+        (toolset / "scraper.yaml")
+        .read_text()
+        .replace("      - name: browser\n        kind: skillpack\n        pack: echo-pack\n", "")
+    )
+    without_pack = ScrapeWorkspace(db_pool, scrape_settings, "scrape-cloudflare-2")
+    await without_pack.create()
+    await without_pack.write_task(ENTITY, URL, "top 30 stories")
+
+    failed = await without_pack.invoke(ENTITY, PROMPT)
+
+    assert failed["error"] == {
+        "kind": "capability",
+        "detail": "harness 'echo' is not yet executable on cloudflare",
+    }

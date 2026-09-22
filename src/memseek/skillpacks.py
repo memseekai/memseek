@@ -29,7 +29,6 @@ from memseek.harnesses.contract import (
 
 LEARNINGS_PATH = "/outbox/learnings.jsonl"
 PLAYBOOK_PATH = "/.memseek/playbook.md"
-LEARNING_KINDS = ("navigation", "extraction", "pitfall", "helper")
 
 _SKILL_COMMAND_TIMEOUT_S = 60
 # One rendered playbook row: `... | [<pack>/<kind>] <text>`. The prefix is the
@@ -186,7 +185,6 @@ def _skill_document(pack: SkillPackManifest, env: Mapping[str, str]) -> str:
 
 __all__ = [
     "LEARNINGS_PATH",
-    "LEARNING_KINDS",
     "PLAYBOOK_PATH",
     "SkillMount",
     "SkillPackError",
