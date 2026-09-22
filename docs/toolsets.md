@@ -72,10 +72,12 @@ may never widen it: declaring `exec` against a Computer with
 | `skill` | `artifact` | See below. Many skill sources produce **one** tool with many choices. |
 | `view` | `view` | Bounded search over a named view's rows, materialized before the run. |
 | `mcp_server` | `url` | Declared and validated; not executable yet. |
+| `skillpack` | `pack` | A `skillpacks/<name>/` module mounted as a skill for the Agent's harness. Its declared capabilities must be allowed by every Computer. See [Harnesses and skill packs](computers.md#harnesses-and-skill-packs). |
 
-Every kind except `skill` requires a `description`. A skill's description
-belongs to the skill artifact, because two toolsets describing the same skill
-would be two different promises about one body of text.
+Every kind except `skill` and `skillpack` requires a `description`. A skill's
+description belongs to the skill artifact, because two toolsets describing the
+same skill would be two different promises about one body of text. A skill
+pack's description comes from the `SKILL.md` it generates, for the same reason.
 
 ## Skills are disclosed, not pasted
 

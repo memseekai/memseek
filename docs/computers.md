@@ -313,7 +313,7 @@ writeback, and a 30-day workspace.
 | `name` | yes | — | Lowercase name, `[a-z][a-z0-9._-]{0,63}`. |
 | `version` | yes | — | Integer ≥ 1. Referenced everywhere as `name@version`. |
 | `active` | no | `false` | Marks this version as the current one for the name. References are always exact, so this is bookkeeping rather than routing — but two active versions of the same name is an error. |
-| `provider` | yes | — | Which runtime adapter executes it: `fake` for local development and CI, `cloudflare` for the deployed Worker. Lowercase, `[a-z][a-z0-9_]{0,31}`. |
+| `provider` | yes | — | Which runtime adapter executes it: `fake` for local development and CI, `cloudflare` for the deployed Worker, `local` for a harnessed Agent on the worker's own machine. Lowercase, `[a-z][a-z0-9_]{0,31}`. |
 | `context` | no | none | Read-only artifact mounts. See below. |
 | `writable` | no | `[/workspace, /outbox]` | The only roots that may change during a run. |
 | `runtime` | no | `{default: worker-javascript}` | Which backend runs code. |
@@ -645,6 +645,7 @@ The older spelling — `skills: [...]` and `tools: [computer, recall]` in place 
 | `skills` | no | none | Exact references to artifacts of `kind: skill`. Superseded by `toolset`; see [Toolsets](toolsets.md). |
 | `tools` | no | `[computer, recall]` | Which tool families the loop may use. `computer` is the filesystem and shell tools — the shell appears only if the Computer allows `exec`. `recall` is granted only if listed here. Superseded by `toolset`. |
 | `toolset` | no | none | Exact reference to a [toolset](toolsets.md) — the declared surface of tools and skills this Agent may reach. Mutually exclusive with `tools` and `skills`. |
+| `harness` | no | none | The agent loop that runs this Agent, by the name of a `harnesses/<name>/` module. Omitted, the Computer's built-in loop runs it. See [Harnesses and skill packs](#harnesses-and-skill-packs). |
 | `computers` | yes | — | Exact references to every Computer this Agent is allowed to run in. At least one. A run naming a Computer that is not on this list is refused. |
 | `context_policy` | yes | — | Exact reference to a context policy. |
 | `limits` | no | see below | Hard bounds on the loop. |
@@ -1302,7 +1303,9 @@ and step and token budgets it actually commits to. See
 
 `provider:` picks who is on the far side of that signed boundary. There are two,
 and they are for genuinely different jobs — this is the one place where reading
-the difference carefully will save you an afternoon.
+the difference carefully will save you an afternoon. A third, `local`, runs
+harnessed Agents on the worker's machine and is described in
+[Harnesses and skill packs](#harnesses-and-skill-packs).
 
 ### `fake` — for tests, and for validating a design
 
@@ -1382,6 +1385,99 @@ Everything else about that runtime — what is deployed and with which bindings,
 the wire protocol, the execution order, the tools an Agent actually gets, every
 limit, and its failure table — is on its own page:
 [The Cloudflare Computer runtime](computer-cloudflare.md).
+
+## Harnesses and skill packs
+
+An Agent normally runs under the Computer's built-in loop. Two optional modules
+change that without changing anything else in the catalog:
+
+- A **harness** is the agent loop. `harness: pi` on an Agent runs it under
+  [pi](https://github.com/earendil-works/pi), from `harnesses/pi/`.
+- A **skill pack** is a tool skill any harness can mount.
+  `{kind: skillpack, pack: browser-harness}` in a toolset grants
+  [browser-harness](https://github.com/browser-use/browser-harness), from
+  `skillpacks/browser-harness/`.
+
+Neither module names the other, and the provider names neither. Adding a
+harness or a pack means adding a directory with a manifest. The contracts are
+in `harnesses/README.md` and `skillpacks/README.md`.
+
+```yaml
+# agents/site_scraper.yaml
+agents:
+  - name: site_scraper
+    version: 1
+    model: scraper
+    instructions: scraper_instructions@1
+    toolset: scraper@1
+    harness: pi
+    computers: [scrape_workspace@1]
+    context_policy: scrape_budget@1
+
+# toolsets/scraper.yaml, one source among the others
+      - {name: browser, kind: skillpack, pack: browser-harness}
+```
+
+### The `local` provider
+
+Harnessed Agents run on `provider: local`. It is a development and evaluation
+provider. The harness runs as the worker's user, with the worker's network, on
+the worker's machine, so run the worker where the harness and pack binaries are
+installed. Each session gets a directory below `LOCAL_COMPUTER_ROOT` (default
+`~/.memseek/computers`), laid out like the sandbox: `.memseek/`, `inputs/`,
+`workspace/`, `outbox/`, plus the harness's skills directory.
+
+For each run the provider does the following:
+
+1. Resolves the harness and every pack, and fails with the install hint when a
+   required binary is missing.
+2. Writes the context files, mounts catalog skills and each pack's `SKILL.md`
+   where the harness discovers skills, and writes `.harness/input.json`.
+3. Runs the harness entry with `PATH`, `HOME`, the model key the harness
+   manifest names for the alias's provider, and each pack's declared variables.
+   Nothing else from the worker's environment is passed.
+4. Parses the one-line `HarnessOutput`, then collects `/outbox` under the same
+   rules as the Cloudflare runtime. An undeclared file fails the run.
+
+The receipt records the harness and pack versions and the harness's normalized
+metrics: wall time, steps, tool calls and errors, tokens, and cost.
+
+| Setting | Default | Meaning |
+| --- | --- | --- |
+| `LOCAL_COMPUTER_ROOT` | `~/.memseek/computers` | Where session directories live. |
+| `HARNESS_PATHS` | the repository's `harnesses/` | JSON list of directories searched for `<name>/harness.yaml`. |
+| `SKILLPACK_PATHS` | the repository's `skillpacks/` | JSON list of directories searched for `<name>/skillpack.yaml`. |
+
+The `cloudflare` provider refuses a harness and a skillpack source until its
+container can run them.
+
+### What a publish checks
+
+- The harness and every pack resolve through the paths above.
+- A pack's `capabilities` are allowed by every Computer the Agent may run on.
+  browser-harness needs `exec` and `network`.
+- A pack with `learns: true` requires every such Computer to declare
+  `/outbox/learnings.jsonl` as an `observations` writeback.
+
+### Learned skills
+
+A pack that sets `learns: true` joins one convention, owned by the Computer:
+
+- **Write.** The agent appends `{text, content: {pack, kind, detail,
+  helper_code?}, citations}` lines to `/outbox/learnings.jsonl`. The Computer
+  ingests that file like any other observations writeback.
+- **Read.** The Computer mounts a playbook artifact at `/.memseek/playbook.md`.
+  The provider copies the pack's rows into its `PLAYBOOK.md`, grouped by kind,
+  and `SKILL.md` points the agent at it.
+
+An invocation's task `input` can narrow what a run reads and writes back:
+`{"learning": "off" | "read" | "read_write", "native": ...}`. `learning` governs
+the playbook and the learnings file. `native` governs the pack's own state
+directory: `off` is a fresh directory, `read` is a copy of the one kept for
+the entity, and `read_write` is the kept one. Both default to `read_write`.
+`memseek eval skill-learning` uses these to compare a cold run, browser-harness's
+own saved helpers, the learned playbook, and both together.
+`examples/site_scrape_catalog/` is the complete example.
 
 ## When something is rejected
 
