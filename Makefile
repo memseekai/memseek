@@ -8,7 +8,7 @@ TEST_DATABASE_URL ?= $(COMPOSE_TEST_DATABASE_URL)
 COMPUTER_RUNTIME_PORT ?= 8799
 COMPUTER_RUNTIME_SECRET ?= local-computer-demo
 
-.PHONY: help sync format lint typecheck build docs docs-build reference catalog-graph database database-down migrate migration-current quickstart up down logs check test e2e computer-demo computer-demo-cloudflare cloudflare-agent-smoke cloudflare-agent-smoke-local cloudflare-agent-smoke-setup
+.PHONY: help sync format lint typecheck build docs docs-build reference catalog-graph database database-down migrate migration-current quickstart up down logs check test e2e computer-demo computer-demo-cloudflare site-scrape-demo cloudflare-agent-smoke cloudflare-agent-smoke-local cloudflare-agent-smoke-setup
 
 help:
 	@echo "up             Run the whole local stack in Docker: postgres, api, worker, catalog"
@@ -16,6 +16,7 @@ help:
 	@echo "catalog-graph  Draw one catalog package as an interactive page (CATALOG=dir)"
 	@echo "computer-demo  Run the Computer-backed renewal demo against the Docker stack"
 	@echo "computer-demo-cloudflare  The same demo, driven by a real Cloudflare Agent"
+	@echo "site-scrape-demo  Scrape URL=... twice with pi + browser-harness; the second run uses the playbook"
 	@echo "cloudflare-agent-smoke  Run a real Workers AI Agent against one durable Computer"
 	@echo "cloudflare-agent-smoke-local  Run the same canary against wrangler dev, nothing deployed"
 	@echo "cloudflare-agent-smoke-setup  Ask for runtime settings and prepare the live canary"
@@ -124,6 +125,15 @@ computer-demo:
 
 computer-demo-cloudflare:
 	@$(MAKE) computer-demo MODE=cloudflare SCRIPTED=$(SCRIPTED) ADVANCED=$(ADVANCED)
+
+# The harnessed Agent runs on the `local` provider, which is the worker's own
+# machine, so this needs the API and worker running on the host (not in Docker)
+# with pi, browser-harness, and a model key. examples/site_scrape_catalog/README.md
+# has the setup.
+URL ?=
+site-scrape-demo:
+	@if [ -z "$(URL)" ]; then echo "usage: make site-scrape-demo URL=https://..." >&2; exit 2; fi
+	@$(UV) run python examples/site_scrape.py "$(URL)"
 
 # A live, database-free deployment canary. Settings reads these from the
 # environment or the repository's untracked .env:
