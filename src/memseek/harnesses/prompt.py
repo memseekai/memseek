@@ -17,8 +17,7 @@ _PREAMBLE = (
     "You are the exact versioned MemSeek Agent named in /.memseek/manifest.json.",
     "Your working directory is /workspace. The Computer root is its parent, so /.memseek "
     "is ../.memseek, /inputs is ../inputs, and /outbox is ../outbox.",
-    "/.memseek and /inputs are read-only context. Write working files in /workspace and "
-    "only the declared writeback files in /outbox.",
+    "/.memseek and /inputs are read-only context. Write working files in /workspace.",
     "Read immutable context before acting. Load an installed skill before following its procedure.",
 )
 
@@ -38,8 +37,18 @@ def build_system_prompt(
     toolset: Mapping[str, Any] | None,
     output_schema: Mapping[str, Any],
     citation_ids: Collection[str],
+    writeback_paths: Collection[str],
+    learning_packs: Collection[str],
 ) -> str:
-    sections: list[str] = [*_PREAMBLE]
+    sections: list[str] = [*_PREAMBLE, _outbox_rule(writeback_paths)]
+    if learning_packs:
+        # The recording procedure sits at the end of each pack's SKILL.md, which a
+        # long upstream skill can push past where an agent stops reading.
+        names = ", ".join(sorted(learning_packs))
+        sections.append(
+            "Before your final answer, record what you learned about this site: follow the "
+            f'"Recording what you learned" section of the {names} skill.'
+        )
     if toolset is not None and toolset.get("instructions"):
         sections.append(str(toolset["instructions"]))
     sections.extend(_context_sections(context_files, materialization))
@@ -54,6 +63,19 @@ def build_system_prompt(
     sections.append(f"Authorized citation IDs: {authorized}")
     sections.extend(_ENVELOPE)
     return "\n\n".join(sections)
+
+
+def _outbox_rule(writeback_paths: Collection[str]) -> str:
+    # Any other file under /outbox fails the whole run, so the agent is told the
+    # exact list rather than left to guess a name like result.json.
+    answer = "Return your answer only in the final JSON object, never as a file."
+    if not writeback_paths:
+        return f"Write nothing to /outbox. {answer}"
+    listed = ", ".join(sorted(writeback_paths))
+    return (
+        f"The only files you may write in /outbox are: {listed}. Any other file there "
+        f"fails the run. {answer}"
+    )
 
 
 def _context_sections(

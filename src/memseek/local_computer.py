@@ -26,6 +26,7 @@ from pydantic import Field, ValidationError
 from memseek.computers import ComputerExecutionError, ComputerRequest, ComputerResult
 from memseek.config import Settings
 from memseek.definitions.base import StrictModel
+from memseek.definitions.models import ComputerWriteback
 from memseek.harnesses.contract import (
     HARNESS_INPUT_PATH,
     HarnessInput,
@@ -156,6 +157,14 @@ class LocalComputerProvider:
                 toolset=request.toolset,
                 output_schema=request.output_schema or {"type": "object"},
                 citation_ids=[str(value) for value in request.citation_ids],
+                writeback_paths=[
+                    path
+                    for path in _writeback_paths(request)
+                    if path != LEARNINGS_PATH or options.learning == "read_write"
+                ],
+                learning_packs=[
+                    pack.name for pack in packs if pack.learns and options.learning == "read_write"
+                ],
             ),
             output_schema=dict(request.output_schema or {"type": "object"}),
             model=_harness_model(request.model),
@@ -355,14 +364,20 @@ def _outbox_paths(root: Path) -> list[str]:
     return sorted(files)
 
 
+def _configured_writeback(request: ComputerRequest) -> list[ComputerWriteback]:
+    if request.mode != "invocation":
+        return []
+    return [item for item in request.computer.writeback if item.type != "final_result"]
+
+
+def _writeback_paths(request: ComputerRequest) -> list[str]:
+    return [item.path for item in _configured_writeback(request)]
+
+
 def _collect_outbox(root: Path, request: ComputerRequest) -> list[_OutboxFile]:
     """The rules of the Cloudflare runtime's ``collectOutbox``, over a local directory."""
 
-    configured = (
-        [item for item in request.computer.writeback if item.type != "final_result"]
-        if request.mode == "invocation"
-        else []
-    )
+    configured = _configured_writeback(request)
     allowed = [request.output_path, *(item.path for item in configured)]
     files = _outbox_paths(root)
     unknown = [

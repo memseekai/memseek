@@ -35,7 +35,7 @@ collections:
         pack: {type: string, pattern: "^[a-z][a-z0-9._-]{0,63}$"}
         kind: {type: string, enum: [navigation, extraction, pitfall, helper]}
         detail: {type: string, minLength: 1, maxLength: 4000}
-        helper_code: {type: string, maxLength: 8000}
+        helper_code: {type: [string, "null"], maxLength: 8000}
       additionalProperties: false
     fields:
       pack: {path: content.pack, type: string, filter: true, project: true}

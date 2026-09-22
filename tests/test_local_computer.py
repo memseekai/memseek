@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import shutil
 from pathlib import Path
@@ -67,6 +68,16 @@ async def test_a_run_writes_learnings_that_the_next_run_reads(
         "cost_usd": None,
     }
     assert "outbox" not in receipt
+    harness_input = json.loads((Path(receipt["root"]) / ".harness/input.json").read_text())
+    system_prompt = harness_input["system_prompt"]
+    assert (
+        "The only files you may write in /outbox are: /outbox/learnings.jsonl. Any other file "
+        "there fails the run. Return your answer only in the final JSON object, never as a file."
+    ) in system_prompt.split("\n\n")
+    assert (
+        "Before your final answer, record what you learned about this site: follow the "
+        '"Recording what you learned" section of the echo-pack skill.'
+    ) in system_prompt.split("\n\n")
     assert not (_skill_dir(first) / "PLAYBOOK.md").exists()
 
     learnings = await site.learnings(ENTITY)
@@ -77,6 +88,7 @@ async def test_a_run_writes_learnings_that_the_next_run_reads(
                 "pack": "echo-pack",
                 "kind": "extraction",
                 "detail": "Stories are tr.athing rows; points are in the next row.",
+                "helper_code": None,
             },
             "derived_from": [task_id],
             "status": "active",
@@ -108,6 +120,14 @@ async def test_learning_off_hides_the_playbook_and_drops_learnings(site: ScrapeW
     cold = await site.invoke(ENTITY, PROMPT, {"learning": "off", "native": "off"})
 
     assert cold["status"] == "succeeded", cold["error"]
+    cold_input = json.loads(
+        (Path(cold["result"]["receipt"]["root"]) / ".harness/input.json").read_text()
+    )
+    assert (
+        "Write nothing to /outbox. Return your answer only in the final JSON object, never as "
+        "a file."
+    ) in cold_input["system_prompt"].split("\n\n")
+    assert "Recording what you learned" not in cold_input["system_prompt"]
     assert cold["result"]["steps"] == 5
     root = Path(cold["result"]["receipt"]["root"])
     assert not (root / ".memseek/playbook.md").exists()

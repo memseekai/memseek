@@ -27,6 +27,7 @@ if citations:
             "pack": "echo-pack",
             "kind": "extraction",
             "detail": "Stories are tr.athing rows; points are in the next row.",
+            "helper_code": None,
         },
         "citations": citations,
     }

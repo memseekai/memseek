@@ -16,7 +16,8 @@ Each line is one JSON object:
 - `text` starts with `[browser-harness/<kind>] ` and stays on one line, under 400
   characters. It is the part the next run reads, so make it self-contained.
 - `detail` is the same learning, and it may be longer.
-- `helper_code` is optional. Use it for a short snippet that worked. Keep code
+- `helper_code` is optional. Use it for a short snippet that worked, and leave
+  the key out when there is none. Keep code
   inline here and do not write it to another file.
 - `citations` holds the UUID of the scrape task record from your context. Put
   the same UUID in your final `citation_ids`.
