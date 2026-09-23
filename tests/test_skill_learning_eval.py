@@ -93,7 +93,10 @@ async def test_arms_are_isolated_and_their_deltas_match_what_each_arm_can_read(
 ) -> None:
     rows = await run_suite([TASK], DatabaseBackend(site), arms=ARMS, trials=2, k_train=2)
 
-    assert len(rows) == 40
+    # Four arms, two trials, a test at k=0..2, and a training run before each
+    # later test for every arm except cold, which has nothing to learn into.
+    assert len(rows) == 36
+    assert [row.phase for row in rows if row.arm == "cold"] == ["test"] * 6
     assert {(row.harness["name"], row.skillpacks[0]["name"]) for row in rows} == {
         ("echo", "echo-pack")
     }
@@ -108,7 +111,7 @@ async def test_arms_are_isolated_and_their_deltas_match_what_each_arm_can_read(
             )
         ).fetchone()
     assert stored is not None
-    assert stored["count"] == 40
+    assert stored["count"] == 36
 
     report = summarize(rows)
 
@@ -178,9 +181,9 @@ def test_bootstrap_interval_is_reproducible() -> None:
 def test_the_shipped_suite_holds_its_test_pages_out_of_training() -> None:
     suite = load_suite(REPOSITORY_ROOT / "evals" / "scrape_suite.yaml")
 
-    assert [task.id for task in suite] == ["hn-front", "books-catalogue"]
+    assert [task.id for task in suite] == ["oscars-ajax", "quotes-js", "books-catalogue"]
     assert isinstance(suite[0].check, Check)
-    with pytest.raises(ValidationError, match="test URLs must be held out of train"):
+    with pytest.raises(ValidationError, match="test targets must be held out of train"):
         SuiteTask.model_validate(
             {**TASK.model_dump(by_alias=True), "test": TASK.model_dump()["train"]}
         )

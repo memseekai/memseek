@@ -3,12 +3,20 @@
 # site knowledge rather than a memorized answer. Checks are deterministic: the
 # value must satisfy `schema`, hold at least `min_items` rows, and have each
 # `field_coverage` field non-null on at least that fraction of rows.
-- id: hn-front
-  domain: news.ycombinator.com
+# Sites built for scraping practice, so their rows are the same on every run.
+# Each hides the data somewhere a cold run has to find: that discovery is what
+# a playbook can carry to the next run.
+
+# The films load from a JSON endpoint when a year is clicked. A cold run clicks
+# through the page; a run that learned the endpoint can call it directly.
+- id: oscars-ajax
+  domain: www.scrapethissite.com
   train:
-    - {url: "https://news.ycombinator.com/", goal: "top 30 stories: title, url, points"}
+    - {url: "https://www.scrapethissite.com/pages/ajax-javascript/", goal: "every film for the year 2015: title, awards, nominations, best_picture"}
+    - {url: "https://www.scrapethissite.com/pages/ajax-javascript/", goal: "every film for the year 2014: title, awards, nominations, best_picture"}
+    - {url: "https://www.scrapethissite.com/pages/ajax-javascript/", goal: "every film for the year 2013: title, awards, nominations, best_picture"}
   test:
-    - {url: "https://news.ycombinator.com/news?p=2", goal: "stories on page 2: title, url, points"}
+    - {url: "https://www.scrapethissite.com/pages/ajax-javascript/", goal: "every film for the year 2012: title, awards, nominations, best_picture"}
   check:
     schema:
       type: object
@@ -16,16 +24,48 @@
       properties:
         items:
           type: array
+          # 2012 has exactly 15 films; more means another year leaked in.
+          maxItems: 15
           items:
             type: object
-            required: [title, url]
+            required: [title, awards, nominations]
             properties:
               title: {type: string, minLength: 1}
-              url: {type: string, minLength: 1}
-              points: {type: [integer, "null"]}
-    min_items: 25
-    field_coverage: {points: 0.9}
+              awards: {type: integer, minimum: 0}
+              nominations: {type: integer, minimum: 0}
+              best_picture: {type: [boolean, "null"]}
+    min_items: 15
+    field_coverage: {awards: 1.0, nominations: 1.0}
 
+# The page renders with JavaScript: its HTML holds no quote markup, only an
+# inline `var data = [...]`, 10 quotes per page, and a Next link.
+- id: quotes-js
+  domain: quotes.toscrape.com
+  train:
+    - {url: "https://quotes.toscrape.com/js/", goal: "every quote on pages 1 and 2: text, author, tags"}
+    - {url: "https://quotes.toscrape.com/js/page/5/", goal: "every quote on pages 5 and 6: text, author, tags"}
+  test:
+    - {url: "https://quotes.toscrape.com/js/page/3/", goal: "every quote on pages 3 and 4: text, author, tags"}
+  check:
+    schema:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          maxItems: 20
+          items:
+            type: object
+            required: [text, author]
+            properties:
+              text: {type: string, minLength: 1}
+              author: {type: string, minLength: 1}
+              tags: {type: [array, "null"], items: {type: string}}
+    min_items: 20
+    field_coverage: {tags: 0.9}
+
+# Static HTML with obvious markup: the control, where a playbook has little to
+# save.
 - id: books-catalogue
   domain: books.toscrape.com
   train:

@@ -43,6 +43,12 @@ class Arm:
         index = 0 if phase == "train" else 1
         return {"learning": self.learning[index], "native": self.native[index]}
 
+    @property
+    def trains(self) -> bool:
+        """Whether a training run can leave this arm anything; cold's cannot."""
+
+        return self.learning[0] != "off" or self.native[0] != "off"
+
 
 ARMS: Mapping[ArmName, Arm] = {
     "cold": Arm(learning=("off", "off"), native=("off", "off")),
@@ -84,9 +90,13 @@ class SuiteTask(StrictModel):
 
     @model_validator(mode="after")
     def held_out(self) -> Self:
-        shared = {item.url for item in self.train} & {item.url for item in self.test}
+        # By page and goal together: one URL can serve several targets, as a
+        # page whose year is picked by a click does.
+        shared = {(item.url, item.goal) for item in self.train} & {
+            (item.url, item.goal) for item in self.test
+        }
         if shared:
-            raise ValueError(f"task {self.id}: test URLs must be held out of train: {shared}")
+            raise ValueError(f"task {self.id}: test targets must be held out of train: {shared}")
         return self
 
 
@@ -222,7 +232,7 @@ async def run_suite(
         for task in suite:
             for k in range(k_train + 1):
                 for arm in arms:
-                    if k:
+                    if k and ARMS[arm].trains:
                         await run(
                             task, arm, trial, "train", k, task.train[(k - 1) % len(task.train)]
                         )
