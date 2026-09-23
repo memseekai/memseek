@@ -52,7 +52,9 @@ const wallTimer = setTimeout(
 );
 
 const metrics = { steps: 0, tool_calls: 0, tool_errors: 0 };
-const usage = { seen: false, input: 0, output: 0, cost: 0, costSeen: false };
+const usage = {
+  seen: false, input: 0, cacheRead: 0, cacheWrite: 0, output: 0, cost: 0, costSeen: false,
+};
 const events = [];
 let finalText = "";
 
@@ -81,9 +83,9 @@ function observe(event) {
     if (text.trim()) finalText = text;
     if (message.usage && typeof message.usage === "object") {
       usage.seen = true;
-      usage.input += number(message.usage.input)
-        + number(message.usage.cacheRead)
-        + number(message.usage.cacheWrite);
+      usage.input += number(message.usage.input);
+      usage.cacheRead += number(message.usage.cacheRead);
+      usage.cacheWrite += number(message.usage.cacheWrite);
       usage.output += number(message.usage.output);
       if (typeof message.usage.cost?.total === "number") {
         usage.costSeen = true;
@@ -163,6 +165,8 @@ const output = {
     tool_calls: metrics.tool_calls,
     tool_errors: metrics.tool_errors,
     input_tokens: usage.seen ? usage.input : null,
+    cache_read_tokens: usage.seen ? usage.cacheRead : null,
+    cache_write_tokens: usage.seen ? usage.cacheWrite : null,
     output_tokens: usage.seen ? usage.output : null,
     cost_usd: usage.costSeen ? usage.cost : null,
   },

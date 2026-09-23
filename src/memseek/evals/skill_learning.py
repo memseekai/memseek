@@ -249,8 +249,11 @@ def _metric(row: RunRow, name: str) -> float | None:
     if name == "score":
         return row.score
     if name == "tokens":
-        tokens = [row.metrics.get("input_tokens"), row.metrics.get("output_tokens")]
-        return float(sum(tokens)) if all(isinstance(t, int | float) for t in tokens) else None
+        billed = [row.metrics.get("input_tokens"), row.metrics.get("output_tokens")]
+        if not all(isinstance(t, int | float) for t in billed):
+            return None
+        cached = [row.metrics.get("cache_read_tokens"), row.metrics.get("cache_write_tokens")]
+        return float(sum(billed) + sum(t for t in cached if isinstance(t, int | float)))
     value = row.metrics.get(name)
     return float(value) if isinstance(value, int | float) else None
 
@@ -314,7 +317,14 @@ def summarize(rows: Sequence[RunRow], *, resamples: int = 2_000, seed: int = 0) 
             "mean_score": round(statistics.fmean(row.score for row in final), 6),
             "median": {
                 name: _median([_metric(row, name) for row in final])
-                for name in ("steps", "tool_errors", "tokens", "cost_usd", "wall_s")
+                for name in (
+                    "steps",
+                    "tool_errors",
+                    "tokens",
+                    "cache_read_tokens",
+                    "cost_usd",
+                    "wall_s",
+                )
             },
             "delta": deltas,
             "curve": curve,
@@ -325,7 +335,8 @@ def summarize(rows: Sequence[RunRow], *, resamples: int = 2_000, seed: int = 0) 
 def render_table(report: Mapping[str, Any]) -> str:
     header = (
         f"{'arm':<16} {'runs':>4} {'pass':>6} {'score':>6} {'steps':>6} {'errors':>6} "
-        f"{'tokens':>8} {'cost':>8} {'wall_s':>7}  delta vs cold / native (score, steps)"
+        f"{'tokens':>8} {'cached':>8} {'cost':>8} {'wall_s':>7}  "
+        "delta vs cold / native (score, steps)"
     )
     lines = [f"trained state: test runs after {report['final_k_train']} training runs", header]
     for arm, summary in report["arms"].items():
@@ -335,6 +346,7 @@ def render_table(report: Mapping[str, Any]) -> str:
             f"{arm:<16} {summary['runs']:>4} {summary['pass_rate']:>6.2f} "
             f"{summary['mean_score']:>6.2f} {_cell(median['steps']):>6} "
             f"{_cell(median['tool_errors']):>6} {_cell(median['tokens']):>8} "
+            f"{_cell(median['cache_read_tokens']):>8} "
             f"{_cell(median['cost_usd']):>8} {_cell(median['wall_s']):>7}  {deltas}"
         )
     lines.append("")

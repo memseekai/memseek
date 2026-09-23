@@ -80,7 +80,8 @@ Print exactly one JSON line to stdout and exit 0:
   "events": [{"kind": "model_step", "payload": {"index": 0}}],
   "metrics": {
     "wall_s": 12.5, "steps": 3, "tool_calls": 7, "tool_errors": 1,
-    "input_tokens": 18000, "output_tokens": 900, "cost_usd": 0.07
+    "input_tokens": 1200, "cache_read_tokens": 16000, "cache_write_tokens": 800,
+    "output_tokens": 900, "cost_usd": 0.07
   }
 }
 ```
@@ -92,6 +93,9 @@ Print exactly one JSON line to stdout and exit 0:
 - Every harness fills every `metrics` field, which keeps runs comparable across
   harnesses. Use `null` for tokens or cost that the model provider did not
   report. `null` is not the same as `0`.
+- `input_tokens` counts uncached input only. Report cache reads and cache writes
+  in their own fields, the way the Anthropic API does. They are billed at very
+  different rates, and a harness resends its whole conversation every turn.
 
 A nonzero exit fails the run. Anything on stderr becomes the failure detail.
 

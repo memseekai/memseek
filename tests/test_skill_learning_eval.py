@@ -127,12 +127,12 @@ async def test_arms_are_isolated_and_their_deltas_match_what_each_arm_can_read(
         "cold": {
             "score": {"mean": 0.0, "ci95": [0.0, 0.0]},
             "steps": {"mean": -2.0, "ci95": [-2.0, -2.0]},
-            "tokens": {"mean": -2200.0, "ci95": [-2200.0, -2200.0]},
+            "tokens": {"mean": -10200.0, "ci95": [-10200.0, -10200.0]},
         },
         "native": {
             "score": {"mean": 0.0, "ci95": [0.0, 0.0]},
             "steps": {"mean": -1.0, "ci95": [-1.0, -1.0]},
-            "tokens": {"mean": -1100.0, "ci95": [-1100.0, -1100.0]},
+            "tokens": {"mean": -5100.0, "ci95": [-5100.0, -5100.0]},
         },
     }
     assert set(arms["cold"]["delta"]) == {"native"}
@@ -146,7 +146,7 @@ async def test_arms_are_isolated_and_their_deltas_match_what_each_arm_can_read(
     lines = render_table(report).splitlines()
     assert lines[0] == "trained state: test runs after 2 training runs"
     assert lines[4] == (
-        "playbook            2   1.00   1.00      3      0     3300        -     0.5  "
+        "playbook            2   1.00   1.00      3      0    15300    12000        -     0.5  "
         "+0 [+0, +0], -2 [-2, -2] / +0 [+0, +0], -1 [-1, -1]"
     )
     assert lines[-2] == "  playbook         0: 1.00 (5 steps), 1: 1.00 (3 steps), 2: 1.00 (3 steps)"

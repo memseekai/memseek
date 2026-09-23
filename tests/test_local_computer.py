@@ -64,6 +64,8 @@ async def test_a_run_writes_learnings_that_the_next_run_reads(
         "tool_calls": 4,
         "tool_errors": 0,
         "input_tokens": 5000,
+        "cache_read_tokens": 20000,
+        "cache_write_tokens": 0,
         "output_tokens": 500,
         "cost_usd": None,
     }
@@ -261,7 +263,9 @@ async def test_the_pi_harness_runs_under_the_local_provider(
         "steps": 2,
         "tool_calls": 1,
         "tool_errors": 1,
-        "input_tokens": 315,
+        "input_tokens": 300,
+        "cache_read_tokens": 10,
+        "cache_write_tokens": 5,
         "output_tokens": 60,
         "cost_usd": 0.003,
     }

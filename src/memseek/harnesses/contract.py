@@ -138,7 +138,10 @@ class HarnessMetrics(StrictModel):
     """Normalized by each harness, so runs compare across harnesses.
 
     Token and cost fields are None when the model provider does not report them,
-    which is different from a reported zero.
+    which is different from a reported zero. ``input_tokens`` is uncached input
+    only, as the Anthropic API counts it: a harness resends the whole
+    conversation each turn, and most of that is billed as cheap cache reads, so
+    one summed figure would hide where the tokens and the money go.
     """
 
     wall_s: float = Field(ge=0)
@@ -146,6 +149,8 @@ class HarnessMetrics(StrictModel):
     tool_calls: int = Field(ge=0)
     tool_errors: int = Field(ge=0)
     input_tokens: int | None = Field(default=None, ge=0)
+    cache_read_tokens: int | None = Field(default=None, ge=0)
+    cache_write_tokens: int | None = Field(default=None, ge=0)
     output_tokens: int | None = Field(default=None, ge=0)
     cost_usd: float | None = Field(default=None, ge=0)
 

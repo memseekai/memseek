@@ -56,6 +56,8 @@ print(
                 "tool_calls": steps - 1,
                 "tool_errors": 0,
                 "input_tokens": 1000 * steps,
+                "cache_read_tokens": 4000 * steps,
+                "cache_write_tokens": 0,
                 "output_tokens": 100 * steps,
                 "cost_usd": None,
             },
