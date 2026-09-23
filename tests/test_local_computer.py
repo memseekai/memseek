@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 from pathlib import Path
 from typing import Any
@@ -81,18 +82,19 @@ async def test_a_run_writes_learnings_that_the_next_run_reads(
     assert "outbox" not in receipt
     harness_input = json.loads((Path(receipt["root"]) / ".harness/input.json").read_text())
     system_prompt = harness_input["system_prompt"]
-    assert (
-        "The only files you may write in /outbox are: /outbox/learnings.jsonl (only through "
-        "the record_skill_learnings tool). Anything else there is discarded. Return your answer "
-        "only in the final JSON object, never as a file."
-    ) in system_prompt.split("\n\n")
     root = receipt["root"]
     assert (
-        f"The Computer root is {root}. In these instructions /workspace, /outbox, "
-        f"/.memseek, and /inputs mean {root}/workspace, {root}/outbox, {root}/.memseek, "
-        f"and {root}/inputs; there is no /workspace at the filesystem root. Your working "
-        "directory is the workspace, so use relative paths for your working files."
+        f"The only files you may write in {root}/outbox are: {root}/outbox/learnings.jsonl "
+        "(only through the record_skill_learnings tool). Anything else there is discarded. "
+        "Return your answer only in the final JSON object, never as a file."
     ) in system_prompt.split("\n\n")
+    assert (
+        f"The Computer root is {root}, and every path in these instructions is already "
+        f"absolute on this machine. Your working directory is {root}/workspace, so use "
+        "relative paths for your working files."
+    ) in system_prompt.split("\n\n")
+    # Every Computer path is named where it really is; the agent opens them literally.
+    assert re.findall(r"(?<![\w.:/-])/(?:\.memseek|outbox|workspace|inputs)\b", system_prompt) == []
     assert (
         "Before your final answer, record what you learned about this site: call the "
         'record_skill_learnings tool, following the "Recording what you learned" section of '
@@ -156,9 +158,10 @@ async def test_learning_off_hides_the_playbook_and_drops_learnings(site: ScrapeW
     cold_input = json.loads(
         (Path(cold["result"]["receipt"]["root"]) / ".harness/input.json").read_text()
     )
+    cold_root = cold["result"]["receipt"]["root"]
     assert (
-        "Write nothing to /outbox. Return your answer only in the final JSON object, never as "
-        "a file."
+        f"Write nothing to {cold_root}/outbox. Return your answer only in the final JSON "
+        "object, never as a file."
     ) in cold_input["system_prompt"].split("\n\n")
     assert "Recording what you learned" not in cold_input["system_prompt"]
     assert cold["result"]["steps"] == 5

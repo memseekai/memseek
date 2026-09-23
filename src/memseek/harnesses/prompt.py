@@ -8,6 +8,7 @@ another: they are told the same things in the same words.
 from __future__ import annotations
 
 import json
+import re
 from collections.abc import Collection, Mapping
 from typing import Any
 
@@ -28,14 +29,25 @@ def _paths_rule(root: str | None) -> str:
             "Your working directory is /workspace. The Computer root is its parent, so "
             "/.memseek is ../.memseek, /inputs is ../inputs, and /outbox is ../outbox."
         )
-    # A live run took "/workspace" literally, found the filesystem root
-    # read-only, and spent three turns on it.
     return (
-        f"The Computer root is {root}. In these instructions /workspace, /outbox, "
-        f"/.memseek, and /inputs mean {root}/workspace, {root}/outbox, {root}/.memseek, "
-        f"and {root}/inputs; there is no /workspace at the filesystem root. Your working "
-        "directory is the workspace, so use relative paths for your working files."
+        f"The Computer root is {root}, and every path in these instructions is already "
+        f"absolute on this machine. Your working directory is {root}/workspace, so use "
+        "relative paths for your working files."
     )
+
+
+# A Computer path, where it starts a token: not the tail of a URL or of a
+# longer path.
+_COMPUTER_PATH = re.compile(
+    r"(?<![\w.:/-])/(\.memseek|outbox|workspace|inputs)(?=[/\s.,;:)`'\"]|$)"
+)
+
+
+def _localize(text: str, root: str) -> str:
+    # Live runs took "/workspace" and then "/.memseek/playbook.md" literally,
+    # hit the read-only filesystem root, and spent turns on it. A mapping
+    # sentence did not stop them, so the prompt names the real paths.
+    return _COMPUTER_PATH.sub(lambda match: f"{root}/{match[1]}", text)
 
 
 _ENVELOPE = (
@@ -93,7 +105,8 @@ def build_system_prompt(
     authorized = ", ".join(sorted(citation_ids)) or "none"
     sections.append(f"Authorized citation IDs: {authorized}")
     sections.extend(_ENVELOPE)
-    return "\n\n".join(sections)
+    prompt = "\n\n".join(sections)
+    return _localize(prompt, root) if root is not None else prompt
 
 
 def _playbook_section(skill: str, playbook: str) -> str:
