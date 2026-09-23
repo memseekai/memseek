@@ -26,6 +26,10 @@ artifacts:
       {"items": [<one object per row, with the fields the goal names>]} as the
       envelope's value, and cite the task record's UUID in citation_ids.
 
+      Work in as few steps as you can. Navigate and extract in one
+      browser-harness call. Return the rows in your final answer directly: do
+      not save them to a file, re-extract them, or read them back.
+
   # The site's playbook: what learning skill packs recorded on earlier runs.
   # The Computer mounts it at /.memseek/playbook.md, and each pack's
   # PLAYBOOK.md is this rendering's rows for that pack, grouped by kind.

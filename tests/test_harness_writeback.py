@@ -190,6 +190,24 @@ def test_a_learning_filed_under_another_name_is_rejected(tmp_path: Path) -> None
     assert not (root / "outbox/learnings.jsonl").exists()
 
 
+def test_a_helper_must_carry_code(tmp_path: Path) -> None:
+    root = _root(tmp_path)
+    helper = {**GOOD, "content": {**GOOD["content"], "kind": "helper"}}
+    # What a live run recorded: a description of the extractor, not the extractor.
+    prose = {**helper, "text": "[browser-harness/helper] HN scraper: querySelector('.titleline a')"}
+    code = {**helper, "text": "[browser-harness/helper] js: [...document.querySelectorAll('tr')]"}
+
+    rejected = _call(root, {"records": [prose]})
+    accepted = _call(root, {"records": [code]})
+
+    assert rejected.returncode == 1
+    assert rejected.stdout.splitlines()[1:] == [
+        "- records.0.text: \"[browser-harness/helper] HN scraper: querySelector('.titleline a')\" "
+        "does not match '^\\\\[[^\\\\]]+/helper\\\\] (js|py|sh): \\\\S'"
+    ]
+    assert accepted.returncode == 0, accepted.stdout
+
+
 def test_an_unauthorized_citation_is_rejected(tmp_path: Path) -> None:
     root = _root(tmp_path)
     stranger = "00000000-0000-4000-8000-000000000000"

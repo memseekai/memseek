@@ -63,6 +63,25 @@ def test_playbook_section_keeps_only_this_pack_grouped_by_kind() -> None:
     assert playbook_section(PLAYBOOK, "missing-pack") is None
 
 
+def test_helpers_come_first_as_code_to_run() -> None:
+    playbook = (
+        PLAYBOOK + "[id=00000000-0000-4000-8000-000000000009] 2026-09-23T10:00:00Z | "
+        "skill_learnings/learning | [echo-pack/helper] js: [...document.rows]\n"
+    )
+
+    section = playbook_section(playbook, "echo-pack")
+
+    assert section is not None
+    assert section.split("\n\n")[2:4] == [
+        "## helper: run the newest one first",
+        "Each is code that produced the rows on an earlier run. Run it, check the result, "
+        "and explore only if it fails.",
+    ]
+    assert section.split("\n\n")[4] == (
+        "- js: [...document.rows] (id 00000000-0000-4000-8000-000000000009)"
+    )
+
+
 def test_read_write_mounts_skill_learning_and_playbook(tmp_path: Path) -> None:
     pack = load_skillpack("echo-pack", FIXTURE_PACKS)
 

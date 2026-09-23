@@ -241,7 +241,9 @@ async def test_a_bad_outbox_costs_only_itself(site: ScrapeWorkspace, tmp_path: P
             "reason": (
                 "pack: 'news.ycombinator.com' is not one of ['echo-pack']; text: "
                 "'[news.ycombinator.com/helper] Rows are tr.athing.' does not match "
-                "'^\\\\[(?:echo-pack)/'"
+                "'^\\\\[(?:echo-pack)/'; text: '[news.ycombinator.com/helper] Rows are "
+                "tr.athing.' does not match '^\\\\[[^\\\\]]+/helper\\\\] (js|py|sh): "
+                "\\\\S'"
             ),
         },
         {"path": "/outbox/notes.txt", "reason": "not a declared writeback file"},

@@ -16,9 +16,11 @@ to fix: fix it and call again. Each entry looks like this:
 
 - `kind` is one of `navigation`, `extraction`, `pitfall`, or `helper`.
 - Record one `helper` learning with the extraction that produced your final
-  rows. Put the working code itself in `text`, on one line, so the next run can
-  run it as it is and skip exploring. For example:
+  rows, unless the playbook's newest helper worked unchanged. Its `text` is the
+  code itself on one line, after `js: `, `py: `, or `sh: `, so the next run can
+  run it as it is. The tool rejects a helper written as prose. For example:
   `[browser-harness/helper] js: Array.from(document.querySelectorAll('tr.athing')).map(r => ({title: r.querySelector('.titleline a').innerText, url: r.querySelector('.titleline a').href}))`
+- Record only what the playbook does not already say.
 - `text` starts with `[browser-harness/<kind>] ` and stays on one line, under 400
   characters. It is the part the next run reads, so make it self-contained.
 - `detail` is the same learning, and it may be longer.

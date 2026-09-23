@@ -219,6 +219,28 @@ def _input_schema(record_schema: Mapping[str, Any], citations: Sequence[str]) ->
     content_schema: dict[str, Any] = {"type": "object", "properties": properties}
     if required:
         content_schema["required"] = required
+    item: dict[str, Any] = {
+        "type": "object",
+        "required": ["text", "content", "citations"],
+        "additionalProperties": False,
+        "properties": {
+            "text": text_schema,
+            "content": content_schema,
+            "citations": {
+                "type": "array",
+                "minItems": 1,
+                "items": {"type": "string", "enum": list(citations)}
+                if citations
+                else {"type": "string"},
+            },
+        },
+    }
+    rules = [
+        {key: _item_fragment(value) for key, value in rule.items() if key in {"if", "then"}}
+        for rule in record_schema.get("allOf", [])
+    ]
+    if rules:
+        item["allOf"] = rules
     return {
         "type": "object",
         "required": ["records"],
@@ -227,25 +249,27 @@ def _input_schema(record_schema: Mapping[str, Any], citations: Sequence[str]) ->
                 "type": "array",
                 "minItems": 1,
                 "maxItems": _MAX_RECORDS_PER_CALL,
-                "items": {
-                    "type": "object",
-                    "required": ["text", "content", "citations"],
-                    "additionalProperties": False,
-                    "properties": {
-                        "text": text_schema,
-                        "content": content_schema,
-                        "citations": {
-                            "type": "array",
-                            "minItems": 1,
-                            "items": {"type": "string", "enum": list(citations)}
-                            if citations
-                            else {"type": "string"},
-                        },
-                    },
-                },
+                "items": item,
             }
         },
     }
+
+
+def _item_fragment(fragment: Mapping[str, Any]) -> dict[str, Any]:
+    """A rule over the flat record ``{text, **content}``, restated for a tool entry."""
+
+    properties = dict(fragment.get("properties") or {})
+    text = properties.pop("text", None)
+    required = list(fragment.get("required") or [])
+    content: dict[str, Any] = {"properties": properties}
+    if [name for name in required if name != "text"]:
+        content["required"] = [name for name in required if name != "text"]
+    translated: dict[str, Any] = {"properties": {"content": content}}
+    if text is not None:
+        translated["properties"]["text"] = text
+    if "text" in required:
+        translated["required"] = ["text"]
+    return translated
 
 
 def _destinations(context_files: Mapping[str, str]) -> dict[str, _Destination]:

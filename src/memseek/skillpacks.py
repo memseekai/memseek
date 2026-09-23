@@ -107,6 +107,9 @@ def pack_environment(
     return {**passed, **declared}
 
 
+HELPER_TEXT_PATTERN = r"^\[[^\]]+/helper\] (js|py|sh): \S"
+
+
 def bind_learnings_schema(schema: Mapping[str, Any], packs: Sequence[str]) -> dict[str, Any]:
     """The learnings schema, narrowed so an entry can only belong to a mounted pack.
 
@@ -125,7 +128,14 @@ def bind_learnings_schema(schema: Mapping[str, Any], packs: Sequence[str]) -> di
         alternatives = "|".join(name.replace(".", "\\.") for name in names)
         prefix = {"pattern": f"^\\[(?:{alternatives})/"}
         properties["text"] = {"allOf": [properties["text"], prefix]}
-    return {**schema, "properties": properties}
+    # A helper is only reusable as code. A live run filed one as prose
+    # ("querySelector('.titleline a') for title/url"), and the next run had to
+    # write the extractor again.
+    helper_is_code = {
+        "if": {"properties": {"kind": {"const": "helper"}}, "required": ["kind"]},
+        "then": {"properties": {"text": {"pattern": HELPER_TEXT_PATTERN}}},
+    }
+    return {**schema, "properties": properties, "allOf": [*schema.get("allOf", []), helper_is_code]}
 
 
 def stop_skillpack(pack: SkillPackManifest, env: Mapping[str, str]) -> None:
@@ -164,6 +174,15 @@ def playbook_section(playbook_md: str, pack: str) -> str | None:
         "Learned on earlier runs against this site, newest first within each kind. "
         "Start from these instead of rediscovering them.",
     ]
+    helpers = grouped.pop("helper", None)
+    if helpers:
+        # First, because running a helper that worked is the cheapest way to
+        # the answer; the other kinds explain what to do when it fails.
+        parts.append(
+            "## helper: run the newest one first\n\nEach is code that produced the rows on an "
+            "earlier run. Run it, check the result, and explore only if it fails.\n\n"
+            + "\n".join(helpers)
+        )
     for kind in sorted(grouped):
         parts.append(f"## {kind}\n\n" + "\n".join(grouped[kind]))
     return "\n\n".join(parts) + "\n"
