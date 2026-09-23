@@ -83,6 +83,9 @@ function show(event) {
       console.log(`  ← ${event.toolName} ${mark} ${clip(textOf(event.result?.content) || event.result, 400)}`);
       break;
     }
+    case "harness_resume":
+      console.log(`\n${color.red}resumed the session (attempt ${event.attempt}): ${event.reason}${color.off}`);
+      break;
     case "auto_retry_start":
       console.log(`  ${color.red}retry ${event.attempt}/${event.maxAttempts}: ${event.errorMessage}${color.off}`);
       break;
@@ -105,10 +108,15 @@ console.log(`${color.dim}${root}${color.off}`);
 let offset = 0;
 let pending = "";
 let ended = false;
+let grewAt = Date.now();
+// A harness can resume pi after an agent_end, so following stops only once
+// the log has also gone quiet.
+const QUIET_MS = 8_000;
 function drain() {
   if (!existsSync(eventsPath)) return;
   const data = readFileSync(eventsPath);
   if (data.length <= offset) return;
+  grewAt = Date.now();
   pending += data.subarray(offset).toString("utf8");
   offset = data.length;
   const lines = pending.split("\n");
@@ -116,7 +124,9 @@ function drain() {
   for (const line of lines) {
     if (!line.trim()) continue;
     try {
-      if (show(JSON.parse(line))) ended = true;
+      const event = JSON.parse(line);
+      if (event.type === "harness_resume") ended = false;
+      if (show(event)) ended = true;
     } catch {
       // A torn or non-JSON line; the next read completes it or it carries nothing.
     }
@@ -131,7 +141,7 @@ if (!existsSync(eventsPath) && !follow) {
 if (follow && !ended) {
   const timer = setInterval(() => {
     drain();
-    if (ended) clearInterval(timer);
+    if (ended && Date.now() - grewAt > QUIET_MS) clearInterval(timer);
   }, 500);
 }
 for (const [label, name] of [["transcript", "transcript.html"], ["stderr", "pi-stderr.log"]]) {

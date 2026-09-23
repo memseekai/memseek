@@ -16,12 +16,18 @@ to fix: fix it and call again. Each entry looks like this:
 
 - `kind` is one of `navigation`, `extraction`, `pitfall`, or `helper`.
 - Record one `helper` learning with the extraction that produced your final
-  rows, unless the playbook's newest helper worked unchanged. Its `text` is the
-  code itself on one line, after `js: `, `py: `, or `sh: `, so the next run can
-  run it as it is. The tool rejects a helper written as prose. For example:
-  `[browser-harness/helper] js: Array.from(document.querySelectorAll('tr.athing')).map(r => ({title: r.querySelector('.titleline a').innerText, url: r.querySelector('.titleline a').href}))`
+  rows, unless the playbook's newest helper worked unchanged. Its `text` is
+  `py: ` followed by the exact Python you piped into `browser-harness`, on one
+  line with statements separated by `; `, so the next run can pipe it in as it
+  is. Use only functions you actually called, such as `new_tab`,
+  `wait_for_load`, and `js`. The tool rejects a helper written as prose. For
+  example:
+  `[browser-harness/helper] py: new_tab("https://news.ycombinator.com"); wait_for_load(); print(js("Array.from(document.querySelectorAll('tr.athing')).map(r => ({title: r.querySelector('.titleline a').innerText, url: r.querySelector('.titleline a').href}))"))`
+- If the page loads its data from a URL you can call directly (a JSON endpoint,
+  say), record it as a `navigation` learning. Calling it is usually cheaper than
+  clicking through the page.
 - Record only what the playbook does not already say.
-- `text` starts with `[browser-harness/<kind>] ` and stays on one line, under 400
+- `text` starts with `[browser-harness/<kind>] ` and stays on one line, under 480
   characters. It is the part the next run reads, so make it self-contained.
 - `detail` is the same learning, and it may be longer.
 - `helper_code` is optional. Use it for a short snippet that worked, and leave

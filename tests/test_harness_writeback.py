@@ -221,7 +221,8 @@ def test_an_unauthorized_citation_is_rejected(tmp_path: Path) -> None:
 class _StubModel(BaseHTTPRequestHandler):
     """An OpenAI-compatible endpoint that scripts a bad call, a fix, and an answer."""
 
-    script: ClassVar[list[tuple[dict[str, Any], str]]] = []
+    # A None entry answers that request with a 400, as a provider rejection does.
+    script: ClassVar[list[tuple[dict[str, Any], str] | None]] = []
     seen: ClassVar[list[dict[str, Any]]] = []
 
     def log_message(self, format: str, *args: Any) -> None:
@@ -231,7 +232,18 @@ class _StubModel(BaseHTTPRequestHandler):
         body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
         turn = len(self.seen)
         self.seen.append(body)
-        delta, finish = self.script[turn]
+        step = self.script[turn]
+        if step is None:
+            error = (
+                b'{"error": {"type": "invalid_request_error", "message": "Invalid request data"}}'
+            )
+            self.send_response(400)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(error)))
+            self.end_headers()
+            self.wfile.write(error)
+            return
+        delta, finish = step
         chunks = [
             {
                 "id": "x",
@@ -344,3 +356,65 @@ def test_real_pi_offers_the_tool_and_the_agent_recovers_from_a_rejection(
     ] == [("record_skill_learnings", True), ("record_skill_learnings", False)]
     assert "message_update" not in {event["type"] for event in events}
     assert (root / ".harness/transcript.html").stat().st_size > 0
+
+
+@pytest.mark.skipif(
+    shutil.which("pi") is None or shutil.which("node") is None,
+    reason="needs pi and node on PATH",
+)
+def test_a_provider_error_resumes_the_session_instead_of_failing_the_run(
+    tmp_path: Path,
+) -> None:
+    root = _root(tmp_path)
+    envelope = {"value": {"items": []}, "citation_ids": [CITATION], "awaiting_input": False}
+    _StubModel.script = [
+        _tool_call(0, [GOOD]),
+        None,
+        ({"role": "assistant", "content": json.dumps(envelope)}, "stop"),
+    ]
+    _StubModel.seen = []
+    server = HTTPServer(("127.0.0.1", 0), _StubModel)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    agent_dir = tmp_path / "pi-agent"
+    agent_dir.mkdir()
+    (agent_dir / "models.json").write_text(
+        json.dumps(
+            {
+                "providers": {
+                    "stub": {
+                        "baseUrl": f"http://127.0.0.1:{server.server_port}/v1",
+                        "api": "openai-completions",
+                        "apiKey": "stub",
+                        "models": [{"id": "stub-model"}],
+                    }
+                }
+            }
+        )
+    )
+    try:
+        completed = subprocess.run(
+            ["node", str(REPOSITORY_ROOT / "harnesses/pi/run.mjs")],
+            cwd=root,
+            env={
+                "PATH": os.environ["PATH"],
+                "HOME": str(tmp_path),
+                "PI_CODING_AGENT_DIR": str(agent_dir),
+            },
+            capture_output=True,
+            text=True,
+            timeout=120,
+            check=False,
+        )
+    finally:
+        server.shutdown()
+
+    assert completed.returncode == 0, completed.stderr
+    output = json.loads(completed.stdout.splitlines()[-1])
+    assert output["value"] == {"items": []}
+    assert [event for event in output["events"] if event["kind"] == "harness_resume"] == [
+        {"kind": "harness_resume", "payload": {"attempt": 1, "reason": "model_error"}}
+    ]
+    # The resumed request carries the whole session, including the recorded tool call.
+    resumed = json.dumps(_StubModel.seen[2]["messages"])
+    assert "record_skill_learnings" in resumed
+    assert "Your previous turn ended before you finished." in resumed

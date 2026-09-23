@@ -12,6 +12,13 @@ import { fileURLToPath } from "node:url";
 
 const MAX_EVENTS = 200;
 const KILL_GRACE_MS = 5_000;
+// A turn can end on a provider error (a live run got a one-off 400 "Invalid
+// request data") or without the envelope. The session is saved, so the run
+// resumes it rather than losing everything done so far.
+const MAX_RESUMES = 2;
+const RESUME_PROMPT =
+  "Your previous turn ended before you finished. Continue the task from where you left off, "
+  + "and end with the final JSON object.";
 
 const root = process.cwd();
 const input = JSON.parse(readFileSync(join(root, ".harness", "input.json"), "utf8"));
@@ -41,25 +48,16 @@ const args = [
 if (typeof input.model.params?.thinking === "string") {
   args.push("--thinking", input.model.params.thinking);
 }
-args.push("--", input.task);
 
 const started = Date.now();
-const child = spawn("pi", args, {
-  cwd: join(root, "workspace"),
-  env: { ...process.env, MEMSEEK_HARNESS_ROOT: root },
-  stdio: ["ignore", "pipe", "pipe"],
-});
-child.stderr.on("data", (chunk) => {
-  stderrLog.write(chunk);
-  process.stderr.write(chunk);
-});
+let child = null;
 
 let stopped = null;
 function stop(reason) {
   if (stopped) return;
   stopped = reason;
-  child.kill("SIGTERM");
-  setTimeout(() => child.kill("SIGKILL"), KILL_GRACE_MS).unref();
+  child?.kill("SIGTERM");
+  setTimeout(() => child?.kill("SIGKILL"), KILL_GRACE_MS).unref();
 }
 const wallTimer = setTimeout(
   () => stop(`exceeded max_wall_s ${input.limits.max_wall_s}`),
@@ -72,6 +70,7 @@ const usage = {
 };
 const events = [];
 let finalText = "";
+let lastStopReason = null;
 
 function record(kind, payload) {
   if (events.length < MAX_EVENTS) events.push({ kind, payload });
@@ -96,6 +95,7 @@ function observe(event) {
       .map((part) => part.text)
       .join("");
     if (text.trim()) finalText = text;
+    lastStopReason = typeof message.stopReason === "string" ? message.stopReason : null;
     if (message.usage && typeof message.usage === "object") {
       usage.seen = true;
       usage.input += number(message.usage.input);
@@ -124,17 +124,38 @@ function observe(event) {
   }
 }
 
-const lines = createInterface({ input: child.stdout });
-lines.on("line", (line) => {
-  if (!line.trim()) return;
-  try {
-    const event = JSON.parse(line);
-    if (!NOISY_EVENTS.has(event?.type)) eventLog.write(`${line}\n`);
-    observe(event);
-  } catch {
-    // A non-JSON line is pi talking to a human; it carries nothing we count.
-  }
-});
+function runPi(extra, prompt) {
+  child = spawn("pi", [...args, ...extra, "--", prompt], {
+    cwd: join(root, "workspace"),
+    env: { ...process.env, MEMSEEK_HARNESS_ROOT: root },
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  child.stderr.on("data", (chunk) => {
+    stderrLog.write(chunk);
+    process.stderr.write(chunk);
+  });
+  createInterface({ input: child.stdout }).on("line", (line) => {
+    if (!line.trim()) return;
+    try {
+      const event = JSON.parse(line);
+      if (!NOISY_EVENTS.has(event?.type)) eventLog.write(`${line}\n`);
+      observe(event);
+    } catch {
+      // A non-JSON line is pi talking to a human; it carries nothing we count.
+    }
+  });
+  return new Promise((resolve) => {
+    child.on("error", (error) => fail(`cannot start pi: ${error.message}`));
+    child.on("close", (exitCode, exitSignal) => resolve([exitCode, exitSignal]));
+  });
+}
+
+function sessionFile() {
+  const name = readdirSync(sessionDir, { recursive: true })
+    .map(String)
+    .find((entry) => entry.endsWith(".jsonl"));
+  return name ? join(sessionDir, name) : null;
+}
 
 // The envelope is the final assistant text. Models wrap it in prose or a code
 // fence often enough that the first parseable object holding `value` wins.
@@ -158,10 +179,19 @@ function fail(message) {
   process.exit(1);
 }
 
-const [code, signal] = await new Promise((resolve) => {
-  child.on("error", (error) => fail(`cannot start pi: ${error.message}`));
-  child.on("close", (exitCode, exitSignal) => resolve([exitCode, exitSignal]));
-});
+let [code, signal] = await runPi([], input.task);
+let envelope = parseEnvelope(finalText);
+for (let resume = 1; resume <= MAX_RESUMES; resume += 1) {
+  if (stopped || (code === 0 && envelope && lastStopReason !== "error")) break;
+  const session = sessionFile();
+  if (!session) break;
+  const reason = lastStopReason === "error" ? "model_error" : code !== 0 ? "exit" : "no_envelope";
+  record("harness_resume", { attempt: resume, reason });
+  eventLog.write(`${JSON.stringify({ type: "harness_resume", attempt: resume, reason })}\n`);
+  finalText = "";
+  [code, signal] = await runPi(["--session", session], RESUME_PROMPT);
+  envelope = parseEnvelope(finalText);
+}
 clearTimeout(wallTimer);
 eventLog.end();
 stderrLog.end();
@@ -171,11 +201,9 @@ exportTranscript();
 // Best effort: a failed export must not hide the run's real outcome.
 function exportTranscript() {
   try {
-    const session = readdirSync(sessionDir, { recursive: true })
-      .map(String)
-      .find((name) => name.endsWith(".jsonl"));
+    const session = sessionFile();
     if (!session) return;
-    spawnSync("pi", ["--export", join(sessionDir, session), join(root, ".harness", "transcript.html")], {
+    spawnSync("pi", ["--export", session, join(root, ".harness", "transcript.html")], {
       stdio: "ignore",
       timeout: 30_000,
     });
@@ -186,7 +214,6 @@ function exportTranscript() {
 
 if (stopped) fail(stopped);
 if (code !== 0) fail(`pi exited ${code ?? signal}`);
-const envelope = parseEnvelope(finalText);
 if (!envelope) fail("final assistant message holds no {value, citation_ids} envelope");
 if (!Array.isArray(envelope.citation_ids ?? [])) fail("envelope citation_ids is not a list");
 
