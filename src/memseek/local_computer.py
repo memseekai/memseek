@@ -55,6 +55,7 @@ from memseek.skillpacks import (
     SkillMount,
     SkillPackError,
     SkillPackManifest,
+    bind_learnings_schema,
     check_skillpack,
     load_skillpack,
     materialize_skillpack,
@@ -195,6 +196,10 @@ class LocalComputerProvider:
             if path != LEARNINGS_PATH or options.learning == "read_write"
         ]
         citations = sorted(str(value) for value in request.citation_ids)
+        learning_packs = [
+            pack.name for pack in packs if pack.learns and options.learning == "read_write"
+        ]
+        schemas = _schema_overrides(context_files, learning_packs)
         tools_for_writeback = writeback_tools(
             (
                 item.model_dump(mode="json")
@@ -203,6 +208,7 @@ class LocalComputerProvider:
             ),
             context_files,
             citations,
+            schema_overrides=schemas,
         )
         harness_input = HarnessInput(
             task=_task_text(request.input),
@@ -214,9 +220,8 @@ class LocalComputerProvider:
                 citation_ids=[str(value) for value in request.citation_ids],
                 writeback_paths=writeback_paths,
                 writeback_tools={tool.path: tool.name for tool in tools_for_writeback},
-                learning_packs=[
-                    pack.name for pack in packs if pack.learns and options.learning == "read_write"
-                ],
+                learning_packs=learning_packs,
+                root=str(root),
                 playbooks={mount.name: mount.playbook for mount in mounts if mount.playbook},
             ),
             output_schema=dict(request.output_schema or {"type": "object"}),
@@ -237,7 +242,7 @@ class LocalComputerProvider:
         output = _run_harness(manifest, root, env, wall_s=agent.limits.max_wall_s)
         if options.learning != "read_write":
             (root / LEARNINGS_PATH.lstrip("/")).unlink(missing_ok=True)
-        outbox, rejected = _collect_outbox(root, request, context_files)
+        outbox, rejected = _collect_outbox(root, request, context_files, schemas)
         encoded = json.dumps(
             output.value, ensure_ascii=False, sort_keys=True, separators=(",", ":")
         ).encode()
@@ -432,8 +437,20 @@ def _writeback_paths(request: ComputerRequest) -> list[str]:
     return [item.path for item in _configured_writeback(request)]
 
 
+def _schema_overrides(
+    context_files: Mapping[str, str], learning_packs: list[str]
+) -> dict[str, dict[str, Any]]:
+    schema = destination_schema(context_files, LEARNINGS_PATH)
+    if schema is None or not learning_packs:
+        return {}
+    return {LEARNINGS_PATH: bind_learnings_schema(schema, learning_packs)}
+
+
 def _collect_outbox(
-    root: Path, request: ComputerRequest, context_files: Mapping[str, str]
+    root: Path,
+    request: ComputerRequest,
+    context_files: Mapping[str, str],
+    schema_overrides: Mapping[str, Mapping[str, Any]],
 ) -> tuple[list[_OutboxFile], list[_Rejected]]:
     """What in the outbox would ingest cleanly, and why the rest was left out.
 
@@ -469,7 +486,11 @@ def _collect_outbox(
         except (OSError, UnicodeDecodeError) as exc:
             rejected.append(_Rejected(path=path, reason=f"unreadable: {exc}"))
             continue
-        schema = destination_schema(context_files, declaration.path) or {}
+        schema = (
+            schema_overrides.get(declaration.path)
+            or destination_schema(context_files, declaration.path)
+            or {}
+        )
         if declaration.type == "observations":
             kept: list[str] = []
             for number, line in enumerate(text.splitlines(), start=1):

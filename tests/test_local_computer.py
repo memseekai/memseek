@@ -86,6 +86,13 @@ async def test_a_run_writes_learnings_that_the_next_run_reads(
         "the record_skill_learnings tool). Anything else there is discarded. Return your answer "
         "only in the final JSON object, never as a file."
     ) in system_prompt.split("\n\n")
+    root = receipt["root"]
+    assert (
+        f"The Computer root is {root}. In these instructions /workspace, /outbox, "
+        f"/.memseek, and /inputs mean {root}/workspace, {root}/outbox, {root}/.memseek, "
+        f"and {root}/inputs; there is no /workspace at the filesystem root. Your working "
+        "directory is the workspace, so use relative paths for your working files."
+    ) in system_prompt.split("\n\n")
     assert (
         "Before your final answer, record what you learned about this site: call the "
         'record_skill_learnings tool, following the "Recording what you learned" section of '
@@ -197,11 +204,21 @@ async def test_a_bad_outbox_costs_only_itself(site: ScrapeWorkspace, tmp_path: P
     (rogue / "harness.yaml").write_text((fixture / "harness.yaml").read_text())
     # The shape a live run wrote by hand, which ingestion refuses.
     bad_line = '{"learning": "HN rows are tr.athing", "site": "news.ycombinator.com"}'
+    # Valid for the collection, but filed under the site's name, so no playbook reads it.
+    misfiled = json.dumps(
+        {
+            "text": "[news.ycombinator.com/helper] Rows are tr.athing.",
+            "content": {"pack": "news.ycombinator.com", "kind": "helper", "detail": "x"},
+            "citations": ["{task_id}"],
+        }
+    )
     (rogue / "run.py").write_text(
         "from pathlib import Path\n"
         "Path('outbox/notes.txt').write_text('x')\n"
-        f"Path('outbox/learnings.jsonl').write_text({bad_line!r} + '\\n')\n"
-        + (fixture / "run.py").read_text()
+        "import json as _json\n"
+        "_task = _json.loads(Path('.harness/input.json').read_text())['citation_ids'][0]\n"
+        f"Path('outbox/learnings.jsonl').write_text({bad_line!r} + '\\n' + "
+        f"{misfiled!r}.replace('{{task_id}}', _task) + '\\n')\n" + (fixture / "run.py").read_text()
     )
     await site.write_task(ENTITY, URL, "top 30 stories")
 
@@ -216,6 +233,15 @@ async def test_a_bad_outbox_costs_only_itself(site: ScrapeWorkspace, tmp_path: P
                 "unknown keys ['learning', 'site']; an entry has only text, content, and "
                 "citations; citations must be a non-empty list of authorized UUIDs; text must be a "
                 "string"
+            ),
+        },
+        {
+            "path": "/outbox/learnings.jsonl",
+            "line": 2,
+            "reason": (
+                "pack: 'news.ycombinator.com' is not one of ['echo-pack']; text: "
+                "'[news.ycombinator.com/helper] Rows are tr.athing.' does not match "
+                "'^\\\\[(?:echo-pack)/'"
             ),
         },
         {"path": "/outbox/notes.txt", "reason": "not a declared writeback file"},

@@ -17,11 +17,26 @@ _MAX_INLINE_SCHEMA_BYTES = 8 * 1024
 
 _PREAMBLE = (
     "You are the exact versioned MemSeek Agent named in /.memseek/manifest.json.",
-    "Your working directory is /workspace. The Computer root is its parent, so /.memseek "
-    "is ../.memseek, /inputs is ../inputs, and /outbox is ../outbox.",
     "/.memseek and /inputs are read-only context. Write working files in /workspace.",
     "Read immutable context before acting. Load an installed skill before following its procedure.",
 )
+
+
+def _paths_rule(root: str | None) -> str:
+    if root is None:
+        return (
+            "Your working directory is /workspace. The Computer root is its parent, so "
+            "/.memseek is ../.memseek, /inputs is ../inputs, and /outbox is ../outbox."
+        )
+    # A live run took "/workspace" literally, found the filesystem root
+    # read-only, and spent three turns on it.
+    return (
+        f"The Computer root is {root}. In these instructions /workspace, /outbox, "
+        f"/.memseek, and /inputs mean {root}/workspace, {root}/outbox, {root}/.memseek, "
+        f"and {root}/inputs; there is no /workspace at the filesystem root. Your working "
+        "directory is the workspace, so use relative paths for your working files."
+    )
+
 
 _ENVELOPE = (
     'End with one JSON object and nothing else: {"value": <object>, "citation_ids": '
@@ -43,10 +58,16 @@ def build_system_prompt(
     writeback_tools: Mapping[str, str],
     learning_packs: Collection[str],
     playbooks: Mapping[str, str],
+    root: str | None = None,
 ) -> str:
     """``writeback_tools`` maps each outbox path that has a tool to the tool's name."""
 
-    sections: list[str] = [*_PREAMBLE, _outbox_rule(writeback_paths, writeback_tools)]
+    sections: list[str] = [
+        _PREAMBLE[0],
+        _paths_rule(root),
+        *_PREAMBLE[1:],
+        _outbox_rule(writeback_paths, writeback_tools),
+    ]
     sections.extend(_playbook_section(name, text) for name, text in sorted(playbooks.items()))
     if learning_packs:
         # The recording procedure sits at the end of each pack's SKILL.md, which a

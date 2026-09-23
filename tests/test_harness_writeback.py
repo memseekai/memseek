@@ -16,10 +16,11 @@ import pytest
 import yaml
 
 from memseek.harnesses.writeback import WRITEBACK_SCHEMAS_PATH, writeback_tools
+from memseek.skillpacks import bind_learnings_schema
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 CITATION = "3d7b39bd-b7c0-4175-915f-d2a4888284cc"
-GOOD = {
+GOOD: dict[str, Any] = {
     "text": "[browser-harness/extraction] Stories are tr.athing rows.",
     "content": {
         "pack": "browser-harness",
@@ -56,10 +57,16 @@ def _root(tmp_path: Path) -> Path:
     (root / ".memseek/writeback-schemas.json").write_text(schemas)
     (root / "outbox").mkdir()
     (root / "workspace").mkdir()
+    # Narrowed to the mounted pack, as the local provider does.
     tools = writeback_tools(
         [{"path": "/outbox/learnings.jsonl", "type": "observations"}],
         {WRITEBACK_SCHEMAS_PATH: schemas},
         [CITATION],
+        schema_overrides={
+            "/outbox/learnings.jsonl": bind_learnings_schema(
+                _learnings_schema(), ["browser-harness"]
+            )
+        },
     )
     (root / ".harness").mkdir()
     (root / ".harness/input.json").write_text(
@@ -161,6 +168,26 @@ def test_an_accepted_call_appends_the_record_without_null_fields(tmp_path: Path)
             },
         }
     ]
+
+
+def test_a_learning_filed_under_another_name_is_rejected(tmp_path: Path) -> None:
+    root = _root(tmp_path)
+    # What a live run sent: the site's domain where the pack's name belongs.
+    misfiled = {
+        **GOOD,
+        "text": "[news.ycombinator.com/helper] Rows are tr.athing.",
+        "content": {**GOOD["content"], "pack": "news.ycombinator.com"},
+    }
+
+    rejected = _call(root, {"records": [misfiled]})
+
+    assert rejected.returncode == 1
+    assert rejected.stdout.splitlines()[1:] == [
+        "- records.0.content.pack: 'news.ycombinator.com' is not one of ['browser-harness']",
+        "- records.0.text: '[news.ycombinator.com/helper] Rows are tr.athing.' does not match "
+        "'^\\\\[(?:browser-harness)/'",
+    ]
+    assert not (root / "outbox/learnings.jsonl").exists()
 
 
 def test_an_unauthorized_citation_is_rejected(tmp_path: Path) -> None:

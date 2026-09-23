@@ -15,7 +15,7 @@ import subprocess
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Self
+from typing import Any, Self
 
 from pydantic import Field, model_validator
 
@@ -105,6 +105,27 @@ def pack_environment(
         for name, value in pack.env.set.items()
     }
     return {**passed, **declared}
+
+
+def bind_learnings_schema(schema: Mapping[str, Any], packs: Sequence[str]) -> dict[str, Any]:
+    """The learnings schema, narrowed so an entry can only belong to a mounted pack.
+
+    The playbook finds a pack's rows by the ``[<pack>/<kind>] `` prefix on
+    ``text``. A learning filed under any other name (a live run used the site's
+    domain) is stored but never read back, so the run is refused it instead.
+    """
+
+    names = sorted(packs)
+    properties = dict(schema.get("properties") or {})
+    if "pack" in properties:
+        properties["pack"] = {**properties["pack"], "enum": names}
+    if "text" in properties:
+        # Escape by hand: harnesses compile this as a JavaScript Unicode regex,
+        # which rejects re.escape's "\\-". Pack names only hold [a-z0-9._-].
+        alternatives = "|".join(name.replace(".", "\\.") for name in names)
+        prefix = {"pattern": f"^\\[(?:{alternatives})/"}
+        properties["text"] = {"allOf": [properties["text"], prefix]}
+    return {**schema, "properties": properties}
 
 
 def stop_skillpack(pack: SkillPackManifest, env: Mapping[str, str]) -> None:
@@ -232,6 +253,7 @@ __all__ = [
     "SkillMount",
     "SkillPackError",
     "SkillPackManifest",
+    "bind_learnings_schema",
     "check_skillpack",
     "load_skillpack",
     "materialize_skillpack",

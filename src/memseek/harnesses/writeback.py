@@ -56,10 +56,16 @@ def writeback_tools(
     writeback: Iterable[Mapping[str, Any]],
     context_files: Mapping[str, str],
     citation_ids: Collection[str],
+    schema_overrides: Mapping[str, Mapping[str, Any]] | None = None,
 ) -> list[WritebackTool]:
-    """One tool per declared ``observations`` writeback that has a schema."""
+    """One tool per declared ``observations`` writeback that has a schema.
+
+    ``schema_overrides`` narrows a destination's schema for this run; the tool
+    enforces the narrowed one, and ingestion still checks the original.
+    """
 
     destinations = _destinations(context_files)
+    overrides = schema_overrides or {}
     citations = sorted(citation_ids)
     tools: list[WritebackTool] = []
     for declaration in writeback:
@@ -77,7 +83,9 @@ def writeback_tools(
                     f"instead of writing {destination.path} yourself."
                 ),
                 path=destination.path,
-                input_schema=_input_schema(destination.schema_, citations),
+                input_schema=_input_schema(
+                    overrides.get(destination.path, destination.schema_), citations
+                ),
             )
         )
     return tools
@@ -177,6 +185,14 @@ def run_tool(root: Path, name: str, arguments: Any) -> tuple[bool, str]:
         for index, record in enumerate(records)
         for problem in check_candidate(record, schema, citations)
     ]
+    if not problems:
+        # The tool's own schema can be narrower than the collection's, as when
+        # a learning must name a pack this run mounted.
+        shape = Draft202012Validator(tool.input_schema, format_checker=FormatChecker())
+        problems = [
+            f"{'.'.join(str(part) for part in error.path) or 'arguments'}: {error.message}"
+            for error in sorted(shape.iter_errors({"records": records}), key=lambda e: list(e.path))
+        ]
     if problems:
         return False, "Nothing was written. Fix these and call again:\n" + "\n".join(
             f"- {problem}" for problem in problems
