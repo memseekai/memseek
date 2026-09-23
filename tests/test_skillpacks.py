@@ -20,13 +20,17 @@ from memseek.skillpacks import (
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 FIXTURE_PACKS = (REPOSITORY_ROOT / "tests" / "fixtures" / "skillpacks",)
 
-SKILL = "---\nname: echo-pack\ndescription: Scrape a page.\n---\n\nScrape the page."
+FRONTMATTER = "---\nname: echo-pack\ndescription: Scrape a page.\n---"
+BODY = "Scrape the page."
+SKILL = f"{FRONTMATTER}\n\n{BODY}"
 LEARNING = (
     "## Recording what you learned\n\nAppend one line per learning to ../outbox/learnings.jsonl."
 )
 POINTER = (
-    "## Playbook\n\nRead PLAYBOOK.md in this directory before you start: it holds "
-    "what earlier runs learned about this site."
+    "## Start from the playbook\n\n"
+    "Earlier runs on this site left PLAYBOOK.md in this directory. Read it before you open "
+    "the browser or write any code. Try what it says first, and explore only what it does "
+    "not cover."
 )
 PLAYBOOK = """Learned site knowledge, newest first.
 
@@ -67,8 +71,11 @@ def test_read_write_mounts_skill_learning_and_playbook(tmp_path: Path) -> None:
     )
 
     assert mount.dir == tmp_path / "echo-pack"
-    assert (mount.dir / "SKILL.md").read_text() == f"{SKILL}\n\n{LEARNING}\n\n{POINTER}\n"
+    assert (mount.dir / "SKILL.md").read_text() == (
+        f"{FRONTMATTER}\n\n{POINTER}\n\n{BODY}\n\n{LEARNING}\n"
+    )
     assert (mount.dir / "PLAYBOOK.md").read_text() == SECTION
+    assert mount.playbook == SECTION
 
 
 def test_read_mounts_the_playbook_without_asking_for_learnings(tmp_path: Path) -> None:
@@ -76,8 +83,9 @@ def test_read_mounts_the_playbook_without_asking_for_learnings(tmp_path: Path) -
 
     mount = materialize_skillpack(pack, tmp_path, playbook_md=PLAYBOOK, learning="read", env=_env())
 
-    assert (mount.dir / "SKILL.md").read_text() == f"{SKILL}\n\n{POINTER}\n"
+    assert (mount.dir / "SKILL.md").read_text() == f"{FRONTMATTER}\n\n{POINTER}\n\n{BODY}\n"
     assert (mount.dir / "PLAYBOOK.md").read_text() == SECTION
+    assert mount.playbook == SECTION
 
 
 def test_off_mounts_the_bare_skill(tmp_path: Path) -> None:

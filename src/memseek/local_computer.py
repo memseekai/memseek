@@ -165,6 +165,7 @@ class LocalComputerProvider:
                 learning_packs=[
                     pack.name for pack in packs if pack.learns and options.learning == "read_write"
                 ],
+                playbooks={mount.name: mount.playbook for mount in mounts if mount.playbook},
             ),
             output_schema=dict(request.output_schema or {"type": "object"}),
             model=_harness_model(request.model),

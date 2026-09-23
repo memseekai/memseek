@@ -39,8 +39,10 @@ def build_system_prompt(
     citation_ids: Collection[str],
     writeback_paths: Collection[str],
     learning_packs: Collection[str],
+    playbooks: Mapping[str, str],
 ) -> str:
     sections: list[str] = [*_PREAMBLE, _outbox_rule(writeback_paths)]
+    sections.extend(_playbook_section(name, text) for name, text in sorted(playbooks.items()))
     if learning_packs:
         # The recording procedure sits at the end of each pack's SKILL.md, which a
         # long upstream skill can push past where an agent stops reading.
@@ -63,6 +65,18 @@ def build_system_prompt(
     sections.append(f"Authorized citation IDs: {authorized}")
     sections.extend(_ENVELOPE)
     return "\n\n".join(sections)
+
+
+def _playbook_section(skill: str, playbook: str) -> str:
+    # Inlined, not pointed at: a run that only lists the file re-derives what
+    # earlier runs already paid to learn.
+    return (
+        "## What earlier runs learned about this site\n\n"
+        f"This is the {skill} skill's PLAYBOOK.md. Start from it. Try its URLs, selectors, "
+        "and pitfalls before you explore, and explore only what it does not cover. When a "
+        "learning turns out to be wrong, say so in a new learning.\n\n"
+        f"{playbook.strip()}"
+    )
 
 
 def _outbox_rule(writeback_paths: Collection[str]) -> str:

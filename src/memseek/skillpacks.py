@@ -78,6 +78,7 @@ class SkillPackManifest(StrictModel):
 class SkillMount:
     name: str
     dir: Path
+    playbook: str | None = None
 
 
 def load_skillpack(name: str, paths: Sequence[Path]) -> SkillPackManifest:
@@ -141,22 +142,42 @@ def materialize_skillpack(
 
     directory = skills_root / pack.name
     directory.mkdir(parents=True, exist_ok=True)
-    parts = [_skill_document(pack, env).rstrip()]
-    if pack.learns and learning == "read_write":
-        parts.append((pack.root / "LEARNING.md").read_text(encoding="utf-8").strip())
+    frontmatter, body = _split_frontmatter(_skill_document(pack, env))
     section = (
         playbook_section(playbook_md, pack.name)
         if playbook_md is not None and learning != "off"
         else None
     )
+    parts = [frontmatter]
     if section is not None:
         (directory / "PLAYBOOK.md").write_text(section, encoding="utf-8")
-        parts.append(
-            "## Playbook\n\nRead PLAYBOOK.md in this directory before you start: it holds "
-            "what earlier runs learned about this site."
-        )
-    (directory / "SKILL.md").write_text("\n\n".join(parts) + "\n", encoding="utf-8")
-    return SkillMount(name=pack.name, dir=directory)
+        # First, not appended: an upstream skill runs to hundreds of lines, and
+        # a pointer at the end is one the agent never reaches.
+        parts.append(PLAYBOOK_POINTER)
+    parts.append(body)
+    if pack.learns and learning == "read_write":
+        parts.append((pack.root / "LEARNING.md").read_text(encoding="utf-8").strip())
+    (directory / "SKILL.md").write_text(
+        "\n\n".join(part for part in parts if part) + "\n", encoding="utf-8"
+    )
+    return SkillMount(name=pack.name, dir=directory, playbook=section)
+
+
+PLAYBOOK_POINTER = (
+    "## Start from the playbook\n\n"
+    "Earlier runs on this site left PLAYBOOK.md in this directory. Read it before you open "
+    "the browser or write any code. Try what it says first, and explore only what it does "
+    "not cover."
+)
+
+
+def _split_frontmatter(document: str) -> tuple[str, str]:
+    text = document.strip()
+    if text.startswith("---\n"):
+        end = text.find("\n---", 4)
+        if end != -1:
+            return text[: end + 4], text[end + 4 :].strip()
+    return "", text
 
 
 def _skill_document(pack: SkillPackManifest, env: Mapping[str, str]) -> str:

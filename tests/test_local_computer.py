@@ -110,7 +110,18 @@ async def test_a_run_writes_learnings_that_the_next_run_reads(
         ).fetchone()
     assert row is not None
     assert PLAYBOOK_ROW.format(id=row["id"]) in playbook.splitlines()
-    assert "Read PLAYBOOK.md" in (_skill_dir(second) / "SKILL.md").read_text()
+    skill = (_skill_dir(second) / "SKILL.md").read_text()
+    assert skill.index("## Start from the playbook") < skill.index("## Recording what you learned")
+    second_input = json.loads(
+        (Path(second["result"]["receipt"]["root"]) / ".harness/input.json").read_text()
+    )
+    assert (
+        "## What earlier runs learned about this site\n\n"
+        "This is the echo-pack skill's PLAYBOOK.md. Start from it. Try its URLs, selectors, "
+        "and pitfalls before you explore, and explore only what it does not cover. When a "
+        "learning turns out to be wrong, say so in a new learning.\n\n"
+        f"{playbook.strip()}"
+    ) in second_input["system_prompt"]
 
 
 async def test_learning_off_hides_the_playbook_and_drops_learnings(site: ScrapeWorkspace) -> None:

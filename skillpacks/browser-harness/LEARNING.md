@@ -4,7 +4,8 @@ This run is expected to leave the next run on this site better off. Before you
 return your final answer, append one line to `../outbox/learnings.jsonl` for
 each thing you learned about this site that a later run would otherwise have to
 rediscover. Record at most 8 learnings, and skip anything specific to today's
-data.
+data. If a playbook learning was wrong or out of date, record a `pitfall` that
+says so and what is true now.
 
 Each line is one JSON object:
 
