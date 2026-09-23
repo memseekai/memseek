@@ -9,6 +9,7 @@ playbook the Computer mounts at ``/.memseek/playbook.md``.
 
 from __future__ import annotations
 
+import contextlib
 import re
 import subprocess
 from collections.abc import Mapping, Sequence
@@ -59,7 +60,8 @@ class SkillSource(StrictModel):
 class SkillPackEnv(StrictModel):
     passthrough: tuple[EnvVarName, ...] = Field(default=(), alias="pass")
     # `{state}` expands to the pack's state directory, fresh or persisted as
-    # the run asks.
+    # the run asks. `{runtime}` expands to a short private directory that lives
+    # for one run, for sockets and pid files.
     set: dict[EnvVarName, str] = Field(default_factory=dict)
 
 
@@ -71,6 +73,9 @@ class SkillPackManifest(StrictModel):
     env: SkillPackEnv = Field(default_factory=SkillPackEnv)
     capabilities: tuple[ComputerCapabilityName, ...] = ()
     learns: bool = False
+    # Run after the harness exits, with the pack's environment, so nothing the
+    # pack started (a browser daemon) outlives the run.
+    stop: tuple[NonBlank, ...] | None = Field(default=None, min_length=1)
     root: Path = Field(exclude=True)
 
 
@@ -90,15 +95,32 @@ def check_skillpack(pack: SkillPackManifest, *, path: str | None = None) -> None
 
 
 def pack_environment(
-    pack: SkillPackManifest, *, state_dir: Path, parent: Mapping[str, str]
+    pack: SkillPackManifest, *, state_dir: Path, runtime_dir: Path, parent: Mapping[str, str]
 ) -> dict[str, str]:
     """The variables this pack declares, and nothing else from ``parent``."""
 
     passed = {name: parent[name] for name in pack.env.passthrough if name in parent}
     declared = {
-        name: value.replace("{state}", str(state_dir)) for name, value in pack.env.set.items()
+        name: value.replace("{state}", str(state_dir)).replace("{runtime}", str(runtime_dir))
+        for name, value in pack.env.set.items()
     }
     return {**passed, **declared}
+
+
+def stop_skillpack(pack: SkillPackManifest, env: Mapping[str, str]) -> None:
+    """Best effort: a pack that fails to stop must not change the run's outcome."""
+
+    if pack.stop is None:
+        return
+    with contextlib.suppress(OSError, subprocess.TimeoutExpired):
+        subprocess.run(
+            list(pack.stop),
+            cwd=pack.root,
+            env=dict(env),
+            capture_output=True,
+            timeout=_SKILL_COMMAND_TIMEOUT_S,
+            check=False,
+        )
 
 
 def playbook_section(playbook_md: str, pack: str) -> str | None:
@@ -215,4 +237,5 @@ __all__ = [
     "materialize_skillpack",
     "pack_environment",
     "playbook_section",
+    "stop_skillpack",
 ]

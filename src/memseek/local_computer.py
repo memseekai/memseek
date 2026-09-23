@@ -18,6 +18,7 @@ import shutil
 import signal
 import subprocess
 import sys
+import tempfile
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any, Literal
@@ -58,6 +59,7 @@ from memseek.skillpacks import (
     load_skillpack,
     materialize_skillpack,
     pack_environment,
+    stop_skillpack,
 )
 
 # Without these nothing runs at all; every other variable must be declared by
@@ -130,6 +132,30 @@ class LocalComputerProvider:
         except MissingRequirementError as exc:
             raise ComputerExecutionError("capability", str(exc)) from exc
 
+        # Short on purpose: packs put sockets here, and macOS caps a socket
+        # path at 104 bytes, which a state directory below the root exceeds.
+        runtime = Path(
+            tempfile.mkdtemp(prefix="msk-", dir="/tmp" if Path("/tmp").is_dir() else None)
+        )
+        try:
+            return self._execute_in(request, options, tools, manifest, packs, env, runtime)
+        finally:
+            for pack in packs:
+                stop_skillpack(pack, env)
+            shutil.rmtree(runtime, ignore_errors=True)
+
+    def _execute_in(
+        self,
+        request: ComputerRequest,
+        options: RunOptions,
+        tools: list[Any],
+        manifest: HarnessManifest,
+        packs: list[SkillPackManifest],
+        env: dict[str, str],
+        runtime: Path,
+    ) -> ComputerResult:
+        agent = request.agent
+        assert agent is not None
         root = self._settings.local_computer_root.expanduser() / request.session_key
         context_files = dict(request.context_files or {})
         if options.learning == "off":
@@ -146,6 +172,7 @@ class LocalComputerProvider:
                 pack_environment(
                     pack,
                     state_dir=self._state_dir(root, request, pack, options),
+                    runtime_dir=runtime,
                     parent=os.environ,
                 )
             )

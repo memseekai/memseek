@@ -27,6 +27,10 @@ async def site(settings: Settings, db_pool: DatabasePool, tmp_path: Path) -> Scr
     return workspace
 
 
+def _gone(path: str) -> bool:
+    return not Path(path).exists()
+
+
 def _skill_dir(invocation: dict[str, Any]) -> Path:
     return Path(invocation["result"]["receipt"]["root"]) / ".agents/skills/echo-pack"
 
@@ -53,6 +57,11 @@ async def test_a_run_writes_learnings_that_the_next_run_reads(
     }
     assert result["value"]["model_key"] == "k-123"
     assert result["value"]["leaked"] is None
+    runtime = result["value"]["runtime"]
+    assert result["value"]["runtime_exists"] is True
+    # A browser daemon's socket goes here, and macOS caps socket paths at 104 bytes.
+    assert len(runtime) < 40
+    assert _gone(runtime)
     receipt = result["receipt"]
     assert receipt["provider"] == "local"
     assert receipt["harness"] == {"name": "echo", "version": 3}
@@ -83,6 +92,9 @@ async def test_a_run_writes_learnings_that_the_next_run_reads(
         "the echo-pack skill. If the tool rejects a call, fix what it names and call it again."
     ) in system_prompt.split("\n\n")
     assert not (_skill_dir(first) / "PLAYBOOK.md").exists()
+    # read_write keeps the pack's state per entity, beside the session roots.
+    [stopped] = Path(receipt["root"]).parent.glob("_native/*/echo-pack/stopped")
+    assert stopped.read_text() == f"stopped with {runtime}\n"
 
     learnings = await site.learnings(ENTITY)
     assert learnings == [

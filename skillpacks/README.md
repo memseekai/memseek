@@ -18,10 +18,19 @@ skill:
   command: [browser-harness, skill]   # stdout becomes SKILL.md; or `file: SKILL.md`
 env:
   pass: [BU_CDP_URL, BU_NAME]         # copied from the worker's environment when set
-  set: {BH_HOME: "{state}"}           # {state} is the pack's state directory
+  set:
+    BH_HOME: "{state}"                # {state} is the pack's state directory
+    BH_RUNTIME_DIR: "{runtime}"       # {runtime} is short and lasts one run
 capabilities: [exec, network]         # every Computer that runs it must allow these
 learns: true                          # opt into the learning convention below
+stop: [browser-harness, --reload]     # run after the harness exits
 ```
+
+`{runtime}` is a private directory below `/tmp` that exists for one run. Put
+sockets and pid files there. macOS caps a Unix socket path at 104 bytes, and a
+path below `{state}` exceeds that. `stop` runs after the harness exits, even when
+the run fails, with the pack's environment. It is best effort, and its job is to
+shut down anything the pack started, such as browser-harness's daemon.
 
 The provider materializes a pack into `<skills_dir>/<name>/` in three steps:
 

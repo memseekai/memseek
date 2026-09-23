@@ -43,6 +43,8 @@ print(
                 "model": request["model"],
                 "model_key": os.environ.get("ECHO_MODEL_KEY"),
                 "leaked": os.environ.get("ECHO_LEAK"),
+                "runtime": os.environ.get("ECHO_RUNTIME"),
+                "runtime_exists": Path(os.environ.get("ECHO_RUNTIME", "/nonexistent")).is_dir(),
             },
             "citation_ids": citations,
             "steps": steps,

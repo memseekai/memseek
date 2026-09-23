@@ -112,10 +112,17 @@ def test_pack_environment_passes_only_what_the_pack_declares(tmp_path: Path) -> 
     pack = load_skillpack("echo-pack", FIXTURE_PACKS)
 
     environment = pack_environment(
-        pack, state_dir=tmp_path / "state", parent={"ECHO_PASS": "yes", "SECRET": "no"}
+        pack,
+        state_dir=tmp_path / "state",
+        runtime_dir=Path("/tmp/msk-1"),
+        parent={"ECHO_PASS": "yes", "SECRET": "no"},
     )
 
-    assert environment == {"ECHO_PASS": "yes", "ECHO_STATE": str(tmp_path / "state")}
+    assert environment == {
+        "ECHO_PASS": "yes",
+        "ECHO_STATE": str(tmp_path / "state"),
+        "ECHO_RUNTIME": "/tmp/msk-1",
+    }
 
 
 def test_the_shipped_browser_harness_pack_parses() -> None:
@@ -128,9 +135,13 @@ def test_the_shipped_browser_harness_pack_parses() -> None:
             {"bin": "browser-harness", "install": "uv tool install --python 3.12 browser-harness"}
         ],
         "skill": {"command": ["browser-harness", "skill"], "file": None},
-        "env": {"pass": ["BU_CDP_URL", "BU_NAME"], "set": {"BH_HOME": "{state}"}},
+        "env": {
+            "pass": ["BU_CDP_URL", "BU_NAME"],
+            "set": {"BH_HOME": "{state}", "BH_RUNTIME_DIR": "{runtime}"},
+        },
         "capabilities": ["exec", "network"],
         "learns": True,
+        "stop": ["browser-harness", "--reload"],
     }
 
 

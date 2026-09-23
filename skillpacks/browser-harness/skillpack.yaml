@@ -8,7 +8,10 @@ skill:
 env:
   pass: [BU_CDP_URL, BU_NAME]
   # {state} is fresh for each run, or kept per entity when the run persists
-  # browser-harness's own helpers.
-  set: {BH_HOME: "{state}"}
+  # browser-harness's own helpers. The daemon's socket goes in {runtime}: a
+  # socket below the long state path breaks macOS's 104-byte limit.
+  set: {BH_HOME: "{state}", BH_RUNTIME_DIR: "{runtime}"}
 capabilities: [exec, network]
 learns: true
+# Stops this run's daemon, which would otherwise keep running after the run.
+stop: [browser-harness, --reload]
