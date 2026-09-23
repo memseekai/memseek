@@ -152,6 +152,57 @@ ls ~/.memseek/computers/*/
 cat ~/.memseek/computers/*/.agents/skills/browser-harness/PLAYBOOK.md
 ```
 
+## Debug a pi run
+
+Every run keeps a record of what pi did in its session directory below
+`~/.memseek/computers/<session>/.harness/`:
+
+| File | What it holds |
+|---|---|
+| `pi-events.jsonl` | Every pi event as it happens: turns, messages, tool calls and results, retries. Per-token deltas are left out. |
+| `transcript.html` | The whole session rendered by `pi --export`, written when the run ends. Open it in a browser. |
+| `pi-sessions/*.jsonl` | pi's own session file. |
+| `pi-stderr.log` | Everything pi printed to stderr. |
+| `system-prompt.md`, `input.json` | Exactly what the run was told. |
+
+To watch the newest run live, turn by turn, run this in another terminal:
+
+```sh
+make pi-trace                         # follows the newest run until it ends
+make pi-trace ROOT=<session dir>      # a specific run; the demo prints the command
+make pi-trace FULL=1                  # tool arguments and results untruncated
+```
+
+The trace shows these lines:
+
+- The user task.
+- Each assistant turn, with its text and tool calls (`→`).
+- Each tool result (`←`). A failure shows as `ERROR`.
+- Tokens and cost for each turn, and for the run so far.
+
+A rejected learning looks like this:
+
+```
+── turn 1
+  → record_skill_learnings {"records":[{"learning":"HN rows are tr.athing", ...}]}
+  ← record_skill_learnings ERROR Validation failed for tool "record_skill_learnings": ...
+── turn 2
+  → record_skill_learnings {"records":[{"text":"[browser-harness/extraction] ...", ...}]}
+  ← record_skill_learnings ok Recorded 1 entry.
+```
+
+To keep working inside a finished run's context, open its session in pi:
+
+```sh
+cd ~/.memseek/computers/<session>/workspace
+pi --session ../.harness/pi-sessions/<file>.jsonl
+```
+
+This continues the conversation and makes new model calls, so it costs money.
+
+Outbox problems appear in the receipt as `outbox_rejected`, and the demo prints
+each one as a `rejected` line.
+
 ## Measure the gain
 
 The eval compares browser-harness with and without the learned playbook. It

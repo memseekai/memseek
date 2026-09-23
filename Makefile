@@ -8,7 +8,7 @@ TEST_DATABASE_URL ?= $(COMPOSE_TEST_DATABASE_URL)
 COMPUTER_RUNTIME_PORT ?= 8799
 COMPUTER_RUNTIME_SECRET ?= local-computer-demo
 
-.PHONY: help sync format lint typecheck build docs docs-build reference catalog-graph database database-down migrate migration-current quickstart up down logs check test e2e computer-demo computer-demo-cloudflare site-scrape-demo cloudflare-agent-smoke cloudflare-agent-smoke-local cloudflare-agent-smoke-setup
+.PHONY: help sync format lint typecheck build docs docs-build reference catalog-graph database database-down migrate migration-current quickstart up down logs check test e2e computer-demo computer-demo-cloudflare site-scrape-demo pi-trace cloudflare-agent-smoke cloudflare-agent-smoke-local cloudflare-agent-smoke-setup
 
 help:
 	@echo "up             Run the whole local stack in Docker: postgres, api, worker, catalog"
@@ -17,6 +17,7 @@ help:
 	@echo "computer-demo  Run the Computer-backed renewal demo against the Docker stack"
 	@echo "computer-demo-cloudflare  The same demo, driven by a real Cloudflare Agent"
 	@echo "site-scrape-demo  Scrape URL=... twice with pi + browser-harness; the second run uses the playbook"
+	@echo "pi-trace       Follow what the newest pi run is doing, turn by turn (ROOT=<session dir> for another)"
 	@echo "cloudflare-agent-smoke  Run a real Workers AI Agent against one durable Computer"
 	@echo "cloudflare-agent-smoke-local  Run the same canary against wrangler dev, nothing deployed"
 	@echo "cloudflare-agent-smoke-setup  Ask for runtime settings and prepare the live canary"
@@ -134,6 +135,9 @@ URL ?=
 site-scrape-demo:
 	@if [ -z "$(URL)" ]; then echo "usage: make site-scrape-demo URL=https://..." >&2; exit 2; fi
 	@$(UV) run python examples/site_scrape.py "$(URL)"
+
+pi-trace:
+	@node harnesses/pi/trace.mjs $(ROOT) --follow $(if $(FULL),--full,)
 
 # A live, database-free deployment canary. Settings reads these from the
 # environment or the repository's untracked .env:

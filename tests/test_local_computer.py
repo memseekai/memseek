@@ -288,7 +288,8 @@ async def test_the_pi_harness_runs_under_the_local_provider(
     assert argv == [
         "--mode",
         "json",
-        "--no-session",
+        "--session-dir",
+        str(root / ".harness/pi-sessions"),
         "--provider",
         "anthropic",
         "--model",

@@ -3,9 +3,10 @@
 //
 // Plain Node ESM with no dependencies, so the same file runs on a developer
 // machine and inside the Computer container unchanged.
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { createInterface } from "node:readline";
-import { readFileSync, writeFileSync } from "node:fs";
+import { finished } from "node:stream/promises";
+import { createWriteStream, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -16,10 +17,18 @@ const root = process.cwd();
 const input = JSON.parse(readFileSync(join(root, ".harness", "input.json"), "utf8"));
 const promptFile = join(root, ".harness", "system-prompt.md");
 writeFileSync(promptFile, input.system_prompt);
+// Kept for debugging: pi's own session (open it with `pi --session`, or read
+// transcript.html), the event stream as it happens, and pi's stderr.
+const sessionDir = join(root, ".harness", "pi-sessions");
+mkdirSync(sessionDir, { recursive: true });
+const eventLog = createWriteStream(join(root, ".harness", "pi-events.jsonl"));
+const stderrLog = createWriteStream(join(root, ".harness", "pi-stderr.log"));
+// Per-token deltas would be most of the file and none of the insight.
+const NOISY_EVENTS = new Set(["message_update", "tool_execution_update"]);
 
 const args = [
   "--mode", "json",
-  "--no-session",
+  "--session-dir", sessionDir,
   "--provider", input.model.provider,
   "--model", input.model.model,
   "--append-system-prompt", promptFile,
@@ -38,7 +47,11 @@ const started = Date.now();
 const child = spawn("pi", args, {
   cwd: join(root, "workspace"),
   env: { ...process.env, MEMSEEK_HARNESS_ROOT: root },
-  stdio: ["ignore", "pipe", "inherit"],
+  stdio: ["ignore", "pipe", "pipe"],
+});
+child.stderr.on("data", (chunk) => {
+  stderrLog.write(chunk);
+  process.stderr.write(chunk);
 });
 
 let stopped = null;
@@ -115,7 +128,9 @@ const lines = createInterface({ input: child.stdout });
 lines.on("line", (line) => {
   if (!line.trim()) return;
   try {
-    observe(JSON.parse(line));
+    const event = JSON.parse(line);
+    if (!NOISY_EVENTS.has(event?.type)) eventLog.write(`${line}\n`);
+    observe(event);
   } catch {
     // A non-JSON line is pi talking to a human; it carries nothing we count.
   }
@@ -148,6 +163,26 @@ const [code, signal] = await new Promise((resolve) => {
   child.on("close", (exitCode, exitSignal) => resolve([exitCode, exitSignal]));
 });
 clearTimeout(wallTimer);
+eventLog.end();
+stderrLog.end();
+await Promise.all([finished(eventLog), finished(stderrLog)]);
+exportTranscript();
+
+// Best effort: a failed export must not hide the run's real outcome.
+function exportTranscript() {
+  try {
+    const session = readdirSync(sessionDir, { recursive: true })
+      .map(String)
+      .find((name) => name.endsWith(".jsonl"));
+    if (!session) return;
+    spawnSync("pi", ["--export", join(sessionDir, session), join(root, ".harness", "transcript.html")], {
+      stdio: "ignore",
+      timeout: 30_000,
+    });
+  } catch {
+    // The session file and event log are still there to read.
+  }
+}
 
 if (stopped) fail(stopped);
 if (code !== 0) fail(`pi exited ${code ?? signal}`);

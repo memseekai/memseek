@@ -64,7 +64,7 @@ async def scrape(client: MemseekClient, entity: str, url: str, goal: str) -> dic
     await wait_ready(client, str(written["inserted"][0]["id"]))
     agent = client.invocations.bind(computer=COMPUTER, agent=AGENT, context_policy=POLICY)
     run = await agent.start(entity=entity, prompt=f"Scrape {url}. Extract {goal}.")
-    print(f"invocation {run.id} started; waiting for the harness")
+    print(f"invocation {run.id} started; waiting for the harness (watch it: make pi-trace)")
     state = await run.wait(timeout_s=1_200)
     if state["status"] != "succeeded":
         raise RuntimeError(f"invocation {run.id} {state['status']}: {state.get('error')}")
@@ -79,6 +79,8 @@ def report(result: dict[str, Any]) -> None:
     receipt = result.get("receipt") or {}
     print(f"  harness {receipt.get('harness')} · packs {receipt.get('skillpacks')}")
     print(f"  metrics {json.dumps(receipt.get('metrics'))}")
+    if receipt.get("root"):
+        print(f"  trace   make pi-trace ROOT={receipt['root']}")
     for item in receipt.get("outbox_rejected") or []:
         where = f"{item['path']}:{item['line']}" if item.get("line") else item["path"]
         print(f"  rejected {where}: {item['reason'][:160]}")

@@ -289,3 +289,13 @@ def test_real_pi_offers_the_tool_and_the_agent_recovers_from_a_rejection(
         json.loads(line)["text"]
         for line in (root / "outbox/learnings.jsonl").read_text().splitlines()
     ] == ["[browser-harness/extraction] Stories are tr.athing rows."]
+    events = [
+        json.loads(line) for line in (root / ".harness/pi-events.jsonl").read_text().splitlines()
+    ]
+    assert [
+        (event["toolName"], event["isError"])
+        for event in events
+        if event["type"] == "tool_execution_end"
+    ] == [("record_skill_learnings", True), ("record_skill_learnings", False)]
+    assert "message_update" not in {event["type"] for event in events}
+    assert (root / ".harness/transcript.html").stat().st_size > 0
