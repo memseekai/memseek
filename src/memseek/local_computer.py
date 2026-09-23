@@ -22,6 +22,7 @@ import tempfile
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any, Literal
+from uuid import UUID
 
 from pydantic import Field, ValidationError
 
@@ -60,6 +61,7 @@ from memseek.skillpacks import (
     load_skillpack,
     materialize_skillpack,
     pack_environment,
+    require_helper,
     stop_skillpack,
 )
 
@@ -210,6 +212,10 @@ class LocalComputerProvider:
             citations,
             schema_overrides=schemas,
         )
+        tools_for_writeback = [
+            require_helper(tool) if tool.path == LEARNINGS_PATH and learning_packs else tool
+            for tool in tools_for_writeback
+        ]
         harness_input = HarnessInput(
             task=_task_text(request.input),
             system_prompt=build_system_prompt(
@@ -250,7 +256,10 @@ class LocalComputerProvider:
         (root / request.output_path.lstrip("/")).write_bytes(encoded)
         return ComputerResult(
             value=output.value,
-            citation_ids=frozenset(output.citation_ids),
+            # What the outbox cites is authorized (it was checked against the
+            # request), and ingestion only trusts citations the result carries;
+            # an agent that forgot one in its envelope must not lose the file.
+            citation_ids=frozenset(output.citation_ids) | _outbox_citations(outbox),
             receipt={
                 "provider": "local",
                 "backend": request.computer.runtime.default,
@@ -531,6 +540,19 @@ def _collect_outbox(
             )
         )
     return result, rejected
+
+
+def _outbox_citations(outbox: list[_OutboxFile]) -> frozenset[UUID]:
+    cited: set[UUID] = set()
+    for file in outbox:
+        documents = (
+            [json.loads(line) for line in file.content.splitlines() if line.strip()]
+            if file.type == "observations"
+            else [json.loads(file.content)]
+        )
+        for document in documents:
+            cited.update(UUID(str(value)) for value in document.get("citations", []))
+    return frozenset(cited)
 
 
 def _line_problems(line: str, schema: Mapping[str, Any], citations: list[str]) -> list[str]:

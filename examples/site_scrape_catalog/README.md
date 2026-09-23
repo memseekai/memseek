@@ -100,14 +100,14 @@ turn on remote debugging. Then leave `BU_CDP_URL` unset.
 
 ### 3. Set up the database and a workspace
 
-Use a database of its own. The test suite truncates `memseek_test`, so
-learnings stored there disappear the next time the tests run.
+Use the persistent `postgres` service on port 5433, not `postgres-test`. The
+test database lives on tmpfs, so it is emptied whenever its container is
+recreated, and the test suite truncates it too. Learnings kept there disappear.
 
 ```sh
-make database                     # starts postgres
-docker compose exec postgres-test psql -U postgres -c "create database memseek_dev"
-docker compose exec postgres-test psql -U postgres -d memseek_dev -c "create extension if not exists vector"
-export DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:55432/memseek_dev
+docker compose up -d --wait postgres
+docker compose exec postgres psql -U postgres -d memseek -c "create extension if not exists vector"
+export DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5433/memseek
 uv run memseek migrate
 uv run memseek create-workspace scrape-demo    # prints an api_key once
 export MEMSEEK_API_KEY=<api_key from the output>

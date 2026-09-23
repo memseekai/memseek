@@ -16,7 +16,7 @@ import pytest
 import yaml
 
 from memseek.harnesses.writeback import WRITEBACK_SCHEMAS_PATH, writeback_tools
-from memseek.skillpacks import bind_learnings_schema
+from memseek.skillpacks import bind_learnings_schema, require_helper
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 CITATION = "3d7b39bd-b7c0-4175-915f-d2a4888284cc"
@@ -41,7 +41,14 @@ def _learnings_schema() -> dict[str, Any]:
     return next(c for c in catalog["collections"] if c["name"] == "skill_learnings")["schema"]
 
 
-def _root(tmp_path: Path) -> Path:
+HELPER: dict[str, Any] = {
+    "text": "[browser-harness/helper] py: new_tab('https://x'); print(js('1'))",
+    "content": {"pack": "browser-harness", "kind": "helper", "detail": "The extractor."},
+    "citations": [CITATION],
+}
+
+
+def _root(tmp_path: Path, *, need_helper: bool = False) -> Path:
     root = tmp_path / "root"
     schemas = json.dumps(
         [
@@ -68,6 +75,8 @@ def _root(tmp_path: Path) -> Path:
             )
         },
     )
+    if need_helper:
+        tools = [require_helper(tool) for tool in tools]
     (root / ".harness").mkdir()
     (root / ".harness/input.json").write_text(
         json.dumps(
@@ -418,3 +427,82 @@ def test_a_provider_error_resumes_the_session_instead_of_failing_the_run(
     resumed = json.dumps(_StubModel.seen[2]["messages"])
     assert "record_skill_learnings" in resumed
     assert "Your previous turn ended before you finished." in resumed
+
+
+def test_a_learnings_call_without_a_helper_is_rejected(tmp_path: Path) -> None:
+    root = _root(tmp_path, need_helper=True)
+
+    rejected = _call(root, {"records": [GOOD]})
+    accepted = _call(root, {"records": [GOOD, HELPER]})
+
+    assert rejected.returncode == 1
+    assert rejected.stdout.startswith("Nothing was written. Fix these and call again:\n- records: ")
+    assert "does not contain items matching the given schema" in rejected.stdout
+    assert (accepted.returncode, accepted.stdout) == (0, "Recorded 2 entries.\n")
+
+
+@pytest.mark.skipif(
+    shutil.which("pi") is None or shutil.which("node") is None,
+    reason="needs pi and node on PATH",
+)
+def test_real_pi_makes_the_agent_record_a_helper(tmp_path: Path) -> None:
+    root = _root(tmp_path, need_helper=True)
+    envelope = {"value": {"items": []}, "citation_ids": [CITATION], "awaiting_input": False}
+    _StubModel.script = [
+        _tool_call(0, [GOOD]),
+        _tool_call(1, [GOOD, HELPER]),
+        ({"role": "assistant", "content": json.dumps(envelope)}, "stop"),
+    ]
+    _StubModel.seen = []
+    completed = _run_pi_against_stub(root, tmp_path)
+
+    assert completed.returncode == 0, completed.stderr
+    offered = next(
+        tool
+        for tool in _StubModel.seen[0]["tools"]
+        if tool["function"]["name"] == "record_skill_learnings"
+    )
+    assert "Every call must include one entry of kind helper" in offered["function"]["description"]
+    assert _StubModel.seen[1]["messages"][-1]["role"] == "tool"
+    assert "contain" in json.dumps(_StubModel.seen[1]["messages"][-1]["content"])
+    assert [
+        json.loads(line)["content"]["kind"]
+        for line in (root / "outbox/learnings.jsonl").read_text().splitlines()
+    ] == ["extraction", "helper"]
+
+
+def _run_pi_against_stub(root: Path, tmp_path: Path) -> subprocess.CompletedProcess[str]:
+    server = HTTPServer(("127.0.0.1", 0), _StubModel)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    agent_dir = tmp_path / "pi-agent"
+    agent_dir.mkdir(exist_ok=True)
+    (agent_dir / "models.json").write_text(
+        json.dumps(
+            {
+                "providers": {
+                    "stub": {
+                        "baseUrl": f"http://127.0.0.1:{server.server_port}/v1",
+                        "api": "openai-completions",
+                        "apiKey": "stub",
+                        "models": [{"id": "stub-model"}],
+                    }
+                }
+            }
+        )
+    )
+    try:
+        return subprocess.run(
+            ["node", str(REPOSITORY_ROOT / "harnesses/pi/run.mjs")],
+            cwd=root,
+            env={
+                "PATH": os.environ["PATH"],
+                "HOME": str(tmp_path),
+                "PI_CODING_AGENT_DIR": str(agent_dir),
+            },
+            capture_output=True,
+            text=True,
+            timeout=120,
+            check=False,
+        )
+    finally:
+        server.shutdown()

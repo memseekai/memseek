@@ -253,6 +253,33 @@ async def test_a_bad_outbox_costs_only_itself(site: ScrapeWorkspace, tmp_path: P
     ]
 
 
+async def test_outbox_citations_count_even_when_the_answer_forgets_them(
+    site: ScrapeWorkspace, tmp_path: Path
+) -> None:
+    forgetful = tmp_path / "harnesses" / "echo"
+    forgetful.mkdir(parents=True)
+    fixture = Path(__file__).parent / "fixtures" / "harnesses" / "echo"
+    (forgetful / "harness.yaml").write_text((fixture / "harness.yaml").read_text())
+    # The fixture, with its envelope's citations dropped: what a live run did
+    # while its learnings still cited the task.
+    (forgetful / "run.py").write_text(
+        "import contextlib, io, json, runpy\n"
+        "captured = io.StringIO()\n"
+        "with contextlib.redirect_stdout(captured):\n"
+        f"    runpy.run_path({str(fixture / 'run.py')!r})\n"
+        "output = json.loads(captured.getvalue())\n"
+        "output['citation_ids'] = []\n"
+        "print(json.dumps(output))\n"
+    )
+    task_id = await site.write_task(ENTITY, URL, "top 30 stories")
+
+    run = await site.invoke(ENTITY, PROMPT)
+
+    assert run["status"] == "succeeded", run["error"]
+    assert run["result"]["citation_ids"] == [str(task_id)]
+    assert [row["derived_from"] for row in await site.learnings(ENTITY)] == [[task_id]]
+
+
 async def test_a_missing_requirement_fails_with_its_install_hint(
     site: ScrapeWorkspace, tmp_path: Path
 ) -> None:

@@ -10,6 +10,7 @@ playbook the Computer mounts at ``/.memseek/playbook.md``.
 from __future__ import annotations
 
 import contextlib
+import json
 import re
 import subprocess
 from collections.abc import Mapping, Sequence
@@ -27,6 +28,7 @@ from memseek.harnesses.contract import (
     check_requirements,
     load_manifest,
 )
+from memseek.harnesses.writeback import WritebackTool
 
 LEARNINGS_PATH = "/outbox/learnings.jsonl"
 PLAYBOOK_PATH = "/.memseek/playbook.md"
@@ -136,6 +138,30 @@ def bind_learnings_schema(schema: Mapping[str, Any], packs: Sequence[str]) -> di
         "then": {"properties": {"text": {"pattern": HELPER_TEXT_PATTERN}}},
     }
     return {**schema, "properties": properties, "allOf": [*schema.get("allOf", []), helper_is_code]}
+
+
+def require_helper(tool: WritebackTool) -> WritebackTool:
+    """Every learnings call carries one helper: code the next run can run as it is.
+
+    Asked for in prose, a live run recorded only notes ("film data in
+    #table-body tr td cells"), and the next run explored the page again.
+    """
+
+    schema = json.loads(json.dumps(tool.input_schema))
+    schema["properties"]["records"]["contains"] = {
+        "type": "object",
+        "properties": {"content": {"type": "object", "properties": {"kind": {"const": "helper"}}}},
+        "required": ["content"],
+    }
+    return tool.model_copy(
+        update={
+            "input_schema": schema,
+            "description": (
+                f"{tool.description} Every call must include one entry of kind helper whose text "
+                "is the code that produced your final rows, so the next run can run it."
+            ),
+        }
+    )
 
 
 def stop_skillpack(pack: SkillPackManifest, env: Mapping[str, str]) -> None:
@@ -278,5 +304,6 @@ __all__ = [
     "materialize_skillpack",
     "pack_environment",
     "playbook_section",
+    "require_helper",
     "stop_skillpack",
 ]
