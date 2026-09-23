@@ -6,7 +6,8 @@
 import { spawn } from "node:child_process";
 import { createInterface } from "node:readline";
 import { readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 
 const MAX_EVENTS = 200;
 const KILL_GRACE_MS = 5_000;
@@ -26,6 +27,7 @@ const args = [
   // operator's home directory.
   "--no-skills",
   ...input.skills.flatMap((skill) => ["--skill", skill.dir]),
+  "--extension", join(dirname(fileURLToPath(import.meta.url)), "memseek-tools.mjs"),
 ];
 if (typeof input.model.params?.thinking === "string") {
   args.push("--thinking", input.model.params.thinking);
@@ -35,7 +37,7 @@ args.push("--", input.task);
 const started = Date.now();
 const child = spawn("pi", args, {
   cwd: join(root, "workspace"),
-  env: process.env,
+  env: { ...process.env, MEMSEEK_HARNESS_ROOT: root },
   stdio: ["ignore", "pipe", "inherit"],
 });
 

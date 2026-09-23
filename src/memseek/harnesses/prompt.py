@@ -11,6 +11,8 @@ import json
 from collections.abc import Collection, Mapping
 from typing import Any
 
+from memseek.skillpacks import LEARNINGS_PATH
+
 _MAX_INLINE_SCHEMA_BYTES = 8 * 1024
 
 _PREAMBLE = (
@@ -38,18 +40,24 @@ def build_system_prompt(
     output_schema: Mapping[str, Any],
     citation_ids: Collection[str],
     writeback_paths: Collection[str],
+    writeback_tools: Mapping[str, str],
     learning_packs: Collection[str],
     playbooks: Mapping[str, str],
 ) -> str:
-    sections: list[str] = [*_PREAMBLE, _outbox_rule(writeback_paths)]
+    """``writeback_tools`` maps each outbox path that has a tool to the tool's name."""
+
+    sections: list[str] = [*_PREAMBLE, _outbox_rule(writeback_paths, writeback_tools)]
     sections.extend(_playbook_section(name, text) for name, text in sorted(playbooks.items()))
     if learning_packs:
         # The recording procedure sits at the end of each pack's SKILL.md, which a
         # long upstream skill can push past where an agent stops reading.
         names = ", ".join(sorted(learning_packs))
+        tool = writeback_tools.get(LEARNINGS_PATH)
+        how = f"call the {tool} tool" if tool else f"append to {LEARNINGS_PATH}"
         sections.append(
-            "Before your final answer, record what you learned about this site: follow the "
-            f'"Recording what you learned" section of the {names} skill.'
+            f"Before your final answer, record what you learned about this site: {how}, "
+            f'following the "Recording what you learned" section of the {names} skill. If '
+            "the tool rejects a call, fix what it names and call it again."
         )
     if toolset is not None and toolset.get("instructions"):
         sections.append(str(toolset["instructions"]))
@@ -79,16 +87,21 @@ def _playbook_section(skill: str, playbook: str) -> str:
     )
 
 
-def _outbox_rule(writeback_paths: Collection[str]) -> str:
-    # Any other file under /outbox fails the whole run, so the agent is told the
-    # exact list rather than left to guess a name like result.json.
+def _outbox_rule(writeback_paths: Collection[str], writeback_tools: Mapping[str, str]) -> str:
+    # Anything else under /outbox is discarded, so the agent is told the exact
+    # list rather than left to guess a name like result.json.
     answer = "Return your answer only in the final JSON object, never as a file."
     if not writeback_paths:
         return f"Write nothing to /outbox. {answer}"
-    listed = ", ".join(sorted(writeback_paths))
+    listed = ", ".join(
+        f"{path} (only through the {writeback_tools[path]} tool)"
+        if path in writeback_tools
+        else path
+        for path in sorted(writeback_paths)
+    )
     return (
-        f"The only files you may write in /outbox are: {listed}. Any other file there "
-        f"fails the run. {answer}"
+        f"The only files you may write in /outbox are: {listed}. Anything else there is "
+        f"discarded. {answer}"
     )
 
 

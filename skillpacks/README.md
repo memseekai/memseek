@@ -35,10 +35,13 @@ The provider materializes a pack into `<skills_dir>/<name>/` in three steps:
 A pack declares no outbox paths, collections, or artifacts. `learns: true` is
 its only link to memory, and everything else belongs to the Computer:
 
-- **Write.** The agent appends lines to `/outbox/learnings.jsonl`, each
-  `{text, content: {pack, kind, detail, helper_code?}, citations}`.
-  `LEARNING.md` tells it how. `text` starts with `[<pack>/<kind>] `, which is
-  how one playbook serves several packs.
+- **Write.** The agent records each learning,
+  `{text, content: {pack, kind, detail, helper_code?}, citations}`, through the
+  writeback tool the provider derives from `/outbox/learnings.jsonl`. The tool
+  checks every entry against the collection's schema when it is written and
+  returns what to fix, so a malformed learning is corrected within the run.
+  `LEARNING.md` tells the agent how. `text` starts with `[<pack>/<kind>] `,
+  which is how one playbook serves several packs.
 - **Ingest.** The Computer declares `/outbox/learnings.jsonl` once, as an
   `observations` writeback. The generic outbox walk ingests it like any other
   writeback file.

@@ -17,6 +17,7 @@ import os
 import shutil
 import signal
 import subprocess
+import sys
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any, Literal
@@ -41,6 +42,12 @@ from memseek.harnesses.contract import (
 )
 from memseek.harnesses.prompt import build_system_prompt
 from memseek.harnesses.registry import check_harness, load_harness
+from memseek.harnesses.writeback import (
+    check_candidate,
+    destination_schema,
+    normalize_candidate,
+    writeback_tools,
+)
 from memseek.skillpacks import (
     LEARNINGS_PATH,
     PLAYBOOK_PATH,
@@ -74,6 +81,12 @@ class RunOptions(StrictModel):
 
     learning: LearningMode = "read_write"
     native: LearningMode = "read_write"
+
+
+class _Rejected(StrictModel):
+    path: str
+    reason: str
+    line: int | None = None
 
 
 class _OutboxFile(StrictModel):
@@ -149,6 +162,21 @@ class LocalComputerProvider:
             except SkillPackError as exc:
                 raise ComputerExecutionError("provider", str(exc)) from exc
 
+        writeback_paths = [
+            path
+            for path in _writeback_paths(request)
+            if path != LEARNINGS_PATH or options.learning == "read_write"
+        ]
+        citations = sorted(str(value) for value in request.citation_ids)
+        tools_for_writeback = writeback_tools(
+            (
+                item.model_dump(mode="json")
+                for item in _configured_writeback(request)
+                if item.path in writeback_paths
+            ),
+            context_files,
+            citations,
+        )
         harness_input = HarnessInput(
             task=_task_text(request.input),
             system_prompt=build_system_prompt(
@@ -157,11 +185,8 @@ class LocalComputerProvider:
                 toolset=request.toolset,
                 output_schema=request.output_schema or {"type": "object"},
                 citation_ids=[str(value) for value in request.citation_ids],
-                writeback_paths=[
-                    path
-                    for path in _writeback_paths(request)
-                    if path != LEARNINGS_PATH or options.learning == "read_write"
-                ],
+                writeback_paths=writeback_paths,
+                writeback_tools={tool.path: tool.name for tool in tools_for_writeback},
                 learning_packs=[
                     pack.name for pack in packs if pack.learns and options.learning == "read_write"
                 ],
@@ -175,7 +200,9 @@ class LocalComputerProvider:
             tools=tuple(tools),
             skills=tuple(HarnessSkill(name=item.name, dir=str(item.dir)) for item in mounts),
             learning=options.learning,
-            citation_ids=tuple(sorted(str(value) for value in request.citation_ids)),
+            citation_ids=tuple(citations),
+            writeback_tools=tuple(tools_for_writeback),
+            writeback_command=(sys.executable, "-m", "memseek.harnesses.writeback", str(root)),
         )
         (root / HARNESS_INPUT_PATH).parent.mkdir(parents=True, exist_ok=True)
         (root / HARNESS_INPUT_PATH).write_text(harness_input.model_dump_json(), encoding="utf-8")
@@ -183,7 +210,7 @@ class LocalComputerProvider:
         output = _run_harness(manifest, root, env, wall_s=agent.limits.max_wall_s)
         if options.learning != "read_write":
             (root / LEARNINGS_PATH.lstrip("/")).unlink(missing_ok=True)
-        outbox = _collect_outbox(root, request)
+        outbox, rejected = _collect_outbox(root, request, context_files)
         encoded = json.dumps(
             output.value, ensure_ascii=False, sort_keys=True, separators=(",", ":")
         ).encode()
@@ -209,6 +236,9 @@ class LocalComputerProvider:
                 "metrics": output.metrics.model_dump(mode="json"),
                 "events": [event.model_dump(mode="json") for event in output.events],
                 "outbox": [item.model_dump(mode="json") for item in outbox],
+                "outbox_rejected": [
+                    item.model_dump(mode="json", exclude_none=True) for item in rejected
+                ],
             },
             steps=output.steps,
             awaiting_input=output.awaiting_input,
@@ -347,21 +377,21 @@ def _run_harness(
         ) from exc
 
 
-def _outbox_paths(root: Path) -> list[str]:
+def _outbox_paths(root: Path, rejected: list[_Rejected]) -> list[str]:
     files: list[str] = []
     pending = [root / "outbox"] if (root / "outbox").is_dir() else []
     while pending:
         directory = pending.pop()
-        for entry in directory.iterdir():
+        for entry in sorted(directory.iterdir()):
             path = "/" + entry.relative_to(root).as_posix()
-            if entry.is_symlink():
-                raise ComputerExecutionError("validation", f"outbox refuses symbolic link: {path}")
-            if entry.is_dir():
+            if len(files) + len(pending) >= _OUTBOX_MAX_ENTRIES:
+                rejected.append(_Rejected(path=path, reason="outbox entry limit reached"))
+            elif entry.is_symlink():
+                rejected.append(_Rejected(path=path, reason="symbolic link"))
+            elif entry.is_dir():
                 pending.append(entry)
             else:
                 files.append(path)
-            if len(files) + len(pending) > _OUTBOX_MAX_ENTRIES:
-                raise ComputerExecutionError("validation", "outbox entry limit exceeded")
     return sorted(files)
 
 
@@ -375,58 +405,92 @@ def _writeback_paths(request: ComputerRequest) -> list[str]:
     return [item.path for item in _configured_writeback(request)]
 
 
-def _collect_outbox(root: Path, request: ComputerRequest) -> list[_OutboxFile]:
-    """The rules of the Cloudflare runtime's ``collectOutbox``, over a local directory."""
+def _collect_outbox(
+    root: Path, request: ComputerRequest, context_files: Mapping[str, str]
+) -> tuple[list[_OutboxFile], list[_Rejected]]:
+    """What in the outbox would ingest cleanly, and why the rest was left out.
 
+    Nothing here fails the run: the run's answer is the envelope, and a bad side
+    file or a malformed line costs only itself. Each line is held to the same
+    rules the writeback tools apply, so ingestion never sees what it would refuse.
+    """
+
+    rejected: list[_Rejected] = []
     configured = _configured_writeback(request)
-    allowed = [request.output_path, *(item.path for item in configured)]
-    files = _outbox_paths(root)
-    unknown = [
-        path
-        for path in files
-        if not any(path == prefix or path.startswith(f"{prefix}/") for prefix in allowed)
-    ]
-    if unknown:
-        raise ComputerExecutionError("validation", f"unknown outbox files: {', '.join(unknown)}")
+    files = _outbox_paths(root, rejected)
+    citations = [str(value) for value in request.citation_ids]
     result: list[_OutboxFile] = []
     total = 0
-    for declaration in configured:
-        assert declaration.type != "final_result"
-        declared = [
-            path
-            for path in files
-            if path == declaration.path or path.startswith(f"{declaration.path}/")
-        ]
-        if declaration.type == "observations" and any(p != declaration.path for p in declared):
-            raise ComputerExecutionError(
-                "validation", "observations writeback must be one JSONL file"
+    for path in files:
+        if path == request.output_path:
+            continue
+        declaration = next(
+            (
+                item
+                for item in configured
+                if path == item.path
+                or (item.type == "maintained_state" and path.startswith(f"{item.path}/"))
+            ),
+            None,
+        )
+        if declaration is None or declaration.type == "final_result":
+            rejected.append(_Rejected(path=path, reason="not a declared writeback file"))
+            continue
+        target = root / path.lstrip("/")
+        try:
+            text = target.read_bytes().decode("utf-8")
+        except (OSError, UnicodeDecodeError) as exc:
+            rejected.append(_Rejected(path=path, reason=f"unreadable: {exc}"))
+            continue
+        schema = destination_schema(context_files, declaration.path) or {}
+        if declaration.type == "observations":
+            kept: list[str] = []
+            for number, line in enumerate(text.splitlines(), start=1):
+                if not line.strip():
+                    continue
+                problems = _line_problems(line, schema, citations)
+                if problems:
+                    rejected.append(_Rejected(path=path, line=number, reason="; ".join(problems)))
+                else:
+                    kept.append(
+                        json.dumps(normalize_candidate(json.loads(line)), ensure_ascii=False)
+                    )
+            if not kept:
+                continue
+            content = "\n".join(kept) + "\n"
+        else:
+            problems = (
+                ["proposal is not a .json file"]
+                if not path.endswith(".json")
+                else _line_problems(text, schema, citations)
             )
-        for path in declared:
-            if declaration.type == "maintained_state" and not path.endswith(".json"):
-                raise ComputerExecutionError("validation", f"proposal is not JSON: {path}")
-            target = root / path.lstrip("/")
-            if not target.is_file() or target.is_symlink():
-                raise ComputerExecutionError("validation", f"invalid outbox file: {path}")
-            data = target.read_bytes()
-            total += len(data)
-            if len(result) >= _OUTBOX_MAX_FILES or total > _OUTBOX_MAX_BYTES:
-                raise ComputerExecutionError("validation", "interactive outbox limit exceeded")
-            try:
-                content = data.decode("utf-8")
-            except UnicodeDecodeError as exc:
-                raise ComputerExecutionError(
-                    "validation", f"outbox file is not UTF-8: {path}"
-                ) from exc
-            result.append(
-                _OutboxFile(
-                    path=path,
-                    type=declaration.type,
-                    content=content,
-                    sha256=hashlib.sha256(data).hexdigest(),
-                    bytes=len(data),
-                )
+            if problems:
+                rejected.append(_Rejected(path=path, reason="; ".join(problems)))
+                continue
+            content = json.dumps(normalize_candidate(json.loads(text)), ensure_ascii=False)
+        data = content.encode("utf-8")
+        if len(result) >= _OUTBOX_MAX_FILES or total + len(data) > _OUTBOX_MAX_BYTES:
+            rejected.append(_Rejected(path=path, reason="outbox size limit reached"))
+            continue
+        total += len(data)
+        result.append(
+            _OutboxFile(
+                path=path,
+                type=declaration.type,
+                content=content,
+                sha256=hashlib.sha256(data).hexdigest(),
+                bytes=len(data),
             )
-    return result
+        )
+    return result, rejected
+
+
+def _line_problems(line: str, schema: Mapping[str, Any], citations: list[str]) -> list[str]:
+    try:
+        candidate = json.loads(line)
+    except json.JSONDecodeError as exc:
+        return [f"not JSON: {exc.msg}"]
+    return check_candidate(candidate, schema, citations)
 
 
 __all__ = ["LocalComputerProvider", "RunOptions"]

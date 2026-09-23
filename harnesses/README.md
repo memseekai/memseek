@@ -36,7 +36,7 @@ Before that, the root already holds these directories:
 | `.memseek/` | The materialized, read-only context: instructions, manifest, mounted artifacts |
 | `inputs/` | The invocation input, as `input.json` |
 | `workspace/` | The agent's working directory, empty on a new session |
-| `outbox/` | Where the agent writes declared writeback files |
+| `outbox/` | Where declared writeback files land, through the writeback tools |
 | `<skills_dir>/<name>/` | One directory per skill, each with a `SKILL.md` |
 | `.harness/input.json` | The `HarnessInput` below |
 
@@ -99,11 +99,29 @@ Print exactly one JSON line to stdout and exit 0:
 
 A nonzero exit fails the run. Anything on stderr becomes the failure detail.
 
+## Writeback tools
+
+`writeback_tools` lists one tool per declared `observations` writeback, each as
+`{name, description, path, input_schema}`. `input_schema` is plain JSON Schema.
+Offer each one as a native tool if the harness can. To run a call, execute
+`writeback_command + [name]` with the call's arguments as JSON on stdin:
+
+- Exit 0 means the records were appended. Stdout is the result for the model.
+- Exit 1 means nothing was written. Stdout says what to fix. Return it to the
+  model as a tool error, so the agent can correct the records and call again.
+
+The command runs the same checks that ingestion does, so a record the tool
+accepts is one that ingestion accepts. A harness with no custom tools can still
+tell its agent to run the command from its shell. `pi/memseek-tools.mjs` is the
+pi adapter.
+
 ## What a harness does not do
 
 It does not collect the outbox, validate the envelope against the schema, or
 touch memseek storage. The provider does all three, the same way for every
-harness.
+harness. When it collects the outbox, the provider keeps what would ingest
+cleanly and lists the rest under `outbox_rejected` in the receipt. A
+malformed side file never fails a run.
 
 ## Writing a new harness
 

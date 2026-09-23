@@ -79,6 +79,9 @@ def report(result: dict[str, Any]) -> None:
     receipt = result.get("receipt") or {}
     print(f"  harness {receipt.get('harness')} · packs {receipt.get('skillpacks')}")
     print(f"  metrics {json.dumps(receipt.get('metrics'))}")
+    for item in receipt.get("outbox_rejected") or []:
+        where = f"{item['path']}:{item['line']}" if item.get("line") else item["path"]
+        print(f"  rejected {where}: {item['reason'][:160]}")
 
 
 async def show_learnings(client: MemseekClient, entity: str) -> None:

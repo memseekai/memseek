@@ -19,6 +19,7 @@ import yaml
 from pydantic import BaseModel, Field, ValidationError, field_validator
 
 from memseek.definitions.base import EnvVarName, NonBlank, ProviderName, PublicName, StrictModel
+from memseek.harnesses.writeback import WritebackTool
 
 HARNESS_INPUT_PATH = ".harness/input.json"
 
@@ -132,6 +133,10 @@ class HarnessInput(StrictModel):
     skills: tuple[HarnessSkill, ...]
     learning: LearningMode
     citation_ids: tuple[str, ...]
+    # Offered as native tools where the harness can; each call runs
+    # `writeback_command + [tool name]` with the tool's JSON arguments on stdin.
+    writeback_tools: tuple[WritebackTool, ...] = ()
+    writeback_command: tuple[str, ...] = ()
 
 
 class HarnessMetrics(StrictModel):

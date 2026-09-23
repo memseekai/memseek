@@ -73,12 +73,14 @@ async def test_a_run_writes_learnings_that_the_next_run_reads(
     harness_input = json.loads((Path(receipt["root"]) / ".harness/input.json").read_text())
     system_prompt = harness_input["system_prompt"]
     assert (
-        "The only files you may write in /outbox are: /outbox/learnings.jsonl. Any other file "
-        "there fails the run. Return your answer only in the final JSON object, never as a file."
+        "The only files you may write in /outbox are: /outbox/learnings.jsonl (only through "
+        "the record_skill_learnings tool). Anything else there is discarded. Return your answer "
+        "only in the final JSON object, never as a file."
     ) in system_prompt.split("\n\n")
     assert (
-        "Before your final answer, record what you learned about this site: follow the "
-        '"Recording what you learned" section of the echo-pack skill.'
+        "Before your final answer, record what you learned about this site: call the "
+        'record_skill_learnings tool, following the "Recording what you learned" section of '
+        "the echo-pack skill. If the tool rejects a call, fix what it names and call it again."
     ) in system_prompt.split("\n\n")
     assert not (_skill_dir(first) / "PLAYBOOK.md").exists()
 
@@ -90,7 +92,6 @@ async def test_a_run_writes_learnings_that_the_next_run_reads(
                 "pack": "echo-pack",
                 "kind": "extraction",
                 "detail": "Stories are tr.athing rows; points are in the next row.",
-                "helper_code": None,
             },
             "derived_from": [task_id],
             "status": "active",
@@ -177,27 +178,39 @@ async def test_kept_native_state_survives_between_runs_and_read_does_not_change_
     ] == [5, 5, 5, 4, 4]
 
 
-async def test_an_undeclared_outbox_file_fails_the_run(
-    site: ScrapeWorkspace, tmp_path: Path
-) -> None:
+async def test_a_bad_outbox_costs_only_itself(site: ScrapeWorkspace, tmp_path: Path) -> None:
     rogue = tmp_path / "harnesses" / "echo"
     rogue.mkdir(parents=True)
     fixture = Path(__file__).parent / "fixtures" / "harnesses" / "echo"
     (rogue / "harness.yaml").write_text((fixture / "harness.yaml").read_text())
+    # The shape a live run wrote by hand, which ingestion refuses.
+    bad_line = '{"learning": "HN rows are tr.athing", "site": "news.ycombinator.com"}'
     (rogue / "run.py").write_text(
         "from pathlib import Path\n"
-        "Path('outbox/notes.txt').write_text('x')\n" + (fixture / "run.py").read_text()
+        "Path('outbox/notes.txt').write_text('x')\n"
+        f"Path('outbox/learnings.jsonl').write_text({bad_line!r} + '\\n')\n"
+        + (fixture / "run.py").read_text()
     )
     await site.write_task(ENTITY, URL, "top 30 stories")
 
-    failed = await site.invoke(ENTITY, PROMPT)
+    run = await site.invoke(ENTITY, PROMPT)
 
-    assert failed["status"] == "failed"
-    assert failed["error"] == {
-        "kind": "validation",
-        "detail": "unknown outbox files: /outbox/notes.txt",
-    }
-    assert await site.learnings(ENTITY) == []
+    assert run["status"] == "succeeded", run["error"]
+    assert run["result"]["receipt"]["outbox_rejected"] == [
+        {
+            "path": "/outbox/learnings.jsonl",
+            "line": 1,
+            "reason": (
+                "unknown keys ['learning', 'site']; an entry has only text, content, and "
+                "citations; citations must be a non-empty list of authorized UUIDs; text must be a "
+                "string"
+            ),
+        },
+        {"path": "/outbox/notes.txt", "reason": "not a declared writeback file"},
+    ]
+    assert [row["content"]["text"] for row in await site.learnings(ENTITY)] == [
+        "[echo-pack/extraction] Stories are tr.athing rows."
+    ]
 
 
 async def test_a_missing_requirement_fails_with_its_install_hint(
@@ -246,6 +259,7 @@ async def test_the_pi_harness_runs_under_the_local_provider(
         .replace("name: pi", "name: echo")
     )
     shutil.copy(REPOSITORY_ROOT / "harnesses/pi/run.mjs", harness / "run.mjs")
+    shutil.copy(REPOSITORY_ROOT / "harnesses/pi/memseek-tools.mjs", harness / "memseek-tools.mjs")
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
     (bin_dir / "pi").write_text(FAKE_PI)
@@ -284,6 +298,8 @@ async def test_the_pi_harness_runs_under_the_local_provider(
         "--no-skills",
         "--skill",
         str(root / ".agents/skills/echo-pack"),
+        "--extension",
+        str(harness / "memseek-tools.mjs"),
         "--",
         PROMPT,
     ]
