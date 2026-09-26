@@ -12,7 +12,7 @@ from __future__ import annotations
 import asyncio
 import random
 import statistics
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal, Protocol, Self
@@ -73,11 +73,15 @@ def parse_arms(text: str) -> tuple[ArmName, ...]:
 class Target(StrictModel):
     url: NonBlank
     goal: NonBlank
+    # The exact row count, so each target states its own and a leak from
+    # another page scores as badly as a gap.
+    items: int = Field(ge=1)
 
 
 class Check(StrictModel):
+    """The rows' shape, which the agent is also given; the count is per target."""
+
     output_schema: dict[str, Any] = Field(alias="schema")
-    min_items: int = Field(default=0, ge=0)
     field_coverage: dict[str, float] = Field(default_factory=dict)
 
 
@@ -113,17 +117,17 @@ class Score:
     score: float
 
 
-def score_value(value: Any, check: Check) -> Score:
+def score_value(value: Any, check: Check, target: Target) -> Score:
     """Deterministic: schema validity, item count, and per-field coverage, each 0..1."""
 
     schema_ok = not any(Draft202012Validator(check.output_schema).iter_errors(value))
     items = value.get("items") if isinstance(value, Mapping) else value
     rows = [item for item in items if isinstance(item, Mapping)] if isinstance(items, list) else []
-    parts = [1.0 if schema_ok else 0.0]
-    passed = schema_ok
-    if check.min_items:
-        parts.append(min(1.0, len(rows) / check.min_items))
-        passed = passed and len(rows) >= check.min_items
+    parts = [
+        1.0 if schema_ok else 0.0,
+        min(len(rows), target.items) / max(len(rows), target.items),
+    ]
+    passed = schema_ok and len(rows) == target.items
     for name, threshold in sorted(check.field_coverage.items()):
         covered = sum(1 for row in rows if row.get(name) is not None) / len(rows) if rows else 0.0
         parts.append(min(1.0, covered / threshold) if threshold else 1.0)
@@ -176,17 +180,38 @@ class Backend(Protocol):
 
     async def write_task(self, entity: str, target: Target) -> None: ...
 
-    async def invoke(self, entity: str, prompt: str, options: Mapping[str, str]) -> RunOutcome: ...
+    async def invoke(
+        self,
+        entity: str,
+        prompt: str,
+        options: Mapping[str, str],
+        output_schema: Mapping[str, Any],
+    ) -> RunOutcome: ...
 
     async def record_run(self, row: RunRow) -> None: ...
 
 
-def entity_for(task: SuiteTask, arm: ArmName, trial: int) -> str:
-    return f"site:{task.domain}#{arm}-{trial}"
+def entity_for(task: SuiteTask, arm: ArmName, trial: int, run: str) -> str:
+    """One entity per eval run, so no run starts from what an earlier one learned."""
+
+    return f"site:{task.domain}#{run}-{arm}-{trial}"
 
 
 def prompt_for(target: Target) -> str:
     return f"Scrape {target.url}. Extract {target.goal}."
+
+
+def planned_runs(
+    suite: Sequence[SuiteTask], *, arms: Sequence[ArmName], trials: int, k_train: int
+) -> int:
+    """How many runs `run_suite` will make, so progress can be shown against it."""
+
+    per_trial = 0
+    for task in suite:
+        for arm in arms:
+            training = k_train if ARMS[arm].trains else 0
+            per_trial += training + (k_train + 1) * len(task.test)
+    return trials * per_trial
 
 
 async def run_suite(
@@ -196,6 +221,8 @@ async def run_suite(
     arms: Sequence[ArmName],
     trials: int,
     k_train: int,
+    run: str,
+    on_row: Callable[[RunRow], None] | None = None,
 ) -> list[RunRow]:
     """Test before any training, then after each of ``k_train`` training runs.
 
@@ -205,13 +232,19 @@ async def run_suite(
 
     rows: list[RunRow] = []
 
-    async def run(
+    async def one(
         task: SuiteTask, arm: ArmName, trial: int, phase: Phase, k: int, target: Target
     ) -> None:
-        entity = entity_for(task, arm, trial)
+        entity = entity_for(task, arm, trial, run)
         await backend.write_task(entity, target)
-        outcome = await backend.invoke(entity, prompt_for(target), ARMS[arm].options(phase))
-        scored = score_value(outcome.value, task.check) if outcome.succeeded else Score(False, 0.0)
+        outcome = await backend.invoke(
+            entity, prompt_for(target), ARMS[arm].options(phase), task.check.output_schema
+        )
+        scored = (
+            score_value(outcome.value, task.check, target)
+            if outcome.succeeded
+            else Score(False, 0.0)
+        )
         row = RunRow(
             task=task.id,
             arm=arm,
@@ -227,17 +260,19 @@ async def run_suite(
         )
         await backend.record_run(row)
         rows.append(row)
+        if on_row is not None:
+            on_row(row)
 
     for trial in range(trials):
         for task in suite:
             for k in range(k_train + 1):
                 for arm in arms:
                     if k and ARMS[arm].trains:
-                        await run(
+                        await one(
                             task, arm, trial, "train", k, task.train[(k - 1) % len(task.train)]
                         )
                     for target in task.test:
-                        await run(task, arm, trial, "test", k, target)
+                        await one(task, arm, trial, "test", k, target)
     return rows
 
 
@@ -371,6 +406,47 @@ def render_table(report: Mapping[str, Any]) -> str:
     return "\n".join(lines)
 
 
+_RUN_COLUMNS = (
+    ("task", None),
+    ("arm", None),
+    ("trial", None),
+    ("phase", None),
+    ("k", None),
+    ("result", None),
+    ("score", "score"),
+    ("steps", "steps"),
+    ("calls", "tool_calls"),
+    ("errors", "tool_errors"),
+    ("tokens", "tokens"),
+    ("cached", "cache_read_tokens"),
+    ("cost", "cost_usd"),
+    ("wall_s", "wall_s"),
+)
+
+
+def render_runs(rows: Sequence[RunRow]) -> str:
+    """One line per run in the order they ran; text columns left, numbers right."""
+
+    body = []
+    for row in rows:
+        labels = [row.task, row.arm, str(row.trial), row.phase, str(row.k_train)]
+        labels.append("pass" if row.passed else "fail")
+        metrics = [_metric(row, name) for _, name in _RUN_COLUMNS[6:] if name]
+        body.append(labels + [_cell(round(v, 4) if v is not None else None) for v in metrics])
+    headers = [name for name, _ in _RUN_COLUMNS]
+    widths = [max(len(line[i]) for line in [headers, *body]) for i in range(len(headers))]
+    left = 6
+
+    def line(cells: Sequence[str]) -> str:
+        return "  ".join(
+            cell.ljust(width) if i < left else cell.rjust(width)
+            for i, (cell, width) in enumerate(zip(cells, widths, strict=True))
+        ).rstrip()
+
+    rule = "  ".join("-" * width for width in widths)
+    return "\n".join([line(headers), rule, *(line(cells) for cells in body)])
+
+
 def _cell(value: float | None) -> str:
     return "-" if value is None else f"{value:g}"
 
@@ -420,12 +496,23 @@ class ApiBackend:
                     return
                 await asyncio.sleep(0.4)
 
-    async def invoke(self, entity: str, prompt: str, options: Mapping[str, str]) -> RunOutcome:
+    async def invoke(
+        self,
+        entity: str,
+        prompt: str,
+        options: Mapping[str, str],
+        output_schema: Mapping[str, Any],
+    ) -> RunOutcome:
         started = await self._client.invocations.start(
             entity=entity,
             computer=self._computer,
             executor=self._executor,
-            task={"kind": "answer", "prompt": prompt, "input": dict(options)},
+            task={
+                "kind": "answer",
+                "prompt": prompt,
+                "input": dict(options),
+                "output_schema": dict(output_schema),
+            },
         )
         handle = self._client.invocations.attach(started["invocation_id"])
         state = await handle.wait(timeout_s=self._timeout_s)
@@ -466,6 +553,8 @@ __all__ = [
     "bootstrap_ci",
     "entity_for",
     "load_suite",
+    "planned_runs",
+    "render_runs",
     "render_table",
     "run_suite",
     "score_value",

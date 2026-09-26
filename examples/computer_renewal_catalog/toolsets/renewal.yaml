@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=../../../schemas/toolsets.schema.json
 # What the renewal analyst may reach. Every capability is named here: a tool the
 # Agent is not given is a tool it does not have, rather than one the runtime
 # happens not to install.

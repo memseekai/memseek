@@ -61,6 +61,7 @@ from .models import (
     ContextPolicyDefinition,
     DeclaredField,
     DeploymentOverrides,
+    LessonSpec,
     McpDefinition,
     ModelAlias,
     ModelCatalog,
@@ -141,13 +142,26 @@ class DefinitionSources:
         standalone trigger definitions remain explicit.
         """
 
+        from memseek.lessons import LESSONS_COLLECTION
+
         inline = {f"{name}.default" for name in catalog.derivations}
+        # The lessons collection is built in whenever a skill learns, so it is
+        # synthesized again on compile rather than carried as an input.
+        synthesized = (
+            {(LESSONS_COLLECTION, 1)}
+            if any(toolset.learning_sources for toolset in catalog.toolsets.values())
+            else set()
+        )
         return cls(
             models=catalog.models,
             processors=tuple(catalog.processors.values()),
             rank_defaults=catalog.rank_defaults,
             search_profiles=dict(catalog.search_profiles),
-            collections=tuple(catalog.collections.values()),
+            collections=tuple(
+                collection
+                for key, collection in catalog.collections.items()
+                if key not in synthesized
+            ),
             derivations=tuple(catalog.derivations.values()),
             views=tuple(catalog.views.values()),
             artifacts=tuple(catalog.artifacts.values()),
@@ -351,6 +365,7 @@ class DefinitionCatalog:
     active_context_policies: Mapping[str, int]
     processor_config_hashes: Mapping[str, str]
     catalog_hash: str
+    source_locations: tuple[Mapping[str, Any], ...] = ()
 
     @property
     def answerable_collections(self) -> frozenset[str]:
@@ -912,27 +927,59 @@ class _CatalogBuilder:
                 self.search_profiles[name] = _hashed(definition)
 
     def _load_collections(self) -> None:
-        for path, document in self._documents("collections_dir"):
-            root = _mapping(document, path, "collection file")
-            for index, raw in enumerate(_sequence(root, "collections", path)):
-                definition = _parse(
-                    CollectionDefinition, raw, path, context=f"collections[{index}]"
+        # Imported here: the lessons module sits above the definitions package.
+        from memseek.lessons import (
+            LESSONS_COLLECTION,
+            LESSONS_REF,
+            LESSONS_SEARCH_PROFILE,
+        )
+        from memseek.lessons import collection_document as lessons_collection_document
+
+        documents = [
+            (path, index, raw)
+            for path, document in self._documents("collections_dir")
+            for index, raw in enumerate(
+                _sequence(_mapping(document, path, "collection file"), "collections", path)
+            )
+        ]
+        learning = self._first_learning_toolset()
+        if learning is not None:
+            # A skill that learns needs somewhere to keep lessons; every catalog
+            # gets the same built-in collection rather than writing its own.
+            if LESSONS_SEARCH_PROFILE not in self.search_profiles:
+                raise DefinitionError(
+                    "reference",
+                    f"a toolset source sets learning, and the built-in {LESSONS_REF} "
+                    f"collection uses the {LESSONS_SEARCH_PROFILE!r} search profile, which "
+                    "this catalog does not declare",
+                    file=learning,
                 )
-                key = (definition.name, definition.version)
-                self._duplicate("collection", key, path)
-                _check_json_schema(definition.content_schema, path, f"collections[{index}].schema")
-                self._validate_content_schema(definition, path, index)
-                self._validate_collection_references(definition, path)
-                hashed = _hashed(self._with_supersession(definition))
-                self.collections[key] = hashed
-                if definition.active:
-                    self._set_active(
-                        self.active_collections,
-                        definition.name,
-                        definition.version,
-                        "collection",
-                        path,
+            for path, _, raw in documents:
+                if isinstance(raw, Mapping) and raw.get("name") == LESSONS_COLLECTION:
+                    raise DefinitionError(
+                        "duplicate",
+                        f"collection {LESSONS_COLLECTION!r} is built in when a skill learns; "
+                        "rename this one",
+                        file=path,
                     )
+            documents.append((learning, 0, lessons_collection_document()))
+        for path, index, raw in documents:
+            definition = _parse(CollectionDefinition, raw, path, context=f"collections[{index}]")
+            key = (definition.name, definition.version)
+            self._duplicate("collection", key, path)
+            _check_json_schema(definition.content_schema, path, f"collections[{index}].schema")
+            self._validate_content_schema(definition, path, index)
+            self._validate_collection_references(definition, path)
+            hashed = _hashed(self._with_supersession(definition))
+            self.collections[key] = hashed
+            if definition.active:
+                self._set_active(
+                    self.active_collections,
+                    definition.name,
+                    definition.version,
+                    "collection",
+                    path,
+                )
         # A configured directory that yielded nothing is a misconfiguration and
         # still fails. A service with no catalog configured at all is the
         # shipped default: it compiles to an empty catalog and waits for a
@@ -2842,11 +2889,27 @@ class _CatalogBuilder:
                 file=self.settings.context_policies_dir,
             )
 
+    def _first_learning_toolset(self) -> Path | None:
+        """The toolset file of the first source that sets ``learning``, read ahead of parsing.
+
+        Collections load before toolsets, and the built-in lessons collection
+        must exist before anything that reads it is validated.
+        """
+
+        for path, document in self._documents("toolsets_dir", missing_ok=True):
+            toolsets = document.get("toolsets") if isinstance(document, Mapping) else None
+            for toolset in toolsets if isinstance(toolsets, list) else []:
+                sources = toolset.get("sources") if isinstance(toolset, Mapping) else None
+                for source in sources if isinstance(sources, list) else []:
+                    if isinstance(source, Mapping) and source.get("learning") not in (None, False):
+                        return path
+        return None
+
     def _load_toolsets(self) -> None:
         """Load the inbound tool surfaces Agents may bind.
 
-        A catalog with no toolsets is the normal case, so absence of the
-        directory is not an error the way an empty ``agents/`` would be.
+        A catalog with no toolsets is the normal case, so a ``catalog.yaml``
+        without a ``toolsets:`` map is not an error.
         """
 
         for path, document in self._documents("toolsets_dir", missing_ok=True):
@@ -2874,6 +2937,31 @@ class _CatalogBuilder:
                 self._validate_toolset_skill(source, path, where)
             elif source.kind == "skillpack":
                 self._skillpack(source, path, f"{where}.pack")
+        from memseek.lessons import resolve as resolve_lessons
+        from memseek.lessons import undeclared_kinds
+
+        for index, source in enumerate(definition.sources):
+            if source.learning is None:
+                continue
+            spec = resolve_lessons(source, self._declared_lessons(source, path))
+            missing = undeclared_kinds(spec)
+            if missing:
+                raise DefinitionError(
+                    "reference",
+                    f"toolset source {source.name!r} learns with require or code naming "
+                    f"{missing}, which its lessons do not declare as kinds",
+                    file=path,
+                    path=f"sources[{index}].learning",
+                )
+
+    def _declared_lessons(self, source: ToolSourceDefinition, path: Path) -> LessonSpec | None:
+        """What the loaded skill itself says is worth learning."""
+
+        if source.kind == "skillpack":
+            return self._skillpack(source, path, "pack").lessons
+        assert source.artifact is not None
+        name, version = split_exact_reference(source.artifact)
+        return self.artifacts[(name, int(version))].lessons
 
     def _skillpack(self, source: ToolSourceDefinition, path: Path, where: str) -> SkillPackManifest:
         # Imported here: skill packs sit above the definitions package.
@@ -3091,6 +3179,8 @@ class _CatalogBuilder:
                     )
                 if source.kind == "skillpack":
                     self._validate_skillpack_computer(source, computer, computer_ref, path, where)
+            if toolset.learning_sources:
+                self._validate_learning_computer(computer, computer_ref, path, where)
 
     def _validate_skillpack_computer(
         self,
@@ -3100,8 +3190,6 @@ class _CatalogBuilder:
         path: Path,
         where: str,
     ) -> None:
-        from memseek.skillpacks import LEARNINGS_PATH
-
         pack = self._skillpack(source, path, where)
         missing = set(pack.capabilities) - computer.capabilities.enabled
         if missing:
@@ -3112,14 +3200,17 @@ class _CatalogBuilder:
                 file=path,
                 path=where,
             )
-        if pack.learns and not any(
-            item.path == LEARNINGS_PATH and item.type == "observations"
-            for item in computer.writeback
-        ):
+
+    def _validate_learning_computer(
+        self, computer: ComputerDefinition, computer_ref: str, path: Path, where: str
+    ) -> None:
+        """A run with a skill that learns writes lessons to the outbox."""
+
+        if "/outbox" not in computer.writable:
             raise DefinitionError(
                 "computer_capability",
-                f"skill pack {pack.name!r} learns, so computer {computer_ref!r} must declare "
-                f"{LEARNINGS_PATH} as an observations writeback",
+                f"a skill in this toolset learns, so computer {computer_ref!r} must list "
+                "/outbox in writable",
                 file=path,
                 path=where,
             )
@@ -3250,11 +3341,27 @@ class _CatalogBuilder:
             if not isinstance(documents, list):
                 raise DefinitionError("shape", "packages must be a list", file=path)
             for index, document in enumerate(documents):
-                definition = _parse(PackageDefinition, document, path, context=f"packages[{index}]")
+                definition = self._with_lessons(
+                    _parse(PackageDefinition, document, path, context=f"packages[{index}]")
+                )
                 key = (definition.name, definition.version)
                 self._duplicate("package", key, path)
                 self._validate_package(definition, path)
                 self.packages[key] = _hashed(definition)
+
+    def _with_lessons(self, definition: PackageDefinition) -> PackageDefinition:
+        """A package that ships a learning toolset ships the built-in lessons collection."""
+
+        from memseek.lessons import LESSONS_REF
+
+        learns = any(
+            self.toolsets[(name, int(version))].learning_sources
+            for name, version in map(split_exact_reference, definition.toolsets)
+            if (name, int(version)) in self.toolsets
+        )
+        if not learns or LESSONS_REF in definition.collections:
+            return definition
+        return definition.model_copy(update={"collections": (*definition.collections, LESSONS_REF)})
 
     def _validate_package(self, definition: PackageDefinition, path: Path) -> None:
         exact_groups: tuple[tuple[str, tuple[str, ...], Mapping[tuple[str, int], Any]], ...] = (
@@ -4305,6 +4412,43 @@ def load_definition_catalog(
     import_task_modules(settings.task_modules)
     if source is not None:
         return source.compile(settings)
+    if settings.catalog_file is not None:
+        from .manifest import compile_catalog_files, read_catalog_files
+
+        if settings.catalog_file.name != "catalog.yaml":
+            raise DefinitionError(
+                "catalog_file", "entry point must be named catalog.yaml", file=settings.catalog_file
+            )
+        root = settings.catalog_file.parent
+        try:
+            return compile_catalog_files(settings, read_catalog_files(root), apply_overrides=True)
+        except DefinitionError as exc:
+            file = root / exc.file if exc.file and not Path(exc.file).is_absolute() else exc.file
+            raise DefinitionError(
+                exc.code, exc.message, file=file, path=exc.path, line=exc.line, column=exc.column
+            ) from exc
+    if any(
+        getattr(settings, field) is not None
+        for field in (
+            "collections_dir",
+            "derivations_dir",
+            "triggers_dir",
+            "views_dir",
+            "artifacts_dir",
+            "computers_dir",
+            "programs_dir",
+            "agents_dir",
+            "context_policies_dir",
+            "toolsets_dir",
+            "mcp_dir",
+            "packages_dir",
+            "processors_file",
+        )
+    ):
+        raise DefinitionError(
+            "catalog_file",
+            "set catalog_file to catalog.yaml; directory discovery is no longer supported",
+        )
     return _CatalogBuilder(settings).build()
 
 

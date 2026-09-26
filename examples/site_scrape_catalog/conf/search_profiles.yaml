@@ -1,3 +1,0 @@
-profiles:
-  pg_default: {backend: pg}
-

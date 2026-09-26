@@ -6,9 +6,12 @@ import shutil
 from pathlib import Path
 
 import pytest
+from reference_catalog import declare_test_sources
+from site_scrape_fixture import site_scrape_settings
 
 from memseek.config import Settings
 from memseek.definitions import DefinitionError, load_definition_catalog
+from memseek.definitions.loader import DefinitionSources
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 RENEWAL_ROOT = REPOSITORY_ROOT / "examples" / "computer_renewal_catalog"
@@ -22,25 +25,7 @@ def renewal_root(tmp_path: Path) -> Path:
 
 
 def _settings(root: Path) -> Settings:
-    return Settings(
-        models_file=root / "conf/models.yaml",
-        processors_file=root / "conf/processors.yaml",
-        rank_default_file=root / "conf/rank_default.yaml",
-        search_profiles_file=root / "conf/search_profiles.yaml",
-        collections_dir=root / "collections",
-        derivations_dir=root / "derivations",
-        views_dir=None,
-        triggers_dir=None,
-        artifacts_dir=root / "artifacts",
-        computers_dir=root / "computers",
-        programs_dir=root / "programs",
-        agents_dir=root / "agents",
-        context_policies_dir=root / "context_policies",
-        toolsets_dir=root / "toolsets",
-        mcp_dir=root / "mcp",
-        packages_dir=root / "packages",
-        llm_fake=True,
-    )
+    return Settings(catalog_file=root / "catalog.yaml", llm_fake=True)
 
 
 def _replace(path: Path, old: str, new: str) -> None:
@@ -136,36 +121,82 @@ def test_a_pack_cannot_need_more_than_the_computer_allows(renewal_root: Path) ->
     )
 
 
-def test_a_learning_pack_requires_the_learnings_writeback(renewal_root: Path) -> None:
-    _grant_browser_pack(renewal_root)
-    computers = renewal_root / "computers" / "workspaces.yaml"
+def _opt_into_learning(root: Path, research_learning: str = "true") -> None:
+    """A pack and a catalog skill both learn; nothing else in the catalog changes."""
+
+    toolsets = root / "toolsets" / "renewal.yaml"
     _replace(
-        computers,
+        toolsets,
+        "      - name: shell\n",
+        "      - {name: browser, kind: skillpack, pack: browser-harness, learning: true}\n"
+        "      - name: shell\n",
+    )
+    _replace(
+        toolsets,
+        "        skill_name: renewal-research\n",
+        f"        skill_name: renewal-research\n        learning: {research_learning}\n",
+    )
+    _replace(
+        root / "computers" / "workspaces.yaml",
         "      fallback_requires: explicit_policy\n"
         "    capabilities: {filesystem: true, exec: true, network: false}",
         "      fallback_requires: explicit_policy\n"
         "    capabilities: {filesystem: true, exec: true, network: true}",
     )
 
+
+def test_a_skill_that_learns_brings_the_lessons_collection_with_it(renewal_root: Path) -> None:
+    without = load_definition_catalog(_settings(renewal_root))
+    _opt_into_learning(renewal_root)
+
+    catalog = load_definition_catalog(_settings(renewal_root))
+
+    assert ("lessons", 1) not in without.collections
+    lessons = catalog.collections[("lessons", 1)]
+    assert set(lessons.content_schema["properties"]) == {"text", "skill", "kind", "detail", "code"}
+    assert "lessons@1" in catalog.packages[("computer_renewal_demo", "1.0.0")].collections
+
+
+def test_the_built_in_lessons_collection_is_not_carried_as_an_input(tmp_path: Path) -> None:
+    catalog = load_definition_catalog(site_scrape_settings(Settings(llm_fake=True), tmp_path))
+
+    sources = DefinitionSources.from_catalog(catalog)
+
+    # Compiling these sources synthesizes it again; carrying it would duplicate it.
+    assert ("lessons", 1) in catalog.collections
+    assert {getattr(collection, "name", None) for collection in sources.collections} == {
+        "scrape_tasks",
+        "skill_eval_runs",
+    }
+
+
+def test_require_must_name_a_kind_the_skill_declares(renewal_root: Path) -> None:
+    _opt_into_learning(renewal_root, research_learning="{require: [quote]}")
+
     with pytest.raises(DefinitionError) as caught:
         load_definition_catalog(_settings(renewal_root))
 
-    assert caught.value.code == "computer_capability"
+    assert caught.value.code == "reference"
     assert str(caught.value).endswith(
-        "skill pack 'browser-harness' learns, so computer 'research_workspace@1' must declare "
-        "/outbox/learnings.jsonl as an observations writeback"
+        "toolset source 'renewal_research' learns with require or code naming ['quote'], "
+        "which its lessons do not declare as kinds"
     )
 
-    _replace(
-        computers,
-        "      - {path: /outbox/observations.jsonl,",
-        "      - {path: /outbox/learnings.jsonl, type: observations, review: false, "
-        "collection: task_observations@1, record_type: observation}\n"
-        "      - {path: /outbox/observations.jsonl,",
+
+def test_a_catalog_cannot_shadow_the_built_in_lessons_collection(renewal_root: Path) -> None:
+    _opt_into_learning(renewal_root)
+    collections = next((renewal_root / "collections").glob("*.yaml"))
+    collections.write_text(
+        collections.read_text()
+        + "\n  - {name: lessons, version: 1, mode: event, schema: {type: object}, "
+        "search_profile: pg_default}\n"
     )
-    toolset = load_definition_catalog(_settings(renewal_root)).toolsets[("renewal", 1)]
-    assert toolset.sources[1].model_dump(mode="json") == {
-        "name": "browser",
-        "kind": "skillpack",
-        "pack": "browser-harness",
-    }
+
+    declare_test_sources(renewal_root, collections.relative_to(renewal_root).as_posix())
+    with pytest.raises(DefinitionError) as caught:
+        load_definition_catalog(_settings(renewal_root))
+
+    assert caught.value.code == "duplicate"
+    assert "collection 'lessons' is built in when a skill learns; rename this one" in str(
+        caught.value
+    )

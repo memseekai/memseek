@@ -13,8 +13,8 @@ accountability: every render records exactly which records went in, under
 which definitions, and what came out. If a prompt misbehaved on Tuesday, you
 can see precisely what it contained on Tuesday.
 
-Artifact files live in `artifacts/*.yaml`. A file starts with an
-`artifacts:` list and may contain several artifacts.
+An artifact file is listed under `artifacts:` in `catalog.yaml`
+(conventionally `artifacts/*.yaml`). A file starts with an `artifacts:` list and may contain several artifacts.
 
 An artifact is the recipe; a **render** is one result; an **artifact use** is a
 handle for connecting that result to a later outcome. Those terms are defined
@@ -94,8 +94,9 @@ curl -sS -X POST http://127.0.0.1:8000/artifacts/customer_brief/render \
   `description`, and type-appropriate constraints. See
   [Parameter fields](views-search.md#parameter-fields) for the complete
   vocabulary.
-- **`blocks`** (required, at least one) — the named data sources. See
-  [Blocks](#blocks).
+- **`blocks`** — the named data sources. See [Blocks](#blocks). A reviewed
+  artifact needs at least one. A live artifact may have none, which makes it
+  fixed text.
 - **`template`** (required) — the final composition, and the whole of it. It may
   reference parameters (`{{task}}`) and block names (`{{profile}}`); every block
   you define must be used in the template, and unknown references fail catalog
@@ -103,6 +104,9 @@ curl -sS -X POST http://127.0.0.1:8000/artifacts/customer_brief/render \
   prompt](#the-template-is-the-whole-prompt).
 - **`snapshot`** (optional) — store each render as a record. See
   [Snapshots](#snapshots).
+- **`lessons`** (optional, `kind: skill` only) — what is worth learning while
+  an Agent uses this skill, for toolsets that set `learning` on it. See
+  [Skills that learn](toolsets.md#skills-that-learn).
 - **`learning`** (optional) — which block's maintained value should improve when
   feedback about a render arrives. See
   [Declaring a learning target](#declaring-a-learning-target).
@@ -285,6 +289,10 @@ later candidate replaces the version that actually influenced the run rather
 than whatever is active when the feedback arrives. If the target block read no
 active head, the use resolves to *no* target rather than to an empty one — a
 signal is never attributed to a version that was never used.
+
+This `learning` is not `learning` on a toolset source. That one makes a loaded
+skill record lessons during a run and read them back on the next, with no
+review. See [How skill lessons work](skill-lessons.md).
 
 `learning` is optional and independent of `lifecycle`: a live prompt is the
 normal place to declare one, because the prompt is what gets used while the

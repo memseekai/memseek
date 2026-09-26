@@ -100,15 +100,20 @@ declarations for that behavior:
 
 ```text
 mini_memory/
+├── catalog.yaml                  # start here: every name and its source file
 ├── collections/memory.yaml       # messages in; cited reflections out
 ├── conf/models.yaml              # deployment model aliases
 ├── conf/processors.yaml          # embeddings and other enrichment
 ├── derivations/reflect.yaml      # bounded messages -> reflections
 ├── views/recall.yaml             # typed retrieval
 ├── artifacts/context.yaml        # prompt-ready context
-├── mcp/agent_memory.yaml         # agent tool allowlist
-└── packages/mini_memory.yaml     # versions released together
+└── mcp/agent_memory.yaml         # agent tool allowlist
 ```
+
+Open `catalog.yaml` to find every definition. Validate locally with
+`uv run memseek catalog-validate --dir mini_memory`, or locate one with
+`uv run memseek catalog-locate reflect --dir mini_memory`. Only explicitly
+listed files load; derivation processors and inline triggers are included automatically.
 
 The reflection derivation names its complete authority. It can consume only a
 bounded suffix of messages, make at most one model call, and append at most three

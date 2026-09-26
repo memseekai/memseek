@@ -22,16 +22,16 @@ steps = 5 - (2 if playbook else 0) - (1 if helpers else 0)
 citations = list(request["citation_ids"][:1])
 if citations:
     learning = {
-        "text": "[echo-pack/extraction] Stories are tr.athing rows.",
+        "text": "Stories are tr.athing rows.",
         "content": {
-            "pack": "echo-pack",
-            "kind": "extraction",
+            "skill": "echo-pack",
+            "kind": "tip",
             "detail": "Stories are tr.athing rows; points are in the next row.",
-            "helper_code": None,
+            "code": None,
         },
         "citations": citations,
     }
-    with (root / "outbox" / "learnings.jsonl").open("a") as handle:
+    with (root / "outbox" / "lessons.jsonl").open("a") as handle:
         handle.write(json.dumps(learning) + "\n")
 
 print(

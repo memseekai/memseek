@@ -113,7 +113,7 @@ src/memseek/            72 modules, ~28.8k lines — the entire runtime
   artifacts.py artifact_uses.py promote.py erase.py reindex.py answer.py graph.py
   sdk.py mcp_server.py cli.py config.py auth.py db.py
 
-conf/ collections/ derivations/ views/ artifacts/ packages/ mcp/ triggers/
+resources/catalog.yaml + the files it lists (conf/ collections/ derivations/ views/ artifacts/ mcp/)
                         the shipped bootstrap catalog (YAML)
 migrations/001_init.sql normative initial schema, digest-pinned
 alembic/versions/       6 revisions
@@ -176,7 +176,7 @@ graph TB
 
     subgraph cat["Definition catalog (immutable)"]
         LOADER["definitions/loader.py"]
-        YAML["conf/ collections/ derivations/<br/>views/ artifacts/ mcp/ packages/"]
+        YAML["catalog.yaml<br/>+ the files it lists"]
     end
 
     subgraph store["PostgreSQL 16 + pgvector — canonical"]
@@ -451,7 +451,7 @@ Definitions are deployment assets resolved **relative to the process working dir
 | `views/*.yaml` | `ViewDefinition` | `search`, `graph`, `graph_orphans` |
 | `artifacts/*.yaml` | `ArtifactDefinition` | `live` or `reviewed` |
 | `mcp/*.yaml` | [`McpDefinition`](src/memseek/definitions/models.py#L738-L753) | The explicit tool allowlist |
-| `packages/*.yaml` | `PackageDefinition` | Exact version bindings + retention + MCP selection |
+| `catalog.yaml` | [`CatalogManifest`](src/memseek/definitions/manifest.py) | Explicit `name@version → file` map, config paths, retention and `expose_mcp`; compiled into the `PackageDefinition` |
 | `conf/search_profile_overrides.example.yaml` | [`DeploymentOverrides`](src/memseek/definitions/models.py#L797-L798) | Deployment-owned backend rebinding |
 
 Sources: [src/memseek/config.py:35-92](src/memseek/config.py#L35-L92) ·
@@ -635,9 +635,9 @@ retentions:
     max_pages: 25
 ```
 
-Sources: [packages/agentic_memory_core.yaml:1-38](packages/agentic_memory_core.yaml#L1-L38) ·
+Sources: [resources/catalog.yaml](resources/catalog.yaml) ·
 [`TombstoneRetention`](src/memseek/definitions/models.py#L689-L700) ·
-[examples/gbrain_catalog/packages/gbrain.yaml:33-38](examples/gbrain_catalog/packages/gbrain.yaml#L33-L38)
+[examples/gbrain_catalog/catalog.yaml](examples/gbrain_catalog/catalog.yaml)
 
 ### 4.11 Per-workspace catalogs
 
@@ -1876,9 +1876,9 @@ a large cross-field invariant validator.
 
 ### 18.3 Catalog paths
 
-`PROCESSORS_FILE`, `COLLECTIONS_DIR`, `DERIVATIONS_DIR`, `TRIGGERS_DIR`, `VIEWS_DIR`,
-`ARTIFACTS_DIR`, `MCP_DIR`, `PACKAGES_DIR`, `SEARCH_PROFILES_FILE`, `RANK_DEFAULT_FILE`,
-`SEARCH_PROFILE_OVERRIDES_FILE`, `TASK_MODULES`.
+`CATALOG_FILE` (a path to a `catalog.yaml`; every other catalog path comes from
+that manifest), `SEARCH_PROFILE_OVERRIDES_FILE`, `TASK_MODULES`. The old
+`*_DIR` and `PROCESSORS_FILE` settings are refused when `CATALOG_FILE` is unset.
 
 `TASK_MODULES` defaults to `("memseek.derive.tasks_graph", "memseek.derive.tasks_facts",
 "memseek.derive.tasks_repair")` and each entry is validated as a dotted module name.
@@ -1951,7 +1951,7 @@ serves as the reference for authoring your own.
 
 Package version: **2.2.0**.
 
-Sources: [packages/agentic_memory_core.yaml:1-38](packages/agentic_memory_core.yaml#L1-L38)
+Sources: [resources/catalog.yaml](resources/catalog.yaml)
 
 ### 19.2 Collections
 
@@ -2071,7 +2071,7 @@ Three of its pipelines are worth studying:
 | `enrich_thin` | `write` trigger with `ignore_own_outputs: true` **and** a field predicate `gbrain_enriched: {exists: false}` — a self-limiting enrichment pass that cannot loop |
 | `repair_synthesis` | `cron: "17 * * * *"` + a `stale_citations` driver + `driver_key: true` emission — repairs one synthesis whose citations went stale, writing back under the driver record's own key |
 
-Sources: [examples/gbrain_catalog/packages/gbrain.yaml:1-38](examples/gbrain_catalog/packages/gbrain.yaml#L1-L38) ·
+Sources: [examples/gbrain_catalog/catalog.yaml](examples/gbrain_catalog/catalog.yaml) ·
 [examples/gbrain_catalog/derivations/link_extraction.yaml:1-32](examples/gbrain_catalog/derivations/link_extraction.yaml#L1-L32) ·
 [examples/gbrain_catalog/derivations/enrich_thin.yaml:1-11](examples/gbrain_catalog/derivations/enrich_thin.yaml#L1-L11) ·
 [examples/gbrain_catalog/derivations/repair_synthesis.yaml:1-34](examples/gbrain_catalog/derivations/repair_synthesis.yaml#L1-L34) ·

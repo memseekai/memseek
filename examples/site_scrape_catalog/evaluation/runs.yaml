@@ -1,0 +1,30 @@
+# yaml-language-server: $schema=../../../schemas/collections.schema.json
+collections:
+  # One row per eval run: `memseek eval skill-learning` writes these, and each
+  # links to the invocation whose receipt holds the full journal.
+  - name: skill_eval_runs
+    version: 1
+    active: true
+    mode: event
+    schema:
+      type: object
+      required: [text, task, arm, trial, phase, k_train, pass, score, metrics, invocation_id]
+      properties:
+        text: {type: string, minLength: 1}
+        task: {type: string, minLength: 1}
+        arm: {type: string, enum: [cold, native, playbook, playbook+native]}
+        trial: {type: integer, minimum: 0}
+        phase: {type: string, enum: [train, test]}
+        k_train: {type: integer, minimum: 0}
+        pass: {type: boolean}
+        score: {type: number, minimum: 0, maximum: 1}
+        metrics: {type: object}
+        invocation_id: {type: string, minLength: 1}
+        harness: {type: object}
+        skillpacks: {type: array}
+      additionalProperties: false
+    fields:
+      arm: {path: content.arm, type: string, filter: true, project: true}
+      task: {path: content.task, type: string, filter: true, project: true}
+    required_processors: []
+    search_profile: pg_default

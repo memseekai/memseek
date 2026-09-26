@@ -105,9 +105,17 @@ the [Glossary](glossary.md) when a checklist term is unfamiliar.
 - [ ] The instructions artifact tells the model to return the `{"value": …, "citation_ids": […]}` envelope.
 - [ ] `retention.preserve` names everything a fork or an audit will need later.
 
+## Skills that learn
+
+- [ ] Every source with `learning` is a `skill` or `skillpack` source.
+- [ ] Each learning skill's `lessons` declares the kinds worth learning, most useful first, and every kind in `require` and `code`.
+- [ ] Each kind's description tells the agent what to record, because it is also the playbook heading.
+- [ ] The catalog declares the `pg_default` search profile, and no collection of its own named `lessons`.
+- [ ] Every Computer the Agent runs on lists `/outbox` in `writable`.
+
 ## Package and release
 
-- [ ] The package lists every exact collection, processor, trigger, view, artifact, and required search profile it uses.
+- [ ] `catalog.yaml` lists every exact collection, processor, derivation, view, and artifact it uses. Inline derivation triggers and every profile in the `config.search_profiles` file ship without being listed.
 - [ ] It also lists every computer, program, agent, and context policy referenced by a task, an MCP invocation tool, or another definition.
 - [ ] Required and optional search profiles do not overlap.
 - [ ] The uploaded request package matches the manifest file.

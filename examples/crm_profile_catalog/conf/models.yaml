@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=../../../schemas/models.schema.json
 # Named endpoints. Alias targets and the embedding block refer to a provider by
 # the key you choose here; the credential stays in the environment.
 providers:

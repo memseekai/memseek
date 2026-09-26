@@ -801,6 +801,41 @@ class ArtifactBlock(StrictModel):
         return self
 
 
+class LessonSpec(StrictModel):
+    """What is worth learning while using one skill.
+
+    A skill declares it beside itself (``lessons:`` in its pack manifest or on
+    its skill artifact), and a toolset source may override parts of it. Every
+    field is optional so the layers merge: ``kinds`` adds or re-describes kinds,
+    and the other fields replace. The description of each kind is what the
+    agent reads, both when it records a lesson and in the playbook's headings.
+    """
+
+    kinds: dict[PublicName, NonBlank] | None = None
+    # Each call to the lessons tool that records for this skill must include
+    # one lesson of each of these kinds.
+    require: tuple[PublicName, ...] | None = None
+    # Lessons of these kinds must carry runnable code in ``code``: a helper
+    # recorded as prose had to be written again by the next run.
+    code: tuple[PublicName, ...] | None = None
+    guidance: NonBlank | None = None
+    max_per_run: int | None = Field(default=None, ge=1, le=50)
+
+    @model_serializer(mode="wrap")
+    def _serialize(self, handler: Any) -> dict[str, Any]:
+        return {key: value for key, value in dict(handler(self)).items() if value is not None}
+
+    @model_validator(mode="after")
+    def validate_spec(self) -> LessonSpec:
+        if self.kinds is not None and not self.kinds:
+            raise ValueError("lessons kinds must name at least one kind")
+        if self.require is not None:
+            ensure_unique(self.require, "lessons require")
+        if self.code is not None:
+            ensure_unique(self.code, "lessons code")
+        return self
+
+
 class ArtifactSnapshot(StrictModel):
     entity: str | None = None
     collection: PublicName
@@ -836,24 +871,35 @@ class ArtifactDefinition(VersionedDefinition):
     description: NonBlank | None = None
     lifecycle: Literal["live", "reviewed"]
     parameters: dict[PublicName, ParameterDefinition] = Field(default_factory=dict)
-    blocks: dict[PublicName, ArtifactBlock]
+    blocks: dict[PublicName, ArtifactBlock] = Field(default_factory=dict)
     template: str
     snapshot: ArtifactSnapshot | None = None
     candidate_processor: ProcessorName | None = None
     complete_keys: tuple[str, ...] = ()
     learning: ArtifactLearning | None = None
+    # What is worth learning while using this skill, for toolsets that turn
+    # learning on for it. Only a skill artifact is loaded as a skill.
+    lessons: LessonSpec | None = None
 
     @model_serializer(mode="wrap")
     def _serialize(self, handler: Any) -> dict[str, Any]:
         dumped = dict(handler(self))
-        if self.description is None:
-            dumped.pop("description", None)
+        # Absent optional fields stay out of the dump, so adding one leaves
+        # every existing artifact's hash as it was.
+        for field_name in ("description", "lessons"):
+            if getattr(self, field_name) is None:
+                dumped.pop(field_name, None)
         return dumped
 
     @model_validator(mode="after")
     def validate_lifecycle(self) -> ArtifactDefinition:
-        if not self.blocks:
-            raise ValueError("artifact requires at least one block")
+        if self.lessons is not None and self.kind != "skill":
+            raise ValueError("only a skill artifact declares lessons")
+        # A live artifact with no blocks is fixed text, such as the instructions
+        # every skill that records lessons is given; a reviewed one maintains
+        # blocks, so it needs some.
+        if not self.blocks and self.lifecycle == "reviewed":
+            raise ValueError("reviewed artifact requires at least one block")
         ensure_unique(self.complete_keys, "complete_keys")
         if self.lifecycle == "reviewed":
             if self.candidate_processor is None or not self.complete_keys:
@@ -1303,10 +1349,10 @@ _TOOL_SOURCE_FIELDS: Mapping[str, tuple[frozenset[str], frozenset[str]]] = {
     "exec": (frozenset(), frozenset()),
     "recall": (frozenset(), frozenset()),
     "writeback": (frozenset({"path"}), frozenset({"commit"})),
-    "skill": (frozenset({"artifact"}), frozenset({"skill_name"})),
+    "skill": (frozenset({"artifact"}), frozenset({"skill_name", "learning"})),
     "view": (frozenset({"view"}), frozenset({"arguments", "mode"})),
     "mcp_server": (frozenset({"url"}), frozenset({"allowed_tools"})),
-    "skillpack": (frozenset({"pack"}), frozenset()),
+    "skillpack": (frozenset({"pack"}), frozenset({"learning"})),
 }
 _TOOL_SOURCE_BINDINGS = frozenset(
     {
@@ -1322,12 +1368,30 @@ _TOOL_SOURCE_BINDINGS = frozenset(
         "url",
         "pack",
         "allowed_tools",
+        "learning",
     }
 )
 # Two sources of one of these kinds would be two identically-behaving tools the
 # model has to choose between.  Skills are deliberately absent: many skill
 # sources produce one tool with many choices, not many tools.
 _SINGLETON_TOOL_KINDS = frozenset({"filesystem", "exec", "recall"})
+
+
+class SkillLearning(LessonSpec):
+    """What a loaded skill opts into: recording lessons, and reading them back.
+
+    ``learning: true`` on a skill source means both, with the lessons the skill
+    itself declares. The remaining fields override the skill's own spec.
+    """
+
+    collect: bool = True
+    playbook: bool = True
+
+    @model_validator(mode="after")
+    def validate_choice(self) -> SkillLearning:
+        if not (self.collect or self.playbook):
+            raise ValueError("learning needs collect or playbook; omit it to turn both off")
+        return self
 
 
 def _derived_skill_name(reference: str) -> str:
@@ -1370,6 +1434,16 @@ class ToolSourceDefinition(StrictModel):
     url: str | None = None
     allowed_tools: tuple[PublicName, ...] | None = None
     pack: PublicName | None = None
+    learning: SkillLearning | None = None
+
+    @field_validator("learning", mode="before")
+    @classmethod
+    def _learning_shorthand(cls, value: Any) -> Any:
+        if value is True:
+            return {}
+        if value is False:
+            raise ValueError("omit learning to turn it off")
+        return value
 
     @model_serializer(mode="wrap")
     def _serialize(self, handler: Any) -> dict[str, Any]:
@@ -1447,6 +1521,15 @@ class ToolSourceDefinition(StrictModel):
         assert self.artifact is not None
         return self.skill_name or _derived_skill_name(self.artifact)
 
+    @property
+    def installed_skill_name(self) -> str:
+        """The directory the harness finds this skill in, and the name lessons file under."""
+
+        if self.kind == "skillpack":
+            assert self.pack is not None
+            return self.pack
+        return self.resolved_skill_name
+
 
 def _validate_derived_skill_name(reference: str) -> None:
     derived = _derived_skill_name(reference)
@@ -1499,7 +1582,17 @@ class ToolsetDefinition(DefinitionModel):
             [source.pack for source in self.sources if source.kind == "skillpack"],
             "toolset skill packs",
         )
+        # A pack and a catalog skill share one directory namespace, so the
+        # lessons filed under a name must belong to exactly one of them.
+        ensure_unique(
+            [source.installed_skill_name for source in self.learning_sources],
+            "learning skill names",
+        )
         return self
+
+    @property
+    def learning_sources(self) -> tuple[ToolSourceDefinition, ...]:
+        return tuple(source for source in self.sources if source.learning is not None)
 
 
 class PackageDefinition(DefinitionModel):

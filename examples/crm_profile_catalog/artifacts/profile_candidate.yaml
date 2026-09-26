@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=../../../schemas/artifacts.schema.json
 artifacts:
   - name: crm_profile_candidate
     version: 1

@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=../../../schemas/mcp.schema.json
 name: agent_memory
 version: 1
 title: Agent memory (L0-L3)

@@ -47,8 +47,8 @@ async def _client(settings: Settings) -> AsyncIterator[httpx.AsyncClient]:
 def _general_graph_settings(gbrain_settings: Settings, tmp_path: Path) -> Settings:
     """Add a second graph whose names and predicates have no gbrain vocabulary."""
 
-    assert gbrain_settings.collections_dir is not None  # set by the gbrain fixture
-    source = Path(gbrain_settings.collections_dir).parent
+    assert gbrain_settings.catalog_file is not None  # set by the gbrain fixture
+    source = gbrain_settings.catalog_file.parent
     root = tmp_path / "general_graph_catalog"
     shutil.copytree(source, root)
     (root / "collections/dependencies.yaml").write_text(
@@ -119,29 +119,12 @@ def _general_graph_settings(gbrain_settings: Settings, tmp_path: Path) -> Settin
 """,
         encoding="utf-8",
     )
-    package = root / "packages/gbrain.yaml"
-    package.write_text(
-        package.read_text(encoding="utf-8")
-        .replace("  - edges@1\n", "  - edges@1\n  - dependencies@1\n  - components@1\n")
-        .replace(
-            "  - graph_query@1\n",
-            "  - graph_query@1\n  - dependency_graph@1\n  - dependency_orphans@1\n",
-        ),
-        encoding="utf-8",
-    )
+    from reference_catalog import declare_test_sources
+
+    declare_test_sources(root, "collections/dependencies.yaml", "views/dependencies.yaml")
     return gbrain_settings.model_copy(
         update={
-            "models_file": root / "conf/models.yaml",
-            "processors_file": root / "conf/processors.yaml",
-            "collections_dir": root / "collections",
-            "derivations_dir": root / "derivations",
-            "triggers_dir": root / "triggers",
-            "views_dir": root / "views",
-            "artifacts_dir": root / "artifacts",
-            "mcp_dir": root / "mcp",
-            "packages_dir": root / "packages",
-            "search_profiles_file": root / "conf/search_profiles.yaml",
-            "rank_default_file": root / "conf/rank_default.yaml",
+            "catalog_file": root / "catalog.yaml",
         }
     )
 
@@ -288,17 +271,9 @@ def test_gbrain_catalog_registers_the_model_less_extraction_pipeline(
     assert definition.emit.type == "edge"
     assert task_adapter("extract_relations").name == "extract_relations"
     assert task_adapter("graph").name == "graph"
-    assert catalog.resolve_package("gbrain", "0.13.0").collections == (
-        "pages@1",
-        "edges@1",
-        "syntheses@2",
-        "atoms@1",
-        "facts@1",
-        "patterns@1",
-        "concepts@1",
-        "takes@1",
-        "transcripts@1",
-    )
+    assert set(catalog.resolve_package("gbrain", "0.13.0").collections) == {
+        f"{name}@{version}" for name, version in catalog.collections
+    }
     package = catalog.resolve_package("gbrain", "0.13.0")
     assert "pattern_detection" in package.processors
     assert "concept_synthesis" in package.processors

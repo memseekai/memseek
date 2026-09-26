@@ -115,32 +115,12 @@ def _settings(root: Path, base: Settings | None = None) -> Settings:
     if base is not None:
         return base.model_copy(
             update={
-                "models_file": root / "conf/models.yaml",
-                "processors_file": root / "conf/processors.yaml",
-                "rank_default_file": root / "conf/rank_default.yaml",
-                "search_profiles_file": root / "conf/search_profiles.yaml",
-                "collections_dir": root / "collections",
-                "derivations_dir": root / "derivations",
-                "triggers_dir": root / "triggers",
-                "views_dir": root / "views",
-                "artifacts_dir": root / "artifacts",
-                "mcp_dir": root / "mcp",
-                "packages_dir": root / "packages",
+                "catalog_file": root / "catalog.yaml",
                 "llm_fake": True,
             }
         )
     return Settings(
-        models_file=root / "conf/models.yaml",
-        processors_file=root / "conf/processors.yaml",
-        rank_default_file=root / "conf/rank_default.yaml",
-        search_profiles_file=root / "conf/search_profiles.yaml",
-        collections_dir=root / "collections",
-        derivations_dir=root / "derivations",
-        triggers_dir=root / "triggers",
-        views_dir=root / "views",
-        artifacts_dir=root / "artifacts",
-        mcp_dir=root / "mcp",
-        packages_dir=root / "packages",
+        catalog_file=root / "catalog.yaml",
         llm_fake=True,
     )
 

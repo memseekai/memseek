@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=../../../schemas/programs.schema.json
 programs:
   - name: contract_extract
     version: 3

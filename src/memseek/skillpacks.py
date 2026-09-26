@@ -1,45 +1,35 @@
-"""Skill pack modules: what a harness can do, and how it records what it learned.
+"""Skill pack modules: what a harness can do, and how a skill is installed for it.
 
-A pack knows nothing about which harness mounts it. Its only link to memory is
-``learns: true``, which opts into one convention owned by the Computer: the agent
-appends learnings to ``/outbox/learnings.jsonl``, the Computer ingests that file
-as an ordinary observations writeback, and the next run reads them back from the
-playbook the Computer mounts at ``/.memseek/playbook.md``.
+A pack knows nothing about which harness mounts it, or about memory. Whether a
+loaded skill records lessons and reads a playbook is the toolset's choice
+(``learning:`` on its source); this module only installs what materialization
+rendered for it beside the skill.
 """
 
 from __future__ import annotations
 
 import contextlib
-import json
 import re
+import shutil
 import subprocess
+import tempfile
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Self
+from typing import Self
 
 from pydantic import Field, model_validator
 
 from memseek.definitions.base import EnvVarName, NonBlank, PublicName, StrictModel
-from memseek.definitions.models import ComputerCapabilityName
+from memseek.definitions.models import ComputerCapabilityName, LessonSpec
 from memseek.harnesses.contract import (
-    LearningMode,
     Requirement,
     check_requirements,
     load_manifest,
 )
-from memseek.harnesses.writeback import WritebackTool
-
-LEARNINGS_PATH = "/outbox/learnings.jsonl"
-PLAYBOOK_PATH = "/.memseek/playbook.md"
 
 _SKILL_COMMAND_TIMEOUT_S = 60
-# One rendered playbook row: `... | [<pack>/<kind>] <text>`. The prefix is the
-# collection's text contract, which is what lets one playbook serve many packs.
-_PLAYBOOK_ROW = re.compile(
-    r"^\[id=(?P<id>[0-9a-f-]{36})\].*?\| \[(?P<pack>[a-z][a-z0-9._-]{0,63})/"
-    r"(?P<kind>[a-z_]+)\] (?P<text>.+)$"
-)
+_FETCH_TIMEOUT_S = 300
 
 
 class SkillPackError(RuntimeError):
@@ -67,6 +57,20 @@ class SkillPackEnv(StrictModel):
     set: dict[EnvVarName, str] = Field(default_factory=dict)
 
 
+class WorkspaceSource(StrictModel):
+    repo: NonBlank
+    # A commit, so a cached copy is never stale.
+    ref: NonBlank
+    path: NonBlank
+
+
+class SkillPackWorkspace(StrictModel):
+    """Files the pack's skill expects to find, copied from ``from`` into ``dir``."""
+
+    dir: NonBlank
+    source: WorkspaceSource = Field(alias="from")
+
+
 class SkillPackManifest(StrictModel):
     name: PublicName
     version: int = Field(ge=1)
@@ -74,7 +78,10 @@ class SkillPackManifest(StrictModel):
     skill: SkillSource
     env: SkillPackEnv = Field(default_factory=SkillPackEnv)
     capabilities: tuple[ComputerCapabilityName, ...] = ()
-    learns: bool = False
+    workspace: SkillPackWorkspace | None = None
+    # What is worth learning while using this pack, for toolsets that turn
+    # learning on for it.
+    lessons: LessonSpec | None = None
     # Run after the harness exits, with the pack's environment, so nothing the
     # pack started (a browser daemon) outlives the run.
     stop: tuple[NonBlank, ...] | None = Field(default=None, min_length=1)
@@ -103,65 +110,71 @@ def pack_environment(
 
     passed = {name: parent[name] for name in pack.env.passthrough if name in parent}
     declared = {
-        name: value.replace("{state}", str(state_dir)).replace("{runtime}", str(runtime_dir))
-        for name, value in pack.env.set.items()
+        name: _expand_dirs(value, state_dir, runtime_dir) for name, value in pack.env.set.items()
     }
     return {**passed, **declared}
 
 
-HELPER_TEXT_PATTERN = r"^\[[^\]]+/helper\] (js|py|sh): \S"
+def _expand_dirs(value: str, state_dir: Path, runtime_dir: Path) -> str:
+    return value.replace("{state}", str(state_dir)).replace("{runtime}", str(runtime_dir))
 
 
-def bind_learnings_schema(schema: Mapping[str, Any], packs: Sequence[str]) -> dict[str, Any]:
-    """The learnings schema, narrowed so an entry can only belong to a mounted pack.
+def seed_workspace(
+    pack: SkillPackManifest, *, state_dir: Path, runtime_dir: Path, cache_root: Path
+) -> None:
+    """Copy the pack's workspace files into place, keeping every file already there.
 
-    The playbook finds a pack's rows by the ``[<pack>/<kind>] `` prefix on
-    ``text``. A learning filed under any other name (a live run used the site's
-    domain) is stored but never read back, so the run is refused it instead.
+    A kept state directory holds what earlier runs changed, so a file that
+    exists is never replaced.
     """
 
-    names = sorted(packs)
-    properties = dict(schema.get("properties") or {})
-    if "pack" in properties:
-        properties["pack"] = {**properties["pack"], "enum": names}
-    if "text" in properties:
-        # Escape by hand: harnesses compile this as a JavaScript Unicode regex,
-        # which rejects re.escape's "\\-". Pack names only hold [a-z0-9._-].
-        alternatives = "|".join(name.replace(".", "\\.") for name in names)
-        prefix = {"pattern": f"^\\[(?:{alternatives})/"}
-        properties["text"] = {"allOf": [properties["text"], prefix]}
-    # A helper is only reusable as code. A live run filed one as prose
-    # ("querySelector('.titleline a') for title/url"), and the next run had to
-    # write the extractor again.
-    helper_is_code = {
-        "if": {"properties": {"kind": {"const": "helper"}}, "required": ["kind"]},
-        "then": {"properties": {"text": {"pattern": HELPER_TEXT_PATTERN}}},
-    }
-    return {**schema, "properties": properties, "allOf": [*schema.get("allOf", []), helper_is_code]}
+    if pack.workspace is None:
+        return
+    source = _fetch(pack.workspace.source, cache_root / pack.name)
+    target = Path(_expand_dirs(pack.workspace.dir, state_dir, runtime_dir))
+    for file in sorted(source.rglob("*")):
+        destination = target / file.relative_to(source)
+        if file.is_dir() or destination.exists() or destination.is_symlink():
+            continue
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(file, destination)
 
 
-def require_helper(tool: WritebackTool) -> WritebackTool:
-    """Every learnings call carries one helper: code the next run can run as it is.
-
-    Asked for in prose, a live run recorded only notes ("film data in
-    #table-body tr td cells"), and the next run explored the page again.
-    """
-
-    schema = json.loads(json.dumps(tool.input_schema))
-    schema["properties"]["records"]["contains"] = {
-        "type": "object",
-        "properties": {"content": {"type": "object", "properties": {"kind": {"const": "helper"}}}},
-        "required": ["content"],
-    }
-    return tool.model_copy(
-        update={
-            "input_schema": schema,
-            "description": (
-                f"{tool.description} Every call must include one entry of kind helper whose text "
-                "is the code that produced your final rows, so the next run can run it."
-            ),
-        }
-    )
+def _fetch(source: WorkspaceSource, cache: Path) -> Path:
+    tree = cache / source.ref / source.path
+    if tree.is_dir():
+        return tree
+    cache.mkdir(parents=True, exist_ok=True)
+    staging = Path(tempfile.mkdtemp(prefix=".fetch-", dir=cache))
+    try:
+        for command in (
+            ["git", "init", "--quiet"],
+            ["git", "fetch", "--quiet", "--depth", "1", source.repo, source.ref],
+            ["git", "checkout", "--quiet", "FETCH_HEAD", "--", source.path],
+        ):
+            try:
+                completed = subprocess.run(
+                    command,
+                    cwd=staging,
+                    capture_output=True,
+                    text=True,
+                    timeout=_FETCH_TIMEOUT_S,
+                    check=False,
+                )
+            except (OSError, subprocess.TimeoutExpired) as exc:
+                raise SkillPackError(f"fetching {source.repo}@{source.ref} failed: {exc}") from exc
+            if completed.returncode != 0:
+                detail = " ".join(completed.stderr.split())[:200]
+                raise SkillPackError(f"fetching {source.repo}@{source.ref} failed: {detail}")
+        tree.parent.mkdir(parents=True, exist_ok=True)
+        # Another run may have finished the same fetch first; its copy is identical.
+        with contextlib.suppress(OSError):
+            (staging / source.path).replace(tree)
+    finally:
+        shutil.rmtree(staging, ignore_errors=True)
+    if not tree.is_dir():
+        raise SkillPackError(f"{source.repo}@{source.ref} has no directory {source.path!r}")
+    return tree
 
 
 def stop_skillpack(pack: SkillPackManifest, env: Mapping[str, str]) -> None:
@@ -180,83 +193,68 @@ def stop_skillpack(pack: SkillPackManifest, env: Mapping[str, str]) -> None:
         )
 
 
-def playbook_section(playbook_md: str, pack: str) -> str | None:
-    """This pack's learnings from the rendered playbook, grouped by kind.
-
-    The playbook renders newest first, so within a kind the first row is the
-    most recent. Rows keep their record ID, which the agent may cite.
-    """
-
-    grouped: dict[str, list[str]] = {}
-    for line in playbook_md.splitlines():
-        match = _PLAYBOOK_ROW.match(line.strip())
-        if match is None or match["pack"] != pack:
-            continue
-        grouped.setdefault(match["kind"], []).append(f"- {match['text']} (id {match['id']})")
-    if not grouped:
-        return None
-    parts = [
-        f"# Playbook: {pack}",
-        "Learned on earlier runs against this site, newest first within each kind. "
-        "Start from these instead of rediscovering them.",
-    ]
-    helpers = grouped.pop("helper", None)
-    if helpers:
-        # First, because running a helper that worked is the cheapest way to
-        # the answer; the other kinds explain what to do when it fails.
-        parts.append(
-            "## helper: run the newest one first\n\nEach is code that produced the rows on an "
-            "earlier run. Run it, check the result, and explore only if it fails.\n\n"
-            + "\n".join(helpers)
-        )
-    for kind in sorted(grouped):
-        parts.append(f"## {kind}\n\n" + "\n".join(grouped[kind]))
-    return "\n\n".join(parts) + "\n"
-
-
 def materialize_skillpack(
     pack: SkillPackManifest,
     skills_root: Path,
     *,
-    playbook_md: str | None,
-    learning: LearningMode,
+    playbook: str | None,
+    lessons: str | None,
     env: Mapping[str, str],
 ) -> SkillMount:
-    """Write ``<skills_root>/<pack>/SKILL.md``, plus the pack's playbook when it has one.
+    """Write ``<skills_root>/<pack>/SKILL.md`` from the pack's skill command or file."""
 
-    ``learning`` decides what the run is told: ``off`` mounts the bare skill,
-    ``read`` adds the playbook, and ``read_write`` also asks for new learnings.
+    document = _expand_declared(_skill_document(pack, env), pack, env)
+    return install_skill(
+        skills_root / pack.name, document, name=pack.name, playbook=playbook, lessons=lessons
+    )
+
+
+def install_skill(
+    directory: Path,
+    document: str,
+    *,
+    name: str,
+    playbook: str | None,
+    lessons: str | None,
+) -> SkillMount:
+    """Install one skill where the harness discovers it, with what it learned.
+
+    ``playbook`` is written beside ``SKILL.md`` and pointed at first, because an
+    upstream skill runs to hundreds of lines and a pointer at the end is one the
+    agent never reaches. ``lessons`` (how to record new ones) goes last.
     """
 
-    directory = skills_root / pack.name
     directory.mkdir(parents=True, exist_ok=True)
-    frontmatter, body = _split_frontmatter(_skill_document(pack, env))
-    section = (
-        playbook_section(playbook_md, pack.name)
-        if playbook_md is not None and learning != "off"
-        else None
-    )
+    frontmatter, body = _split_frontmatter(document)
     parts = [frontmatter]
-    if section is not None:
-        (directory / "PLAYBOOK.md").write_text(section, encoding="utf-8")
-        # First, not appended: an upstream skill runs to hundreds of lines, and
-        # a pointer at the end is one the agent never reaches.
+    if playbook is not None:
+        (directory / "PLAYBOOK.md").write_text(playbook, encoding="utf-8")
         parts.append(PLAYBOOK_POINTER)
     parts.append(body)
-    if pack.learns and learning == "read_write":
-        parts.append((pack.root / "LEARNING.md").read_text(encoding="utf-8").strip())
+    if lessons is not None:
+        parts.append(lessons.strip())
     (directory / "SKILL.md").write_text(
         "\n\n".join(part for part in parts if part) + "\n", encoding="utf-8"
     )
-    return SkillMount(name=pack.name, dir=directory, playbook=section)
+    return SkillMount(name=name, dir=directory, playbook=playbook)
 
 
 PLAYBOOK_POINTER = (
     "## Start from the playbook\n\n"
-    "Earlier runs on this site left PLAYBOOK.md in this directory. Read it before you open "
-    "the browser or write any code. Try what it says first, and explore only what it does "
-    "not cover."
+    "Earlier runs left PLAYBOOK.md in this directory: what they learned using this skill. "
+    "Read it before you start, try what it says first, and explore only what it does not cover."
 )
+
+
+def _expand_declared(document: str, pack: SkillPackManifest, env: Mapping[str, str]) -> str:
+    # The agent reads SKILL.md as text, so `$BH_AGENT_WORKSPACE/agent_helpers.py`
+    # named no path it could find, and no run ever saved a helper there. Only
+    # the pack's own variables expand, so a skill's other `$NAME`s stay as written.
+    names = [name for name in pack.env.set if name in env]
+    if not names:
+        return document
+    pattern = re.compile(r"\$(?:\{(" + "|".join(names) + r")\}|(" + "|".join(names) + r")\b)")
+    return pattern.sub(lambda match: env[match[1] or match[2]], document)
 
 
 def _split_frontmatter(document: str) -> tuple[str, str]:
@@ -293,17 +291,14 @@ def _skill_document(pack: SkillPackManifest, env: Mapping[str, str]) -> str:
 
 
 __all__ = [
-    "LEARNINGS_PATH",
-    "PLAYBOOK_PATH",
     "SkillMount",
     "SkillPackError",
     "SkillPackManifest",
-    "bind_learnings_schema",
     "check_skillpack",
+    "install_skill",
     "load_skillpack",
     "materialize_skillpack",
     "pack_environment",
-    "playbook_section",
-    "require_helper",
+    "seed_workspace",
     "stop_skillpack",
 ]

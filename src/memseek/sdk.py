@@ -38,7 +38,7 @@ class _CatalogClient:
         directory: str | Path,
         dry_run: bool = False,
     ) -> dict[str, Any]:
-        """Publish every YAML definition below a catalog directory.
+        """Publish the files explicitly declared in catalog.yaml.
 
         With ``dry_run=True`` nothing is installed and the compatibility report is
         returned instead — the same report the publish would have acted on.
@@ -95,15 +95,9 @@ class _CatalogClient:
 
 
 def _read_catalog_directory(root: Path) -> dict[str, str]:
-    if not root.is_dir():
-        raise ValueError(f"catalog directory does not exist: {root}")
-    paths = sorted(
-        (path for pattern in ("*.yaml", "*.yml") for path in root.rglob(pattern)),
-        key=lambda path: path.relative_to(root).as_posix(),
-    )
-    if not paths:
-        raise ValueError(f"catalog directory contains no YAML files: {root}")
-    return {path.relative_to(root).as_posix(): path.read_text(encoding="utf-8") for path in paths}
+    from memseek.definitions.manifest import read_catalog_files
+
+    return read_catalog_files(root)
 
 
 class _BackfillClient:

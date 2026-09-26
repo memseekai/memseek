@@ -13,7 +13,7 @@ from typing import Any
 
 import pytest
 from psycopg.types.json import Jsonb
-from reference_catalog import materialize_reference_catalog
+from reference_catalog import declare_test_sources, materialize_reference_catalog
 
 from memseek.config import Settings
 from memseek.db import DatabaseConnection, DatabasePool
@@ -87,19 +87,10 @@ def trigger_catalog(tmp_path_factory: pytest.TempPathFactory) -> DefinitionCatal
     materialize_reference_catalog(root)
     for name, document in _STANDALONE_TRIGGERS.items():
         (root / "triggers" / name).write_text(document, encoding="utf-8")
+        declare_test_sources(root, f"triggers/{name}")
     return load_definition_catalog(
         Settings(
-            models_file=root / "conf/models.yaml",
-            processors_file=root / "conf/processors.yaml",
-            rank_default_file=root / "conf/rank_default.yaml",
-            search_profiles_file=root / "conf/search_profiles.yaml",
-            collections_dir=root / "collections",
-            derivations_dir=root / "derivations",
-            triggers_dir=root / "triggers",
-            views_dir=root / "views",
-            artifacts_dir=root / "artifacts",
-            mcp_dir=root / "mcp",
-            packages_dir=root / "packages",
+            catalog_file=root / "catalog.yaml",
             llm_fake=True,
         )
     )

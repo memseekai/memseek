@@ -29,11 +29,13 @@ underlying value changed mid-run, holding output for review, and committing
 everything or nothing. [Runtime receipts and Candidate Sets](evaluation-bases.md)
 documents those guarantees if you ever need to reason about them.
 
-Files live under `derivations/`.
+Each derivation lives in its own file, listed under `derivations:` in
+`catalog.yaml`.
 
 !!! note "Two naming quirks"
-    Packages list derivations under a field called `processors`, and the manual
-    route to run one is `/processors/{name}/run`. Both are historical: a
+    A compiled package reports derivations under its `processors` field, and
+    the manual route to run one is `/processors/{name}/run`. Both are
+    historical: a
     derivation is *not* an [enrichment processor](processors.md). See
     [Derivation](glossary.md#derivation-also-called-a-pipeline).
 
@@ -1093,8 +1095,8 @@ trigger:
 `cooldown_s` rate-limits a trigger after successful runs; `debounce_s` lets
 arrivals settle before one. Triggers coalesce into one durable
 entity/derivation mailbox. Manual enqueue is always available. Automatic cycles
-are rejected when the catalog graph loads. Standalone `triggers/*.yaml` files
-attach further schedules to a derivation without copying its computation.
+are rejected when the catalog graph loads. Standalone trigger files (listed under
+`triggers:` in `catalog.yaml`) attach further schedules to a derivation without copying its computation.
 Condition semantics, `where` predicates, pacing, coalescing, and validation
 rules have their own page: [Triggers](triggers.md).
 

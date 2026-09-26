@@ -1,0 +1,845 @@
+{
+  "$defs": {
+    "AccumulatorAggregate": {
+      "enum": [
+        "sum",
+        "count",
+        "avg",
+        "max",
+        "min",
+        "distinct_count"
+      ],
+      "type": "string"
+    },
+    "AccumulatorCondition": {
+      "additionalProperties": false,
+      "properties": {
+        "metric": {
+          "anyOf": [
+            {
+              "pattern": "^[a-z][a-z0-9_]{0,31}$",
+              "type": "string"
+            },
+            {
+              "const": "count",
+              "type": "string"
+            },
+            {
+              "$ref": "#/$defs/AccumulatorMetric"
+            }
+          ],
+          "title": "Metric"
+        },
+        "threshold": {
+          "title": "Threshold",
+          "type": "number"
+        },
+        "comparison": {
+          "default": "gte",
+          "enum": [
+            "gte",
+            "lte"
+          ],
+          "title": "Comparison",
+          "type": "string"
+        }
+      },
+      "required": [
+        "metric",
+        "threshold"
+      ],
+      "title": "AccumulatorCondition",
+      "type": "object"
+    },
+    "AccumulatorMetric": {
+      "additionalProperties": false,
+      "properties": {
+        "annotation": {
+          "anyOf": [
+            {
+              "pattern": "^[a-z][a-z0-9_]{0,31}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Annotation"
+        },
+        "path": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Path"
+        },
+        "scorer": {
+          "anyOf": [
+            {
+              "pattern": "^[a-z][a-z0-9_]{0,31}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Scorer"
+        },
+        "aggregate": {
+          "$ref": "#/$defs/AccumulatorAggregate",
+          "default": "sum"
+        }
+      },
+      "title": "AccumulatorMetric",
+      "type": "object"
+    },
+    "AtCondition": {
+      "additionalProperties": false,
+      "description": "Fire when the wall clock passes a datetime declared in a record field.",
+      "properties": {
+        "collections": {
+          "items": {
+            "$ref": "#/$defs/CollectionScopeName"
+          },
+          "title": "Collections",
+          "type": "array"
+        },
+        "collection_versions": {
+          "patternProperties": {
+            "^[a-z][a-z0-9._-]{0,63}$": {
+              "items": {
+                "type": "integer"
+              },
+              "type": "array"
+            }
+          },
+          "title": "Collection Versions",
+          "type": "object"
+        },
+        "types": {
+          "default": [],
+          "items": {
+            "pattern": "^[a-z][a-z0-9._-]{0,63}$",
+            "type": "string"
+          },
+          "title": "Types",
+          "type": "array"
+        },
+        "statuses": {
+          "default": [
+            "active"
+          ],
+          "items": {
+            "enum": [
+              "active",
+              "draft"
+            ],
+            "type": "string"
+          },
+          "title": "Statuses",
+          "type": "array"
+        },
+        "keyed": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "const": "any",
+              "type": "string"
+            }
+          ],
+          "default": "any",
+          "title": "Keyed"
+        },
+        "where": {
+          "patternProperties": {
+            "^[a-z][a-z0-9._-]{0,63}$": {
+              "additionalProperties": true,
+              "type": "object"
+            }
+          },
+          "title": "Where",
+          "type": "object"
+        },
+        "ignore_own_outputs": {
+          "default": false,
+          "title": "Ignore Own Outputs",
+          "type": "boolean"
+        },
+        "field": {
+          "pattern": "^[a-z][a-z0-9._-]{0,63}$",
+          "title": "Field",
+          "type": "string"
+        },
+        "offset_s": {
+          "default": 0,
+          "maximum": 31536000,
+          "minimum": -31536000,
+          "title": "Offset S",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "collections",
+        "field"
+      ],
+      "title": "AtCondition",
+      "type": "object"
+    },
+    "CensusCondition": {
+      "additionalProperties": false,
+      "description": "Fire when new driver data arrives and the current census meets a floor.",
+      "properties": {
+        "collections": {
+          "items": {
+            "$ref": "#/$defs/CollectionScopeName"
+          },
+          "title": "Collections",
+          "type": "array"
+        },
+        "collection_versions": {
+          "patternProperties": {
+            "^[a-z][a-z0-9._-]{0,63}$": {
+              "items": {
+                "type": "integer"
+              },
+              "type": "array"
+            }
+          },
+          "title": "Collection Versions",
+          "type": "object"
+        },
+        "types": {
+          "default": [],
+          "items": {
+            "pattern": "^[a-z][a-z0-9._-]{0,63}$",
+            "type": "string"
+          },
+          "title": "Types",
+          "type": "array"
+        },
+        "statuses": {
+          "default": [
+            "active"
+          ],
+          "items": {
+            "enum": [
+              "active",
+              "draft"
+            ],
+            "type": "string"
+          },
+          "title": "Statuses",
+          "type": "array"
+        },
+        "keyed": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "const": "any",
+              "type": "string"
+            }
+          ],
+          "default": "any",
+          "title": "Keyed"
+        },
+        "where": {
+          "patternProperties": {
+            "^[a-z][a-z0-9._-]{0,63}$": {
+              "additionalProperties": true,
+              "type": "object"
+            }
+          },
+          "title": "Where",
+          "type": "object"
+        },
+        "ignore_own_outputs": {
+          "default": false,
+          "title": "Ignore Own Outputs",
+          "type": "boolean"
+        },
+        "threshold": {
+          "minimum": 1,
+          "title": "Threshold",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "collections",
+        "threshold"
+      ],
+      "title": "CensusCondition",
+      "type": "object"
+    },
+    "ChangedCondition": {
+      "additionalProperties": false,
+      "description": "Fire when a keyed head is added, changed, or removed \u2014 not on rewrites.",
+      "properties": {
+        "collections": {
+          "items": {
+            "$ref": "#/$defs/CollectionScopeName"
+          },
+          "title": "Collections",
+          "type": "array"
+        },
+        "collection_versions": {
+          "patternProperties": {
+            "^[a-z][a-z0-9._-]{0,63}$": {
+              "items": {
+                "type": "integer"
+              },
+              "type": "array"
+            }
+          },
+          "title": "Collection Versions",
+          "type": "object"
+        },
+        "types": {
+          "default": [],
+          "items": {
+            "pattern": "^[a-z][a-z0-9._-]{0,63}$",
+            "type": "string"
+          },
+          "title": "Types",
+          "type": "array"
+        },
+        "statuses": {
+          "default": [
+            "active"
+          ],
+          "items": {
+            "enum": [
+              "active",
+              "draft"
+            ],
+            "type": "string"
+          },
+          "title": "Statuses",
+          "type": "array"
+        },
+        "keyed": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "const": "any",
+              "type": "string"
+            }
+          ],
+          "default": "any",
+          "title": "Keyed"
+        },
+        "where": {
+          "patternProperties": {
+            "^[a-z][a-z0-9._-]{0,63}$": {
+              "additionalProperties": true,
+              "type": "object"
+            }
+          },
+          "title": "Where",
+          "type": "object"
+        },
+        "ignore_own_outputs": {
+          "default": false,
+          "title": "Ignore Own Outputs",
+          "type": "boolean"
+        },
+        "keys": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Keys",
+          "type": "array"
+        },
+        "transitions": {
+          "default": [
+            "added",
+            "changed",
+            "removed"
+          ],
+          "items": {
+            "enum": [
+              "added",
+              "changed",
+              "removed"
+            ],
+            "type": "string"
+          },
+          "title": "Transitions",
+          "type": "array"
+        }
+      },
+      "required": [
+        "collections"
+      ],
+      "title": "ChangedCondition",
+      "type": "object"
+    },
+    "CollectionScopeName": {
+      "anyOf": [
+        {
+          "pattern": "^[a-z][a-z0-9._-]{0,63}$",
+          "type": "string"
+        },
+        {
+          "const": "_system",
+          "type": "string"
+        }
+      ]
+    },
+    "CronCondition": {
+      "additionalProperties": false,
+      "properties": {
+        "expr": {
+          "minLength": 1,
+          "title": "Expr",
+          "type": "string"
+        },
+        "entities": {
+          "default": "dirty",
+          "enum": [
+            "dirty",
+            "any"
+          ],
+          "title": "Entities",
+          "type": "string"
+        }
+      },
+      "required": [
+        "expr"
+      ],
+      "title": "CronCondition",
+      "type": "object"
+    },
+    "LifecycleCondition": {
+      "additionalProperties": false,
+      "description": "Fire on an entity's first matching record or total-record growth.",
+      "properties": {
+        "first_record": {
+          "default": false,
+          "title": "First Record",
+          "type": "boolean"
+        },
+        "total_records": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Total Records"
+        }
+      },
+      "title": "LifecycleCondition",
+      "type": "object"
+    },
+    "QuietCondition": {
+      "additionalProperties": false,
+      "description": "Fire once matching arrivals have settled for ``after_s`` seconds.",
+      "properties": {
+        "collections": {
+          "items": {
+            "$ref": "#/$defs/CollectionScopeName"
+          },
+          "title": "Collections",
+          "type": "array"
+        },
+        "collection_versions": {
+          "patternProperties": {
+            "^[a-z][a-z0-9._-]{0,63}$": {
+              "items": {
+                "type": "integer"
+              },
+              "type": "array"
+            }
+          },
+          "title": "Collection Versions",
+          "type": "object"
+        },
+        "types": {
+          "default": [],
+          "items": {
+            "pattern": "^[a-z][a-z0-9._-]{0,63}$",
+            "type": "string"
+          },
+          "title": "Types",
+          "type": "array"
+        },
+        "statuses": {
+          "default": [
+            "active"
+          ],
+          "items": {
+            "enum": [
+              "active",
+              "draft"
+            ],
+            "type": "string"
+          },
+          "title": "Statuses",
+          "type": "array"
+        },
+        "keyed": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "const": "any",
+              "type": "string"
+            }
+          ],
+          "default": "any",
+          "title": "Keyed"
+        },
+        "where": {
+          "patternProperties": {
+            "^[a-z][a-z0-9._-]{0,63}$": {
+              "additionalProperties": true,
+              "type": "object"
+            }
+          },
+          "title": "Where",
+          "type": "object"
+        },
+        "ignore_own_outputs": {
+          "default": false,
+          "title": "Ignore Own Outputs",
+          "type": "boolean"
+        },
+        "after_s": {
+          "maximum": 604800,
+          "minimum": 1,
+          "title": "After S",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "collections",
+        "after_s"
+      ],
+      "title": "QuietCondition",
+      "type": "object"
+    },
+    "RetractionCondition": {
+      "additionalProperties": false,
+      "description": "Fire when a ready tombstone lands above the watermark.",
+      "properties": {
+        "collections": {
+          "items": {
+            "$ref": "#/$defs/CollectionScopeName"
+          },
+          "title": "Collections",
+          "type": "array"
+        },
+        "collection_versions": {
+          "patternProperties": {
+            "^[a-z][a-z0-9._-]{0,63}$": {
+              "items": {
+                "type": "integer"
+              },
+              "type": "array"
+            }
+          },
+          "title": "Collection Versions",
+          "type": "object"
+        },
+        "types": {
+          "default": [],
+          "items": {
+            "pattern": "^[a-z][a-z0-9._-]{0,63}$",
+            "type": "string"
+          },
+          "title": "Types",
+          "type": "array"
+        },
+        "statuses": {
+          "default": [
+            "active"
+          ],
+          "items": {
+            "enum": [
+              "active",
+              "draft"
+            ],
+            "type": "string"
+          },
+          "title": "Statuses",
+          "type": "array"
+        },
+        "keyed": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "const": "any",
+              "type": "string"
+            }
+          ],
+          "default": "any",
+          "title": "Keyed"
+        },
+        "where": {
+          "patternProperties": {
+            "^[a-z][a-z0-9._-]{0,63}$": {
+              "additionalProperties": true,
+              "type": "object"
+            }
+          },
+          "title": "Where",
+          "type": "object"
+        },
+        "ignore_own_outputs": {
+          "default": false,
+          "title": "Ignore Own Outputs",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "collections"
+      ],
+      "title": "RetractionCondition",
+      "type": "object"
+    },
+    "WriteCondition": {
+      "additionalProperties": false,
+      "properties": {
+        "collections": {
+          "items": {
+            "$ref": "#/$defs/CollectionScopeName"
+          },
+          "title": "Collections",
+          "type": "array"
+        },
+        "collection_versions": {
+          "patternProperties": {
+            "^[a-z][a-z0-9._-]{0,63}$": {
+              "items": {
+                "type": "integer"
+              },
+              "type": "array"
+            }
+          },
+          "title": "Collection Versions",
+          "type": "object"
+        },
+        "types": {
+          "default": [],
+          "items": {
+            "pattern": "^[a-z][a-z0-9._-]{0,63}$",
+            "type": "string"
+          },
+          "title": "Types",
+          "type": "array"
+        },
+        "statuses": {
+          "default": [
+            "active"
+          ],
+          "items": {
+            "enum": [
+              "active",
+              "draft"
+            ],
+            "type": "string"
+          },
+          "title": "Statuses",
+          "type": "array"
+        },
+        "keyed": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "const": "any",
+              "type": "string"
+            }
+          ],
+          "default": "any",
+          "title": "Keyed"
+        },
+        "where": {
+          "patternProperties": {
+            "^[a-z][a-z0-9._-]{0,63}$": {
+              "additionalProperties": true,
+              "type": "object"
+            }
+          },
+          "title": "Where",
+          "type": "object"
+        },
+        "ignore_own_outputs": {
+          "default": false,
+          "title": "Ignore Own Outputs",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "collections"
+      ],
+      "title": "WriteCondition",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "read": {
+      "default": false,
+      "title": "Read",
+      "type": "boolean"
+    },
+    "accumulator": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/AccumulatorCondition"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "cron": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/CronCondition"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "write": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/WriteCondition"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "quiet": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/QuietCondition"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "at": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/AtCondition"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "changed": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ChangedCondition"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "census": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/CensusCondition"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "lifecycle": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/LifecycleCondition"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "retraction": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/RetractionCondition"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "cooldown_s": {
+      "default": 0,
+      "minimum": 0,
+      "title": "Cooldown S",
+      "type": "integer"
+    },
+    "debounce_s": {
+      "default": 0,
+      "maximum": 604800,
+      "minimum": 0,
+      "title": "Debounce S",
+      "type": "integer"
+    },
+    "name": {
+      "pattern": "^[a-z][a-z0-9._-]{0,63}$",
+      "title": "Name",
+      "type": "string"
+    },
+    "processor": {
+      "pattern": "^[a-z][a-z0-9_]{0,31}$",
+      "title": "Processor",
+      "type": "string"
+    },
+    "definition_hash": {
+      "default": "",
+      "title": "Definition Hash",
+      "type": "string"
+    }
+  },
+  "required": [
+    "name",
+    "processor"
+  ],
+  "title": "StandaloneTrigger",
+  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}

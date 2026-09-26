@@ -9,6 +9,17 @@ next run on the same site starts from those learnings.
 This guide covers three things: how the parts fit, how to test them, and how
 to measure whether the learned skill helps.
 
+## Start here
+
+Open [catalog.yaml](catalog.yaml): each definition is listed beside its exact
+source path. Agent execution lives in `scraping/`; evaluation records live in
+`evaluation/`. Validate and locate definitions without starting the service:
+
+```sh
+uv run memseek catalog-validate --dir examples/site_scrape_catalog
+uv run memseek catalog-locate scraper_instructions@1 --dir examples/site_scrape_catalog
+```
+
 ## How it fits together
 
 The Agent's run has three parts. Each is a separate module, and none of them
@@ -16,9 +27,9 @@ names another.
 
 | Part | Where it is declared | Module |
 |---|---|---|
-| Harness (the agent loop) | `harness: pi` on `agents/site_scraper.yaml` | `harnesses/pi/` |
-| Skill pack (the tool skill) | `{kind: skillpack, pack: browser-harness}` in `toolsets/scraper.yaml` | `skillpacks/browser-harness/` |
-| Provider (where it runs) | `provider: local` on `computers/scrape_workspace.yaml` | `src/memseek/local_computer.py` |
+| Harness (the agent loop) | `harness: pi` on `scraping/agent.yaml` | `harnesses/pi/` |
+| Skill pack (the tool skill) | `{kind: skillpack, pack: browser-harness}` in `scraping/tools.yaml` | `skillpacks/browser-harness/` |
+| Provider (where it runs) | `provider: local` on `scraping/workspace.yaml` | `src/memseek/local_computer.py` |
 
 To add another harness, add a directory under `harnesses/`. To add another
 tool skill, add a directory under `skillpacks/`. See `harnesses/README.md` and
@@ -26,25 +37,25 @@ tool skill, add a directory under `skillpacks/`. See `harnesses/README.md` and
 
 ### The learning loop
 
+The toolset turns learning on for the browser skill with one line,
+`learning: true`. What browser-harness learns (helpers, navigation, extraction,
+pitfalls) is declared in `skillpacks/browser-harness/skillpack.yaml`. The
+catalog declares no collection, view, artifact, or writeback for lessons.
+
 1. The demo writes a `scrape_tasks` record for the site's entity,
    `site:<domain>`. The run can cite this record.
-2. browser-harness sets `learns: true`. Its `SKILL.md` therefore asks the
-   agent to append lessons to `/outbox/learnings.jsonl`. Each lesson cites
-   the task record.
-3. `scrape_workspace@1` declares that file as an `observations` writeback
-   into `skill_learnings@1`. It is ingested like any other outbox file.
-4. On the next run, the Computer mounts `skill_playbook@1` at
-   `/.memseek/playbook.md`. The provider copies the browser-harness rows
-   into `.agents/skills/browser-harness/PLAYBOOK.md`, and `SKILL.md` points
-   the agent at it.
+2. Because the skill learns, its `SKILL.md` ends with recording instructions
+   made from the pack's kinds. The agent records lessons through the
+   `record_lessons` tool. Each lesson names its `skill` and `kind` and cites
+   the task record. Every call must include a `helper` with its code.
+3. The run's `/outbox/lessons.jsonl` is ingested into the built-in
+   `lessons@1` collection.
+4. On the next run, memseek reads the browser-harness lessons for this site
+   and installs them as `.agents/skills/browser-harness/PLAYBOOK.md`, grouped
+   by kind, and `SKILL.md` points the agent at it.
 
-`/outbox/learnings.jsonl` and `/outbox/final-result.json` are the only outbox
-paths. The Computer declares both. The skill pack and the Agent declare none.
-
-The rendered playbook shows the `text` of each lesson only. For this reason,
-`skill_learnings` requires `text` to start with `[<pack>/<kind>] `. The
-`detail` and `helper_code` fields stay on the record for a later
-consolidation step.
+The `site_learnings` view reads the same `lessons` collection, so the demo can
+print every lesson for a site.
 
 ## Test without a browser or a model key
 
@@ -115,7 +126,8 @@ export ANTHROPIC_API_KEY=sk-ant-...
 ```
 
 Export the same `MEMSEEK_API_KEY` for the demo and for the eval, so that both
-use one workspace. The eval does not publish the catalog, and the demo does.
+use one workspace. Both publish this catalog before they run, so a new
+workspace needs no other setup.
 
 ### 4. Start the API and the worker
 
@@ -147,7 +159,7 @@ The demo does the following:
 
 A successful test has these results:
 
-- The first run returns items and writes `skill_learnings` records for
+- The first run returns items and writes `lessons` records for
   `site:news.ycombinator.com`.
 - The second run's `PLAYBOOK.md` contains those learnings.
 
@@ -191,11 +203,11 @@ A rejected learning looks like this:
 
 ```
 ── turn 1
-  → record_skill_learnings {"records":[{"learning":"HN rows are tr.athing", ...}]}
-  ← record_skill_learnings ERROR Validation failed for tool "record_skill_learnings": ...
+  → record_lessons {"records":[{"learning":"HN rows are tr.athing", ...}]}
+  ← record_lessons ERROR Validation failed for tool "record_lessons": ...
 ── turn 2
-  → record_skill_learnings {"records":[{"text":"[browser-harness/extraction] ...", ...}]}
-  ← record_skill_learnings ok Recorded 1 entry.
+  → record_lessons {"records":[{"text":"Stories are tr.athing rows...", ...}]}
+  ← record_lessons ok Recorded 1 entry.
 ```
 
 To keep working inside a finished run's context, open its session in pi:
@@ -212,14 +224,9 @@ each one as a `rejected` line.
 
 ## Measure the gain
 
-The eval compares browser-harness with and without the learned playbook. It
-runs on pages that were held out from training.
-
-```sh
-uv run memseek eval skill-learning --suite evals/scrape_suite.yaml --trials 3
-uv run memseek eval skill-learning --suite evals/scrape_suite.yaml \
-  --arms cold,playbook --trials 1 --k-train 1      # a quick first pass
-```
+The eval runs the same scrape under several arms and compares them. Each arm
+turns the playbook and the browser-harness helpers on or off. The eval tests
+each arm on pages that were held out from training.
 
 | Arm | Playbook | browser-harness helpers | What it measures |
 |---|---|---|---|
@@ -228,26 +235,117 @@ uv run memseek eval skill-learning --suite evals/scrape_suite.yaml \
 | `playbook` | on | fresh on every run | The memseek skill alone |
 | `playbook+native` | on | kept for the domain | Both together |
 
-- **Isolation.** Each arm and trial uses its own entity, so learnings cannot
-  leak between arms.
-- **Scoring.** The checks are deterministic. The value must match the
-  schema, have enough items and cover the required fields. No model judge is
-  used.
-- **Report.** For each arm, the report shows:
-  - pass rate and score;
-  - median steps, tokens, cost and wall time;
-  - deltas against `cold` and against `native`, with bootstrap
-    95% confidence intervals;
-  - a learning curve over training runs.
-- **JSON output.** Add `--json` for machine-readable output. Each run is
-  also stored as a `skill_eval_runs` record, which links to its invocation.
+### A minimal run of every arm
 
-The memseek skill has a real effect if `playbook` beats `cold` and `native` on
-steps and tokens, with the same or a higher pass rate. The learning curve
+This command compares all four arms after one training run:
+
+```sh
+uv run memseek eval skill-learning --suite evals/scrape_suite.yaml --trials 1 --k-train 1
+```
+
+For each task, the eval does the following steps:
+
+1. **k=0.** It runs one test for each arm, before any training. All four arms
+   start with nothing learned, so these runs show how much the arms vary
+   when nothing is different.
+2. **k=1.** It runs one training run for each arm except `cold`, which has
+   nothing to learn into. Then it runs one test for each arm again.
+
+The comparison is between the arms at k=1. The k=0 runs are the start of the
+learning curve and cannot be skipped.
+
+That is 11 runs for each task: 4 tests at k=0, 3 training runs, and 4 tests at
+k=1. The shipped suite has 3 tasks, so the command makes 33 live runs. A run
+can take about five minutes and cost about $0.45, so plan for the total.
+
+To make fewer runs, narrow the command:
+
+- **Fewer arms.** `--arms cold,playbook` compares only the memseek skill with
+  the baseline. That is 5 runs for each task.
+- **Fewer tasks.** Copy `evals/scrape_suite.yaml`, keep one task, and pass the
+  copy to `--suite`.
+- **No training.** `--k-train 0` makes one test for each arm and nothing
+  else. It is useful as a smoke test, but every arm is then equal to `cold`,
+  so it measures nothing.
+
+### How many runs a command makes
+
+For each trial, each task makes this many runs:
+
+```
+arms × (k_train + 1) × test pages      tests
++ arms that train × k_train            training runs
+```
+
+Every arm trains except `cold`. The `[n/total]` counter on each progress line
+shows the total for the command.
+
+| Option | Default | Effect |
+|---|---|---|
+| `--arms` | all four | The arms to run, separated by commas |
+| `--trials` | 3 | Independent repeats of the whole schedule. Each trial has its own entities. |
+| `--k-train` | 3 | Training runs for each arm. There is one test after each training run. |
+| `--out` | `out/skill-learning/<suite>-<UTC time>.json` | The results file |
+| `--json` | off | Print the report as JSON instead of tables |
+| `--catalog`, `--package` | this catalog, `site_scrape@1.0.0` | The package that the eval publishes before it runs |
+
+### What the eval prints
+
+When each run ends, the eval prints a progress line and the run's harness
+metrics:
+
+```
+[7/11] books-catalogue playbook trial 0 test k=1: pass, score 1.00
+metrics {"steps": 12, "wall_s": 140.2, "cost_usd": 0.21, "tool_calls": 11, "tool_errors": 0, ...}
+```
+
+At the end, the eval prints two tables:
+
+1. **One line for each run.** The line shows the task, arm, trial, phase, k,
+   result, score, steps, tool calls, tool errors, tokens, cached tokens,
+   cost and wall time.
+2. **The trained state for each arm.** This is every test run at the largest
+   k. The table shows:
+   - pass rate and mean score;
+   - median steps, tool errors, tokens, cached tokens, cost and wall time;
+   - deltas against `cold` and against `native`, with bootstrap 95%
+     confidence intervals;
+   - a learning curve of mean score and steps at each k.
+
+The eval saves all of this to the `--out` file. The file contains the
+settings, every run with its full metrics, and the report. The eval rewrites
+the file after each run, so the finished runs are kept if the eval stops
+early. Each run is also stored as a `skill_eval_runs` record, which links to
+its invocation.
+
+### Read the result
+
+The memseek skill has a real effect if `playbook` beats `cold` and `native`
+on steps and tokens, with the same or a higher pass rate. The learning curve
 should also improve as `k_train` grows.
 
-A full run makes many live model calls: arms × trials × (k_train + tests) ×
-tasks. Start with the quick pass above.
+With `--trials 1`, each delta comes from one pair of runs, so its interval
+has no width. One trial shows the direction of an effect. To know how large
+the effect is, use `--trials 3` or more:
+
+```sh
+uv run memseek eval skill-learning --suite evals/scrape_suite.yaml --trials 3
+```
+
+Other rules that the eval applies:
+
+- **Isolation.** Each eval run, arm and trial uses its own entity, named
+  `site:<domain>#<run>-<arm>-<trial>`. `<run>` is the eval's start time. So
+  learnings cannot leak between arms, and k=0 never starts from what an
+  earlier eval learned.
+- **Interleaving.** Each step runs every arm before the next step starts. The
+  arms therefore meet the live site at about the same time.
+- **Scoring.** The checks are deterministic. The value must match the
+  schema, hold exactly the target's `items` rows and cover the required
+  fields. No model judge is used. The agent is given the schema, so a value
+  that breaks it fails the run instead of scoring part marks.
+- **Test runs do not write back.** A test page therefore cannot teach an arm
+  its own answer.
 
 ## Settings and troubleshooting
 
@@ -257,7 +355,7 @@ tasks. Start with the quick pass above.
 | `HARNESS_PATHS` | `["./harnesses"]` | Where harness modules are found |
 | `SKILLPACK_PATHS` | `["./skillpacks"]` | Where skill packs are found |
 
-- **The model.** The model is the `scraper` alias in `conf/models.yaml`. It
+- **The model.** The model is the `scraper` alias in `config/models.yaml`. It
   is currently `anthropic:claude-sonnet-4-5`. Change the target to any
   `provider:model` that pi accepts, and export that provider's key. The key
   names are in the `model_env` field of `harnesses/pi/harness.yaml`. To set

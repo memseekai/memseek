@@ -122,7 +122,8 @@ views:
       render: true
 ```
 
-View files live in `views/*.yaml`. A file starts with a `views:` list and may
+A view file is listed under `views:` in `catalog.yaml` (conventionally
+`views/*.yaml`). A file starts with a `views:` list and may
 define several views.
 
 Anything in `{{double braces}}` is a placeholder filled in from a parameter the

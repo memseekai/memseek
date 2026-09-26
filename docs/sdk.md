@@ -96,7 +96,7 @@ await client.catalog.publish_files(
     files={
         "collections/crm.yaml": crm_yaml,
         "conf/models.yaml": models_yaml,
-        "packages/crm_user_profile.yaml": package_yaml,
+        "catalog.yaml": package_yaml,
     },
 )
 

@@ -13,20 +13,27 @@ from pathlib import Path
 from typing import Any, ClassVar
 
 import pytest
-import yaml
 
+from memseek.config import Settings
+from memseek.definitions.models import ToolSourceDefinition
 from memseek.harnesses.writeback import WRITEBACK_SCHEMAS_PATH, writeback_tools
-from memseek.skillpacks import bind_learnings_schema, require_helper
+from memseek.lessons import LESSONS_PATH, bind_schema, collection_document, require_calls, resolve
+from memseek.skillpacks import load_skillpack
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 CITATION = "3d7b39bd-b7c0-4175-915f-d2a4888284cc"
+# The shipped browser-harness pack's own lessons, as a toolset with `learning: true` gets them.
+SPEC = resolve(
+    ToolSourceDefinition(name="browser", kind="skillpack", pack="browser-harness", learning=True),
+    load_skillpack("browser-harness", Settings().skillpack_paths).lessons,
+)
 GOOD: dict[str, Any] = {
-    "text": "[browser-harness/extraction] Stories are tr.athing rows.",
+    "text": "Stories are tr.athing rows.",
     "content": {
-        "pack": "browser-harness",
+        "skill": "browser-harness",
         "kind": "extraction",
         "detail": "Stories are tr.athing rows.",
-        "helper_code": None,
+        "code": None,
     },
     "citations": [CITATION],
 }
@@ -35,15 +42,16 @@ BAD = {"learning": "HN rows are tr.athing", "site": "news.ycombinator.com"}
 
 
 def _learnings_schema() -> dict[str, Any]:
-    catalog = yaml.safe_load(
-        (REPOSITORY_ROOT / "examples/site_scrape_catalog/collections/scraping.yaml").read_text()
-    )
-    return next(c for c in catalog["collections"] if c["name"] == "skill_learnings")["schema"]
+    return collection_document()["schema"]
 
 
 HELPER: dict[str, Any] = {
-    "text": "[browser-harness/helper] py: new_tab('https://x'); print(js('1'))",
-    "content": {"pack": "browser-harness", "kind": "helper", "detail": "The extractor."},
+    "text": "Extract the front page rows.",
+    "content": {
+        "skill": "browser-harness",
+        "kind": "helper",
+        "code": "new_tab('https://x'); print(js('1'))",
+    },
     "citations": [CITATION],
 }
 
@@ -53,9 +61,9 @@ def _root(tmp_path: Path, *, need_helper: bool = False) -> Path:
     schemas = json.dumps(
         [
             {
-                "collection": "skill_learnings@1",
+                "collection": "lessons@1",
                 "mode": "event",
-                "path": "/outbox/learnings.jsonl",
+                "path": LESSONS_PATH,
                 "schema": _learnings_schema(),
             }
         ]
@@ -64,19 +72,18 @@ def _root(tmp_path: Path, *, need_helper: bool = False) -> Path:
     (root / ".memseek/writeback-schemas.json").write_text(schemas)
     (root / "outbox").mkdir()
     (root / "workspace").mkdir()
-    # Narrowed to the mounted pack, as the local provider does.
+    # Narrowed to the skills that learn and their kinds, as the local provider does.
     tools = writeback_tools(
-        [{"path": "/outbox/learnings.jsonl", "type": "observations"}],
+        [{"path": LESSONS_PATH, "type": "observations"}],
         {WRITEBACK_SCHEMAS_PATH: schemas},
         [CITATION],
-        schema_overrides={
-            "/outbox/learnings.jsonl": bind_learnings_schema(
-                _learnings_schema(), ["browser-harness"]
-            )
-        },
+        schema_overrides={LESSONS_PATH: bind_schema(_learnings_schema(), [SPEC])},
     )
     if need_helper:
-        tools = [require_helper(tool) for tool in tools]
+        tools = [
+            tool.model_copy(update={"input_schema": require_calls(tool.input_schema, [SPEC])})
+            for tool in tools
+        ]
     (root / ".harness").mkdir()
     (root / ".harness/input.json").write_text(
         json.dumps(
@@ -105,7 +112,7 @@ def _root(tmp_path: Path, *, need_helper: bool = False) -> Path:
 
 def _call(root: Path, arguments: Any) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
-        [sys.executable, "-m", "memseek.harnesses.writeback", str(root), "record_skill_learnings"],
+        [sys.executable, "-m", "memseek.harnesses.writeback", str(root), "record_lessons"],
         input=json.dumps(arguments),
         capture_output=True,
         text=True,
@@ -117,8 +124,8 @@ def test_each_observations_writeback_becomes_a_tool_bound_to_the_runs_citations(
     schemas = json.dumps(
         [
             {
-                "collection": "skill_learnings@1",
-                "path": "/outbox/learnings.jsonl",
+                "collection": "lessons@1",
+                "path": LESSONS_PATH,
                 "schema": _learnings_schema(),
             }
         ]
@@ -126,20 +133,18 @@ def test_each_observations_writeback_becomes_a_tool_bound_to_the_runs_citations(
 
     tools = writeback_tools(
         [
-            {"path": "/outbox/learnings.jsonl", "type": "observations"},
+            {"path": LESSONS_PATH, "type": "observations"},
             {"path": "/outbox/final-result.json", "type": "final_result"},
         ],
         {WRITEBACK_SCHEMAS_PATH: schemas},
         [CITATION],
     )
 
-    assert [(tool.name, tool.path) for tool in tools] == [
-        ("record_skill_learnings", "/outbox/learnings.jsonl")
-    ]
+    assert [(tool.name, tool.path) for tool in tools] == [("record_lessons", LESSONS_PATH)]
     entry = tools[0].input_schema["properties"]["records"]["items"]
     assert entry["required"] == ["text", "content", "citations"]
     assert entry["properties"]["citations"]["items"] == {"type": "string", "enum": [CITATION]}
-    assert entry["properties"]["content"]["required"] == ["pack", "kind", "detail"]
+    assert entry["properties"]["content"]["required"] == ["skill", "kind"]
 
 
 def test_a_rejected_call_writes_nothing_and_says_what_to_fix(tmp_path: Path) -> None:
@@ -155,7 +160,7 @@ def test_a_rejected_call_writes_nothing_and_says_what_to_fix(tmp_path: Path) -> 
         "- records[0] citations must be a non-empty list of authorized UUIDs\n"
         "- records[0] text must be a string\n"
     )
-    assert not (root / "outbox/learnings.jsonl").exists()
+    assert not (root / "outbox/lessons.jsonl").exists()
 
 
 def test_an_accepted_call_appends_the_record_without_null_fields(tmp_path: Path) -> None:
@@ -165,13 +170,13 @@ def test_an_accepted_call_appends_the_record_without_null_fields(tmp_path: Path)
 
     assert (accepted.returncode, accepted.stdout) == (0, "Recorded 1 entry.\n")
     assert [
-        json.loads(line) for line in (root / "outbox/learnings.jsonl").read_text().splitlines()
+        json.loads(line) for line in (root / "outbox/lessons.jsonl").read_text().splitlines()
     ] == [
         {
-            "text": "[browser-harness/extraction] Stories are tr.athing rows.",
+            "text": "Stories are tr.athing rows.",
             "citations": [CITATION],
             "content": {
-                "pack": "browser-harness",
+                "skill": "browser-harness",
                 "kind": "extraction",
                 "detail": "Stories are tr.athing rows.",
             },
@@ -181,38 +186,34 @@ def test_an_accepted_call_appends_the_record_without_null_fields(tmp_path: Path)
 
 def test_a_learning_filed_under_another_name_is_rejected(tmp_path: Path) -> None:
     root = _root(tmp_path)
-    # What a live run sent: the site's domain where the pack's name belongs.
-    misfiled = {
-        **GOOD,
-        "text": "[news.ycombinator.com/helper] Rows are tr.athing.",
-        "content": {**GOOD["content"], "pack": "news.ycombinator.com"},
-    }
+    # What a live run sent: the site's domain where the skill's name belongs.
+    misfiled = {**GOOD, "content": {**GOOD["content"], "skill": "news.ycombinator.com"}}
 
     rejected = _call(root, {"records": [misfiled]})
 
     assert rejected.returncode == 1
     assert rejected.stdout.splitlines()[1:] == [
-        "- records.0.content.pack: 'news.ycombinator.com' is not one of ['browser-harness']",
-        "- records.0.text: '[news.ycombinator.com/helper] Rows are tr.athing.' does not match "
-        "'^\\\\[(?:browser-harness)/'",
+        "- records.0.content.skill: 'news.ycombinator.com' is not one of ['browser-harness']",
     ]
-    assert not (root / "outbox/learnings.jsonl").exists()
+    assert not (root / "outbox/lessons.jsonl").exists()
 
 
 def test_a_helper_must_carry_code(tmp_path: Path) -> None:
     root = _root(tmp_path)
     helper = {**GOOD, "content": {**GOOD["content"], "kind": "helper"}}
     # What a live run recorded: a description of the extractor, not the extractor.
-    prose = {**helper, "text": "[browser-harness/helper] HN scraper: querySelector('.titleline a')"}
-    code = {**helper, "text": "[browser-harness/helper] js: [...document.querySelectorAll('tr')]"}
+    prose = {**helper, "text": "HN scraper: querySelector('.titleline a')"}
+    code = {
+        **helper,
+        "content": {**helper["content"], "code": "js('[...document.querySelectorAll(\"tr\")]')"},
+    }
 
     rejected = _call(root, {"records": [prose]})
     accepted = _call(root, {"records": [code]})
 
     assert rejected.returncode == 1
     assert rejected.stdout.splitlines()[1:] == [
-        "- records.0.text: \"[browser-harness/helper] HN scraper: querySelector('.titleline a')\" "
-        "does not match '^\\\\[[^\\\\]]+/helper\\\\] (js|py|sh): \\\\S'"
+        "- records.0.content.code: None is not of type 'string'"
     ]
     assert accepted.returncode == 0, accepted.stdout
 
@@ -282,7 +283,7 @@ def _tool_call(turn: int, records: list[Any]) -> tuple[dict[str, Any], str]:
         "id": f"call{turn}",
         "type": "function",
         "function": {
-            "name": "record_skill_learnings",
+            "name": "record_lessons",
             "arguments": json.dumps({"records": records}),
         },
     }
@@ -343,7 +344,7 @@ def test_real_pi_offers_the_tool_and_the_agent_recovers_from_a_rejection(
     output = json.loads(completed.stdout.splitlines()[-1])
     assert output["value"] == {"items": []}
     offered = [tool["function"]["name"] for tool in _StubModel.seen[0]["tools"]]
-    assert "record_skill_learnings" in offered
+    assert "record_lessons" in offered
     rejection = _StubModel.seen[1]["messages"][-1]
     assert rejection["role"] == "tool"
     assert "records.0" in json.dumps(rejection["content"])
@@ -353,8 +354,8 @@ def test_real_pi_offers_the_tool_and_the_agent_recovers_from_a_rejection(
     )
     assert [
         json.loads(line)["text"]
-        for line in (root / "outbox/learnings.jsonl").read_text().splitlines()
-    ] == ["[browser-harness/extraction] Stories are tr.athing rows."]
+        for line in (root / "outbox/lessons.jsonl").read_text().splitlines()
+    ] == ["Stories are tr.athing rows."]
     events = [
         json.loads(line) for line in (root / ".harness/pi-events.jsonl").read_text().splitlines()
     ]
@@ -362,7 +363,7 @@ def test_real_pi_offers_the_tool_and_the_agent_recovers_from_a_rejection(
         (event["toolName"], event["isError"])
         for event in events
         if event["type"] == "tool_execution_end"
-    ] == [("record_skill_learnings", True), ("record_skill_learnings", False)]
+    ] == [("record_lessons", True), ("record_lessons", False)]
     assert "message_update" not in {event["type"] for event in events}
     assert (root / ".harness/transcript.html").stat().st_size > 0
 
@@ -425,7 +426,7 @@ def test_a_provider_error_resumes_the_session_instead_of_failing_the_run(
     ]
     # The resumed request carries the whole session, including the recorded tool call.
     resumed = json.dumps(_StubModel.seen[2]["messages"])
-    assert "record_skill_learnings" in resumed
+    assert "record_lessons" in resumed
     assert "Your previous turn ended before you finished." in resumed
 
 
@@ -458,16 +459,15 @@ def test_real_pi_makes_the_agent_record_a_helper(tmp_path: Path) -> None:
 
     assert completed.returncode == 0, completed.stderr
     offered = next(
-        tool
-        for tool in _StubModel.seen[0]["tools"]
-        if tool["function"]["name"] == "record_skill_learnings"
+        tool for tool in _StubModel.seen[0]["tools"] if tool["function"]["name"] == "record_lessons"
     )
-    assert "Every call must include one entry of kind helper" in offered["function"]["description"]
+    # The helper requirement reaches the model as part of the tool's parameters.
+    assert '"contains"' in json.dumps(offered["function"]["parameters"])
     assert _StubModel.seen[1]["messages"][-1]["role"] == "tool"
     assert "contain" in json.dumps(_StubModel.seen[1]["messages"][-1]["content"])
     assert [
         json.loads(line)["content"]["kind"]
-        for line in (root / "outbox/learnings.jsonl").read_text().splitlines()
+        for line in (root / "outbox/lessons.jsonl").read_text().splitlines()
     ] == ["extraction", "helper"]
 
 

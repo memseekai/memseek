@@ -303,7 +303,7 @@ curl -sS -X POST http://127.0.0.1:8000/catalog \
     "conf/models.yaml": "aliases: {...}\ndefaults: {...}\n",
     "conf/processors.yaml": "processors: [...]\n",
     "derivations/profile.yaml": "name: profile\n...\n",
-    "packages/maria_memory.yaml": "name: maria_memory\nversion: 1.0.0\n...\n"
+    "catalog.yaml": "name: maria_memory\nversion: 1.0.0\n...\n"
   }
 }
 JSON
@@ -636,7 +636,7 @@ curl -sS -X POST http://127.0.0.1:8000/invocations \
 | `entity` | yes | 1–255 characters, non-blank. `*` is rejected. |
 | `computer` | yes | Exact `name@version`. |
 | `executor` | yes | `{"kind":"agent","agent":…,"context_policy":…}` or `{"kind":"program","program":…}`. All references exact. An Agent must list this Computer in its own `computers:`, or the call fails `422 computer_capability`. |
-| `task` | yes | For an Agent, `{"kind":"answer","prompt":…}` — `kind` is `answer` or `task`, and `prompt` is 1–32 768 characters. For a Program, `{"kind":"compute","input":…}`. |
+| `task` | yes | For an Agent, `{"kind":"answer","prompt":…}` — `kind` is `answer` or `task`, and `prompt` is 1–32 768 characters. For a Program, `{"kind":"compute","input":…}`. An Agent task may add `output_schema`, a JSON Schema its `value` must validate against (default `{"type":"object"}`). |
 | `session` | no | `{"mode":"new"}` by default. To continue or branch an existing workspace, `{"mode":"resume","session_id":…}` or `{"mode":"fork","session_id":…}` — `new` forbids `session_id`, and the other two require it. |
 | `idempotency_key` | no | 1–128 characters. Replaying a key returns the original invocation instead of starting a second one. |
 

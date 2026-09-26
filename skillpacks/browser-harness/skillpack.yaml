@@ -3,15 +3,45 @@ version: 1
 requires:
   - {bin: browser-harness, install: "uv tool install --python 3.12 browser-harness"}
 skill:
-  # Its stdout becomes SKILL.md.
-  command: [browser-harness, skill]
+  # Its stdout becomes SKILL.md. Upstream's first mention of the helpers file is
+  # relative to BH_HOME, which an agent working in workspace/ would resolve there.
+  command: [sh, -c, "browser-harness skill | sed 's#`agent-workspace/#`$BH_AGENT_WORKSPACE/#g'"]
 env:
   pass: [BU_CDP_URL, BU_NAME]
   # {state} is fresh for each run, or kept per entity when the run persists
   # browser-harness's own helpers. The daemon's socket goes in {runtime}: a
   # socket below the long state path breaks macOS's 104-byte limit.
-  set: {BH_HOME: "{state}", BH_RUNTIME_DIR: "{runtime}"}
+  # BH_AGENT_WORKSPACE is browser-harness's default made explicit: its SKILL.md
+  # points the agent at $BH_AGENT_WORKSPACE/agent_helpers.py, which would expand
+  # to /agent_helpers.py if the variable were unset.
+  # BH_DOMAIN_SKILLS turns on browser-harness's per-site notes in
+  # {state}/agent-workspace/domain-skills/<host>/: goto_url() lists them and
+  # SKILL.md tells the agent to read them. They are off unless it is set.
+  set: {BH_HOME: "{state}", BH_RUNTIME_DIR: "{runtime}", BH_AGENT_WORKSPACE: "{state}/agent-workspace", BH_DOMAIN_SKILLS: "1"}
 capabilities: [exec, network]
-learns: true
+# The PyPI wheel ships SKILL.md but not the agent-workspace it points at:
+# agent_helpers.py and the per-site domain-skills/. They come from the release
+# tag matching the installed version (v0.1.13), and files already in the
+# workspace are kept.
+workspace:
+  dir: "{state}/agent-workspace"
+  from: {repo: "https://github.com/browser-use/browser-harness", ref: c24e5072ee66f8499bacd663f4f4bcb089bc4492, path: agent-workspace}
+# What is worth learning while scraping with this pack, for toolsets that set
+# `learning` on it. Each kind's description is what the agent reads when it
+# records a lesson and as the playbook's heading.
+lessons:
+  kinds:
+    helper: >-
+      The Python you piped into browser-harness that produced your final rows,
+      in `code` exactly as you ran it, so the next run can pipe it in again.
+      The next run tries the newest helper first.
+    navigation: A URL or JSON endpoint worth calling directly instead of clicking through the page.
+    extraction: Where each field lives on the page, and the selector that finds it.
+    pitfall: What went wrong or wasted steps, or a playbook lesson that proved false, and what is true now.
+  require: [helper]
+  code: [helper]
+  guidance: >-
+    In a helper, use only browser-harness functions you actually called, such
+    as new_tab, wait_for_load, and js.
 # Stops this run's daemon, which would otherwise keep running after the run.
 stop: [browser-harness, --reload]

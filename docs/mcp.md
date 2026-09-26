@@ -87,14 +87,14 @@ envelope; it is not the negotiated MCP protocol version.
 First include the exact targets and MCP interface in the package manifest:
 
 ```yaml
-# packages/customer_memory.yaml
-name: customer_memory
-version: 1.0.0
+# catalog.yaml — relevant entries; also declare configuration and dependencies
+mcp:
+  customer_memory@1: mcp/customer_memory.yaml
+expose_mcp: customer_memory@1
 views:
-  - customer_search@1
+  customer_search@1: views/customer_search.yaml
 artifacts:
-  - customer_brief@1
-mcp: customer_memory@1
+  customer_brief@1: artifacts/customer_brief.yaml
 ```
 
 Then create the matching interface file:
@@ -499,7 +499,7 @@ different key than the one the client presents.
 | Unauthorized or `HTTP 401` | Run `memseek mcp --check` with the same API URL and key; inspect the host's bearer-token setting. | Replace the workspace key or correct `bearer_token_env_var`/`Authorization`; do not reuse a key from another workspace. |
 | `HTTP 403 Invalid Origin header` | Check whether the client or browser sends `Origin`. | Add the exact origin to `API_CORS_ORIGINS`; do not use a wildcard. CLI clients should omit `Origin`. |
 | `/mcp` returns a proxy `404` or `405` | POST directly to the API origin and check proxy path rewriting. | Forward the exact `/mcp` path to Memseek and preserve MCP headers. Do not point the client at `/tools` or `/sse`. |
-| Connected, but zero tools | Inspect `package` and `interface` in `--check` or `GET /tools`. | Publish a package with an exact `mcp: name@version` binding to this workspace. |
+| Connected, but zero tools | Inspect `package` and `interface` in `--check` or `GET /tools`. | Publish a catalog whose `catalog.yaml` sets `expose_mcp: name@version` to this workspace. |
 | Tools exist, but memory is empty | Compare the key used for ingest/publish with the MCP key. | Use one durable workspace credential for ingestion and the client. |
 | A newly added tool is missing | Call `GET /tools` and compare the interface hash. | Restart/refresh the host so it repeats `tools/list`. |
 | A removed tool fails with “not declared” | The host cached an older list; the bridge correctly rechecked it. | Refresh the MCP server and choose a currently declared tool. |

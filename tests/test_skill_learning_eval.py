@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from pathlib import Path
+from typing import Any
 
 import pytest
 from pydantic import ValidationError
@@ -20,11 +21,14 @@ from memseek.evals.skill_learning import (
     Check,
     RunOutcome,
     RunRow,
+    Score,
     SuiteTask,
     Target,
     bootstrap_ci,
     load_suite,
     parse_arms,
+    planned_runs,
+    render_runs,
     render_table,
     run_suite,
     score_value,
@@ -35,8 +39,10 @@ TASK = SuiteTask.model_validate(
     {
         "id": "hn-front",
         "domain": "news.ycombinator.com",
-        "train": [{"url": "https://news.ycombinator.com/", "goal": "top stories"}],
-        "test": [{"url": "https://news.ycombinator.com/news?p=2", "goal": "page 2 stories"}],
+        "train": [{"url": "https://news.ycombinator.com/", "goal": "top stories", "items": 30}],
+        "test": [
+            {"url": "https://news.ycombinator.com/news?p=2", "goal": "page 2 stories", "items": 30}
+        ],
         "check": {
             "schema": {
                 "type": "object",
@@ -48,7 +54,6 @@ TASK = SuiteTask.model_validate(
                     }
                 },
             },
-            "min_items": 25,
             "field_coverage": {"points": 0.9},
         },
     }
@@ -65,8 +70,14 @@ class DatabaseBackend:
     async def write_task(self, entity: str, target: Target) -> None:
         await self.site.write_task(entity, target.url, target.goal)
 
-    async def invoke(self, entity: str, prompt: str, options: Mapping[str, str]) -> RunOutcome:
-        state = await self.site.invoke(entity, prompt, dict(options))
+    async def invoke(
+        self,
+        entity: str,
+        prompt: str,
+        options: Mapping[str, str],
+        output_schema: Mapping[str, Any],
+    ) -> RunOutcome:
+        state = await self.site.invoke(entity, prompt, dict(options), dict(output_schema))
         receipt = state["result"]["receipt"]
         return RunOutcome(
             invocation_id=state["invocation_id"],
@@ -91,8 +102,29 @@ async def site(settings: Settings, db_pool: DatabasePool, tmp_path: Path) -> Scr
 async def test_arms_are_isolated_and_their_deltas_match_what_each_arm_can_read(
     site: ScrapeWorkspace,
 ) -> None:
-    rows = await run_suite([TASK], DatabaseBackend(site), arms=ARMS, trials=2, k_train=2)
+    seen: list[RunRow] = []
+    rows = await run_suite(
+        [TASK],
+        DatabaseBackend(site),
+        arms=ARMS,
+        trials=2,
+        k_train=2,
+        run="r1",
+        on_row=seen.append,
+    )
 
+    assert seen == rows
+    assert planned_runs([TASK], arms=ARMS, trials=2, k_train=2) == len(rows)
+    table = render_runs(rows).splitlines()
+    assert table[0] == (
+        "task      arm              trial  phase  k  result  score  steps  calls  errors"
+        "  tokens  cached  cost  wall_s"
+    )
+    assert table[10] == (
+        "hn-front  playbook         0      test   1  pass        1      3      2       0"
+        "   15300   12000     -     0.5"
+    )
+    assert len(table) == 2 + len(rows)
     # Four arms, two trials, a test at k=0..2, and a training run before each
     # later test for every arm except cold, which has nothing to learn into.
     assert len(rows) == 36
@@ -102,7 +134,7 @@ async def test_arms_are_isolated_and_their_deltas_match_what_each_arm_can_read(
     }
     for trial in (0, 1):
         for arm, expected in (("cold", 0), ("native", 0), ("playbook", 2), ("playbook+native", 2)):
-            entity = f"site:news.ycombinator.com#{arm}-{trial}"
+            entity = f"site:news.ycombinator.com#r1-{arm}-{trial}"
             assert len(await site.learnings(entity)) == expected, entity
     async with site.pool.connection() as conn:
         stored = await (
@@ -156,20 +188,17 @@ async def test_arms_are_isolated_and_their_deltas_match_what_each_arm_can_read(
 
 
 def test_scoring_is_schema_count_and_coverage() -> None:
-    check = TASK.check
+    check, target = TASK.check, TASK.test[0]
     full = {"items": [{"title": f"t{i}", "points": i} for i in range(30)]}
+    leaked = {"items": [{"title": f"t{i}", "points": i} for i in range(36)]}
     sparse = {"items": [{"title": f"t{i}", "points": None if i % 2 else i} for i in range(20)]}
 
-    assert (score_value(full, check).passed, score_value(full, check).score) == (True, 1.0)
-    # The mean of schema 1, count 20/25, and coverage 0.5/0.9.
-    assert (score_value(sparse, check).passed, score_value(sparse, check).score) == (
-        False,
-        0.785185,
-    )
-    assert (score_value({"rows": []}, check).passed, score_value({"rows": []}, check).score) == (
-        False,
-        0.0,
-    )
+    assert score_value(full, check, target) == Score(passed=True, score=1.0)
+    # Rows from another page count against the target as much as missing ones.
+    assert score_value(leaked, check, target) == Score(passed=False, score=0.944444)
+    # The mean of schema 1, count 20/30, and coverage 0.5/0.9.
+    assert score_value(sparse, check, target) == Score(passed=False, score=0.740741)
+    assert score_value({"rows": []}, check, target) == Score(passed=False, score=0.0)
 
 
 def test_bootstrap_interval_is_reproducible() -> None:
@@ -181,8 +210,9 @@ def test_bootstrap_interval_is_reproducible() -> None:
 def test_the_shipped_suite_holds_its_test_pages_out_of_training() -> None:
     suite = load_suite(REPOSITORY_ROOT / "evals" / "scrape_suite.yaml")
 
-    assert [task.id for task in suite] == ["oscars-ajax", "quotes-js", "books-catalogue"]
+    assert [task.id for task in suite] == ["oscars-ajax"]
     assert isinstance(suite[0].check, Check)
+    assert ([t.items for t in suite[0].train], [t.items for t in suite[0].test]) == ([44], [87])
     with pytest.raises(ValidationError, match="test targets must be held out of train"):
         SuiteTask.model_validate(
             {**TASK.model_dump(by_alias=True), "test": TASK.model_dump()["train"]}

@@ -1,0 +1,262 @@
+{
+  "$defs": {
+    "ComputerCapabilities": {
+      "additionalProperties": false,
+      "properties": {
+        "filesystem": {
+          "default": true,
+          "title": "Filesystem",
+          "type": "boolean"
+        },
+        "exec": {
+          "default": false,
+          "title": "Exec",
+          "type": "boolean"
+        },
+        "network": {
+          "default": false,
+          "title": "Network",
+          "type": "boolean"
+        }
+      },
+      "title": "ComputerCapabilities",
+      "type": "object"
+    },
+    "ComputerContextMount": {
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "title": "Path",
+          "type": "string"
+        },
+        "artifact": {
+          "title": "Artifact",
+          "type": "string"
+        },
+        "mode": {
+          "const": "read_only",
+          "default": "read_only",
+          "title": "Mode",
+          "type": "string"
+        }
+      },
+      "required": [
+        "path",
+        "artifact"
+      ],
+      "title": "ComputerContextMount",
+      "type": "object"
+    },
+    "ComputerDefinition": {
+      "additionalProperties": false,
+      "description": "Reusable execution policy; physical instances are session scoped.",
+      "properties": {
+        "name": {
+          "pattern": "^[a-z][a-z0-9._-]{0,63}$",
+          "title": "Name",
+          "type": "string"
+        },
+        "definition_hash": {
+          "default": "",
+          "title": "Definition Hash",
+          "type": "string"
+        },
+        "version": {
+          "minimum": 1,
+          "title": "Version",
+          "type": "integer"
+        },
+        "active": {
+          "default": false,
+          "title": "Active",
+          "type": "boolean"
+        },
+        "provider": {
+          "pattern": "^[a-z][a-z0-9_]{0,31}$",
+          "title": "Provider",
+          "type": "string"
+        },
+        "context": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/ComputerContextMount"
+          },
+          "title": "Context",
+          "type": "array"
+        },
+        "writable": {
+          "default": [
+            "/workspace",
+            "/outbox"
+          ],
+          "items": {
+            "type": "string"
+          },
+          "title": "Writable",
+          "type": "array"
+        },
+        "runtime": {
+          "$ref": "#/$defs/ComputerRuntime"
+        },
+        "capabilities": {
+          "$ref": "#/$defs/ComputerCapabilities"
+        },
+        "writeback": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/ComputerWriteback"
+          },
+          "title": "Writeback",
+          "type": "array"
+        },
+        "retention": {
+          "$ref": "#/$defs/ComputerRetention"
+        }
+      },
+      "required": [
+        "name",
+        "version",
+        "provider"
+      ],
+      "title": "ComputerDefinition",
+      "type": "object"
+    },
+    "ComputerRetention": {
+      "additionalProperties": false,
+      "properties": {
+        "workspace_days": {
+          "default": 30,
+          "maximum": 365,
+          "minimum": 1,
+          "title": "Workspace Days",
+          "type": "integer"
+        },
+        "preserve": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Preserve",
+          "type": "array"
+        }
+      },
+      "title": "ComputerRetention",
+      "type": "object"
+    },
+    "ComputerRuntime": {
+      "additionalProperties": false,
+      "properties": {
+        "default": {
+          "enum": [
+            "worker-javascript",
+            "container"
+          ],
+          "type": "string",
+          "default": "worker-javascript",
+          "title": "Default"
+        },
+        "fallback": {
+          "anyOf": [
+            {
+              "enum": [
+                "worker-javascript",
+                "container"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Fallback"
+        },
+        "fallback_requires": {
+          "anyOf": [
+            {
+              "const": "explicit_policy",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Fallback Requires"
+        }
+      },
+      "title": "ComputerRuntime",
+      "type": "object"
+    },
+    "ComputerWriteback": {
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "title": "Path",
+          "type": "string"
+        },
+        "type": {
+          "enum": [
+            "observations",
+            "maintained_state",
+            "final_result"
+          ],
+          "title": "Type",
+          "type": "string"
+        },
+        "review": {
+          "title": "Review",
+          "type": "boolean"
+        },
+        "collection": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Collection"
+        },
+        "record_type": {
+          "anyOf": [
+            {
+              "pattern": "^[a-z][a-z0-9._-]{0,63}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Record Type"
+        }
+      },
+      "required": [
+        "path",
+        "type",
+        "review"
+      ],
+      "title": "ComputerWriteback",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "computers": {
+      "items": {
+        "$ref": "#/$defs/ComputerDefinition"
+      },
+      "title": "Computers",
+      "type": "array"
+    }
+  },
+  "required": [
+    "computers"
+  ],
+  "title": "ComputerDefinitionFile",
+  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}

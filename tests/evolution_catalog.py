@@ -14,6 +14,7 @@ from typing import Any
 
 import httpx
 import yaml
+from reference_catalog import indexed_test_bundle
 
 from memseek.api import create_app
 from memseek.config import Settings
@@ -190,32 +191,26 @@ def catalog_files(
         copy.deepcopy(ARCHIVE),
     ]
     processor_list = processors or copy.deepcopy(PROCESSORS)
-    return {
+    files = {
         "collections/notes.yaml": yaml.safe_dump({"collections": collection_list}),
         "conf/processors.yaml": yaml.safe_dump({"processors": processor_list}),
         "conf/rank_default.yaml": RANK_DEFAULT,
         "derivations/archive_notes.yaml": yaml.safe_dump(copy.deepcopy(MIGRATION)),
         "views/recent_notes.yaml": yaml.safe_dump({"views": [copy.deepcopy(VIEW)]}),
         "artifacts/note_digest.yaml": yaml.safe_dump({"artifacts": [copy.deepcopy(ARTIFACT)]}),
-        "packages/evolving.yaml": yaml.safe_dump(
-            {
-                "packages": [
-                    {
-                        "name": "evolving",
-                        "version": version,
-                        "collections": package_collections
-                        or [f"{item['name']}@{item['version']}" for item in collection_list],
-                        # Derive processors are listed alongside per-record ones.
-                        "processors": package_processors
-                        or [*(item["name"] for item in processor_list), "archive_notes"],
-                        "views": ["recent_notes@1"],
-                        "artifacts": ["note_digest@1"],
-                        "search_profiles": ["pg_default"],
-                    }
-                ]
-            }
-        ),
     }
+
+    files = indexed_test_bundle("evolving", version, files)
+    if package_collections is not None or package_processors is not None:
+        manifest = yaml.safe_load(files["catalog.yaml"])
+        if package_collections is not None:
+            manifest["collections"] = dict.fromkeys(package_collections, "collections/notes.yaml")
+        if package_processors is not None:
+            manifest["processors"] = {
+                ref: "conf/processors.yaml" for ref in package_processors if ref != "archive_notes"
+            }
+        files["catalog.yaml"] = yaml.safe_dump(manifest)
+    return files
 
 
 async def publish(

@@ -1,0 +1,16 @@
+# yaml-language-server: $schema=../../../schemas/computers.schema.json
+computers:
+  - name: scrape_workspace
+    version: 1
+    active: true
+    # Runs the harness on the worker's own machine, where pi and
+    # browser-harness are installed and a browser is reachable.
+    provider: local
+    writable: [/workspace, /outbox]
+    runtime: {default: container}
+    capabilities: {filesystem: true, exec: true, network: true}
+    # Lessons from the skill that learns go to the built-in /outbox/lessons.jsonl,
+    # which a run gets because scraper@1 turns learning on.
+    writeback:
+      - {path: /outbox/final-result.json, type: final_result, review: false}
+    retention: {workspace_days: 7, preserve: [/outbox]}

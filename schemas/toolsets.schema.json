@@ -1,0 +1,419 @@
+{
+  "$defs": {
+    "SkillLearning": {
+      "additionalProperties": false,
+      "description": "What a loaded skill opts into: recording lessons, and reading them back.\n\n``learning: true`` on a skill source means both, with the lessons the skill\nitself declares. The remaining fields override the skill's own spec.",
+      "properties": {
+        "kinds": {
+          "anyOf": [
+            {
+              "patternProperties": {
+                "^[a-z][a-z0-9._-]{0,63}$": {
+                  "minLength": 1,
+                  "type": "string"
+                }
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Kinds"
+        },
+        "require": {
+          "anyOf": [
+            {
+              "items": {
+                "pattern": "^[a-z][a-z0-9._-]{0,63}$",
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Require"
+        },
+        "code": {
+          "anyOf": [
+            {
+              "items": {
+                "pattern": "^[a-z][a-z0-9._-]{0,63}$",
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Code"
+        },
+        "guidance": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Guidance"
+        },
+        "max_per_run": {
+          "anyOf": [
+            {
+              "maximum": 50,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Per Run"
+        },
+        "collect": {
+          "default": true,
+          "title": "Collect",
+          "type": "boolean"
+        },
+        "playbook": {
+          "default": true,
+          "title": "Playbook",
+          "type": "boolean"
+        }
+      },
+      "title": "SkillLearning",
+      "type": "object"
+    },
+    "ToolSourceDefinition": {
+      "additionalProperties": false,
+      "description": "One capability an Agent may reach through its toolset.\n\nA source is a *binding*, not an implementation: it names the exact catalog\ndefinition a tool operates on, so the surface an Agent sees is auditable\nfrom the catalog alone.  Nothing here is implicit \u2014 a filesystem source that\ndoes not list ``write`` grants no write tool \u2014 because the alternative is a\nsurface that silently widens when a dependency adds a tool.",
+      "properties": {
+        "name": {
+          "pattern": "^[a-z][a-z0-9._-]{0,63}$",
+          "title": "Name",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "filesystem",
+            "exec",
+            "recall",
+            "writeback",
+            "skill",
+            "view",
+            "mcp_server",
+            "skillpack"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Description"
+        },
+        "root": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Root"
+        },
+        "modes": {
+          "anyOf": [
+            {
+              "items": {
+                "enum": [
+                  "read",
+                  "ls",
+                  "find",
+                  "grep",
+                  "write",
+                  "edit",
+                  "delete"
+                ],
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Modes"
+        },
+        "path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Path"
+        },
+        "commit": {
+          "anyOf": [
+            {
+              "enum": [
+                "outbox",
+                "staged"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Commit"
+        },
+        "artifact": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Artifact"
+        },
+        "skill_name": {
+          "anyOf": [
+            {
+              "pattern": "^[a-z0-9][a-z0-9-]{0,62}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Skill Name"
+        },
+        "view": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "View"
+        },
+        "arguments": {
+          "anyOf": [
+            {
+              "patternProperties": {
+                "^[a-z][a-z0-9._-]{0,63}$": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "boolean"
+                    }
+                  ]
+                }
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Arguments"
+        },
+        "mode": {
+          "anyOf": [
+            {
+              "enum": [
+                "snapshot",
+                "live"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Mode"
+        },
+        "url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Url"
+        },
+        "allowed_tools": {
+          "anyOf": [
+            {
+              "items": {
+                "pattern": "^[a-z][a-z0-9._-]{0,63}$",
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Allowed Tools"
+        },
+        "pack": {
+          "anyOf": [
+            {
+              "pattern": "^[a-z][a-z0-9._-]{0,63}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Pack"
+        },
+        "learning": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SkillLearning"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "name",
+        "kind"
+      ],
+      "title": "ToolSourceDefinition",
+      "type": "object"
+    },
+    "ToolsetDefinition": {
+      "additionalProperties": false,
+      "description": "The inbound tool surface one Agent may consume.\n\nThe counterpart to :class:`McpDefinition`.  That one publishes memseek's own\noperations *outward* to external clients; this one enumerates, exactly, what\nan Agent running inside a Computer may reach.  Like an MCP interface it has\nno active alias: an Agent binds one exact surface, because a tool set that\ncould change under a pinned Agent is not a surface at all.",
+      "properties": {
+        "name": {
+          "pattern": "^[a-z][a-z0-9._-]{0,63}$",
+          "title": "Name",
+          "type": "string"
+        },
+        "definition_hash": {
+          "default": "",
+          "title": "Definition Hash",
+          "type": "string"
+        },
+        "version": {
+          "minimum": 1,
+          "title": "Version",
+          "type": "integer"
+        },
+        "title": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Title"
+        },
+        "instructions": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Instructions"
+        },
+        "sources": {
+          "items": {
+            "$ref": "#/$defs/ToolSourceDefinition"
+          },
+          "title": "Sources",
+          "type": "array"
+        }
+      },
+      "required": [
+        "name",
+        "version",
+        "sources"
+      ],
+      "title": "ToolsetDefinition",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "toolsets": {
+      "items": {
+        "$ref": "#/$defs/ToolsetDefinition"
+      },
+      "title": "Toolsets",
+      "type": "array"
+    }
+  },
+  "required": [
+    "toolsets"
+  ],
+  "title": "ToolsetDefinitionFile",
+  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}

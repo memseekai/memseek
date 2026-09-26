@@ -8,5 +8,4 @@ env:
   pass: [ECHO_PASS]
   set: {ECHO_STATE: "{state}", ECHO_RUNTIME: "{runtime}"}
 capabilities: [exec]
-learns: true
 stop: [sh, -c, 'echo "stopped with $ECHO_RUNTIME" > "$ECHO_STATE/stopped"']

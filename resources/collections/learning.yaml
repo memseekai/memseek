@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=../../schemas/collections.schema.json
 collections:
   # Selected outcomes worth changing future knowledge, not a trace store.  A
   # signal names the artifact use it refers to and carries bounded evidence, so

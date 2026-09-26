@@ -1,0 +1,46 @@
+# yaml-language-server: $schema=../schemas/catalog.schema.json
+name: agentic_memory_core
+version: 2.2.0
+description: Agentic memory core catalog.
+config:
+  models: conf/models.yaml
+  ranking: conf/rank_default.yaml
+  search_profiles: conf/search_profiles.yaml
+collections:
+  calendar_events@1: collections/calendar.yaml
+  main@1: collections/core.yaml
+  profiles@1: collections/core.yaml
+  reflections@1: collections/core.yaml
+  skills@1: collections/core.yaml
+  plans@1: collections/core.yaml
+  transcripts@1: collections/core.yaml
+  outcomes@1: collections/core.yaml
+  prompt_snapshots@1: collections/core.yaml
+  learning_signals@1: collections/learning.yaml
+  relations@1: collections/relations.yaml
+  worldview@1: collections/worldview.yaml
+processors:
+  embedding_v1: conf/processors.yaml
+  importance: conf/processors.yaml
+  sentiment_v1: conf/processors.yaml
+derivations:
+  belief_conflict: derivations/belief_conflict.yaml
+  contradiction: derivations/contradiction.yaml
+  harvest: derivations/harvest.yaml
+  profile: derivations/profile.yaml
+  reconcile: derivations/reconcile.yaml
+  reflection: derivations/reflection.yaml
+  skill: derivations/skill.yaml
+  worldview: derivations/worldview.yaml
+views:
+  agent_relevant_memory@1: views/agent_memory.yaml
+  open_self_contradictions@1: views/self_audit.yaml
+  upcoming_calendar@1: views/upcoming_calendar.yaml
+artifacts:
+  daily_agent_prompt@1: artifacts/agent_prompt.yaml
+  maintained_skill@1: artifacts/skill.yaml
+mcp:
+  agentic_memory_core@1: mcp/agentic_memory_core.yaml
+expose_mcp: agentic_memory_core@1
+optional_search_profiles:
+- memory_tpuf

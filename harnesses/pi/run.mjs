@@ -28,6 +28,9 @@ writeFileSync(promptFile, input.system_prompt);
 // transcript.html), the event stream as it happens, and pi's stderr.
 const sessionDir = join(root, ".harness", "pi-sessions");
 mkdirSync(sessionDir, { recursive: true });
+// Earlier runs on this Computer left their sessions here; this run resumes and
+// exports only its own.
+const earlierSessions = new Set(listSessions());
 const eventLog = createWriteStream(join(root, ".harness", "pi-events.jsonl"));
 const stderrLog = createWriteStream(join(root, ".harness", "pi-stderr.log"));
 // Per-token deltas would be most of the file and none of the insight.
@@ -150,10 +153,14 @@ function runPi(extra, prompt) {
   });
 }
 
-function sessionFile() {
-  const name = readdirSync(sessionDir, { recursive: true })
+function listSessions() {
+  return readdirSync(sessionDir, { recursive: true })
     .map(String)
-    .find((entry) => entry.endsWith(".jsonl"));
+    .filter((entry) => entry.endsWith(".jsonl"));
+}
+
+function sessionFile() {
+  const name = listSessions().find((entry) => !earlierSessions.has(entry));
   return name ? join(sessionDir, name) : null;
 }
 
@@ -174,9 +181,10 @@ function parseEnvelope(text) {
   return null;
 }
 
-function fail(message) {
+// Exit 2 tells the provider the run spent its budget, so it is not retried.
+function fail(message, code = 1) {
   process.stderr.write(`pi harness: ${message}\n`);
-  process.exit(1);
+  process.exit(code);
 }
 
 let [code, signal] = await runPi([], input.task);
@@ -212,7 +220,7 @@ function exportTranscript() {
   }
 }
 
-if (stopped) fail(stopped);
+if (stopped) fail(stopped, 2);
 if (code !== 0) fail(`pi exited ${code ?? signal}`);
 if (!envelope) fail("final assistant message holds no {value, citation_ids} envelope");
 if (!Array.isArray(envelope.citation_ids ?? [])) fail("envelope citation_ids is not a list");

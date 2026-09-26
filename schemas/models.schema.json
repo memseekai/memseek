@@ -1,0 +1,209 @@
+{
+  "$defs": {
+    "EmbeddingModel": {
+      "additionalProperties": false,
+      "description": "The one embedding model a catalog uses, declared in full.\n\nEmbeddings are the only model output that is *stored* and later compared, so\nthe properties that make two vectors comparable \u2014 endpoint, model, dimension,\nand the preprocessing bound `max_text_chars` \u2014 are declared together here\nrather than split between a definition and the process environment.  `space`\nnames the resulting vector space: change any field above it and the space id\nmust change too, because vectors from two models are not comparable.  See\ndocs/changing-definitions.md for the staged re-embed that performs the swap.",
+      "properties": {
+        "provider": {
+          "pattern": "^[a-z][a-z0-9_]{0,31}$",
+          "title": "Provider",
+          "type": "string"
+        },
+        "model": {
+          "minLength": 1,
+          "title": "Model",
+          "type": "string"
+        },
+        "dimensions": {
+          "maximum": 4096,
+          "minimum": 8,
+          "title": "Dimensions",
+          "type": "integer"
+        },
+        "space": {
+          "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$",
+          "title": "Space",
+          "type": "string"
+        },
+        "batch": {
+          "default": 64,
+          "maximum": 256,
+          "minimum": 1,
+          "title": "Batch",
+          "type": "integer"
+        },
+        "max_text_chars": {
+          "default": 16000,
+          "minimum": 64,
+          "title": "Max Text Chars",
+          "type": "integer"
+        },
+        "params": {
+          "additionalProperties": true,
+          "title": "Params",
+          "type": "object"
+        }
+      },
+      "required": [
+        "provider",
+        "model",
+        "dimensions",
+        "space"
+      ],
+      "title": "EmbeddingModel",
+      "type": "object"
+    },
+    "ModelAlias": {
+      "additionalProperties": false,
+      "properties": {
+        "targets": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": "Targets",
+          "type": "array"
+        },
+        "params": {
+          "additionalProperties": true,
+          "title": "Params",
+          "type": "object"
+        },
+        "context_tokens": {
+          "anyOf": [
+            {
+              "minimum": 4096,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Context Tokens"
+        }
+      },
+      "required": [
+        "targets"
+      ],
+      "title": "ModelAlias",
+      "type": "object"
+    },
+    "ModelDefaults": {
+      "additionalProperties": false,
+      "properties": {
+        "derivation": {
+          "pattern": "^[a-z][a-z0-9_]{0,31}$",
+          "title": "Derivation",
+          "type": "string"
+        },
+        "fold": {
+          "pattern": "^[a-z][a-z0-9_]{0,31}$",
+          "title": "Fold",
+          "type": "string"
+        }
+      },
+      "required": [
+        "derivation",
+        "fold"
+      ],
+      "title": "ModelDefaults",
+      "type": "object"
+    },
+    "ProviderConnection": {
+      "additionalProperties": false,
+      "description": "One named endpoint a model can be called through.\n\nA provider is a *connection*, not a vendor: two entries may share an adapter\nand differ only in `base_url`, which is exactly what lets embeddings run on a\ndifferent service than completions.  Everything here describes the endpoint\nitself, so an endpoint that cannot honor schema-constrained output says so\nnext to its own URL rather than in a process-wide setting that would also\n(wrongly) describe every other endpoint.\n\nThe API key never appears here.  `api_key_env` names the environment\nvariable holding it, which keeps the definition safe to commit while still\nstating, explicitly, which credential this endpoint uses.",
+      "properties": {
+        "adapter": {
+          "minLength": 1,
+          "title": "Adapter",
+          "type": "string"
+        },
+        "base_url": {
+          "minLength": 1,
+          "title": "Base Url",
+          "type": "string"
+        },
+        "api_key_env": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Z][A-Z0-9_]{0,63}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Api Key Env"
+        },
+        "json_capability": {
+          "default": "json_schema",
+          "enum": [
+            "json_schema",
+            "json_object",
+            "none"
+          ],
+          "title": "Json Capability",
+          "type": "string"
+        },
+        "json_schema_strict": {
+          "default": false,
+          "title": "Json Schema Strict",
+          "type": "boolean"
+        },
+        "token_limit_field": {
+          "default": "max_completion_tokens",
+          "enum": [
+            "max_completion_tokens",
+            "max_tokens"
+          ],
+          "title": "Token Limit Field",
+          "type": "string"
+        }
+      },
+      "required": [
+        "adapter",
+        "base_url"
+      ],
+      "title": "ProviderConnection",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "providers": {
+      "patternProperties": {
+        "^[a-z][a-z0-9_]{0,31}$": {
+          "$ref": "#/$defs/ProviderConnection"
+        }
+      },
+      "title": "Providers",
+      "type": "object"
+    },
+    "aliases": {
+      "patternProperties": {
+        "^[a-z][a-z0-9_]{0,31}$": {
+          "$ref": "#/$defs/ModelAlias"
+        }
+      },
+      "title": "Aliases",
+      "type": "object"
+    },
+    "embedding": {
+      "$ref": "#/$defs/EmbeddingModel"
+    },
+    "defaults": {
+      "$ref": "#/$defs/ModelDefaults"
+    }
+  },
+  "required": [
+    "providers",
+    "aliases",
+    "embedding",
+    "defaults"
+  ],
+  "title": "ModelCatalog",
+  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}

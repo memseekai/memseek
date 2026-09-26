@@ -36,9 +36,11 @@ from memseek.definitions.models import (
     ProcessorDefinition,
     ProgramDefinition,
     ToolsetDefinition,
+    ToolSourceDefinition,
     ViewDefinition,
 )
 from memseek.derive.schema import PipelineDefinition, RecordScope
+from memseek.lessons import LESSONS_REF
 
 # Node kinds, in the order the legend and the detail panel present them.  The
 # order is also the layout's tie-break, so a rendered graph stays stable between
@@ -236,6 +238,19 @@ def _plural(count: int, singular: str, plural: str | None = None) -> str:
     return f"{count} {singular if count == 1 else (plural or singular + 's')}"
 
 
+def _learning_fact(source: ToolSourceDefinition) -> str:
+    if source.learning is None:
+        return "—"
+    return _joined(
+        name
+        for name, on in (
+            ("collect", source.learning.collect),
+            ("playbook", source.learning.playbook),
+        )
+        if on
+    )
+
+
 def _joined(values: Iterable[str], *, limit: int = 6) -> str:
     items = list(values)
     if not items:
@@ -289,6 +304,24 @@ class _GraphBuilder:
             self._mcp(self.package.mcp)
 
     def _add(self, node: GraphNode) -> str:
+        reference = f"{node.name}@{node.version}" if node.version is not None else node.name
+        family = {"context_policy": "context_policies", "mcp": "mcp"}.get(
+            node.kind, f"{node.kind}s"
+        )
+        location = next(
+            (
+                item
+                for item in self.catalog.source_locations
+                if item["kind"] == family and item["reference"] == reference
+            ),
+            None,
+        )
+        if location is not None:
+            from dataclasses import replace
+
+            node = replace(
+                node, facts=(*node.facts, ("source", f"{location['file']}:{location['line']}"))
+            )
         existing = self.nodes.get(node.id)
         if existing is None or (node.member and not existing.member):
             self.nodes[node.id] = node
@@ -936,6 +969,7 @@ class _GraphBuilder:
                                 if value
                             ),
                         ),
+                        ("learning", _learning_fact(source)),
                     ),
                     member=True,
                     definition=source.model_dump(mode="json"),
@@ -949,6 +983,14 @@ class _GraphBuilder:
             ):
                 if target:
                     self._edge(target, tool_id, "reads", "", flow="forward")
+            if source.learning is not None:
+                # The built-in lessons collection: the skill records into it and
+                # its playbook is read back out of it.
+                lessons = self._collection(LESSONS_REF)
+                if source.learning.collect:
+                    self._edge(tool_id, lessons, "writes", "lessons", flow="forward")
+                if source.learning.playbook:
+                    self._edge(lessons, tool_id, "reads", "playbook", flow="forward")
         return node_id
 
     def _toolset_node(

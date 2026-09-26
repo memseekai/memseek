@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=../../../schemas/collections.schema.json
 collections:
   # L1 — atomic memory. One reusable claim per record, each citing the exact L0
   # messages that support it. Append-only on purpose: a claim that turns out to

@@ -31,6 +31,7 @@ from memseek.definitions.models import (
     ContextPolicyDefinition,
     ProgramDefinition,
 )
+from memseek.definitions.toolsets import effective_computer
 from memseek.evidence_spine import ContextPressure
 
 
@@ -517,6 +518,7 @@ async def execute_agent(
         raise ComputerExecutionError("reference", str(exc)) from exc
     if computer_ref not in agent.computers:
         raise ComputerExecutionError("capability", "Agent is not allowed to use this Computer")
+    computer = effective_computer(agent, computer, catalog)
     if toolset is not None:
         for tool in toolset.get("tools", ()):
             if tool.get("kind") == "mcp_server":

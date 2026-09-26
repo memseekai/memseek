@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=../../../schemas/models.schema.json
 # Point these targets at models your own account can call. `cheap` runs the
 # high-volume passes (scene segmentation, the skill generalization review); `strong`
 # runs the passes whose output becomes a durable head someone will read later.

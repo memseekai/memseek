@@ -1,0 +1,25 @@
+# yaml-language-server: $schema=../../schemas/catalog.schema.json
+name: crm_user_profile
+version: 2.0.0
+description: Maintain cited account profiles from CRM events.
+config:
+  models: conf/models.yaml
+  ranking: conf/rank_default.yaml
+  search_profiles: conf/search_profiles.yaml
+collections:
+  crm_events@1: collections/crm.yaml
+  user_profiles@1: collections/crm.yaml
+  playbooks@1: collections/crm.yaml
+processors:
+  crm_embedding: conf/processors.yaml
+  importance: conf/processors.yaml
+  deal_signals: conf/processors.yaml
+derivations:
+  crm_profile: derivations/crm_profile.yaml
+  crm_profile_rebuild: derivations/crm_profile_rebuild.yaml
+  crm_summary: derivations/crm_summary.yaml
+views:
+  crm_history@1: views/crm_history.yaml
+artifacts:
+  crm_profile_brief@1: artifacts/profile_brief.yaml
+  crm_profile_candidate@1: artifacts/profile_candidate.yaml

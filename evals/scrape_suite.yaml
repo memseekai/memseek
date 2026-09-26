@@ -1,22 +1,25 @@
 # Scrape tasks for `memseek eval skill-learning`. Each task trains on some pages
 # of a site and tests on pages it never trained on, so a gain measures reused
 # site knowledge rather than a memorized answer. Checks are deterministic: the
-# value must satisfy `schema`, hold at least `min_items` rows, and have each
-# `field_coverage` field non-null on at least that fraction of rows.
+# value must satisfy `schema`, which the agent is also given, hold exactly the
+# target's `items` rows, and have each `field_coverage` field non-null on at
+# least that fraction of rows.
 # Sites built for scraping practice, so their rows are the same on every run.
 # Each hides the data somewhere a cold run has to find: that discovery is what
 # a playbook can carry to the next run.
 
-# The films load from a JSON endpoint when a year is clicked. A cold run clicks
-# through the page; a run that learned the endpoint can call it directly.
+# The films load from a JSON endpoint, one year per click, 2010 through 2015. A
+# cold run clicks through six years; a run that learned the endpoint can call
+# it directly. Training covers three of the years, so the test's other three
+# are pages it never saw.
 - id: oscars-ajax
   domain: www.scrapethissite.com
   train:
-    - {url: "https://www.scrapethissite.com/pages/ajax-javascript/", goal: "every film for the year 2015: title, awards, nominations, best_picture"}
-    - {url: "https://www.scrapethissite.com/pages/ajax-javascript/", goal: "every film for the year 2014: title, awards, nominations, best_picture"}
-    - {url: "https://www.scrapethissite.com/pages/ajax-javascript/", goal: "every film for the year 2013: title, awards, nominations, best_picture"}
+    # 2013: 12, 2014: 16, 2015: 16.
+    - {url: "https://www.scrapethissite.com/pages/ajax-javascript/", goal: "every film for the years 2013, 2014 and 2015: title, year, awards, nominations, best_picture", items: 44}
   test:
-    - {url: "https://www.scrapethissite.com/pages/ajax-javascript/", goal: "every film for the year 2012: title, awards, nominations, best_picture"}
+    # 2010: 13, 2011: 15, 2012: 15, 2013: 12, 2014: 16, 2015: 16.
+    - {url: "https://www.scrapethissite.com/pages/ajax-javascript/", goal: "every film for every year on the page, 2010 through 2015: title, year, awards, nominations, best_picture", items: 87}
   check:
     schema:
       type: object
@@ -24,17 +27,15 @@
       properties:
         items:
           type: array
-          # 2012 has exactly 15 films; more means another year leaked in.
-          maxItems: 15
           items:
             type: object
-            required: [title, awards, nominations]
+            required: [title, year, awards, nominations]
             properties:
               title: {type: string, minLength: 1}
+              year: {type: integer, minimum: 2010, maximum: 2015}
               awards: {type: integer, minimum: 0}
               nominations: {type: integer, minimum: 0}
               best_picture: {type: [boolean, "null"]}
-    min_items: 15
     field_coverage: {awards: 1.0, nominations: 1.0}
 
 # The page renders with JavaScript: its HTML holds no quote markup, only an
@@ -42,10 +43,10 @@
 - id: quotes-js
   domain: quotes.toscrape.com
   train:
-    - {url: "https://quotes.toscrape.com/js/", goal: "every quote on pages 1 and 2: text, author, tags"}
-    - {url: "https://quotes.toscrape.com/js/page/5/", goal: "every quote on pages 5 and 6: text, author, tags"}
+    - {url: "https://quotes.toscrape.com/js/", goal: "every quote on pages 1 and 2: text, author, tags", items: 20}
+    - {url: "https://quotes.toscrape.com/js/page/5/", goal: "every quote on pages 5 and 6: text, author, tags", items: 20}
   test:
-    - {url: "https://quotes.toscrape.com/js/page/3/", goal: "every quote on pages 3 and 4: text, author, tags"}
+    - {url: "https://quotes.toscrape.com/js/page/3/", goal: "every quote on pages 3 and 4: text, author, tags", items: 20}
   check:
     schema:
       type: object
@@ -53,7 +54,6 @@
       properties:
         items:
           type: array
-          maxItems: 20
           items:
             type: object
             required: [text, author]
@@ -61,7 +61,6 @@
               text: {type: string, minLength: 1}
               author: {type: string, minLength: 1}
               tags: {type: [array, "null"], items: {type: string}}
-    min_items: 20
     field_coverage: {tags: 0.9}
 
 # Static HTML with obvious markup: the control, where a playbook has little to
@@ -69,9 +68,9 @@
 - id: books-catalogue
   domain: books.toscrape.com
   train:
-    - {url: "https://books.toscrape.com/catalogue/page-1.html", goal: "every book on the page: title, price, availability"}
+    - {url: "https://books.toscrape.com/catalogue/page-1.html", goal: "every book on the page: title, price, availability", items: 20}
   test:
-    - {url: "https://books.toscrape.com/catalogue/page-3.html", goal: "every book on the page: title, price, availability"}
+    - {url: "https://books.toscrape.com/catalogue/page-3.html", goal: "every book on the page: title, price, availability", items: 20}
   check:
     schema:
       type: object
@@ -86,5 +85,4 @@
               title: {type: string, minLength: 1}
               price: {type: [string, number]}
               availability: {type: [string, "null"]}
-    min_items: 20
     field_coverage: {price: 1.0, availability: 0.9}

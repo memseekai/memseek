@@ -22,7 +22,9 @@ env:
     BH_HOME: "{state}"                # {state} is the pack's state directory
     BH_RUNTIME_DIR: "{runtime}"       # {runtime} is short and lasts one run
 capabilities: [exec, network]         # every Computer that runs it must allow these
-learns: true                          # opt into the learning convention below
+workspace:                            # optional: files the skill expects to find
+  dir: "{state}/agent-workspace"
+  from: {repo: "https://github.com/browser-use/browser-harness", ref: <commit>, path: agent-workspace}
 stop: [browser-harness, --reload]     # run after the harness exits
 ```
 
@@ -32,45 +34,54 @@ path below `{state}` exceeds that. `stop` runs after the harness exits, even whe
 the run fails, with the pack's environment. It is best effort, and its job is to
 shut down anything the pack started, such as browser-harness's daemon.
 
-The provider materializes a pack into `<skills_dir>/<name>/` in three steps:
+`workspace` copies a directory from a pinned commit of a git repository into
+`dir` before the harness starts. Use it for files the skill refers to that the
+installed tool does not ship, such as browser-harness's `agent_helpers.py` and
+`domain-skills/`. The directory is fetched once into `~/.memseek/skillpacks/`
+(`SKILLPACK_CACHE`), and a file already in `dir` is never replaced, so
+a kept `{state}` keeps what earlier runs changed.
+
+The provider installs a pack into `<skills_dir>/<name>/` in three steps:
 
 1. Run `skill.command`, or read `skill.file`, into `SKILL.md`.
-2. If `learns` is set and the run records learnings, append `LEARNING.md`.
-3. If the Computer mounted a playbook with a section for this pack, write it as
-   `PLAYBOOK.md` and point to it from `SKILL.md`.
+2. If the skill learns and has lessons, write its playbook as `PLAYBOOK.md`
+   and point to it from the top of `SKILL.md`.
+3. If the run records lessons for this skill, append the recording
+   instructions made from its `lessons`.
 
-## The learning convention
+## Declaring what the pack learns
 
-A pack declares no outbox paths, collections, or artifacts. `learns: true` is
-its only link to memory, and everything else belongs to the Computer:
+A pack declares no outbox paths, collections, or artifacts. Whether it learns
+is the toolset's choice: `learning: true` on its source. What is worth
+learning is the pack's own knowledge, so it declares that in `skillpack.yaml`:
 
-- **Write.** The agent records each learning,
-  `{text, content: {pack, kind, detail, helper_code?}, citations}`, through the
-  writeback tool the provider derives from `/outbox/learnings.jsonl`. The tool
-  checks every entry against the collection's schema when it is written and
-  returns what to fix, so a malformed learning is corrected within the run.
-  `LEARNING.md` tells the agent how. `text` starts with `[<pack>/<kind>] `,
-  which is how one playbook serves several packs.
-- **Ingest.** The Computer declares `/outbox/learnings.jsonl` once, as an
-  `observations` writeback. The generic outbox walk ingests it like any other
-  writeback file.
-- **Read.** The Computer mounts a playbook artifact at `/.memseek/playbook.md`
-  through its `context:` list. The provider copies this pack's rows from it
-  into `PLAYBOOK.md`, grouped by kind.
+```yaml
+lessons:
+  kinds:                     # each kind's description is what the agent reads
+    helper: The Python you piped into browser-harness that produced your final rows, in `code`.
+    navigation: A URL or JSON endpoint worth calling directly instead of clicking through the page.
+    extraction: Where each field lives on the page, and the selector that finds it.
+    pitfall: What went wrong, or a playbook lesson that proved false, and what is true now.
+  require: [helper]          # every call that records for this pack includes one
+  code: [helper]             # these lessons must carry runnable code
+  guidance: In a helper, use only browser-harness functions you actually called.
+```
 
-The catalog refuses a learning pack on a Computer that does not declare the
-learnings writeback. A new pack reuses the whole loop by setting
-`learns: true`.
+A pack without `lessons` records the built-in kinds: `helper`, `tip`, and
+`pitfall`. A toolset can override any field on the source. The storage, the
+tool, the instructions, and the playbook are built in. The full guide is
+`docs/skill-learning.md`, and the field reference is the "Skills that learn"
+section of `docs/toolsets.md`.
 
 ## Learning modes
 
 A run asks for one of three modes. The eval uses them to compare arms.
 
-| Mode | PLAYBOOK.md | LEARNING.md | `/outbox/learnings.jsonl` |
+| Mode | PLAYBOOK.md | Recording instructions | Lessons writeback |
 | --- | --- | --- | --- |
-| `off` | not mounted | not appended | dropped before collection |
-| `read` | mounted | not appended | dropped before collection |
-| `read_write` | mounted | appended | ingested |
+| `off` | not installed | not appended | dropped before collection |
+| `read` | installed | not appended | dropped before collection |
+| `read_write` | installed | appended | ingested |
 
 The pack's `{state}` directory has the same three modes, separately. `off` is a
 fresh directory per run. `read` is a copy of the entity's kept directory, so

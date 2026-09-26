@@ -27,22 +27,7 @@ def renewal_root(tmp_path: Path) -> Path:
 def _settings(settings: Settings, root: Path) -> Settings:
     return settings.model_copy(
         update={
-            "models_file": root / "conf/models.yaml",
-            "processors_file": root / "conf/processors.yaml",
-            "collections_dir": root / "collections",
-            "derivations_dir": root / "derivations",
-            "views_dir": None,
-            "triggers_dir": None,
-            "artifacts_dir": root / "artifacts",
-            "computers_dir": root / "computers",
-            "programs_dir": root / "programs",
-            "agents_dir": root / "agents",
-            "context_policies_dir": root / "context_policies",
-            "toolsets_dir": root / "toolsets",
-            "mcp_dir": root / "mcp",
-            "packages_dir": root / "packages",
-            "search_profiles_file": root / "conf/search_profiles.yaml",
-            "rank_default_file": root / "conf/rank_default.yaml",
+            "catalog_file": root / "catalog.yaml",
         }
     )
 
@@ -56,7 +41,13 @@ def _replace(path: Path, old: str, new: str) -> None:
 def _make_legacy(root: Path) -> None:
     """Rewind the fixture to a catalog published before toolsets existed."""
 
+    import yaml
+
     (root / "toolsets" / "renewal.yaml").unlink()
+    manifest = root / "catalog.yaml"
+    raw = yaml.safe_load(manifest.read_text())
+    raw.pop("toolsets")
+    manifest.write_text(yaml.safe_dump(raw, sort_keys=False))
     agents = root / "agents/renewal_analyst.yaml"
     document = agents.read_text(encoding="utf-8")
     agents.write_text(
@@ -72,11 +63,9 @@ def _make_legacy(root: Path) -> None:
         "      IDs. Load this before assessing an account.\n",
         "",
     )
-    _replace(
-        root / "packages/renewal.yaml",
-        "agents: [renewal_analyst@1, renewal_analyst@2]\ntoolsets: [renewal@1]\n",
-        "agents: [renewal_analyst@1]\n",
-    )
+    from reference_catalog import declare_test_sources
+
+    declare_test_sources(root, "agents/renewal_analyst.yaml")
     _replace(root / "mcp/renewal.yaml", "renewal_analyst@2", "renewal_analyst@1")
     _replace(root / "derivations/renewal_assessment.yaml", "renewal_analyst@2", "renewal_analyst@1")
 

@@ -1,0 +1,11 @@
+# yaml-language-server: $schema=../../../schemas/processors.schema.json
+# Every collection here is read by recency, never by similarity, so nothing is
+# embedded and no processor gates readiness. The constant score exists because
+# document ordering names one (CONTEXT_DOC_ORDER_SCORE defaults to importance).
+processors:
+  - name: importance
+    kind: score
+    source: constant
+    input: {collections: [scrape_tasks, skill_eval_runs]}
+    scale: [1, 10]
+    value: 5

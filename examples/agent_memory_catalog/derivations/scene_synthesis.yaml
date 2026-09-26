@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=../../../schemas/derivations.schema.json
 # L1 → L2. TencentDB Agent Memory stores one Markdown scene block per active
 # context.  The index is derived navigation metadata; it is not a synthetic
 # record containing every scene.  This catalog uses a bounded dynamic keyed

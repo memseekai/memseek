@@ -12,8 +12,6 @@ import re
 from collections.abc import Collection, Mapping
 from typing import Any
 
-from memseek.skillpacks import LEARNINGS_PATH
-
 _MAX_INLINE_SCHEMA_BYTES = 8 * 1024
 
 _PREAMBLE = (
@@ -68,7 +66,8 @@ def build_system_prompt(
     citation_ids: Collection[str],
     writeback_paths: Collection[str],
     writeback_tools: Mapping[str, str],
-    learning_packs: Collection[str],
+    learning_skills: Collection[str],
+    learning_writeback: str | None,
     playbooks: Mapping[str, str],
     root: str | None = None,
 ) -> str:
@@ -81,16 +80,17 @@ def build_system_prompt(
         _outbox_rule(writeback_paths, writeback_tools),
     ]
     sections.extend(_playbook_section(name, text) for name, text in sorted(playbooks.items()))
-    if learning_packs:
-        # The recording procedure sits at the end of each pack's SKILL.md, which a
+    if learning_skills and learning_writeback is not None:
+        # The recording procedure sits at the end of each skill's SKILL.md, which a
         # long upstream skill can push past where an agent stops reading.
-        names = ", ".join(sorted(learning_packs))
-        tool = writeback_tools.get(LEARNINGS_PATH)
-        how = f"call the {tool} tool" if tool else f"append to {LEARNINGS_PATH}"
+        names = ", ".join(sorted(learning_skills))
+        tool = writeback_tools.get(learning_writeback)
+        how = f"call the {tool} tool" if tool else f"append to {learning_writeback}"
         sections.append(
-            f"Before your final answer, record what you learned about this site: {how}, "
-            f'following the "Recording what you learned" section of the {names} skill. If '
-            "the tool rejects a call, fix what it names and call it again."
+            f"Before your final answer, record what you learned using the {names} "
+            f"skill{'s' if len(learning_skills) > 1 else ''}: {how}, following the recording "
+            "instructions at the end of each skill's SKILL.md. If the tool rejects a call, "
+            "fix what it names and call it again."
         )
     if toolset is not None and toolset.get("instructions"):
         sections.append(str(toolset["instructions"]))
@@ -111,14 +111,9 @@ def build_system_prompt(
 
 def _playbook_section(skill: str, playbook: str) -> str:
     # Inlined, not pointed at: a run that only lists the file re-derives what
-    # earlier runs already paid to learn.
-    return (
-        "## What earlier runs learned about this site\n\n"
-        f"This is the {skill} skill's PLAYBOOK.md. Start from it. Try its URLs, selectors, "
-        "and pitfalls before you explore, and explore only what it does not cover. When a "
-        "learning turns out to be wrong, say so in a new learning.\n\n"
-        f"{playbook.strip()}"
-    )
+    # earlier runs already paid to learn. What to do with it is the playbook's
+    # own text, which the catalog renders.
+    return f"## The {skill} skill's PLAYBOOK.md\n\n{playbook.strip()}"
 
 
 def _outbox_rule(writeback_paths: Collection[str], writeback_tools: Mapping[str, str]) -> str:

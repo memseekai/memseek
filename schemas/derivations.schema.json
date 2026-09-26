@@ -1,0 +1,1471 @@
+{
+  "$defs": {
+    "AccumulatorAggregate": {
+      "enum": [
+        "sum",
+        "count",
+        "avg",
+        "max",
+        "min",
+        "distinct_count"
+      ],
+      "type": "string"
+    },
+    "AccumulatorCondition": {
+      "additionalProperties": false,
+      "properties": {
+        "metric": {
+          "anyOf": [
+            {
+              "pattern": "^[a-z][a-z0-9_]{0,31}$",
+              "type": "string"
+            },
+            {
+              "const": "count",
+              "type": "string"
+            },
+            {
+              "$ref": "#/$defs/AccumulatorMetric"
+            }
+          ],
+          "title": "Metric"
+        },
+        "threshold": {
+          "title": "Threshold",
+          "type": "number"
+        },
+        "comparison": {
+          "default": "gte",
+          "enum": [
+            "gte",
+            "lte"
+          ],
+          "title": "Comparison",
+          "type": "string"
+        }
+      },
+      "required": [
+        "metric",
+        "threshold"
+      ],
+      "title": "AccumulatorCondition",
+      "type": "object"
+    },
+    "AccumulatorMetric": {
+      "additionalProperties": false,
+      "properties": {
+        "annotation": {
+          "anyOf": [
+            {
+              "pattern": "^[a-z][a-z0-9_]{0,31}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Annotation"
+        },
+        "path": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Path"
+        },
+        "scorer": {
+          "anyOf": [
+            {
+              "pattern": "^[a-z][a-z0-9_]{0,31}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Scorer"
+        },
+        "aggregate": {
+          "$ref": "#/$defs/AccumulatorAggregate",
+          "default": "sum"
+        }
+      },
+      "title": "AccumulatorMetric",
+      "type": "object"
+    },
+    "AtCondition": {
+      "additionalProperties": false,
+      "description": "Fire when the wall clock passes a datetime declared in a record field.",
+      "properties": {
+        "collections": {
+          "items": {
+            "$ref": "#/$defs/CollectionScopeName"
+          },
+          "title": "Collections",
+          "type": "array"
+        },
+        "collection_versions": {
+          "patternProperties": {
+            "^[a-z][a-z0-9._-]{0,63}$": {
+              "items": {
+                "type": "integer"
+              },
+              "type": "array"
+            }
+          },
+          "title": "Collection Versions",
+          "type": "object"
+        },
+        "types": {
+          "default": [],
+          "items": {
+            "pattern": "^[a-z][a-z0-9._-]{0,63}$",
+            "type": "string"
+          },
+          "title": "Types",
+          "type": "array"
+        },
+        "statuses": {
+          "default": [
+            "active"
+          ],
+          "items": {
+            "enum": [
+              "active",
+              "draft"
+            ],
+            "type": "string"
+          },
+          "title": "Statuses",
+          "type": "array"
+        },
+        "keyed": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "const": "any",
+              "type": "string"
+            }
+          ],
+          "default": "any",
+          "title": "Keyed"
+        },
+        "where": {
+          "patternProperties": {
+            "^[a-z][a-z0-9._-]{0,63}$": {
+              "additionalProperties": true,
+              "type": "object"
+            }
+          },
+          "title": "Where",
+          "type": "object"
+        },
+        "ignore_own_outputs": {
+          "default": false,
+          "title": "Ignore Own Outputs",
+          "type": "boolean"
+        },
+        "field": {
+          "pattern": "^[a-z][a-z0-9._-]{0,63}$",
+          "title": "Field",
+          "type": "string"
+        },
+        "offset_s": {
+          "default": 0,
+          "maximum": 31536000,
+          "minimum": -31536000,
+          "title": "Offset S",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "collections",
+        "field"
+      ],
+      "title": "AtCondition",
+      "type": "object"
+    },
+    "CensusCondition": {
+      "additionalProperties": false,
+      "description": "Fire when new driver data arrives and the current census meets a floor.",
+      "properties": {
+        "collections": {
+          "items": {
+            "$ref": "#/$defs/CollectionScopeName"
+          },
+          "title": "Collections",
+          "type": "array"
+        },
+        "collection_versions": {
+          "patternProperties": {
+            "^[a-z][a-z0-9._-]{0,63}$": {
+              "items": {
+                "type": "integer"
+              },
+              "type": "array"
+            }
+          },
+          "title": "Collection Versions",
+          "type": "object"
+        },
+        "types": {
+          "default": [],
+          "items": {
+            "pattern": "^[a-z][a-z0-9._-]{0,63}$",
+            "type": "string"
+          },
+          "title": "Types",
+          "type": "array"
+        },
+        "statuses": {
+          "default": [
+            "active"
+          ],
+          "items": {
+            "enum": [
+              "active",
+              "draft"
+            ],
+            "type": "string"
+          },
+          "title": "Statuses",
+          "type": "array"
+        },
+        "keyed": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "const": "any",
+              "type": "string"
+            }
+          ],
+          "default": "any",
+          "title": "Keyed"
+        },
+        "where": {
+          "patternProperties": {
+            "^[a-z][a-z0-9._-]{0,63}$": {
+              "additionalProperties": true,
+              "type": "object"
+            }
+          },
+          "title": "Where",
+          "type": "object"
+        },
+        "ignore_own_outputs": {
+          "default": false,
+          "title": "Ignore Own Outputs",
+          "type": "boolean"
+        },
+        "threshold": {
+          "minimum": 1,
+          "title": "Threshold",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "collections",
+        "threshold"
+      ],
+      "title": "CensusCondition",
+      "type": "object"
+    },
+    "ChangedCondition": {
+      "additionalProperties": false,
+      "description": "Fire when a keyed head is added, changed, or removed \u2014 not on rewrites.",
+      "properties": {
+        "collections": {
+          "items": {
+            "$ref": "#/$defs/CollectionScopeName"
+          },
+          "title": "Collections",
+          "type": "array"
+        },
+        "collection_versions": {
+          "patternProperties": {
+            "^[a-z][a-z0-9._-]{0,63}$": {
+              "items": {
+                "type": "integer"
+              },
+              "type": "array"
+            }
+          },
+          "title": "Collection Versions",
+          "type": "object"
+        },
+        "types": {
+          "default": [],
+          "items": {
+            "pattern": "^[a-z][a-z0-9._-]{0,63}$",
+            "type": "string"
+          },
+          "title": "Types",
+          "type": "array"
+        },
+        "statuses": {
+          "default": [
+            "active"
+          ],
+          "items": {
+            "enum": [
+              "active",
+              "draft"
+            ],
+            "type": "string"
+          },
+          "title": "Statuses",
+          "type": "array"
+        },
+        "keyed": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "const": "any",
+              "type": "string"
+            }
+          ],
+          "default": "any",
+          "title": "Keyed"
+        },
+        "where": {
+          "patternProperties": {
+            "^[a-z][a-z0-9._-]{0,63}$": {
+              "additionalProperties": true,
+              "type": "object"
+            }
+          },
+          "title": "Where",
+          "type": "object"
+        },
+        "ignore_own_outputs": {
+          "default": false,
+          "title": "Ignore Own Outputs",
+          "type": "boolean"
+        },
+        "keys": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Keys",
+          "type": "array"
+        },
+        "transitions": {
+          "default": [
+            "added",
+            "changed",
+            "removed"
+          ],
+          "items": {
+            "enum": [
+              "added",
+              "changed",
+              "removed"
+            ],
+            "type": "string"
+          },
+          "title": "Transitions",
+          "type": "array"
+        }
+      },
+      "required": [
+        "collections"
+      ],
+      "title": "ChangedCondition",
+      "type": "object"
+    },
+    "CollectionScopeName": {
+      "anyOf": [
+        {
+          "pattern": "^[a-z][a-z0-9._-]{0,63}$",
+          "type": "string"
+        },
+        {
+          "const": "_system",
+          "type": "string"
+        }
+      ]
+    },
+    "CronCondition": {
+      "additionalProperties": false,
+      "properties": {
+        "expr": {
+          "minLength": 1,
+          "title": "Expr",
+          "type": "string"
+        },
+        "entities": {
+          "default": "dirty",
+          "enum": [
+            "dirty",
+            "any"
+          ],
+          "title": "Entities",
+          "type": "string"
+        }
+      },
+      "required": [
+        "expr"
+      ],
+      "title": "CronCondition",
+      "type": "object"
+    },
+    "CurrentSource": {
+      "additionalProperties": false,
+      "description": "A guarded read of current keyed records.",
+      "properties": {
+        "collections": {
+          "items": {
+            "$ref": "#/$defs/CollectionScopeName"
+          },
+          "title": "Collections",
+          "type": "array"
+        },
+        "collection_versions": {
+          "patternProperties": {
+            "^[a-z][a-z0-9._-]{0,63}$": {
+              "items": {
+                "type": "integer"
+              },
+              "type": "array"
+            }
+          },
+          "title": "Collection Versions",
+          "type": "object"
+        },
+        "types": {
+          "default": [],
+          "items": {
+            "pattern": "^[a-z][a-z0-9._-]{0,63}$",
+            "type": "string"
+          },
+          "title": "Types",
+          "type": "array"
+        },
+        "statuses": {
+          "default": [
+            "active"
+          ],
+          "items": {
+            "enum": [
+              "active",
+              "draft"
+            ],
+            "type": "string"
+          },
+          "title": "Statuses",
+          "type": "array"
+        },
+        "keyed": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "const": "any",
+              "type": "string"
+            }
+          ],
+          "default": "any",
+          "title": "Keyed"
+        },
+        "kind": {
+          "const": "current",
+          "title": "Kind",
+          "type": "string"
+        },
+        "keys": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Keys",
+          "type": "array"
+        },
+        "max_records": {
+          "default": 100,
+          "maximum": 500,
+          "minimum": 1,
+          "title": "Max Records",
+          "type": "integer"
+        },
+        "max_tokens": {
+          "default": 12000,
+          "minimum": 1,
+          "title": "Max Tokens",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "collections",
+        "kind"
+      ],
+      "title": "CurrentSource",
+      "type": "object"
+    },
+    "EmitDefinition": {
+      "additionalProperties": false,
+      "description": "Canonical-write boundary; transition details are inferred.\n\n``driver_key`` carries one captured driver key into one output.  The\nseparately opt-in ``dynamic_keys`` mode supports a *bounded* set of named\nkeyed blocks, such as independently maintained scene documents.  It must\ndeclare ``max_active_keys`` so the engine can snapshot every current head\nand enforce the collection-wide bound before committing a change.",
+      "properties": {
+        "from": {
+          "minLength": 1,
+          "title": "From",
+          "type": "string"
+        },
+        "collection": {
+          "pattern": "^[a-z][a-z0-9._-]{0,63}$",
+          "title": "Collection",
+          "type": "string"
+        },
+        "collection_version": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Collection Version"
+        },
+        "type": {
+          "pattern": "^[a-z][a-z0-9._-]{0,63}$",
+          "title": "Type",
+          "type": "string"
+        },
+        "keys": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Keys",
+          "type": "array"
+        },
+        "driver_key": {
+          "default": false,
+          "title": "Driver Key",
+          "type": "boolean"
+        },
+        "dynamic_keys": {
+          "default": false,
+          "title": "Dynamic Keys",
+          "type": "boolean"
+        },
+        "max_active_keys": {
+          "anyOf": [
+            {
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Active Keys"
+        },
+        "complete": {
+          "default": false,
+          "title": "Complete",
+          "type": "boolean"
+        },
+        "review": {
+          "anyOf": [
+            {
+              "const": "required",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Review"
+        },
+        "max_records": {
+          "default": 50,
+          "maximum": 100,
+          "minimum": 1,
+          "title": "Max Records",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "from",
+        "collection",
+        "type"
+      ],
+      "title": "EmitDefinition",
+      "type": "object"
+    },
+    "LifecycleCondition": {
+      "additionalProperties": false,
+      "description": "Fire on an entity's first matching record or total-record growth.",
+      "properties": {
+        "first_record": {
+          "default": false,
+          "title": "First Record",
+          "type": "boolean"
+        },
+        "total_records": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Total Records"
+        }
+      },
+      "title": "LifecycleCondition",
+      "type": "object"
+    },
+    "PipelineLimits": {
+      "additionalProperties": false,
+      "description": "Run-wide limits shared by every built-in or installed Task.",
+      "properties": {
+        "max_tasks": {
+          "default": 10,
+          "maximum": 20,
+          "minimum": 1,
+          "title": "Max Tasks",
+          "type": "integer"
+        },
+        "max_llm_calls": {
+          "default": 4,
+          "minimum": 0,
+          "title": "Max Llm Calls",
+          "type": "integer"
+        },
+        "max_retrieved_records": {
+          "default": 100,
+          "minimum": 0,
+          "title": "Max Retrieved Records",
+          "type": "integer"
+        },
+        "max_visible_records": {
+          "default": 250,
+          "minimum": 1,
+          "title": "Max Visible Records",
+          "type": "integer"
+        },
+        "max_total_tokens": {
+          "default": 50000,
+          "minimum": 1,
+          "title": "Max Total Tokens",
+          "type": "integer"
+        },
+        "max_wall_s": {
+          "default": 120,
+          "minimum": 1,
+          "title": "Max Wall S",
+          "type": "integer"
+        },
+        "max_computer_runs": {
+          "default": 0,
+          "maximum": 20,
+          "minimum": 0,
+          "title": "Max Computer Runs",
+          "type": "integer"
+        },
+        "max_agent_steps": {
+          "default": 32,
+          "maximum": 128,
+          "minimum": 1,
+          "title": "Max Agent Steps",
+          "type": "integer"
+        },
+        "max_computer_output_bytes": {
+          "default": 10485760,
+          "maximum": 67108864,
+          "minimum": 1,
+          "title": "Max Computer Output Bytes",
+          "type": "integer"
+        },
+        "max_preserved_bytes": {
+          "default": 52428800,
+          "maximum": 536870912,
+          "minimum": 0,
+          "title": "Max Preserved Bytes",
+          "type": "integer"
+        }
+      },
+      "title": "PipelineLimits",
+      "type": "object"
+    },
+    "PipelineSource": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/StreamSource"
+        },
+        {
+          "$ref": "#/$defs/CurrentSource"
+        },
+        {
+          "$ref": "#/$defs/RecordSource"
+        },
+        {
+          "$ref": "#/$defs/ViewSource"
+        }
+      ]
+    },
+    "QuietCondition": {
+      "additionalProperties": false,
+      "description": "Fire once matching arrivals have settled for ``after_s`` seconds.",
+      "properties": {
+        "collections": {
+          "items": {
+            "$ref": "#/$defs/CollectionScopeName"
+          },
+          "title": "Collections",
+          "type": "array"
+        },
+        "collection_versions": {
+          "patternProperties": {
+            "^[a-z][a-z0-9._-]{0,63}$": {
+              "items": {
+                "type": "integer"
+              },
+              "type": "array"
+            }
+          },
+          "title": "Collection Versions",
+          "type": "object"
+        },
+        "types": {
+          "default": [],
+          "items": {
+            "pattern": "^[a-z][a-z0-9._-]{0,63}$",
+            "type": "string"
+          },
+          "title": "Types",
+          "type": "array"
+        },
+        "statuses": {
+          "default": [
+            "active"
+          ],
+          "items": {
+            "enum": [
+              "active",
+              "draft"
+            ],
+            "type": "string"
+          },
+          "title": "Statuses",
+          "type": "array"
+        },
+        "keyed": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "const": "any",
+              "type": "string"
+            }
+          ],
+          "default": "any",
+          "title": "Keyed"
+        },
+        "where": {
+          "patternProperties": {
+            "^[a-z][a-z0-9._-]{0,63}$": {
+              "additionalProperties": true,
+              "type": "object"
+            }
+          },
+          "title": "Where",
+          "type": "object"
+        },
+        "ignore_own_outputs": {
+          "default": false,
+          "title": "Ignore Own Outputs",
+          "type": "boolean"
+        },
+        "after_s": {
+          "maximum": 604800,
+          "minimum": 1,
+          "title": "After S",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "collections",
+        "after_s"
+      ],
+      "title": "QuietCondition",
+      "type": "object"
+    },
+    "RecordSource": {
+      "additionalProperties": false,
+      "description": "A guarded read of one current keyed slot.",
+      "properties": {
+        "kind": {
+          "const": "record",
+          "title": "Kind",
+          "type": "string"
+        },
+        "collection": {
+          "pattern": "^[a-z][a-z0-9._-]{0,63}$",
+          "title": "Collection",
+          "type": "string"
+        },
+        "collection_version": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Collection Version"
+        },
+        "key": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Key",
+          "type": "string"
+        },
+        "type": {
+          "anyOf": [
+            {
+              "pattern": "^[a-z][a-z0-9._-]{0,63}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Type"
+        },
+        "status": {
+          "default": "active",
+          "enum": [
+            "active",
+            "draft"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "max_tokens": {
+          "default": 4000,
+          "minimum": 1,
+          "title": "Max Tokens",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "kind",
+        "collection",
+        "key"
+      ],
+      "title": "RecordSource",
+      "type": "object"
+    },
+    "RetractionCondition": {
+      "additionalProperties": false,
+      "description": "Fire when a ready tombstone lands above the watermark.",
+      "properties": {
+        "collections": {
+          "items": {
+            "$ref": "#/$defs/CollectionScopeName"
+          },
+          "title": "Collections",
+          "type": "array"
+        },
+        "collection_versions": {
+          "patternProperties": {
+            "^[a-z][a-z0-9._-]{0,63}$": {
+              "items": {
+                "type": "integer"
+              },
+              "type": "array"
+            }
+          },
+          "title": "Collection Versions",
+          "type": "object"
+        },
+        "types": {
+          "default": [],
+          "items": {
+            "pattern": "^[a-z][a-z0-9._-]{0,63}$",
+            "type": "string"
+          },
+          "title": "Types",
+          "type": "array"
+        },
+        "statuses": {
+          "default": [
+            "active"
+          ],
+          "items": {
+            "enum": [
+              "active",
+              "draft"
+            ],
+            "type": "string"
+          },
+          "title": "Statuses",
+          "type": "array"
+        },
+        "keyed": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "const": "any",
+              "type": "string"
+            }
+          ],
+          "default": "any",
+          "title": "Keyed"
+        },
+        "where": {
+          "patternProperties": {
+            "^[a-z][a-z0-9._-]{0,63}$": {
+              "additionalProperties": true,
+              "type": "object"
+            }
+          },
+          "title": "Where",
+          "type": "object"
+        },
+        "ignore_own_outputs": {
+          "default": false,
+          "title": "Ignore Own Outputs",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "collections"
+      ],
+      "title": "RetractionCondition",
+      "type": "object"
+    },
+    "SnapshotWindow": {
+      "additionalProperties": false,
+      "description": "Narrows a snapshot corpus to a recent tail or an occurred_at range.\n\nA plain snapshot reads every matching record through the checkpoint.  A\nwindow declares a smaller corpus so \"complete\" holds over that corpus:\neither the most recent `recent` records, or the records whose `occurred_at`\nfalls in `[since, until]`.  The window is recorded in the receipt (`from_seq`)\nso the run stays reproducible and honest about what it excluded.",
+      "properties": {
+        "recent": {
+          "anyOf": [
+            {
+              "maximum": 500,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Recent"
+        },
+        "since": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Since"
+        },
+        "until": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Until"
+        }
+      },
+      "title": "SnapshotWindow",
+      "type": "object"
+    },
+    "StreamSource": {
+      "additionalProperties": false,
+      "description": "The one source that drives a pipeline run.",
+      "properties": {
+        "collections": {
+          "items": {
+            "$ref": "#/$defs/CollectionScopeName"
+          },
+          "title": "Collections",
+          "type": "array"
+        },
+        "collection_versions": {
+          "patternProperties": {
+            "^[a-z][a-z0-9._-]{0,63}$": {
+              "items": {
+                "type": "integer"
+              },
+              "type": "array"
+            }
+          },
+          "title": "Collection Versions",
+          "type": "object"
+        },
+        "types": {
+          "default": [],
+          "items": {
+            "pattern": "^[a-z][a-z0-9._-]{0,63}$",
+            "type": "string"
+          },
+          "title": "Types",
+          "type": "array"
+        },
+        "statuses": {
+          "default": [
+            "active"
+          ],
+          "items": {
+            "enum": [
+              "active",
+              "draft"
+            ],
+            "type": "string"
+          },
+          "title": "Statuses",
+          "type": "array"
+        },
+        "keyed": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "const": "any",
+              "type": "string"
+            }
+          ],
+          "default": "any",
+          "title": "Keyed"
+        },
+        "kind": {
+          "enum": [
+            "changes",
+            "snapshot",
+            "stale_citations"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "max_records": {
+          "default": 200,
+          "maximum": 500,
+          "minimum": 1,
+          "title": "Max Records",
+          "type": "integer"
+        },
+        "max_tokens": {
+          "default": 24000,
+          "minimum": 1,
+          "title": "Max Tokens",
+          "type": "integer"
+        },
+        "allow_empty": {
+          "default": false,
+          "title": "Allow Empty",
+          "type": "boolean"
+        },
+        "window": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SnapshotWindow"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "collections",
+        "kind"
+      ],
+      "title": "StreamSource",
+      "type": "object"
+    },
+    "TaskCall": {
+      "additionalProperties": false,
+      "description": "One call to a process-installed Task Adapter.",
+      "properties": {
+        "id": {
+          "pattern": "^[a-z][a-z0-9._-]{0,63}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "use": {
+          "pattern": "^[a-z][a-z0-9_]{0,31}$",
+          "title": "Use",
+          "type": "string"
+        },
+        "input": {
+          "anyOf": [
+            {},
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Input"
+        },
+        "with": {
+          "additionalProperties": true,
+          "title": "With",
+          "type": "object"
+        }
+      },
+      "required": [
+        "id",
+        "use"
+      ],
+      "title": "TaskCall",
+      "type": "object"
+    },
+    "TriggerConditions": {
+      "additionalProperties": false,
+      "properties": {
+        "read": {
+          "default": false,
+          "title": "Read",
+          "type": "boolean"
+        },
+        "accumulator": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AccumulatorCondition"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "cron": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CronCondition"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "write": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/WriteCondition"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "quiet": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/QuietCondition"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "at": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AtCondition"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "changed": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ChangedCondition"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "census": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CensusCondition"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "lifecycle": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LifecycleCondition"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "retraction": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RetractionCondition"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "cooldown_s": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Cooldown S",
+          "type": "integer"
+        },
+        "debounce_s": {
+          "default": 0,
+          "maximum": 604800,
+          "minimum": 0,
+          "title": "Debounce S",
+          "type": "integer"
+        }
+      },
+      "title": "TriggerConditions",
+      "type": "object"
+    },
+    "ViewSource": {
+      "additionalProperties": false,
+      "description": "A bounded named-view query evaluated at run time.",
+      "properties": {
+        "kind": {
+          "const": "view",
+          "title": "Kind",
+          "type": "string"
+        },
+        "view": {
+          "minLength": 1,
+          "title": "View",
+          "type": "string"
+        },
+        "params": {
+          "patternProperties": {
+            "^[a-z][a-z0-9._-]{0,63}$": {}
+          },
+          "title": "Params",
+          "type": "object"
+        },
+        "max_tokens": {
+          "default": 4000,
+          "minimum": 1,
+          "title": "Max Tokens",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "kind",
+        "view"
+      ],
+      "title": "ViewSource",
+      "type": "object"
+    },
+    "WriteCondition": {
+      "additionalProperties": false,
+      "properties": {
+        "collections": {
+          "items": {
+            "$ref": "#/$defs/CollectionScopeName"
+          },
+          "title": "Collections",
+          "type": "array"
+        },
+        "collection_versions": {
+          "patternProperties": {
+            "^[a-z][a-z0-9._-]{0,63}$": {
+              "items": {
+                "type": "integer"
+              },
+              "type": "array"
+            }
+          },
+          "title": "Collection Versions",
+          "type": "object"
+        },
+        "types": {
+          "default": [],
+          "items": {
+            "pattern": "^[a-z][a-z0-9._-]{0,63}$",
+            "type": "string"
+          },
+          "title": "Types",
+          "type": "array"
+        },
+        "statuses": {
+          "default": [
+            "active"
+          ],
+          "items": {
+            "enum": [
+              "active",
+              "draft"
+            ],
+            "type": "string"
+          },
+          "title": "Statuses",
+          "type": "array"
+        },
+        "keyed": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "const": "any",
+              "type": "string"
+            }
+          ],
+          "default": "any",
+          "title": "Keyed"
+        },
+        "where": {
+          "patternProperties": {
+            "^[a-z][a-z0-9._-]{0,63}$": {
+              "additionalProperties": true,
+              "type": "object"
+            }
+          },
+          "title": "Where",
+          "type": "object"
+        },
+        "ignore_own_outputs": {
+          "default": false,
+          "title": "Ignore Own Outputs",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "collections"
+      ],
+      "title": "WriteCondition",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "A bounded dataflow whose Tasks cannot write canonical state directly.",
+  "properties": {
+    "name": {
+      "pattern": "^[a-z][a-z0-9_]{0,31}$",
+      "title": "Name",
+      "type": "string"
+    },
+    "definition_hash": {
+      "default": "",
+      "title": "Definition Hash",
+      "type": "string"
+    },
+    "trigger": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/TriggerConditions"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "sources": {
+      "patternProperties": {
+        "^[a-z][a-z0-9._-]{0,63}$": {
+          "$ref": "#/$defs/PipelineSource"
+        }
+      },
+      "title": "Sources",
+      "type": "object"
+    },
+    "model": {
+      "anyOf": [
+        {
+          "pattern": "^[a-z][a-z0-9_]{0,31}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Model"
+    },
+    "limits": {
+      "$ref": "#/$defs/PipelineLimits"
+    },
+    "tasks": {
+      "items": {
+        "$ref": "#/$defs/TaskCall"
+      },
+      "title": "Tasks",
+      "type": "array"
+    },
+    "emit": {
+      "$ref": "#/$defs/EmitDefinition"
+    }
+  },
+  "required": [
+    "name",
+    "sources",
+    "tasks",
+    "emit"
+  ],
+  "title": "PipelineDefinition",
+  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}

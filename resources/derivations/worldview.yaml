@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=../../schemas/derivations.schema.json
 # Tier 2 of the reflective loop: distil the agent's own reflections into a
 # small set of durable convictions. Fires once THREE new reflection insights
 # have accumulated (count accumulator over the driving source) — "enough

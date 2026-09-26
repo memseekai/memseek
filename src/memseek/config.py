@@ -62,15 +62,10 @@ class Settings(BaseSettings):
     max_prompt_tokens: int = 50_000
     max_output_tokens: int = 4_000
 
-    # Catalog definitions are NOT loaded by default. Unset means "this process
-    # ships no definitions of its own"; a workspace gets its catalog by
-    # publishing one, and nothing is inherited from whatever happens to sit on
-    # disk beside the service. Point these at a directory — `resources/` holds
-    # the reference catalog, `examples/*_catalog/` hold self-contained ones —
-    # only when you deliberately want that catalog compiled at startup.
-    #
-    # An explicitly configured path that does not exist is still an error. The
-    # tolerated case is absence of configuration, never a typo in it.
+    # The root source map is the only filesystem catalog entry point.
+    # Unset means workspaces must publish their own catalogs.
+    catalog_file: Path | None = None
+    # Compiler document-slot metadata; legacy directory discovery is rejected.
     processors_file: Path | None = None
     collections_dir: Path | None = None
     triggers_dir: Path | None = None
@@ -107,29 +102,12 @@ class Settings(BaseSettings):
 
         False for the shipped defaults, and that is the point: a service with
         no configured catalog cannot hand a workspace definitions it never
-        asked for. When it is True the operator named a directory on purpose,
-        so serving it to a workspace that has published nothing is a choice
-        they made rather than an accident of the working directory.
+        asked for. When it is True the operator named a catalog.yaml on
+        purpose, so serving it to a workspace that has published nothing is a
+        choice they made rather than an accident of the working directory.
         """
 
-        return any(
-            source is not None
-            for source in (
-                self.collections_dir,
-                self.derivations_dir,
-                self.views_dir,
-                self.artifacts_dir,
-                self.computers_dir,
-                self.programs_dir,
-                self.agents_dir,
-                self.context_policies_dir,
-                self.toolsets_dir,
-                self.packages_dir,
-                self.mcp_dir,
-                self.triggers_dir,
-                self.processors_file,
-            )
-        )
+        return self.catalog_file is not None
 
     task_modules: tuple[str, ...] = (
         "memseek.derive.tasks_computer",
@@ -173,6 +151,8 @@ class Settings(BaseSettings):
     # Where harness and skill pack modules are discovered, first match wins.
     harness_paths: tuple[Path, ...] = (_REPOSITORY_ROOT / "harnesses",)
     skillpack_paths: tuple[Path, ...] = (_REPOSITORY_ROOT / "skillpacks",)
+    # Files a skill pack copies into its workspace, fetched once per pinned ref.
+    skillpack_cache: Path = Field(default_factory=lambda: Path.home() / ".memseek/skillpacks")
 
     worker_poll_ms: int = 500
     worker_concurrency: int = 4

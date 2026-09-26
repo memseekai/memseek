@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=../../schemas/derivations.schema.json
 # Tier 4 — the escalation that closes the loop. One stray edge can be noise;
 # a standing BIND is a crisis of belief. The `census` condition fires only when
 # the entity has >= 2 standing self_contradiction edges AND a new one just

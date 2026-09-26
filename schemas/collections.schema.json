@@ -1,0 +1,202 @@
+{
+  "$defs": {
+    "CollectionDefinition": {
+      "additionalProperties": false,
+      "description": "One durable record contract plus the bindings attached to it.\n\n``contract_hash`` is the identity persisted on every record: it covers the\nfields that determine how a stored row is read (``mode``, ``schema``,\n``text_projection``, ``fields``, ``required_processors``).  The remaining\nfields are bindings \u2014 they change what else happens to a row, never what the\nrow means \u2014 so editing them does not strand existing records.  See\n``definitions/hashing.py`` for the exact split.",
+      "properties": {
+        "name": {
+          "pattern": "^[a-z][a-z0-9._-]{0,63}$",
+          "title": "Name",
+          "type": "string"
+        },
+        "definition_hash": {
+          "default": "",
+          "title": "Definition Hash",
+          "type": "string"
+        },
+        "version": {
+          "minimum": 1,
+          "title": "Version",
+          "type": "integer"
+        },
+        "active": {
+          "default": false,
+          "title": "Active",
+          "type": "boolean"
+        },
+        "mode": {
+          "enum": [
+            "event",
+            "keyed",
+            "mixed"
+          ],
+          "title": "Mode",
+          "type": "string"
+        },
+        "schema": {
+          "additionalProperties": true,
+          "title": "Schema",
+          "type": "object"
+        },
+        "text_projection": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Text Projection"
+        },
+        "fields": {
+          "patternProperties": {
+            "^[a-z][a-z0-9._-]{0,63}$": {
+              "$ref": "#/$defs/DeclaredField"
+            }
+          },
+          "title": "Fields",
+          "type": "object"
+        },
+        "required_processors": {
+          "default": [],
+          "items": {
+            "pattern": "^[a-z][a-z0-9_]{0,31}$",
+            "type": "string"
+          },
+          "title": "Required Processors",
+          "type": "array"
+        },
+        "optional_processors": {
+          "default": [],
+          "items": {
+            "pattern": "^[a-z][a-z0-9_]{0,31}$",
+            "type": "string"
+          },
+          "title": "Optional Processors",
+          "type": "array"
+        },
+        "search_profile": {
+          "pattern": "^[a-z][a-z0-9._-]{0,63}$",
+          "title": "Search Profile",
+          "type": "string"
+        },
+        "allowed_search_profiles": {
+          "default": [],
+          "items": {
+            "pattern": "^[a-z][a-z0-9._-]{0,63}$",
+            "type": "string"
+          },
+          "title": "Allowed Search Profiles",
+          "type": "array"
+        },
+        "answerable": {
+          "default": false,
+          "title": "Answerable",
+          "type": "boolean"
+        },
+        "contract_hash": {
+          "default": "",
+          "title": "Contract Hash",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "version",
+        "mode",
+        "schema",
+        "search_profile"
+      ],
+      "title": "CollectionDefinition",
+      "type": "object"
+    },
+    "DeclaredField": {
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "title": "Path",
+          "type": "string"
+        },
+        "type": {
+          "anyOf": [
+            {
+              "enum": [
+                "string",
+                "number",
+                "integer",
+                "boolean",
+                "datetime"
+              ],
+              "type": "string"
+            },
+            {
+              "maxItems": 1,
+              "minItems": 1,
+              "prefixItems": [
+                {
+                  "enum": [
+                    "string",
+                    "number",
+                    "integer",
+                    "boolean",
+                    "datetime"
+                  ],
+                  "type": "string"
+                }
+              ],
+              "type": "array"
+            }
+          ],
+          "title": "Type"
+        },
+        "filter": {
+          "default": false,
+          "title": "Filter",
+          "type": "boolean"
+        },
+        "sort": {
+          "default": false,
+          "title": "Sort",
+          "type": "boolean"
+        },
+        "project": {
+          "default": false,
+          "title": "Project",
+          "type": "boolean"
+        },
+        "fallback_paths": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Fallback Paths",
+          "type": "array"
+        }
+      },
+      "required": [
+        "path",
+        "type"
+      ],
+      "title": "DeclaredField",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "collections": {
+      "items": {
+        "$ref": "#/$defs/CollectionDefinition"
+      },
+      "title": "Collections",
+      "type": "array"
+    }
+  },
+  "required": [
+    "collections"
+  ],
+  "title": "CollectionDefinitionFile",
+  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}

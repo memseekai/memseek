@@ -36,13 +36,24 @@ def build_parser() -> argparse.ArgumentParser:
     reindex.add_argument("--since-seq", type=int)
     reindex.add_argument("--reset", action="store_true")
     reindex.add_argument("--yes", action="store_true", help="confirm reset outside test databases")
+    for name, help_text in (
+        ("catalog-validate", "validate a local catalog without a database or credentials"),
+        ("catalog-locate", "locate a definition in the catalog source files"),
+    ):
+        command = subparsers.add_parser(name, help=help_text)
+        command.add_argument("--dir", help="catalog directory; defaults to nearest catalog.yaml")
+        command.add_argument("--json", action="store_true", help="emit machine-readable output")
+        if name == "catalog-locate":
+            command.add_argument("reference", help="name or exact name@version")
+            command.add_argument("--kind", help="definition family, e.g. artifacts or derivations")
+
     check = subparsers.add_parser(
         "catalog-check",
         help="report what publishing a catalog directory would do to a workspace",
     )
     check.add_argument("--workspace", required=True)
     check.add_argument("--dir", required=True, help="catalog directory to compile")
-    check.add_argument("--package", required=True, help="exact name@semver package reference")
+    check.add_argument("--package", help="defaults to the identity in catalog.yaml")
 
     graph = subparsers.add_parser(
         "catalog-graph",
@@ -144,12 +155,24 @@ def build_parser() -> argparse.ArgumentParser:
         help="comma-separated: cold, native, playbook, playbook+native",
     )
     learning.add_argument("--k-train", type=int, default=3, help="training runs per trial")
+    learning.add_argument(
+        "--catalog",
+        type=Path,
+        default=Path("examples/site_scrape_catalog"),
+        help="catalog directory published before the suite runs",
+    )
+    learning.add_argument("--package", default="site_scrape@1.0.0")
     learning.add_argument("--computer", default="scrape_workspace@1")
     learning.add_argument("--agent", default="site_scraper@1")
     learning.add_argument("--context-policy", default="scrape_budget@1")
     learning.add_argument("--url", default=os.environ.get("MEMSEEK_URL", "http://127.0.0.1:8000"))
     learning.add_argument("--api-key", default=os.environ.get("MEMSEEK_API_KEY"))
     learning.add_argument("--json", action="store_true", help="print the report as JSON")
+    learning.add_argument(
+        "--out",
+        type=Path,
+        help="results file (default: out/skill-learning/<suite>-<UTC time>.json)",
+    )
     return parser
 
 
@@ -205,8 +228,85 @@ async def _run_command(args: argparse.Namespace, settings: Settings) -> int:
             )
         print(json.dumps(result.as_json(), separators=(",", ":"), sort_keys=True))
         return 0
+    if args.command in {"catalog-validate", "catalog-locate"}:
+        from memseek.definitions import DefinitionError
+        from memseek.definitions.manifest import (
+            compile_catalog_files,
+            discover_catalog,
+            parse_manifest,
+            read_catalog_files,
+        )
+
+        try:
+            root = discover_catalog(Path(args.dir) if args.dir else None)
+            files = read_catalog_files(root)
+            manifest = parse_manifest(files["catalog.yaml"])
+            catalog = compile_catalog_files(settings, files)
+            if args.command == "catalog-validate":
+                result = {"valid": True, "package": manifest.reference, "files": len(files)}
+                print(
+                    json.dumps(result)
+                    if args.json
+                    else f"Valid {manifest.reference} ({len(files)} files)"
+                )
+                return 0
+            matches = [
+                dict(item)
+                for item in catalog.source_locations
+                if (
+                    item["reference"] == args.reference
+                    or item["reference"].split("@", 1)[0] == args.reference
+                )
+                and (args.kind is None or item["kind"] == args.kind)
+            ]
+            # A derivation and its generated processor have one source location.
+            if args.kind is None:
+                matches = [
+                    item
+                    for item in matches
+                    if item["kind"] != "processors"
+                    or not any(
+                        other["kind"] == "derivations" and other["reference"] == item["reference"]
+                        for other in matches
+                    )
+                ]
+            if not matches:
+                raise DefinitionError("reference", f"definition {args.reference!r} not found")
+            if len(matches) > 1:
+                raise DefinitionError(
+                    "ambiguous_reference",
+                    "specify --kind and an exact version; matches: "
+                    + ", ".join(f"{item['kind']} {item['reference']}" for item in matches),
+                )
+            item = matches[0]
+            if args.json:
+                print(json.dumps(item))
+            else:
+                print(
+                    f"{root / item['file']}:{item['line']}:{item['column']}  {item['kind']} {item['reference']}"
+                )
+            return 0
+        except DefinitionError as exc:
+            if args.json:
+                print(
+                    json.dumps(
+                        {
+                            "valid": False,
+                            "code": exc.code,
+                            "message": exc.message,
+                            "file": exc.file,
+                            "path": exc.path,
+                            "line": exc.line,
+                            "column": exc.column,
+                        }
+                    )
+                )
+            else:
+                print(str(exc), file=sys.stderr)
+            return 1
     if args.command == "catalog-check":
         from memseek.definitions import load_definition_catalog
+        from memseek.definitions.manifest import parse_manifest
         from memseek.sdk import _read_catalog_directory
         from memseek.workspace_catalog import (
             WorkspaceCatalogRegistry,
@@ -218,7 +318,10 @@ async def _run_command(args: argparse.Namespace, settings: Settings) -> int:
             registry = WorkspaceCatalogRegistry(pool, settings, load_definition_catalog(settings))
             report, *_ = await registry.preflight(
                 args.workspace,
-                WorkspaceCatalogRequest(package=args.package, files=files),
+                WorkspaceCatalogRequest(
+                    package=args.package or parse_manifest(files["catalog.yaml"]).reference,
+                    files=files,
+                ),
             )
         print(json.dumps(report.as_json(), separators=(",", ":"), sort_keys=True))
         return 0 if report.publishable else 1
@@ -367,10 +470,15 @@ async def _run_command(args: argparse.Namespace, settings: Settings) -> int:
 
 
 async def _run_skill_learning_eval(args: argparse.Namespace) -> int:
+    from datetime import UTC, datetime
+
     from memseek.evals.skill_learning import (
         ApiBackend,
+        RunRow,
         load_suite,
         parse_arms,
+        planned_runs,
+        render_runs,
         render_table,
         run_suite,
         summarize,
@@ -383,7 +491,43 @@ async def _run_skill_learning_eval(args: argparse.Namespace) -> int:
     if args.trials < 1 or args.k_train < 0:
         raise ValueError("--trials must be at least 1 and --k-train at least 0")
     suite = load_suite(args.suite)
+    started = datetime.now(UTC)
+    run = started.strftime("%Y%m%dT%H%M%SZ")
+    out = args.out or Path("out/skill-learning") / f"{args.suite.stem}-{run}.json"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    total = planned_runs(suite, arms=arms, trials=args.trials, k_train=args.k_train)
+    rows: list[RunRow] = []
+
+    def save(report: dict[str, object] | None) -> None:
+        # Rewritten after every run, so a crash mid-suite keeps what finished.
+        results = {
+            "suite": str(args.suite),
+            "started_at": started.isoformat(),
+            "run": run,
+            "arms": list(arms),
+            "trials": args.trials,
+            "k_train": args.k_train,
+            "planned_runs": total,
+            "runs": [row.content() for row in rows],
+            "report": report,
+        }
+        out.write_text(json.dumps(results, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+    def on_row(row: RunRow) -> None:
+        rows.append(row)
+        verdict = "pass" if row.passed else "fail"
+        print(
+            f"[{len(rows)}/{total}] {row.task} {row.arm} trial {row.trial} {row.phase} "
+            f"k={row.k_train}: {verdict}, score {row.score:.2f}",
+            file=sys.stderr,
+        )
+        print(f"metrics {json.dumps(dict(row.metrics))}", file=sys.stderr, flush=True)
+        save(None)
+
     async with MemseekClient(args.url, args.api_key) as client:
+        # The workspace may be new (quickstart's database lives in tmpfs), so
+        # the eval installs the definitions it runs rather than assuming them.
+        await client.catalog.publish(package=args.package, directory=args.catalog)
         backend = ApiBackend(
             client,
             computer=args.computer,
@@ -391,12 +535,22 @@ async def _run_skill_learning_eval(args: argparse.Namespace) -> int:
             context_policy=args.context_policy,
             results_entity=f"eval:{args.suite.stem}",
         )
-        rows = await run_suite(suite, backend, arms=arms, trials=args.trials, k_train=args.k_train)
+        await run_suite(
+            suite,
+            backend,
+            arms=arms,
+            trials=args.trials,
+            k_train=args.k_train,
+            run=run,
+            on_row=on_row,
+        )
     report = summarize(rows)
+    save(report)
     if args.json:
         print(json.dumps(report, sort_keys=True))
     else:
-        print(render_table(report))
+        print(f"{render_runs(rows)}\n\n{render_table(report)}")
+    print(f"results saved to {out}", file=sys.stderr)
     return 0
 
 

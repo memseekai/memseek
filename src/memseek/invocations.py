@@ -8,6 +8,8 @@ from collections.abc import Mapping
 from typing import Annotated, Any, Literal
 from uuid import UUID, uuid4
 
+from jsonschema import Draft202012Validator
+from jsonschema.exceptions import SchemaError
 from psycopg import errors
 from psycopg.types.json import Jsonb
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -79,6 +81,18 @@ class InvocationTask(_StrictModel):
     kind: Literal["answer", "task", "compute"]
     prompt: str | None = Field(default=None, min_length=1, max_length=32_768)
     input: Any = None
+    # What an Agent's answer must validate against; a Program declares its own.
+    output_schema: dict[str, Any] | None = None
+
+    @field_validator("output_schema")
+    @classmethod
+    def valid_schema(cls, value: dict[str, Any] | None) -> dict[str, Any] | None:
+        if value is not None:
+            try:
+                Draft202012Validator.check_schema(value)
+            except SchemaError as exc:
+                raise ValueError(f"output_schema is not a JSON Schema: {exc.message}") from exc
+        return value
 
     @model_validator(mode="after")
     def validate_task(self) -> InvocationTask:
@@ -121,6 +135,12 @@ class InvocationCreate(_StrictModel):
     @classmethod
     def exact_computer(cls, value: str) -> str:
         return _exact_reference(value, "computer")
+
+    @model_validator(mode="after")
+    def schema_is_for_agents(self) -> InvocationCreate:
+        if self.task.output_schema is not None and self.executor.kind != "agent":
+            raise ValueError("task.output_schema applies only to an agent executor")
+        return self
 
 
 class InvocationTurn(_StrictModel):
@@ -547,7 +567,7 @@ async def execute_invocation(
                 source_ids=context_ids,
                 citation_ids=context_ids,
                 output_path="/outbox/final-result.json",
-                output_schema={"type": "object"},
+                output_schema=task.get("output_schema") or {"type": "object"},
                 context_files=materialized.context_files,
                 materialization=materialized.descriptor_json(),
                 toolset=materialized.toolset_json(),
@@ -570,7 +590,7 @@ async def execute_invocation(
             raise InvocationError(exc.code, exc.detail, status=409) from exc
         if exc.code in {"transport", "provider"} and not final_attempt:
             await _requeue_interrupted_invocation(
-                pool, workspace, invocation_id, error_kind=exc.code
+                pool, workspace, invocation_id, error_kind=exc.code, error=exc.detail
             )
             raise
         await _fail_invocation(pool, workspace, invocation_id, exc.code, exc.detail)
@@ -581,7 +601,11 @@ async def execute_invocation(
     except Exception as exc:
         if not final_attempt:
             await _requeue_interrupted_invocation(
-                pool, workspace, invocation_id, error_kind=type(exc).__name__
+                pool,
+                workspace,
+                invocation_id,
+                error_kind=type(exc).__name__,
+                error="execution failed",
             )
             raise
         await _fail_invocation(
@@ -623,6 +647,7 @@ async def _requeue_interrupted_invocation(
     invocation_id: UUID,
     *,
     error_kind: str,
+    error: str,
 ) -> None:
     """Return a transiently interrupted run to the queue without losing history."""
 
@@ -639,7 +664,7 @@ async def _requeue_interrupted_invocation(
             workspace=workspace,
             invocation_id=invocation_id,
             kind="execution_interrupted",
-            payload={"error_kind": error_kind, "retryable": True},
+            payload={"error_kind": error_kind, "error": error[:1_000], "retryable": True},
         )
 
 
@@ -661,7 +686,8 @@ async def _complete_invocation(
     }
     async with pool.connection() as conn, conn.transaction():
         current = await conn.execute(
-            "select invocation.status, invocation.task, invocation.entity, s.computer_ref "
+            "select invocation.status, invocation.task, invocation.entity, s.computer_ref, "
+            "invocation.executor_kind, invocation.executor_ref "
             "from invocation join computer_session s on s.id = invocation.session_id "
             "where invocation.id = %s and invocation.workspace = %s for update of invocation",
             (invocation_id, workspace),
@@ -701,6 +727,7 @@ async def _complete_invocation(
             invocation_id=invocation_id,
             entity=str(row["entity"]),
             computer_ref=str(row["computer_ref"]),
+            agent_ref=str(row["executor_ref"]) if row["executor_kind"] == "agent" else None,
             outbox=outbox,
             visible_citations=result.citation_ids,
             catalog=catalog,
@@ -829,6 +856,7 @@ async def _ingest_outbox_tx(
     invocation_id: UUID,
     entity: str,
     computer_ref: str,
+    agent_ref: str | None,
     outbox: list[dict[str, Any]],
     visible_citations: frozenset[UUID],
     catalog: DefinitionCatalog,
@@ -836,9 +864,12 @@ async def _ingest_outbox_tx(
 ) -> dict[str, Any]:
     if not outbox:
         return {}
+    from memseek.definitions.toolsets import effective_computer
     from memseek.records import PublicRecordInput, RecordValidationError, insert_records_tx
 
     computer = catalog.resolve_computer(computer_ref)
+    if agent_ref is not None:
+        computer = effective_computer(catalog.resolve_agent(agent_ref), computer, catalog)
     declarations = [
         item for item in computer.writeback if item.type in {"observations", "maintained_state"}
     ]

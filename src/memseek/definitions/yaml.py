@@ -75,7 +75,14 @@ def load_yaml_text(text: str, *, source: str = "<request>") -> Any:
     except yaml.YAMLError as exc:
         mark = getattr(exc, "problem_mark", None)
         location = f"line {mark.line + 1}, column {mark.column + 1}" if mark else ""
-        raise DefinitionError("yaml", str(exc), file=source, path=location) from exc
+        raise DefinitionError(
+            "yaml",
+            str(exc),
+            file=source,
+            path=location,
+            line=mark.line + 1 if mark else None,
+            column=mark.column + 1 if mark else None,
+        ) from exc
 
 
 def yaml_files(directory: Path) -> tuple[Path, ...]:

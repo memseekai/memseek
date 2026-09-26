@@ -98,6 +98,12 @@ Print exactly one JSON line to stdout and exit 0:
   different rates, and a harness resends its whole conversation every turn.
 
 A nonzero exit fails the run. Anything on stderr becomes the failure detail.
+Exit 2 when the run hit `max_steps` or `max_wall_s`: the run fails as
+`budget` and is not retried. Any other nonzero exit fails as `provider`, which
+the worker retries.
+
+The provider ends the harness's whole process group when the run ends, so an
+agent the harness started never outlives it.
 
 ## Writeback tools
 

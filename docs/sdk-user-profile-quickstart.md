@@ -141,7 +141,7 @@ examples/crm_profile_catalog/
 ├── views/crm_history.yaml        # "show me relevant past events"
 ├── artifacts/profile_brief.yaml  # the briefing handed to the copilot
 ├── artifacts/profile_candidate.yaml # reviewed replacement policy
-└── packages/crm_user_profile.yaml # the exact manifest tying it together
+└── catalog.yaml # the exact manifest tying it together
 ```
 
 Each file below is prefaced by what it says in words; the linked reference
@@ -510,19 +510,35 @@ The companion `profile_candidate.yaml` is `lifecycle: reviewed`, names
 `crm_profile_rebuild` as its candidate processor, and requires all five keys.
 It is promotion policy, not mutable profile data.
 
-### `packages/crm_user_profile.yaml` — the manifest
+### `catalog.yaml` — the manifest
 
 > "The copilot's memory, version 2.0.0, is exactly these pieces."
 
 ```yaml
 name: crm_user_profile
 version: 2.0.0
-collections: [crm_events@1, user_profiles@1, playbooks@1]
-processors: [crm_embedding, importance, deal_signals, crm_profile, crm_profile_rebuild]
-triggers: [crm_profile.default]
-views: [crm_history@1]
-artifacts: [crm_profile_brief@1, crm_profile_candidate@1]
-search_profiles: [pg_default]
+description: Maintain cited account profiles from CRM events.
+config:
+  models: conf/models.yaml
+  ranking: conf/rank_default.yaml
+  search_profiles: conf/search_profiles.yaml
+collections:
+  crm_events@1: collections/crm.yaml
+  user_profiles@1: collections/crm.yaml
+  playbooks@1: collections/crm.yaml
+processors:
+  crm_embedding: conf/processors.yaml
+  importance: conf/processors.yaml
+  deal_signals: conf/processors.yaml
+derivations:
+  crm_profile: derivations/crm_profile.yaml
+  crm_profile_rebuild: derivations/crm_profile_rebuild.yaml
+  crm_summary: derivations/crm_summary.yaml
+views:
+  crm_history@1: views/crm_history.yaml
+artifacts:
+  crm_profile_brief@1: artifacts/profile_brief.yaml
+  crm_profile_candidate@1: artifacts/profile_candidate.yaml
 ```
 
 (This is the full checked-in manifest; the trimmed snippets above omit the
@@ -551,10 +567,11 @@ async with MemseekClient(base_url, api_key) as client:
     await client.records.ingest_many(crm_events)
 ```
 
-`publish()` recursively reads `.yaml` and `.yml` files under the directory and
-sends them to `POST /catalog`. It does not infer which package to activate; the
-caller names it. Collections, models, processors, derivations, views, artifacts,
-and package manifests are all loaded in the same atomic request. Both `publish`
+`publish()` reads `catalog.yaml` and only the files it declares, and sends
+them to `POST /catalog`. A YAML file the manifest does not list is never read.
+It does not infer which package to activate; the caller names it, and the name
+must match the manifest's `name@version`. Collections, models, processors,
+derivations, views and artifacts are all loaded in the same atomic request. Both `publish`
 and `ingest_many` return the server's response as a dict:
 
 ```python
@@ -730,7 +747,7 @@ await client.catalog.publish_files(
         "views/history.yaml": generated_view_yaml,
         "artifacts/brief.yaml": generated_artifact_yaml,
         "artifacts/profile_candidate.yaml": generated_candidate_artifact_yaml,
-        "packages/profile.yaml": generated_package_yaml,
+        "catalog.yaml": generated_package_yaml,
     },
 )
 ```

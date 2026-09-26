@@ -20,13 +20,18 @@ from .config import Settings
 from .db import DatabasePool
 from .definitions.loader import DefinitionCatalog
 from .definitions.models import ToolsetDefinition, ToolSourceDefinition
-from .definitions.toolsets import effective_toolset
+from .definitions.toolsets import effective_computer, effective_toolset
+from .lessons import SkillLessons, render_instructions, render_playbook, resolve_toolset
+from .lessons import search_spec as lessons_search_spec
 
 FileRole = Literal["instructions", "skill", "reference", "view", "manifest", "writeback_schemas"]
 
 MANIFEST_PATH = "/.memseek/manifest.json"
 INSTRUCTIONS_PATH = "/.memseek/instructions.md"
 WRITEBACK_SCHEMAS_PATH = "/.memseek/writeback-schemas.json"
+# Beside a skill's SKILL.md: what earlier runs learned, and how to record more.
+PLAYBOOK_FILE = "PLAYBOOK.md"
+LESSONS_FILE = "LESSONS.md"
 
 
 class MaterializationError(RuntimeError):
@@ -76,17 +81,21 @@ class AgentMaterialization:
     toolset: ToolsetDefinition
     toolset_ref: str | None
     citation_ids: frozenset[UUID]
+    lessons: tuple[SkillLessons, ...] = ()
 
     def descriptor_json(self) -> dict[str, Any]:
         return {"version": 1, "files": [item.as_json() for item in self.files]}
 
     def toolset_json(self) -> dict[str, Any]:
-        return {
+        payload: dict[str, Any] = {
             "ref": self.toolset_ref,
             "hash": self.toolset.definition_hash or None,
             "instructions": self.toolset.instructions,
             "tools": [source.model_dump(mode="json") for source in self.toolset.sources],
         }
+        if self.lessons:
+            payload["lessons"] = [spec.as_json() for spec in self.lessons]
+        return payload
 
 
 def _skill_document(name: str, description: str, body: str) -> str:
@@ -120,8 +129,10 @@ async def build_agent_materialization(
         computer = catalog.resolve_computer(computer_ref)
         agent = catalog.resolve_agent(agent_ref)
         toolset = effective_toolset(agent, computer, catalog)
+        computer = effective_computer(agent, computer, catalog)
     except (KeyError, ValueError) as exc:
         raise MaterializationError("reference", str(exc)) from exc
+    lessons = resolve_toolset(toolset, catalog, settings)
 
     builder = _Builder(
         pool=pool,
@@ -134,6 +145,7 @@ async def build_agent_materialization(
     for source in toolset.sources:
         if source.kind == "skill":
             await builder.add_skill(source)
+    await builder.add_lessons(lessons)
     for mount in computer.context:
         if mount.artifact in builder.rendered:
             # The Agent already declares this artifact. Rendering it again would
@@ -168,6 +180,7 @@ async def build_agent_materialization(
         toolset=toolset,
         toolset_ref=agent.toolset,
         citation_ids=frozenset(builder.ids),
+        lessons=lessons,
     )
 
 
@@ -241,6 +254,48 @@ class _Builder:
                 path=path, role="skill", skill_name=name, description=artifact.description
             )
         )
+
+    async def add_lessons(self, specs: tuple[SkillLessons, ...]) -> None:
+        """Each learning skill's playbook and recording instructions, beside its SKILL.md.
+
+        A skill with no lessons yet gets no playbook. Neither file is prompt
+        text here: the provider decides, from the run's learning mode, whether
+        the agent sees them at all.
+        """
+
+        # Imported here: the search engine imports this package's neighbours.
+        from .search.engine import execute_search
+        from .search.spec import SearchSpec
+
+        for spec in specs:
+            directory = f"/.memseek/skills/{spec.skill}"
+            if spec.playbook:
+                path = f"{directory}/{PLAYBOOK_FILE}"
+                search = SearchSpec.model_validate(lessons_search_spec(self.entity, spec.skill))
+                result = await execute_search(
+                    self.pool,
+                    workspace=self.workspace,
+                    spec=search,
+                    catalog=self.catalog,
+                    settings=self.settings,
+                )
+                hits = list(result["hits"])
+                playbook = render_playbook(spec, hits)
+                if playbook is not None:
+                    ids = [str(hit["id"]) for hit in hits]
+                    self.manifests.append(
+                        {"path": path, "source": "lessons", "input_record_ids": ids}
+                    )
+                    self.ids.update(UUID(value) for value in ids)
+                    self.files[path] = playbook
+                    self.described.append(
+                        MaterializedFile(path=path, role="reference", prompt=False)
+                    )
+            if spec.collect:
+                path = f"{directory}/{LESSONS_FILE}"
+                # The tool is named for the lessons collection; see writeback.tool_name.
+                self.files[path] = render_instructions(spec, tool="record_lessons")
+                self.described.append(MaterializedFile(path=path, role="reference", prompt=False))
 
     def add_literal(self, path: str, content: str, *, role: FileRole) -> None:
         self.files[path] = content

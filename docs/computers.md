@@ -155,10 +155,11 @@ further down this page.
 
 ## The four files you write
 
-Each is an optional directory in your [catalog](catalog-layout.md). Nothing
-breaks if you have none of them.
+Each is an optional family in your [catalog](catalog-layout.md): list its
+definitions in `catalog.yaml` under the family's key. Nothing breaks if you
+have none of them.
 
-| Directory | Top-level key | What one entry describes |
+| Conventional file | Top-level key | What one entry describes |
 | --- | --- | --- |
 | `computers/*.yaml` | `computers:` | The **sandbox policy**: which provider, what may be mounted, which paths are writable, what capabilities exist, what may be written back, and what survives. |
 | `programs/*.yaml` | `programs:` | An **immutable code bundle**: a runtime, an entrypoint, the source, and input/output JSON Schemas. No model involved. |
@@ -973,6 +974,7 @@ POST /invocations
 | `computer` | yes | Exact reference. |
 | `executor` | yes | `{kind: agent, agent, context_policy}` or `{kind: program, program}`. An Agent must list this Computer in its own `computers:`. |
 | `task.kind` | yes | `answer` or `task` for an Agent (both need `prompt`, up to 32 KiB); `compute` for a Program (needs `input`). The kind is passed to the run as the stated intent. |
+| `task.output_schema` | no | Agent only. A JSON Schema the answer's `value` must validate against. The Agent is shown it, and a value that breaks it fails the run as `validation`. Defaults to `{"type": "object"}`. |
 | `session.mode` | no | `new` (default), `resume`, or `fork`. `resume` and `fork` require `session_id`; `new` forbids it. |
 | `idempotency_key` | no | Up to 128 characters. Replaying the same key returns the original invocation instead of starting a second one. |
 
@@ -1252,22 +1254,44 @@ derivation the code arrives as the run's failure kind; over HTTP it is the
 
 ## Shipping it in a package
 
-A [package](packages.md) has to list everything it uses, and that includes all
-four of these families:
+A [catalog](catalog-layout.md) has to list everything it uses in
+`catalog.yaml`, and that includes all four of these families. Each entry maps
+an exact reference to the file that defines it:
 
 ```yaml
 name: computer_renewal_demo
 version: 1.0.0
-collections: [renewal_evidence@1, contract_terms@1, renewal_risks@1,
-              task_observations@1, renewal_proposals@1]
-processors: [embedding_v1, importance, contract_extract, renewal_assessment]
-artifacts: [renewal_instructions@1, renewal_research_skill@1]
-computers: [fast_workspace@1, research_workspace@1]
-programs: [contract_extract@3]
-agents: [renewal_analyst@1]
-context_policies: [evidence_spine@1]
-mcp: renewal_computer@1
-search_profiles: [pg_default]
+config:
+  models: conf/models.yaml
+  ranking: conf/rank_default.yaml
+  search_profiles: conf/search_profiles.yaml
+collections:
+  renewal_evidence@1: collections/renewal.yaml
+  contract_terms@1: collections/renewal.yaml
+  renewal_risks@1: collections/renewal.yaml
+  task_observations@1: collections/renewal.yaml
+  renewal_proposals@1: collections/renewal.yaml
+processors:
+  embedding_v1: conf/processors.yaml
+  importance: conf/processors.yaml
+derivations:
+  contract_extract: derivations/contract_extract.yaml
+  renewal_assessment: derivations/renewal_assessment.yaml
+artifacts:
+  renewal_instructions@1: artifacts/renewal_agent.yaml
+  renewal_research_skill@1: artifacts/renewal_agent.yaml
+computers:
+  fast_workspace@1: computers/workspaces.yaml
+  research_workspace@1: computers/workspaces.yaml
+programs:
+  contract_extract@3: programs/contract_extract.yaml
+agents:
+  renewal_analyst@1: agents/renewal_analyst.yaml
+context_policies:
+  evidence_spine@1: context_policies/evidence_spine.yaml
+mcp:
+  renewal_computer@1: mcp/renewal.yaml
+expose_mcp: renewal_computer@1
 ```
 
 The publish is rejected if anything is missing, and the message names what:
@@ -1456,23 +1480,42 @@ container can run them.
 - The harness and every pack resolve through the paths above.
 - A pack's `capabilities` are allowed by every Computer the Agent may run on.
   browser-harness needs `exec` and `network`.
-- A pack with `learns: true` requires every such Computer to declare
-  `/outbox/learnings.jsonl` as an `observations` writeback.
+- A toolset source with `learning` requires every such Computer to list
+  `/outbox` in `writable`, and the catalog to declare the `pg_default` search
+  profile.
 
 ### Learned skills
 
-A pack that sets `learns: true` joins one convention, owned by the Computer:
+Any skill a toolset loads, a pack or a catalog `skill` artifact, can learn with
+`learning: true` on its source. What is worth learning is declared beside the
+skill, as `lessons:` in its `skillpack.yaml` or on its artifact:
 
-- **Write.** The agent appends `{text, content: {pack, kind, detail,
-  helper_code?}, citations}` lines to `/outbox/learnings.jsonl`. The Computer
-  ingests that file like any other observations writeback.
-- **Read.** The Computer mounts a playbook artifact at `/.memseek/playbook.md`.
-  The provider copies the pack's rows into its `PLAYBOOK.md`, grouped by kind,
-  and `SKILL.md` points the agent at it.
+```yaml
+lessons:
+  kinds:
+    helper: The code that produced your final rows, in `code` exactly as you ran it.
+    pitfall: What went wrong, or a playbook lesson that proved false, and what is true now.
+  require: [helper]
+  code: [helper]
+```
+
+Memseek adds the rest:
+
+- **Write.** The run gets the built-in `/outbox/lessons.jsonl` writeback into
+  the built-in `lessons@1` collection, and one `record_lessons` tool. Each
+  entry names its `skill` and `kind`, and the tool refuses a skill the run did
+  not load or a kind that skill does not declare.
+- **Read.** Materialization reads each skill's lessons for the run's entity
+  and writes `<skill>/PLAYBOOK.md`, grouped by the skill's kinds. The provider
+  installs it beside `SKILL.md`, points the agent at it, and inlines it in the
+  system prompt.
+
+For the steps, see [Make a skill learn from its runs](skill-learning.md). For
+every field and check, see [Skills that learn](toolsets.md#skills-that-learn).
 
 An invocation's task `input` can narrow what a run reads and writes back:
 `{"learning": "off" | "read" | "read_write", "native": ...}`. `learning` governs
-the playbook and the learnings file. `native` governs the pack's own state
+the playbooks and the lessons writeback. `native` governs the pack's own state
 directory: `off` is a fresh directory, `read` is a copy of the one kept for
 the entity, and `read_write` is the kept one. Both default to `read_write`.
 `memseek eval skill-learning` uses these to compare a cold run, browser-harness's
@@ -1490,6 +1533,7 @@ own saved helpers, the learned playbook, and both together.
 | `/.memseek and /inputs are always read-only` | They appear in `writable:`. |
 | `writeback paths must live below /outbox` | A `writeback.path` is elsewhere. |
 | `writeback path … is outside writable roots` | The path is under `/outbox` but `/outbox` is not writable. |
+| `a skill in this toolset learns, so computer '…' must list /outbox in writable` | Add `/outbox` to `writable`. See [Skills that learn](toolsets.md#skills-that-learn). |
 | `maintained_state writeback requires review` / `observations writeback cannot require review` | The `review` flag contradicts the type. |
 | `final_result writeback forbids collection and record_type` | Remove them; a final result is not ingested. |
 | `program requires exactly one of files or bundle` | Pick one. |
@@ -1503,7 +1547,7 @@ own saved helpers, the learned playbook, and both together.
 | `agent references unknown model alias` | The `model:` name is not in `conf/models.yaml`. |
 | `context thresholds must be strictly increasing` | `pointerize < compact < pause`. |
 | `Computer-backed Tasks exceed limits.max_computer_runs` | Raise `max_computer_runs`; it defaults to `0`. |
-| `package omits …` | Add the named resource to the package manifest. |
+| `package omits …` | List the named resource in `catalog.yaml`. |
 
 ### At run time
 

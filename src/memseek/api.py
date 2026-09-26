@@ -8,7 +8,7 @@ import logging
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from datetime import datetime
-from typing import TYPE_CHECKING, Annotated, Any, Literal
+from typing import Annotated, Any, Literal
 from uuid import UUID
 
 from fastapi import Depends, FastAPI, Request
@@ -33,6 +33,7 @@ from memseek.db import (
     open_pool,
     verify_storage_compatibility,
 )
+from memseek.definitions import DefinitionCatalog
 from memseek.erase import ErasureError, ErasureRequest, erase
 from memseek.invocations import (
     TERMINAL_INVOCATION_STATUSES,
@@ -86,9 +87,6 @@ from memseek.workspace_catalog import (
     WorkspaceCatalogRegistry,
     WorkspaceCatalogRequest,
 )
-
-if TYPE_CHECKING:
-    from memseek.definitions import DefinitionCatalog
 
 LOGGER = logging.getLogger(__name__)
 
@@ -214,12 +212,30 @@ async def _authenticated_workspace(request: Request) -> str:
             raise
         # Publishing a package is how a workspace acquires a catalog, so a new
         # workspace must be able to authenticate before it has one. Routes that
-        # need definitions raise this deferred error through `_request_catalog`.
+        # need definitions raise this deferred error through `_workspace_catalog`.
         request.state.catalog_error = exc
     return workspace
 
 
 _AuthenticatedWorkspace = Annotated[str, Depends(_authenticated_workspace)]
+
+
+def _workspace_catalog(request: Request, _workspace: _AuthenticatedWorkspace) -> DefinitionCatalog:
+    """The authenticated workspace's catalog, resolved before the route body runs.
+
+    Authentication defers `no_catalog` so a new workspace can publish its first
+    package. A route that needs definitions re-raises it here, as a dependency,
+    so it reaches the 409 handler instead of a route's own `except Exception`.
+    """
+
+    error = getattr(request.state, "catalog_error", None)
+    if error is not None:
+        raise error
+    catalog: DefinitionCatalog = request.state.catalog
+    return catalog
+
+
+_WorkspaceCatalog = Annotated[DefinitionCatalog, Depends(_workspace_catalog)]
 
 
 async def _json_payload(request: Request) -> Any:
@@ -452,7 +468,7 @@ def create_app(
 
     @application.get("/catalog/prune")
     async def read_catalog_prune(
-        request: Request, workspace: _AuthenticatedWorkspace
+        request: Request, workspace: _AuthenticatedWorkspace, catalog: _WorkspaceCatalog
     ) -> JSONResponse:
         """Report which inactive definitions nothing in the workspace references."""
 
@@ -462,7 +478,7 @@ def create_app(
             report = await prune_definitions(
                 request.app.state.pool,
                 workspace=workspace,
-                catalog=_request_catalog(request),
+                catalog=catalog,
             )
         except Exception as exc:
             return _read_failure(exc, "catalog.prune_failed", workspace)
@@ -502,8 +518,9 @@ def create_app(
         request: Request,
         processor_name: str,
         workspace: _AuthenticatedWorkspace,
+        catalog: _WorkspaceCatalog,
     ) -> JSONResponse:
-        if processor_name not in _request_catalog(request).derivations:
+        if processor_name not in catalog.derivations:
             return _error_response(422, "processor_kind", "only derive processors can be run")
         body = await _validated_json(request, ManualDerivationRequest)
         try:
@@ -582,6 +599,7 @@ def create_app(
     async def start_invocation(
         request: Request,
         workspace: _AuthenticatedWorkspace,
+        catalog: _WorkspaceCatalog,
         body: InvocationCreate,
     ) -> JSONResponse:
         try:
@@ -589,7 +607,7 @@ def create_app(
                 request.app.state.pool,
                 workspace=workspace,
                 request=body,
-                catalog=_request_catalog(request),
+                catalog=catalog,
             )
         except InvocationError as exc:
             return _error_response(exc.status, exc.code, exc.detail)
@@ -730,6 +748,7 @@ def create_app(
         request: Request,
         invocation_id: _InvocationId,
         workspace: _AuthenticatedWorkspace,
+        catalog: _WorkspaceCatalog,
         body: InvocationCreate,
     ) -> JSONResponse:
         try:
@@ -748,7 +767,7 @@ def create_app(
                 request.app.state.pool,
                 workspace=workspace,
                 request=fork_request,
-                catalog=_request_catalog(request),
+                catalog=catalog,
             )
         except (InvocationError, ValidationError) as exc:
             if isinstance(exc, InvocationError):
@@ -864,6 +883,7 @@ def create_app(
     async def create_backfill(
         request: Request,
         workspace: _AuthenticatedWorkspace,
+        catalog: _WorkspaceCatalog,
         body: _BackfillBody,
     ) -> JSONResponse:
         """Apply one processor to records that already exist in a collection version."""
@@ -877,7 +897,7 @@ def create_app(
                 collection=body.collection,
                 version=body.version,
                 processor=body.processor,
-                catalog=_request_catalog(request),
+                catalog=catalog,
                 max_rows=body.max_rows,
             )
         except BackfillError as exc:
@@ -942,6 +962,7 @@ def create_app(
         request: Request,
         derivation_name: str,
         workspace: _AuthenticatedWorkspace,
+        catalog: _WorkspaceCatalog,
         body: _CursorRebindBody,
     ) -> JSONResponse:
         """Repoint a changes cursor after a deliberate source-scope change."""
@@ -955,7 +976,7 @@ def create_app(
                 derivation=derivation_name,
                 entity=body.entity,
                 policy=body.policy,
-                catalog=_request_catalog(request),
+                catalog=catalog,
                 settings=request.app.state.settings,
             )
         except EvolutionError as exc:
@@ -968,6 +989,7 @@ def create_app(
     async def reindex_projections(
         request: Request,
         workspace: _AuthenticatedWorkspace,
+        catalog: _WorkspaceCatalog,
         body: _ReindexBody,
     ) -> JSONResponse:
         """Queue a bounded external-projection rebuild for this workspace."""
@@ -979,7 +1001,7 @@ def create_app(
                 request.app.state.pool,
                 workspace=workspace,
                 settings=request.app.state.settings,
-                catalog=_request_catalog(request),
+                catalog=catalog,
                 since_seq=body.since_seq,
                 reset=body.reset,
                 confirm=body.confirm,
@@ -1001,6 +1023,7 @@ def create_app(
     async def create_records(
         request: Request,
         workspace: _AuthenticatedWorkspace,
+        catalog: _WorkspaceCatalog,
         batch: _RecordBatchBody,
     ) -> JSONResponse:
         try:
@@ -1008,7 +1031,7 @@ def create_app(
                 request.app.state.pool,
                 workspace=workspace,
                 request=batch,
-                catalog=_request_catalog(request),
+                catalog=catalog,
                 settings=request.app.state.settings,
             )
         except DedupeConflict as exc:
@@ -1081,6 +1104,7 @@ def create_app(
     async def read_document(
         request: Request,
         workspace: _AuthenticatedWorkspace,
+        catalog: _WorkspaceCatalog,
         query: _DocumentParams,
     ) -> JSONResponse:
         try:
@@ -1088,7 +1112,7 @@ def create_app(
                 request.app.state.pool,
                 workspace=workspace,
                 query=query,
-                catalog=_request_catalog(request),
+                catalog=catalog,
                 settings=request.app.state.settings,
             )
         except DocumentTooLarge as exc:
@@ -1155,12 +1179,15 @@ def create_app(
     async def search(
         request: Request,
         workspace: _AuthenticatedWorkspace,
+        catalog: _WorkspaceCatalog,
         spec: _SearchBody,
     ) -> JSONResponse:
-        return await _run_search(request, workspace, spec)
+        return await _run_search(request, workspace, catalog, spec)
 
     @application.get("/search")
-    async def search_sugar(request: Request, workspace: _AuthenticatedWorkspace) -> JSONResponse:
+    async def search_sugar(
+        request: Request, workspace: _AuthenticatedWorkspace, catalog: _WorkspaceCatalog
+    ) -> JSONResponse:
         params = dict(request.query_params)
         query = params.pop("q", "").strip()
         if not query:
@@ -1190,12 +1217,13 @@ def create_app(
             if isinstance(exc, ValidationError):
                 return _error_response(422, "request_schema", _validation_detail(exc))
             return _error_response(422, "request_schema", "k must be an integer")
-        return await _run_search(request, workspace, spec)
+        return await _run_search(request, workspace, catalog, spec)
 
     @application.post("/answer")
     async def answer(
         request: Request,
         workspace: _AuthenticatedWorkspace,
+        catalog: _WorkspaceCatalog,
         body: _AnswerBody,
     ) -> JSONResponse:
         try:
@@ -1203,7 +1231,7 @@ def create_app(
                 request.app.state.pool,
                 workspace=workspace,
                 request=body,
-                catalog=_request_catalog(request),
+                catalog=catalog,
                 settings=request.app.state.settings,
             )
         except AnswerError as exc:
@@ -1219,13 +1247,15 @@ def create_app(
             return _error_response(500, "internal_error", "answer generation failed")
         return _bounded_json(result, request.app.state.settings)
 
-    async def _run_search(request: Request, workspace: str, spec: SearchSpec) -> JSONResponse:
+    async def _run_search(
+        request: Request, workspace: str, catalog: DefinitionCatalog, spec: SearchSpec
+    ) -> JSONResponse:
         try:
             result = await execute_search(
                 request.app.state.pool,
                 workspace=workspace,
                 spec=spec,
-                catalog=_request_catalog(request),
+                catalog=catalog,
                 settings=request.app.state.settings,
             )
         except SearchRequestError as exc:
@@ -1237,10 +1267,12 @@ def create_app(
         return _bounded_json(result, request.app.state.settings)
 
     @application.get("/views")
-    async def list_views(request: Request, _workspace: _AuthenticatedWorkspace) -> JSONResponse:
+    async def list_views(
+        request: Request, _workspace: _AuthenticatedWorkspace, catalog: _WorkspaceCatalog
+    ) -> JSONResponse:
         return JSONResponse(
             status_code=200,
-            content=view_catalog_payload(_request_catalog(request)),
+            content=view_catalog_payload(catalog),
         )
 
     @application.post("/views/{view_name}/query")
@@ -1248,6 +1280,7 @@ def create_app(
         request: Request,
         view_name: str,
         workspace: _AuthenticatedWorkspace,
+        catalog: _WorkspaceCatalog,
         parameters: _ViewParameters,
     ) -> JSONResponse:
         try:
@@ -1256,7 +1289,7 @@ def create_app(
                 workspace=workspace,
                 name=view_name,
                 parameters=parameters,
-                catalog=_request_catalog(request),
+                catalog=catalog,
                 settings=request.app.state.settings,
             )
         except ViewNotFound as exc:
@@ -1270,10 +1303,12 @@ def create_app(
         return _bounded_json(result, request.app.state.settings)
 
     @application.get("/rank/schema")
-    async def rank_schema(request: Request, _workspace: _AuthenticatedWorkspace) -> JSONResponse:
+    async def rank_schema(
+        request: Request, _workspace: _AuthenticatedWorkspace, catalog: _WorkspaceCatalog
+    ) -> JSONResponse:
         return JSONResponse(
             status_code=200,
-            content=rank_schema_payload(_request_catalog(request), request.app.state.settings),
+            content=rank_schema_payload(catalog, request.app.state.settings),
         )
 
     @application.get("/runs")
@@ -1318,6 +1353,7 @@ def create_app(
     async def read_context(
         request: Request,
         workspace: _AuthenticatedWorkspace,
+        catalog: _WorkspaceCatalog,
         query: _ContextParams,
     ) -> JSONResponse:
         try:
@@ -1325,7 +1361,7 @@ def create_app(
                 request.app.state.pool,
                 workspace=workspace,
                 query=query,
-                catalog=_request_catalog(request),
+                catalog=catalog,
                 settings=request.app.state.settings,
             )
         except ContextRequestError as exc:
@@ -1342,52 +1378,57 @@ def create_app(
 
     @application.get("/collections")
     async def list_collections(
-        request: Request, _workspace: _AuthenticatedWorkspace
+        request: Request, _workspace: _AuthenticatedWorkspace, catalog: _WorkspaceCatalog
     ) -> JSONResponse:
         from memseek.catalog_views import collections_payload
 
-        return JSONResponse(status_code=200, content=collections_payload(_request_catalog(request)))
+        return JSONResponse(status_code=200, content=collections_payload(catalog))
 
     @application.get("/processors")
     async def list_processors(
-        request: Request, _workspace: _AuthenticatedWorkspace
+        request: Request, _workspace: _AuthenticatedWorkspace, catalog: _WorkspaceCatalog
     ) -> JSONResponse:
         from memseek.catalog_views import processors_payload
 
-        return JSONResponse(status_code=200, content=processors_payload(_request_catalog(request)))
+        return JSONResponse(status_code=200, content=processors_payload(catalog))
 
     @application.get("/triggers")
-    async def list_triggers(request: Request, _workspace: _AuthenticatedWorkspace) -> JSONResponse:
+    async def list_triggers(
+        request: Request, _workspace: _AuthenticatedWorkspace, catalog: _WorkspaceCatalog
+    ) -> JSONResponse:
         from memseek.catalog_views import triggers_payload
 
-        return JSONResponse(status_code=200, content=triggers_payload(_request_catalog(request)))
+        return JSONResponse(status_code=200, content=triggers_payload(catalog))
 
     @application.get("/tools")
-    async def list_tools(request: Request, workspace: _AuthenticatedWorkspace) -> JSONResponse:
+    async def list_tools(
+        request: Request, workspace: _AuthenticatedWorkspace, catalog: _WorkspaceCatalog
+    ) -> JSONResponse:
         from memseek.tools import tool_definitions_payload
 
         return JSONResponse(
             status_code=200,
             content=tool_definitions_payload(
                 request.app.state.settings,
-                catalog=_request_catalog(request),
+                catalog=catalog,
                 package=request.state.package,
             ),
         )
 
     @application.get("/artifacts")
-    async def list_artifacts(request: Request, _workspace: _AuthenticatedWorkspace) -> JSONResponse:
+    async def list_artifacts(
+        request: Request, _workspace: _AuthenticatedWorkspace, catalog: _WorkspaceCatalog
+    ) -> JSONResponse:
         from memseek.artifacts import artifact_catalog_payload
 
-        return JSONResponse(
-            status_code=200, content=artifact_catalog_payload(_request_catalog(request))
-        )
+        return JSONResponse(status_code=200, content=artifact_catalog_payload(catalog))
 
     @application.post("/artifacts/{artifact_name}/render")
     async def render_artifact_route(
         request: Request,
         artifact_name: str,
         workspace: _AuthenticatedWorkspace,
+        catalog: _WorkspaceCatalog,
         parameters: _ArtifactParameters,
     ) -> JSONResponse:
         from memseek.artifacts import render_artifact
@@ -1398,7 +1439,7 @@ def create_app(
                 workspace=workspace,
                 name=artifact_name,
                 parameters=parameters,
-                catalog=_request_catalog(request),
+                catalog=catalog,
                 settings=request.app.state.settings,
             )
         except Exception as exc:
@@ -1410,6 +1451,7 @@ def create_app(
         request: Request,
         artifact_name: str,
         workspace: _AuthenticatedWorkspace,
+        catalog: _WorkspaceCatalog,
         parameters: _ArtifactParameters,
     ) -> JSONResponse:
         from memseek.artifacts import snapshot_artifact
@@ -1420,7 +1462,7 @@ def create_app(
                 workspace=workspace,
                 name=artifact_name,
                 parameters=parameters,
-                catalog=_request_catalog(request),
+                catalog=catalog,
                 settings=request.app.state.settings,
             )
         except Exception as exc:
@@ -1432,6 +1474,7 @@ def create_app(
         request: Request,
         artifact_name: str,
         workspace: _AuthenticatedWorkspace,
+        catalog: _WorkspaceCatalog,
         body: _ArtifactUseBody,
     ) -> JSONResponse:
         """Render one artifact and register the correlation handle for its use."""
@@ -1444,7 +1487,7 @@ def create_app(
                 workspace=workspace,
                 name=artifact_name,
                 request=body,
-                catalog=_request_catalog(request),
+                catalog=catalog,
                 settings=request.app.state.settings,
             )
         except Exception as exc:
@@ -1476,6 +1519,7 @@ def create_app(
         request: Request,
         use_id: _ArtifactUseId,
         workspace: _AuthenticatedWorkspace,
+        catalog: _WorkspaceCatalog,
         body: _FeedbackBody,
     ) -> JSONResponse:
         """Record one selected outcome as an ordinary learning-signal record."""
@@ -1488,7 +1532,7 @@ def create_app(
                 workspace=workspace,
                 use_id=use_id,
                 request=body,
-                catalog=_request_catalog(request),
+                catalog=catalog,
                 settings=request.app.state.settings,
             )
         except Exception as exc:
@@ -1500,6 +1544,7 @@ def create_app(
         request: Request,
         artifact_name: str,
         workspace: _AuthenticatedWorkspace,
+        catalog: _WorkspaceCatalog,
     ) -> JSONResponse:
         from memseek.artifacts import read_artifact_snapshot
 
@@ -1509,7 +1554,7 @@ def create_app(
                 workspace=workspace,
                 name=artifact_name,
                 parameters=dict(request.query_params),
-                catalog=_request_catalog(request),
+                catalog=catalog,
                 settings=request.app.state.settings,
             )
         except Exception as exc:
@@ -1520,6 +1565,7 @@ def create_app(
     async def promote(
         request: Request,
         workspace: _AuthenticatedWorkspace,
+        catalog: _WorkspaceCatalog,
         body: _PromotionBody,
     ) -> JSONResponse:
         from memseek.promote import PromotionError, promote_run
@@ -1531,7 +1577,7 @@ def create_app(
                 entity=body.entity,
                 source_run_id=body.source_run_id,
                 artifact=body.artifact,
-                catalog=_request_catalog(request),
+                catalog=catalog,
                 settings=request.app.state.settings,
             )
         except PromotionError as exc:
@@ -1551,6 +1597,7 @@ def create_app(
     async def erase_records(
         request: Request,
         workspace: _AuthenticatedWorkspace,
+        catalog: _WorkspaceCatalog,
         body: _ErasureBody,
     ) -> JSONResponse:
         try:
@@ -1559,7 +1606,7 @@ def create_app(
                 workspace=workspace,
                 request=body,
                 settings=request.app.state.settings,
-                catalog=_request_catalog(request),
+                catalog=catalog,
             )
         except ErasureError as exc:
             return _error_response(exc.status, exc.code, exc.detail)
@@ -1585,18 +1632,6 @@ def create_app(
             status=exc.status,
         )
         return _catalog_error_response(exc)
-
-    def _request_catalog(request: Request) -> DefinitionCatalog:
-        catalog = getattr(request.state, "catalog", None)
-        if catalog is not None:
-            return catalog
-        # Deferred from authentication: this workspace has published nothing and
-        # the service offers no catalog of its own, so a route that needs
-        # definitions has none and says exactly that.
-        error = getattr(request.state, "catalog_error", None)
-        if error is not None:
-            raise error
-        return request.app.state.catalog
 
     return application
 

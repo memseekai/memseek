@@ -13,6 +13,7 @@ from typing import Any
 import httpx
 import pytest
 import yaml
+from reference_catalog import indexed_test_bundle
 
 from memseek.api import create_app
 from memseek.auth import create_workspace
@@ -242,28 +243,9 @@ def catalog_files(
         "views/recent_tickets.yaml": yaml.safe_dump({"views": [VIEW]}),
         "artifacts/ticket_digest.yaml": yaml.safe_dump({"artifacts": [ARTIFACT]}),
     }
-    names = [item["name"] for item in processors]
     for derivation in all_derivations:
         files[f"derivations/{derivation['name']}.yaml"] = yaml.safe_dump(derivation)
-        names.append(derivation["name"])
-    files["packages/support.yaml"] = yaml.safe_dump(
-        {
-            "packages": [
-                {
-                    "name": "support",
-                    "version": version,
-                    "collections": [
-                        f"{item['name']}@{item['version']}" for item in all_collections
-                    ],
-                    "processors": names,
-                    "views": ["recent_tickets@1"],
-                    "artifacts": ["ticket_digest@1"],
-                    "search_profiles": ["pg_default"],
-                }
-            ]
-        }
-    )
-    return files
+    return indexed_test_bundle("support", version, files)
 
 
 @pytest.fixture

@@ -28,7 +28,7 @@ the catalog. Roughly 200 lines of SDK calls sit on top of 1,100 lines of YAML.
 | `views/` | 3 | What can be read, with which typed parameters? |
 | `artifacts/` | 1 | How is memory assembled into a prompt? |
 | `mcp/` | 1 | Which of the above an agent may call. |
-| `packages/` | 1 | The exact version set, plus one operational policy. |
+| `catalog.yaml` | 1 | Every definition and its source path, plus release policies. |
 
 ## 1. Collections: the storage contracts
 
@@ -620,11 +620,10 @@ retrieved memory is untrusted reference data, not instructions. Changing the
 tool list, a target, or a generated parameter contract requires a new interface
 version *and* a package version bump.
 
-`packages/gbrain.yaml` is mostly exact references, with two things worth naming.
-
-**`<derivation>.default`** is how an inline `trigger:` block is referenced. A
-derivation listed under `processors` without its trigger loads fine and never
-runs — a quiet failure mode worth knowing about.
+`catalog.yaml` is the complete source map. Each derivation appears under
+`derivations` with its file path. Its generated processor and inline
+`<derivation>.default` trigger are included automatically, so they cannot drift
+out of the release inventory.
 
 **`retentions`** is the one operational policy a package may carry:
 

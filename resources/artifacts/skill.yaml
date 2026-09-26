@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=../../schemas/artifacts.schema.json
 artifacts:
   - name: maintained_skill
     version: 1

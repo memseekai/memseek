@@ -149,7 +149,7 @@ also why `repair_synthesis` pairs `stale_citations` with
 
 ### One package, one MCP surface, one retention job
 
-`packages/gbrain.yaml` binds it all together: the nine collections, the ten
+`catalog.yaml` binds it all together: the nine collections, the ten
 processors and their triggers, the three views, the artifact, the search
 profile, an MCP declaration (`mcp/gbrain.yaml`), and a trusted daily
 `purge_pages` retention job that permanently erases page tombstones after 30

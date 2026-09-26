@@ -1,0 +1,148 @@
+{
+  "$defs": {
+    "ExternalProgramBundle": {
+      "additionalProperties": false,
+      "properties": {
+        "uri": {
+          "minLength": 1,
+          "title": "Uri",
+          "type": "string"
+        },
+        "sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "uri",
+        "sha256"
+      ],
+      "title": "ExternalProgramBundle",
+      "type": "object"
+    },
+    "ProgramDefinition": {
+      "additionalProperties": false,
+      "description": "Immutable executable bundle accepted by a Computer provider.",
+      "properties": {
+        "name": {
+          "pattern": "^[a-z][a-z0-9._-]{0,63}$",
+          "title": "Name",
+          "type": "string"
+        },
+        "definition_hash": {
+          "default": "",
+          "title": "Definition Hash",
+          "type": "string"
+        },
+        "version": {
+          "minimum": 1,
+          "title": "Version",
+          "type": "integer"
+        },
+        "active": {
+          "default": false,
+          "title": "Active",
+          "type": "boolean"
+        },
+        "runtime": {
+          "enum": [
+            "worker-javascript",
+            "container"
+          ],
+          "title": "Runtime",
+          "type": "string"
+        },
+        "entrypoint": {
+          "title": "Entrypoint",
+          "type": "string"
+        },
+        "command": {
+          "anyOf": [
+            {
+              "items": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Command"
+        },
+        "files": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Files",
+          "type": "object"
+        },
+        "bundle": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ExternalProgramBundle"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "input_schema": {
+          "additionalProperties": true,
+          "title": "Input Schema",
+          "type": "object"
+        },
+        "output_schema": {
+          "additionalProperties": true,
+          "title": "Output Schema",
+          "type": "object"
+        },
+        "capabilities": {
+          "default": [
+            "filesystem"
+          ],
+          "items": {
+            "enum": [
+              "filesystem",
+              "exec",
+              "network"
+            ],
+            "type": "string"
+          },
+          "title": "Capabilities",
+          "type": "array"
+        }
+      },
+      "required": [
+        "name",
+        "version",
+        "runtime",
+        "entrypoint",
+        "input_schema",
+        "output_schema"
+      ],
+      "title": "ProgramDefinition",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "programs": {
+      "items": {
+        "$ref": "#/$defs/ProgramDefinition"
+      },
+      "title": "Programs",
+      "type": "array"
+    }
+  },
+  "required": [
+    "programs"
+  ],
+  "title": "ProgramDefinitionFile",
+  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}

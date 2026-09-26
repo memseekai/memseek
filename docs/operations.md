@@ -18,7 +18,7 @@ The main settings groups are:
 | --- | --- |
 | Database | `DATABASE_URL`, pool sizes, migration settings |
 | LLM | provider API keys, `LLM_FAKE`, concurrency, context/prompt/output limits |
-| Catalog | `COLLECTIONS_DIR`, `DERIVATIONS_DIR`, `TRIGGERS_DIR`, `VIEWS_DIR`, `ARTIFACTS_DIR`, `COMPUTERS_DIR`, `PROGRAMS_DIR`, `AGENTS_DIR`, `CONTEXT_POLICIES_DIR`, `MCP_DIR`, `PACKAGES_DIR` and the `*_FILE` paths under `conf/` |
+| Catalog | `CATALOG_FILE` points to the root `catalog.yaml`; its source map selects every definition and configuration file |
 | Search | `SEARCH_BACKEND`, profile overrides, Turbopuffer credentials/layout/consistency, candidate and concurrency limits |
 | Derivation | batch sizes, text/content limits, maximum depth, artifact/run limits |
 | Contradiction detection | `derivations/contradiction.yaml` and `collections/relations.yaml` — see [Contradiction detection](contradiction-detection.md) |
@@ -291,7 +291,7 @@ Packages can declare [tombstone retention](packages.md#tombstone-retention)
 for delayed physical deletion. This creates internal `retention_purge` work
 only; there is no retention HTTP endpoint. The worker selects current keyed
 retractions old enough by server `created_at`, then runs the same
-erasure and projection repair described above. Check the package YAML, worker
+erasure and projection repair described above. Check `retentions` in `catalog.yaml`, worker
 logs, and `_system/erasure` audit rows when operating one of these policies.
 
 ### Expiring artifact uses

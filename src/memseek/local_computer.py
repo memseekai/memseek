@@ -11,6 +11,7 @@ and network, not in a sandbox.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import hashlib
 import json
 import os
@@ -19,7 +20,9 @@ import signal
 import subprocess
 import sys
 import tempfile
+import threading
 from collections.abc import Mapping
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
 from uuid import UUID
@@ -50,18 +53,18 @@ from memseek.harnesses.writeback import (
     normalize_candidate,
     writeback_tools,
 )
+from memseek.lessons import LESSONS_PATH, SkillLessons, bind_schema, require_calls
+from memseek.materialization import LESSONS_FILE, PLAYBOOK_FILE
 from memseek.skillpacks import (
-    LEARNINGS_PATH,
-    PLAYBOOK_PATH,
     SkillMount,
     SkillPackError,
     SkillPackManifest,
-    bind_learnings_schema,
     check_skillpack,
+    install_skill,
     load_skillpack,
     materialize_skillpack,
     pack_environment,
-    require_helper,
+    seed_workspace,
     stop_skillpack,
 )
 
@@ -73,19 +76,59 @@ _OUTBOX_MAX_BYTES = 1024 * 1024
 _OUTBOX_MAX_ENTRIES = 2_000
 # The harness enforces max_wall_s itself; this only reclaims one that ignores it.
 _WALL_GRACE_S = 30
+# A harness exits with this when the run hit max_steps or max_wall_s.
+_BUDGET_EXIT = 2
 
 
 class RunOptions(StrictModel):
     """What one run may read and write back, taken from the invocation's task input.
 
     Both default to the normal mode, so an option can only narrow a run.
-    ``learning`` governs memseek's playbook; ``native`` governs each pack's own
+    ``learning`` governs the skills that opted into learning: ``off`` shows no
+    playbook and records nothing, ``read`` shows the playbooks, and
+    ``read_write`` also asks for lessons. ``native`` governs each pack's own
     state directory: ``off`` is fresh, ``read`` is a copy of the entity's kept
     directory, and ``read_write`` is the kept directory itself.
     """
 
     learning: LearningMode = "read_write"
     native: LearningMode = "read_write"
+
+
+@dataclass(frozen=True, slots=True)
+class _Learning:
+    """What this run shows and asks for, per skill that learns.
+
+    ``lessons`` holds the recording instructions of each skill this run asks
+    for lessons, and ``specs`` those skills' merged lesson specs.
+    """
+
+    specs: tuple[SkillLessons, ...]
+    playbooks: Mapping[str, str]
+    lessons: Mapping[str, str]
+
+    @classmethod
+    def take(
+        cls, toolset: Mapping[str, Any] | None, context_files: dict[str, str], mode: LearningMode
+    ) -> _Learning:
+        """Remove the learning files from ``context_files``, keeping what ``mode`` allows.
+
+        They are installed beside each skill instead, so a cold run cannot find
+        a playbook anywhere under /.memseek.
+        """
+
+        found: dict[str, dict[str, str]] = {PLAYBOOK_FILE: {}, LESSONS_FILE: {}}
+        for path in sorted(context_files):
+            parts = Path(path).parts
+            if len(parts) == 5 and parts[1:3] == (".memseek", "skills") and parts[4] in found:
+                found[parts[4]][parts[3]] = context_files.pop(path)
+        lessons = found[LESSONS_FILE] if mode == "read_write" else {}
+        specs = tuple(SkillLessons.from_json(item) for item in (toolset or {}).get("lessons") or ())
+        return cls(
+            specs=tuple(spec for spec in specs if spec.skill in lessons),
+            playbooks=found[PLAYBOOK_FILE] if mode != "off" else {},
+            lessons=lessons,
+        )
 
 
 class _Rejected(StrictModel):
@@ -107,9 +150,15 @@ class LocalComputerProvider:
         self._settings = settings
 
     async def execute(self, request: ComputerRequest) -> ComputerResult:
-        return await asyncio.to_thread(self._execute, request)
+        harness = _HarnessProcess()
+        try:
+            return await asyncio.to_thread(self._execute, request, harness)
+        except asyncio.CancelledError:
+            # The thread outlives a cancelled await, so end its harness here.
+            harness.cancel()
+            raise
 
-    def _execute(self, request: ComputerRequest) -> ComputerResult:
+    def _execute(self, request: ComputerRequest, harness: _HarnessProcess) -> ComputerResult:
         agent = request.agent
         if agent is None or agent.harness is None:
             raise ComputerExecutionError(
@@ -141,7 +190,7 @@ class LocalComputerProvider:
             tempfile.mkdtemp(prefix="msk-", dir="/tmp" if Path("/tmp").is_dir() else None)
         )
         try:
-            return self._execute_in(request, options, tools, manifest, packs, env, runtime)
+            return self._execute_in(request, options, tools, manifest, packs, env, runtime, harness)
         finally:
             for pack in packs:
                 stop_skillpack(pack, env)
@@ -156,36 +205,37 @@ class LocalComputerProvider:
         packs: list[SkillPackManifest],
         env: dict[str, str],
         runtime: Path,
+        harness: _HarnessProcess,
     ) -> ComputerResult:
         agent = request.agent
         assert agent is not None
-        root = self._settings.local_computer_root.expanduser() / request.session_key
+        root = _short_dir(self._settings.local_computer_root.expanduser(), request.session_key)
         context_files = dict(request.context_files or {})
-        if options.learning == "off":
-            # The cold baseline must not be able to find the playbook at all.
-            context_files.pop(PLAYBOOK_PATH, None)
+        learning = _Learning.take(request.toolset, context_files, options.learning)
         _prepare_root(root, context_files, request.input)
 
         skills_root = root / manifest.skills_dir
         # Regenerated every run, so a resumed session never keeps a stale playbook.
         shutil.rmtree(skills_root, ignore_errors=True)
-        mounts = _mount_materialized_skills(root, context_files, skills_root)
+        mounts = _mount_materialized_skills(root, context_files, skills_root, learning)
         for pack in packs:
+            state_dir = self._state_dir(root, request, pack, options)
             env.update(
-                pack_environment(
-                    pack,
-                    state_dir=self._state_dir(root, request, pack, options),
-                    runtime_dir=runtime,
-                    parent=os.environ,
-                )
+                pack_environment(pack, state_dir=state_dir, runtime_dir=runtime, parent=os.environ)
             )
             try:
+                seed_workspace(
+                    pack,
+                    state_dir=state_dir,
+                    runtime_dir=runtime,
+                    cache_root=self._settings.skillpack_cache.expanduser(),
+                )
                 mounts.append(
                     materialize_skillpack(
                         pack,
                         skills_root,
-                        playbook_md=context_files.get(PLAYBOOK_PATH),
-                        learning=options.learning,
+                        playbook=learning.playbooks.get(pack.name),
+                        lessons=learning.lessons.get(pack.name),
                         env=env,
                     )
                 )
@@ -193,15 +243,11 @@ class LocalComputerProvider:
                 raise ComputerExecutionError("provider", str(exc)) from exc
 
         writeback_paths = [
-            path
-            for path in _writeback_paths(request)
-            if path != LEARNINGS_PATH or options.learning == "read_write"
+            path for path in _writeback_paths(request) if path != LESSONS_PATH or learning.lessons
         ]
         citations = sorted(str(value) for value in request.citation_ids)
-        learning_packs = [
-            pack.name for pack in packs if pack.learns and options.learning == "read_write"
-        ]
-        schemas = _schema_overrides(context_files, learning_packs)
+        learning_skills = sorted(learning.lessons)
+        schemas = _schema_overrides(context_files, learning)
         tools_for_writeback = writeback_tools(
             (
                 item.model_dump(mode="json")
@@ -212,10 +258,15 @@ class LocalComputerProvider:
             citations,
             schema_overrides=schemas,
         )
-        tools_for_writeback = [
-            require_helper(tool) if tool.path == LEARNINGS_PATH and learning_packs else tool
-            for tool in tools_for_writeback
-        ]
+        if learning.specs:
+            tools_for_writeback = [
+                tool.model_copy(
+                    update={"input_schema": require_calls(tool.input_schema, learning.specs)}
+                )
+                if tool.path == LESSONS_PATH
+                else tool
+                for tool in tools_for_writeback
+            ]
         harness_input = HarnessInput(
             task=_task_text(request.input),
             system_prompt=build_system_prompt(
@@ -226,7 +277,8 @@ class LocalComputerProvider:
                 citation_ids=[str(value) for value in request.citation_ids],
                 writeback_paths=writeback_paths,
                 writeback_tools={tool.path: tool.name for tool in tools_for_writeback},
-                learning_packs=learning_packs,
+                learning_skills=learning_skills,
+                learning_writeback=LESSONS_PATH,
                 root=str(root),
                 playbooks={mount.name: mount.playbook for mount in mounts if mount.playbook},
             ),
@@ -245,9 +297,9 @@ class LocalComputerProvider:
         (root / HARNESS_INPUT_PATH).parent.mkdir(parents=True, exist_ok=True)
         (root / HARNESS_INPUT_PATH).write_text(harness_input.model_dump_json(), encoding="utf-8")
 
-        output = _run_harness(manifest, root, env, wall_s=agent.limits.max_wall_s)
-        if options.learning != "read_write":
-            (root / LEARNINGS_PATH.lstrip("/")).unlink(missing_ok=True)
+        output = harness.run(manifest, root, env, wall_s=agent.limits.max_wall_s)
+        if not learning.lessons:
+            (root / LESSONS_PATH.lstrip("/")).unlink(missing_ok=True)
         outbox, rejected = _collect_outbox(root, request, context_files, schemas)
         encoded = json.dumps(
             output.value, ensure_ascii=False, sort_keys=True, separators=(",", ":")
@@ -302,12 +354,42 @@ class LocalComputerProvider:
             fresh.mkdir(parents=True)
             return fresh
         entity = hashlib.sha256(f"{request.workspace}\0{request.entity}".encode()).hexdigest()
-        kept = self._settings.local_computer_root.expanduser() / "_native" / entity / pack.name
+        kept = _short_dir(self._settings.local_computer_root.expanduser() / "_native", entity)
+        kept /= pack.name
         kept.mkdir(parents=True, exist_ok=True)
         if options.native == "read_write":
             return kept
         shutil.copytree(kept, fresh, symlinks=True)
         return fresh
+
+
+def _short_dir(base: Path, key: str) -> Path:
+    """The directory kept for ``key`` below ``base``, named by a small number.
+
+    The agent copies every path it is shown, and a live run dropped five
+    characters from the middle of a 64-hex session root. ``base/.keys/<key>``
+    links to the number, so every run for ``key`` gets the same directory.
+    """
+
+    keys = base / ".keys"
+    keys.mkdir(parents=True, exist_ok=True)
+    link = keys / key
+    while True:
+        with contextlib.suppress(FileNotFoundError):
+            return base / link.readlink()
+        taken = [int(path.name) for path in base.iterdir() if path.name.isdigit()]
+        name = str(max(taken, default=0) + 1)
+        try:
+            (base / name).mkdir()
+        except FileExistsError:
+            continue
+        try:
+            link.symlink_to(name)
+        except FileExistsError:
+            # Another run claimed this key first; use its directory.
+            (base / name).rmdir()
+            continue
+        return base / name
 
 
 def _run_options(value: Any) -> RunOptions:
@@ -360,54 +442,102 @@ def _prepare_root(root: Path, context_files: Mapping[str, str], task_input: Any)
 
 
 def _mount_materialized_skills(
-    root: Path, context_files: Mapping[str, str], skills_root: Path
+    root: Path, context_files: Mapping[str, str], skills_root: Path, learning: _Learning
 ) -> list[SkillMount]:
-    """Copy catalog skills to where the harness discovers skills."""
+    """Install catalog skills where the harness discovers skills."""
 
     mounts: list[SkillMount] = []
     for path in sorted(context_files):
         parts = Path(path).parts
         if len(parts) != 5 or parts[1:3] != (".memseek", "skills") or parts[4] != "SKILL.md":
             continue
-        directory = skills_root / parts[3]
-        directory.mkdir(parents=True, exist_ok=True)
-        shutil.copyfile(_inside(root, path), directory / "SKILL.md")
-        mounts.append(SkillMount(name=parts[3], dir=directory))
+        name = parts[3]
+        mounts.append(
+            install_skill(
+                skills_root / name,
+                _inside(root, path).read_text(encoding="utf-8"),
+                name=name,
+                playbook=learning.playbooks.get(name),
+                lessons=learning.lessons.get(name),
+            )
+        )
     return mounts
 
 
-def _run_harness(
-    manifest: HarnessManifest, root: Path, env: Mapping[str, str], *, wall_s: int
-) -> HarnessOutput:
-    try:
-        process = subprocess.Popen(
-            manifest.command(),
-            cwd=root,
-            env=dict(env),
-            stdin=subprocess.DEVNULL,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            # Its own process group, so a timeout reclaims the agent it started.
-            start_new_session=True,
-        )
-    except OSError as exc:
-        raise ComputerExecutionError("provider", f"cannot start harness: {exc}") from exc
-    try:
-        stdout, stderr = process.communicate(timeout=wall_s + _WALL_GRACE_S)
-    except subprocess.TimeoutExpired as exc:
+class _HarnessProcess:
+    """The harness one run starts, which a cancelled run can still stop.
+
+    The harness leads its own process group, so ending the group also ends the
+    agent it started, whichever way the run ends.
+    """
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._process: subprocess.Popen[str] | None = None
+        self._cancelled = False
+
+    def cancel(self) -> None:
+        with self._lock:
+            self._cancelled = True
+            if self._process is not None:
+                _kill_group(self._process)
+
+    def run(
+        self, manifest: HarnessManifest, root: Path, env: Mapping[str, str], *, wall_s: int
+    ) -> HarnessOutput:
+        with self._lock:
+            if self._cancelled:
+                raise ComputerExecutionError("transport", "the run was cancelled")
+            try:
+                process = subprocess.Popen(
+                    manifest.command(),
+                    cwd=root,
+                    env=dict(env),
+                    stdin=subprocess.DEVNULL,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                    start_new_session=True,
+                )
+            except OSError as exc:
+                raise ComputerExecutionError("provider", f"cannot start harness: {exc}") from exc
+            self._process = process
+        # An agent left running holds the harness's pipes open, so the output
+        # would not end until it did. End the group as soon as the harness exits.
+        threading.Thread(target=_end_group_on_exit, args=(process,), daemon=True).start()
+        try:
+            stdout, stderr = process.communicate(timeout=wall_s + _WALL_GRACE_S)
+        except subprocess.TimeoutExpired as exc:
+            _kill_group(process)
+            process.communicate()
+            raise ComputerExecutionError(
+                "budget", f"harness {manifest.name!r} exceeded max_wall_s {wall_s}"
+            ) from exc
+        return _harness_output(manifest, process.returncode, stdout, stderr)
+
+
+def _end_group_on_exit(process: subprocess.Popen[str]) -> None:
+    process.wait()
+    _kill_group(process)
+
+
+def _kill_group(process: subprocess.Popen[str]) -> None:
+    with contextlib.suppress(ProcessLookupError, PermissionError):
         if hasattr(os, "killpg") and hasattr(signal, "SIGKILL"):
             os.killpg(process.pid, signal.SIGKILL)
         else:
             process.kill()
-        process.communicate()
-        raise ComputerExecutionError(
-            "budget", f"harness {manifest.name!r} exceeded max_wall_s {wall_s}"
-        ) from exc
-    if process.returncode != 0:
+
+
+def _harness_output(
+    manifest: HarnessManifest, returncode: int, stdout: str, stderr: str
+) -> HarnessOutput:
+    if returncode != 0:
         detail = " ".join(stderr.split())[-500:]
+        # A spent budget is final: running it again would spend it again.
+        code = "budget" if returncode == _BUDGET_EXIT else "provider"
         raise ComputerExecutionError(
-            "provider", f"harness {manifest.name!r} exited {process.returncode}: {detail}"
+            code, f"harness {manifest.name!r} exited {returncode}: {detail}"
         )
     lines = [line for line in stdout.splitlines() if line.strip()]
     try:
@@ -447,12 +577,14 @@ def _writeback_paths(request: ComputerRequest) -> list[str]:
 
 
 def _schema_overrides(
-    context_files: Mapping[str, str], learning_packs: list[str]
+    context_files: Mapping[str, str], learning: _Learning
 ) -> dict[str, dict[str, Any]]:
-    schema = destination_schema(context_files, LEARNINGS_PATH)
-    if schema is None or not learning_packs:
+    if not learning.specs:
         return {}
-    return {LEARNINGS_PATH: bind_learnings_schema(schema, learning_packs)}
+    schema = destination_schema(context_files, LESSONS_PATH)
+    if schema is None:
+        return {}
+    return {LESSONS_PATH: bind_schema(schema, learning.specs)}
 
 
 def _collect_outbox(

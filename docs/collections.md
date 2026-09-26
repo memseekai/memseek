@@ -10,8 +10,8 @@ record looks like, whether records are diary-style entries or named slots that
 get updated, which enrichment must run on each record, and how the records are
 searched.
 
-Collection files live in `collections/*.yaml`. A file starts with a
-`collections:` list and may contain several collections.
+A collection file is listed under `collections:` in `catalog.yaml`
+(conventionally `collections/*.yaml`). A file starts with a `collections:` list and may contain several collections.
 
 If **entity**, **key**, **current**, or **ready** are unfamiliar, pause at the
 [Glossary](glossary.md). Those terms determine the collection shape before any

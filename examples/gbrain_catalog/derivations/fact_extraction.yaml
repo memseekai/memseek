@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=../../../schemas/derivations.schema.json
 name: fact_extraction
 trigger:
   write:

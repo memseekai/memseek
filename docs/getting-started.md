@@ -128,7 +128,7 @@ YAML files, keyed by their relative paths:
   "files": {
     "collections/crm.yaml": "collections:\n  - name: crm_events\n    ...\n",
     "conf/models.yaml": "aliases:\n  ...\n",
-    "packages/crm_user_profile.yaml": "name: crm_user_profile\nversion: 2.0.0\n...\n"
+    "catalog.yaml": "name: crm_user_profile\nversion: 2.0.0\n...\n"
   }
 }
 ```
