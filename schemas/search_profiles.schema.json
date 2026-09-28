@@ -1,0 +1,80 @@
+{
+  "$defs": {
+    "SearchProfileDefinition": {
+      "additionalProperties": false,
+      "properties": {
+        "definition_hash": {
+          "default": "",
+          "title": "Definition Hash",
+          "type": "string"
+        },
+        "backend": {
+          "enum": [
+            "pg",
+            "turbopuffer"
+          ],
+          "title": "Backend",
+          "type": "string"
+        },
+        "layout": {
+          "anyOf": [
+            {
+              "enum": [
+                "shared",
+                "per_collection"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Layout"
+        },
+        "consistency": {
+          "anyOf": [
+            {
+              "enum": [
+                "strong",
+                "eventual"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Consistency"
+        },
+        "enabled_if_credentials": {
+          "default": false,
+          "title": "Enabled If Credentials",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "backend"
+      ],
+      "title": "SearchProfileDefinition",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "profiles": {
+      "additionalProperties": {
+        "$ref": "#/$defs/SearchProfileDefinition"
+      },
+      "title": "Profiles",
+      "type": "object"
+    }
+  },
+  "required": [
+    "profiles"
+  ],
+  "title": "SearchProfiles",
+  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}

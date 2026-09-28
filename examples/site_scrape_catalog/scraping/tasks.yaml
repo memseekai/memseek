@@ -1,0 +1,19 @@
+# yaml-language-server: $schema=../../../schemas/collections.schema.json
+collections:
+  # What to scrape. The demo writes one before each run, and the Agent's
+  # instructions render the latest one, which is what makes it citable: every
+  # learning the Agent writes back cites the task it was learned on.
+  - name: scrape_tasks
+    version: 1
+    active: true
+    mode: event
+    schema:
+      type: object
+      required: [text, url, goal]
+      properties:
+        text: {type: string, minLength: 1}
+        url: {type: string, minLength: 1, maxLength: 2048}
+        goal: {type: string, minLength: 1, maxLength: 1000}
+      additionalProperties: false
+    required_processors: []
+    search_profile: pg_default

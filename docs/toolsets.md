@@ -72,10 +72,15 @@ may never widen it: declaring `exec` against a Computer with
 | `skill` | `artifact` | See below. Many skill sources produce **one** tool with many choices. |
 | `view` | `view` | Bounded search over a named view's rows, materialized before the run. |
 | `mcp_server` | `url` | Declared and validated; not executable yet. |
+| `skillpack` | `pack` | A `skillpacks/<name>/` module mounted as a skill for the Agent's harness. Its declared capabilities must be allowed by every Computer. See [Harnesses and skill packs](computers.md#harnesses-and-skill-packs). |
 
-Every kind except `skill` requires a `description`. A skill's description
-belongs to the skill artifact, because two toolsets describing the same skill
-would be two different promises about one body of text.
+`skill` and `skillpack` sources also take an optional `learning` field. See
+[Skills that learn](#skills-that-learn).
+
+Every kind except `skill` and `skillpack` requires a `description`. A skill's
+description belongs to the skill artifact, because two toolsets describing the
+same skill would be two different promises about one body of text. A skill
+pack's description comes from the `SKILL.md` it generates, for the same reason.
 
 ## Skills are disclosed, not pasted
 
@@ -102,6 +107,99 @@ once in the system prompt. Progressive disclosure wins when skills are many and
 selectively relevant. Keep always-relevant procedure text in the Agent's
 `instructions` artifact; reserve skills for the selective case.
 
+## Skills that learn
+
+A `skill` or `skillpack` source can record lessons while the Agent uses it and
+read them back on the next run. For the steps, see
+[Make a skill learn from its runs](skill-learning.md). For the design, see
+[How skill lessons work](skill-lessons.md).
+
+```yaml
+toolsets:
+  - name: scraper
+    version: 1
+    sources:
+      - {name: browser, kind: skillpack, pack: browser-harness, learning: true}
+      - name: sql
+        kind: skill
+        artifact: sql_skill@1
+        learning: {playbook: false, max_per_run: 4}
+```
+
+### The source `learning` field
+
+Allowed on `skill` and `skillpack` sources only.
+
+| Field | Default | Meaning |
+| --- | --- | --- |
+| `collect` | `true` | Offer the lessons tool for this skill and append its recording instructions. |
+| `playbook` | `true` | Install `PLAYBOOK.md` beside the skill once it has lessons for the run's entity. |
+| `kinds` | the skill's | Kind names mapped to descriptions. Merges with the skill's `kinds`; if the skill declares none, replaces the defaults below. |
+| `require` | the skill's | Kinds each call must include for this skill. Replaces the skill's value. |
+| `code` | the skill's | Kinds whose lessons must carry `code`. Replaces the skill's value. |
+| `guidance` | the skill's | Extra text for the recording instructions. Replaces the skill's value. |
+| `max_per_run` | the skill's, or 8 | How many lessons the agent is asked to record, from 1 to 50. |
+
+`learning: true` means all defaults. `false`, and `{collect: false, playbook:
+false}`, are refused: omit the field instead.
+
+The name a skill learns under is its installed directory name: `pack` for a
+`skillpack` source, and the resolved skill name for a `skill` source. Two
+sources that learn cannot share a name.
+
+### The skill's `lessons` block
+
+A skill declares what is worth learning beside itself: `lessons:` in a pack's
+`skillpack.yaml`, or on an artifact with `kind: skill`. It takes `kinds`,
+`require`, `code`, `guidance`, and `max_per_run`, with the meanings above.
+
+A skill that declares no `kinds` gets these, and `code: [helper]`:
+
+| Kind | Description |
+| --- | --- |
+| `helper` | Code that did the job, so the next run can run it instead of writing it again. |
+| `tip` | Something that worked and is worth doing again. |
+| `pitfall` | Something that went wrong or wasted time, or an earlier lesson that proved false, and what is true now. |
+
+### What memseek adds
+
+When any source in a catalog's toolsets sets `learning`:
+
+- The catalog gets the `lessons@1` collection. Its content is `text`
+  (required, one line, up to 480 characters), `skill` and `kind` (required),
+  and optional `detail` and `code`. It declares the fields `skill`, `kind`, and
+  `code`, and uses the `pg_default` search profile.
+- A package that ships the toolset ships `lessons@1`.
+
+For a run of an Agent whose toolset has a skill with `collect` on:
+
+- The Computer's writeback gains `/outbox/lessons.jsonl`, an `observations`
+  writeback into `lessons@1`.
+- The run gets one `record_lessons` tool. Its `skill` must name a skill in this
+  run with `collect` on, and its `kind` must be one that skill declares.
+- Each such skill's `SKILL.md` ends with recording instructions made from its
+  kinds, `require`, `code`, and `guidance`.
+
+For each skill with `playbook` on and at least one lesson for the run's entity,
+the run gets `<skill>/PLAYBOOK.md`: that skill's 40 newest lessons, grouped by
+kind in the skill's order. `SKILL.md` starts with a pointer to it, and the
+system prompt includes it.
+
+The run's `learning` option narrows all of this: `off` removes everything, and
+`read` removes the lessons tool and the instructions. See
+[What each run mode shows](skill-lessons.md#what-each-run-mode-shows).
+
+### Checks at compile time
+
+The catalog refuses:
+
+- `learning` on a source that is not `skill` or `skillpack`;
+- `lessons` on an artifact whose `kind` is not `skill`;
+- a `require` or `code` kind that the merged `kinds` do not declare;
+- a catalog with a learning source and no `pg_default` search profile;
+- a collection of its own named `lessons` while a source learns;
+- a Computer of a learning Agent that does not list `/outbox` in `writable`.
+
 ## Versions are exact
 
 Like an MCP interface, a toolset has no `active:` alias. An Agent binds one
@@ -110,7 +208,9 @@ not a surface. Rolling a toolset forward means a new Agent version — which is
 correct: the tool surface is part of what the Agent *is*.
 
 A package must declare every view and artifact its bound toolset reaches, so a
-toolset cannot widen the package's surface from the side.
+toolset cannot widen the package's surface from the side. The built-in
+`lessons@1` collection is the one exception: a package that ships a learning
+toolset gets it without listing it.
 
 To read a surface rather than reconstruct it from YAML, draw the package:
 `uv run memseek catalog-graph --dir <catalog> --out surface.html`. Each source

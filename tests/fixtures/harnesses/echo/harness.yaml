@@ -1,0 +1,11 @@
+name: echo
+version: 3
+entry: [python3, run.py]
+requires:
+  - {bin: python3, install: "https://www.python.org"}
+skills_dir: .agents/skills
+# Whichever provider the example catalog's scraper alias names, the key reaches the harness.
+model_env:
+  anthropic: ECHO_MODEL_KEY
+  openai: ECHO_MODEL_KEY
+  openrouter: ECHO_MODEL_KEY

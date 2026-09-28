@@ -417,15 +417,17 @@ async def test_answer_is_unavailable_when_no_collection_declares_it(
 ) -> None:
     """A catalog that opts nothing in cannot synthesize, and says so."""
 
-    collections = tmp_path / "collections"
-    collections.mkdir()
-    assert settings.collections_dir is not None  # the reference catalog fixture sets it
-    for path in sorted(settings.collections_dir.glob("*.yaml")):
+    import shutil
+
+    assert settings.catalog_file is not None
+    root = tmp_path / "catalog"
+    shutil.copytree(settings.catalog_file.parent, root)
+    for path in sorted((root / "collections").glob("*.yaml")):
         source = yaml.safe_load(path.read_text())
         for block in source["collections"]:
             block.pop("answerable", None)
-        (collections / path.name).write_text(yaml.safe_dump(source, sort_keys=False))
-    closed = settings.model_copy(update={"collections_dir": collections})
+        path.write_text(yaml.safe_dump(source, sort_keys=False))
+    closed = settings.model_copy(update={"catalog_file": root / "catalog.yaml"})
 
     credential = await create_workspace(db_pool, "answer-none")
     async with _client(closed) as client:

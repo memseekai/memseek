@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=../../schemas/views.schema.json
 views:
   # The agent's open self-contradictions, sharpest first. A structured listing
   # (no relevance guessing): every standing self_contradiction edge for one

@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 from collections.abc import Mapping
 from dataclasses import dataclass
-from pathlib import Path, PurePosixPath
+from pathlib import PurePosixPath
 from typing import Any
 from weakref import WeakValueDictionary
 
@@ -29,28 +29,11 @@ from memseek.definitions.compat import (
     classify_catalogs,
     plan_stored_groups,
 )
-from memseek.definitions.loader import _CatalogBuilder
-from memseek.definitions.yaml import load_yaml_file, load_yaml_text, yaml_files
-from memseek.derive.tasks import import_task_modules
 from memseek.locks import acquire_workspace_lock
 
 _MAX_FILES = 256
 _MAX_FILE_BYTES = 512 * 1024
 _MAX_TOTAL_BYTES = 4 * 1024 * 1024
-_CATALOG_DIRECTORIES = {
-    "agents",
-    "collections",
-    "computers",
-    "context_policies",
-    "derivations",
-    "triggers",
-    "views",
-    "artifacts",
-    "mcp",
-    "packages",
-    "programs",
-    "toolsets",
-}
 
 
 class WorkspaceCatalogRequest(BaseModel):
@@ -122,18 +105,17 @@ def _normalize_files(files: Mapping[str, str]) -> dict[str, str]:
         if not isinstance(raw_name, str) or not isinstance(text, str):
             raise WorkspaceCatalogError("file_shape", "files must map path strings to YAML text")
         name = PurePosixPath(raw_name)
-        if "\x00" in raw_name or name.is_absolute() or ".." in name.parts or name.name in {"", "."}:
+        if (
+            "\x00" in raw_name
+            or "\\" in raw_name
+            or str(name) != raw_name
+            or name.is_absolute()
+            or ".." in name.parts
+            or name.name in {"", "."}
+        ):
             raise WorkspaceCatalogError("file_path", f"invalid definition path {raw_name!r}")
         if name.suffix not in {".yaml", ".yml"}:
             raise WorkspaceCatalogError("file_type", f"definition path must be YAML: {raw_name!r}")
-        if not name.parts or (
-            name.parts[0] not in _CATALOG_DIRECTORIES
-            and not (name.parts[0] == "conf" and len(name.parts) >= 2)
-        ):
-            raise WorkspaceCatalogError(
-                "file_path",
-                f"definition path is outside the catalog layout: {raw_name!r}",
-            )
         size = len(text.encode("utf-8"))
         if size > _MAX_FILE_BYTES:
             raise WorkspaceCatalogError(
@@ -149,96 +131,10 @@ def _normalize_files(files: Mapping[str, str]) -> dict[str, str]:
 
 
 def _compile_overlay(settings: Settings, files: Mapping[str, str]) -> DefinitionCatalog:
-    # Parse even nested files that the family loaders do not select, matching
-    # upload validation without a second YAML parse during compilation.
-    parsed = {name: load_yaml_text(text, source=name) for name, text in files.items()}
-    documents: dict[str, tuple[tuple[Path, Any], ...]] = {}
-    configured: dict[str, Path | None] = {"search_profile_overrides_file": None}
-    uploaded_sections = {path.split("/", 1)[0] for path in files}
-    user_catalog = bool(uploaded_sections & _CATALOG_DIRECTORIES)
+    from memseek.definitions.manifest import compile_catalog_files
 
-    def base_files(source: Path | None) -> tuple[Path, ...]:
-        if source is None:
-            return ()
-        if source.is_dir():
-            return yaml_files(source)
-        if source.is_file():
-            return (source,)
-        raise WorkspaceCatalogError("base_catalog", f"definition path does not exist: {source}")
-
-    for family in sorted(_CATALOG_DIRECTORIES):
-        field = f"{family}_dir"
-        configured[field] = Path(family)
-        if user_catalog:
-            if family not in uploaded_sections:
-                configured[field] = None
-            selected = {
-                Path(name): value
-                for name, value in parsed.items()
-                if Path(name).parent == Path(family)
-            }
-        else:
-            source = getattr(settings, field)
-            # A base catalog that predates a family, or simply declares none,
-            # is absent rather than broken.
-            if family in {"mcp", "toolsets"} and (source is None or not source.exists()):
-                source = None
-            paths = base_files(source)
-            if source is not None and source.is_file():
-                raise WorkspaceCatalogError(
-                    "definition",
-                    str(
-                        DefinitionError(
-                            "directory_type", "definition path is not a directory", file=family
-                        )
-                    ),
-                )
-            selected = {Path(family) / path.name: load_yaml_file(path) for path in paths}
-        documents[field] = tuple(sorted(selected.items()))
-
-    for family in ("models", "rank_default", "processors", "search_profiles"):
-        field = f"{family}_file"
-        name = f"conf/{family}.yaml"
-        configured[field] = Path(name)
-        if family in {"models", "rank_default"}:
-            value = parsed.get(name)
-            if name not in parsed:
-                source = getattr(settings, field)
-                base_files(source)  # Preserve missing deployment-file diagnostics.
-                value = load_yaml_file(source)
-            documents[field] = ((Path(name), value),)
-            continue
-        selected = {}
-        uploaded = name in parsed or any(key.startswith(f"conf/{family}/") for key in parsed)
-        if not uploaded and (family != "processors" or not user_catalog):
-            source = getattr(settings, field)
-            for path in base_files(source):
-                label = f"base-{path.name}" if source.is_dir() else "base.yaml"
-                selected[Path(f"conf/{family}/{label}")] = load_yaml_file(path)
-        for key, value in parsed.items():
-            if key == name:
-                selected[Path(f"conf/{family}/user.yaml")] = value
-            elif Path(key).parent == Path(f"conf/{family}"):
-                selected[Path(key)] = value
-        documents[field] = tuple(sorted(selected.items()))
-
-    for name in files:
-        parts = PurePosixPath(name).parts
-        if (
-            parts[0] not in _CATALOG_DIRECTORIES
-            and parts[:2] not in {("conf", "processors"), ("conf", "search_profiles")}
-            and name
-            not in {
-                "conf/models.yaml",
-                "conf/rank_default.yaml",
-                "conf/processors.yaml",
-                "conf/search_profiles.yaml",
-            }
-        ):
-            raise WorkspaceCatalogError("file_path", f"unsupported definition path {name!r}")
     try:
-        import_task_modules(settings.task_modules)
-        return _CatalogBuilder(settings.model_copy(update=configured), documents=documents).build()
+        return compile_catalog_files(settings, files)
     except DefinitionError as exc:
         raise WorkspaceCatalogError("definition", str(exc)) from exc
 
@@ -514,6 +410,12 @@ class WorkspaceCatalogRegistry:
                     raise WorkspaceCatalogError(
                         "catalog_storage", "stored workspace catalog is invalid", status=503
                     )
+                if "catalog.yaml" not in files:
+                    raise WorkspaceCatalogError(
+                        "catalog_republish_required",
+                        "stored catalog uses the retired format; republish with catalog.yaml",
+                        status=409,
+                    )
                 catalog = await asyncio.to_thread(_compile_overlay, self.settings, files)
                 if catalog.catalog_hash != catalog_hash:
                     raise WorkspaceCatalogError(
@@ -609,10 +511,6 @@ class WorkspaceCatalogRegistry:
 
         files = _normalize_files(request.files)
         package_name, package_version = split_exact_reference(request.package, semver=True)
-        if not any(path.startswith("packages/") for path in files):
-            raise WorkspaceCatalogError(
-                "package_file", "upload must include a packages/*.yaml file"
-            )
         catalog = _compile_overlay(self.settings, files)
         try:
             catalog.resolve_package(str(package_name), str(package_version))
@@ -633,7 +531,7 @@ class WorkspaceCatalogRegistry:
         try:
             return await self.get(workspace)
         except WorkspaceCatalogError as exc:
-            if exc.code != "no_catalog":
+            if exc.code not in {"no_catalog", "catalog_republish_required"}:
                 raise
             return self.default_catalog
 

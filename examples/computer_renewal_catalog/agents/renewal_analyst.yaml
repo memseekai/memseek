@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=../../../schemas/agents.schema.json
 agents:
   # Version 1 in the original spelling. Still published, because a definition is
   # immutable and a receipt from a past run has to keep resolving; no longer the

@@ -39,6 +39,7 @@ async def test_writeback_record_error_retains_the_validation_detail(monkeypatch)
             invocation_id=uuid4(),
             entity="account:acme",
             computer_ref="workspace@1",
+            agent_ref=None,
             visible_citations=frozenset({citation}),
             catalog=catalog,
             settings=Mock(),

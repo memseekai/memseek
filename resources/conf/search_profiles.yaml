@@ -1,0 +1,10 @@
+# yaml-language-server: $schema=../../schemas/search_profiles.schema.json
+profiles:
+  pg_default:
+    backend: pg
+
+  memory_tpuf:
+    backend: turbopuffer
+    layout: shared
+    consistency: strong
+    enabled_if_credentials: true

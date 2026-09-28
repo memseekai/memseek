@@ -51,6 +51,7 @@ from _workspace_explorer import print_workspace_explorer
 # FastAPI resolves handler annotations from module globals, so `Request` has to
 # be imported here rather than beside the app that uses it.
 from memseek.config import get_settings
+from memseek.definitions.manifest import read_catalog_files
 from memseek.sdk import MemseekClient, MemseekHTTPError
 
 
@@ -78,10 +79,7 @@ class Demo:
         Program, Agent, policy, artifact, and derivation reference is untouched.
         """
 
-        files = {
-            path.relative_to(CATALOG_ROOT).as_posix(): path.read_text(encoding="utf-8")
-            for path in sorted(CATALOG_ROOT.rglob("*.yaml"))
-        }
+        files = read_catalog_files(CATALOG_ROOT)
         rewritten = {
             name: text.replace("provider: fake", "provider: cloudflare")
             for name, text in files.items()

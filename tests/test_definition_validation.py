@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any, cast
 
 import pytest
-from reference_catalog import materialize_reference_catalog
+from reference_catalog import declare_test_sources, materialize_reference_catalog
 
 from memseek.config import Settings
 from memseek.definitions import (
@@ -45,17 +45,7 @@ def _settings(
     turbopuffer_api_key: str = "",
 ) -> Settings:
     return Settings(
-        models_file=root / "conf/models.yaml",
-        processors_file=root / "conf/processors.yaml",
-        rank_default_file=root / "conf/rank_default.yaml",
-        search_profiles_file=root / "conf/search_profiles.yaml",
-        collections_dir=root / "collections",
-        derivations_dir=root / "derivations",
-        triggers_dir=root / "triggers",
-        views_dir=root / "views",
-        artifacts_dir=root / "artifacts",
-        mcp_dir=root / "mcp",
-        packages_dir=root / "packages",
+        catalog_file=root / "catalog.yaml",
         max_derivation_depth=max_derivation_depth,
         search_profile_overrides_file=search_profile_overrides_file,
         turbopuffer_api_key=turbopuffer_api_key,
@@ -72,6 +62,7 @@ def _replace(path: Path, old: str, new: str, *, count: int = 1) -> None:
 def _write_trigger(root: Path, name: str, document: str) -> Path:
     path = root / "triggers" / name
     path.write_text(document, encoding="utf-8")
+    declare_test_sources(root, f"triggers/{name}")
     return path
 
 
@@ -202,17 +193,14 @@ emit:
 """,
         encoding="utf-8",
     )
-    (catalog_root / "packages/customer_memory.yaml").write_text(
-        """name: customer_memory
-version: 1.0.0
-collections: [customer_events@1, customer_profiles@1]
-processors: [customer_profile]
-triggers: [customer_profile.default]
-views: [customer_context@1]
-search_profiles: [pg_default]
-""",
-        encoding="utf-8",
+    declare_test_sources(
+        catalog_root,
+        "collections/customer.yaml",
+        "derivations/customer_profile.yaml",
+        "views/customer_context.yaml",
     )
+    _replace(catalog_root / "catalog.yaml", "name: agentic_memory_core", "name: customer_memory")
+    _replace(catalog_root / "catalog.yaml", "version: 2.2.0", "version: 1.0.0")
 
     catalog = load_definition_catalog(_settings(catalog_root))
 
@@ -223,8 +211,8 @@ search_profiles: [pg_default]
     assert catalog.resolve_view("customer_context").query["scope"]["collections"] == [
         "customer_events"
     ]
-    assert catalog.resolve_package("customer_memory", "1.0.0").triggers == (
-        "customer_profile.default",
+    assert (
+        "customer_profile.default" in catalog.resolve_package("customer_memory", "1.0.0").triggers
     )
 
 
@@ -370,10 +358,10 @@ def test_changing_the_embedding_model_changes_the_processor_hash(catalog_root: P
             "reference",
         ),
         (
-            "packages/agentic_memory_core.yaml",
+            "catalog.yaml",
             "main@1",
             "main@999",
-            "reference",
+            "source_reference",
         ),
     ],
 )
@@ -589,6 +577,7 @@ def test_client_scorer_forbids_a_default_value(catalog_root: Path) -> None:
             "    input: {collections: [main]}\n    scale: [0, 1]\n    default: 0.5\n"
         )
 
+    declare_test_sources(catalog_root, "conf/processors.yaml")
     error = _load_error(catalog_root, code="schema")
 
     assert error.file == str(processors)
@@ -610,6 +599,7 @@ def test_pipeline_emit_rejects_required_client_scorer(
         "    required_processors: [embedding_v1, client_signal]\n",
     )
 
+    declare_test_sources(catalog_root, "conf/processors.yaml")
     error = _load_error(catalog_root, code="required_client_output")
 
     assert error.file == str(catalog_root / "derivations/profile.yaml")
@@ -631,11 +621,12 @@ def test_public_only_collection_may_require_client_scorer(
         "    required_processors: [client_signal]\n",
     )
     _replace(
-        catalog_root / "packages/agentic_memory_core.yaml",
-        "  - importance\n",
-        "  - importance\n  - client_signal\n",
+        catalog_root / "catalog.yaml",
+        "  importance: conf/processors.yaml\n",
+        "  importance: conf/processors.yaml\n  client_signal: conf/processors.yaml\n",
     )
 
+    declare_test_sources(catalog_root, "conf/processors.yaml")
     catalog = load_definition_catalog(_settings(catalog_root))
 
     assert "client_signal" in catalog.resolve_collection("calendar_events").required_processors
@@ -721,32 +712,32 @@ def test_package_collection_references_are_exact_and_present(
     catalog_root: Path,
     reference: str,
 ) -> None:
-    package = catalog_root / "packages/agentic_memory_core.yaml"
+    package = catalog_root / "catalog.yaml"
     _replace(package, "main@1", reference)
 
     error = _load_error(catalog_root)
 
     assert error.file == str(package)
-    assert error.code in {"package_reference", "reference"}
+    assert error.code == "source_reference"
 
 
 @pytest.mark.parametrize(
     "manifest_entry",
-    ["  - harvest\n", "  - upcoming_calendar@1\n"],
+    ["  upcoming_calendar@1: views/upcoming_calendar.yaml\n"],
 )
 def test_package_requires_transitive_trigger_and_artifact_dependencies(
     catalog_root: Path,
     manifest_entry: str,
 ) -> None:
-    package = catalog_root / "packages/agentic_memory_core.yaml"
+    package = catalog_root / "catalog.yaml"
     _replace(package, manifest_entry, "")
 
     error = _load_error(catalog_root)
 
-    assert error.file == str(package)
+    assert error.file == str(catalog_root / "artifacts/agent_prompt.yaml")
 
 
-def test_package_ignores_unlisted_standalone_trigger_dependencies(
+def test_package_includes_declared_standalone_trigger_dependencies(
     catalog_root: Path,
 ) -> None:
     derivation = catalog_root / "derivations/harvest.yaml"
@@ -774,15 +765,14 @@ def test_package_ignores_unlisted_standalone_trigger_dependencies(
         "  statuses: [active]\n",
     )
 
+    declare_test_sources(catalog_root, "derivations/optional_harvest.yaml")
     catalog = load_definition_catalog(_settings(catalog_root))
 
     assert catalog.resolve_trigger("optional_harvest.default").processor == "optional_harvest"
-    assert (
-        "optional_harvest" not in catalog.resolve_package("agentic_memory_core", "2.2.0").processors
-    )
+    assert "optional_harvest" in catalog.resolve_package("agentic_memory_core", "2.2.0").processors
 
 
-def test_package_ignores_unlisted_inactive_collection_versions(catalog_root: Path) -> None:
+def test_package_includes_declared_inactive_collection_versions(catalog_root: Path) -> None:
     collections = catalog_root / "collections/core.yaml"
     source = collections.read_text(encoding="utf-8")
     source += """
@@ -803,11 +793,12 @@ def test_package_ignores_unlisted_inactive_collection_versions(catalog_root: Pat
 """
     collections.write_text(source, encoding="utf-8")
 
+    declare_test_sources(catalog_root, "collections/core.yaml")
     catalog = load_definition_catalog(_settings(catalog_root))
 
     assert catalog.resolve_collection("main").version == 1
     assert catalog.resolve_collection("main", 2).active is False
-    assert "sentiment_v1" not in catalog.resolve_package("agentic_memory_core", "2.2.0").processors
+    assert "sentiment_v1" in catalog.resolve_package("agentic_memory_core", "2.2.0").processors
 
 
 def test_catalog_definition_payloads_are_recursively_immutable(catalog_root: Path) -> None:
@@ -849,6 +840,7 @@ def test_deployment_binding_must_be_allowed_by_every_collection_version(
         encoding="utf-8",
     )
 
+    declare_test_sources(catalog_root, "collections/core.yaml")
     _load_error(
         catalog_root,
         code="deployment_binding",
@@ -1124,13 +1116,13 @@ accumulator:
 
 
 def test_package_mcp_binds_only_its_declared_targets(catalog_root: Path) -> None:
-    package = catalog_root / "packages/agentic_memory_core.yaml"
-    _replace(package, "  - upcoming_calendar@1\n", "")
+    package = catalog_root / "catalog.yaml"
+    _replace(package, "  upcoming_calendar@1: views/upcoming_calendar.yaml\n", "")
 
-    error = _load_error(catalog_root, code="package_dependency")
+    error = _load_error(catalog_root, code="reference")
 
-    assert error.file == str(package)
-    assert error.path == "mcp.tools[2].view"
+    assert error.file == str(catalog_root / "artifacts/agent_prompt.yaml")
+    assert error.path == "blocks.calendar"
 
 
 def test_mcp_view_target_must_be_an_exact_reference(catalog_root: Path) -> None:
@@ -1221,12 +1213,12 @@ def test_learning_target_collections_must_be_maintained_by_that_artifact(
 
 
 def test_package_must_include_the_learning_target_artifact(catalog_root: Path) -> None:
-    package = catalog_root / "packages/agentic_memory_core.yaml"
-    _replace(package, "  - maintained_skill@1\n", "")
+    package = catalog_root / "catalog.yaml"
+    _replace(package, "  maintained_skill@1: artifacts/skill.yaml\n", "")
 
-    error = _load_error(catalog_root, code="package_dependency")
+    error = _load_error(catalog_root, code="reference")
 
-    assert error.file == str(package)
+    assert error.file == str(catalog_root / "artifacts/agent_prompt.yaml")
 
 
 def test_view_fence_requires_render(catalog_root: Path) -> None:

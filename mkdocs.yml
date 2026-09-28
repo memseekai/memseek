@@ -161,6 +161,7 @@ nav:
       - Artifact uses & feedback: artifact-uses.md
       - Computers, Programs & Agents: computers.md
       - Toolsets: toolsets.md
+      - How skill lessons work: skill-lessons.md
       - Packages: packages.md
   - Using Memseek:
       - Python SDK: sdk.md
@@ -183,6 +184,7 @@ nav:
       - Real-LLM skill maintenance: skill-maintenance.md
       - Build an agent that remembers: generative-agents-example.md
       - Run an agent inside a Computer: computer-renewal-example.md
+      - Make a skill learn from its runs: skill-learning.md
       - The gbrain showcase: gbrain-showcase.md
       - The gbrain catalog, parameter by parameter: gbrain-catalog.md
       - The L0–L3 agent memory example: agent-memory-example.md

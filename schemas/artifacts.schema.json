@@ -1,0 +1,546 @@
+{
+  "$defs": {
+    "ArtifactBlock": {
+      "additionalProperties": false,
+      "properties": {
+        "document": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DocumentBlock"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "view": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "View"
+        },
+        "args": {
+          "patternProperties": {
+            "^[a-z][a-z0-9._-]{0,63}$": {}
+          },
+          "title": "Args",
+          "type": "object"
+        },
+        "max_tokens": {
+          "minimum": 1,
+          "title": "Max Tokens",
+          "type": "integer"
+        },
+        "required": {
+          "default": true,
+          "title": "Required",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "max_tokens"
+      ],
+      "title": "ArtifactBlock",
+      "type": "object"
+    },
+    "ArtifactDefinition": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "pattern": "^[a-z][a-z0-9._-]{0,63}$",
+          "title": "Name",
+          "type": "string"
+        },
+        "definition_hash": {
+          "default": "",
+          "title": "Definition Hash",
+          "type": "string"
+        },
+        "version": {
+          "minimum": 1,
+          "title": "Version",
+          "type": "integer"
+        },
+        "active": {
+          "default": false,
+          "title": "Active",
+          "type": "boolean"
+        },
+        "kind": {
+          "enum": [
+            "prompt",
+            "skill",
+            "profile",
+            "policy"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Description"
+        },
+        "lifecycle": {
+          "enum": [
+            "live",
+            "reviewed"
+          ],
+          "title": "Lifecycle",
+          "type": "string"
+        },
+        "parameters": {
+          "patternProperties": {
+            "^[a-z][a-z0-9._-]{0,63}$": {
+              "$ref": "#/$defs/ParameterDefinition"
+            }
+          },
+          "title": "Parameters",
+          "type": "object"
+        },
+        "blocks": {
+          "patternProperties": {
+            "^[a-z][a-z0-9._-]{0,63}$": {
+              "$ref": "#/$defs/ArtifactBlock"
+            }
+          },
+          "title": "Blocks",
+          "type": "object"
+        },
+        "template": {
+          "title": "Template",
+          "type": "string"
+        },
+        "snapshot": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ArtifactSnapshot"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "candidate_processor": {
+          "anyOf": [
+            {
+              "pattern": "^[a-z][a-z0-9_]{0,31}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Candidate Processor"
+        },
+        "complete_keys": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Complete Keys",
+          "type": "array"
+        },
+        "learning": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ArtifactLearning"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "lessons": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LessonSpec"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "name",
+        "version",
+        "kind",
+        "lifecycle",
+        "template"
+      ],
+      "title": "ArtifactDefinition",
+      "type": "object"
+    },
+    "ArtifactLearning": {
+      "additionalProperties": false,
+      "description": "Which maintained component feedback about this render should improve.\n\nA composed prompt draws on several maintained values, so the client that\nreports an outcome cannot reasonably choose one.  The author names the\nblock whose reviewed value is the improvement target, plus the exact\nreviewed artifact that owns that value's promotion lifecycle.  Rendering\nresolves the declaration to the exact keyed heads that were in force, so a\ncandidate is always based on the version that influenced the execution.",
+      "properties": {
+        "target_block": {
+          "pattern": "^[a-z][a-z0-9._-]{0,63}$",
+          "title": "Target Block",
+          "type": "string"
+        },
+        "artifact": {
+          "title": "Artifact",
+          "type": "string"
+        }
+      },
+      "required": [
+        "target_block",
+        "artifact"
+      ],
+      "title": "ArtifactLearning",
+      "type": "object"
+    },
+    "ArtifactSnapshot": {
+      "additionalProperties": false,
+      "properties": {
+        "entity": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Entity"
+        },
+        "collection": {
+          "pattern": "^[a-z][a-z0-9._-]{0,63}$",
+          "title": "Collection",
+          "type": "string"
+        },
+        "type": {
+          "pattern": "^[a-z][a-z0-9._-]{0,63}$",
+          "title": "Type",
+          "type": "string"
+        },
+        "key": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Key",
+          "type": "string"
+        }
+      },
+      "required": [
+        "collection",
+        "type",
+        "key"
+      ],
+      "title": "ArtifactSnapshot",
+      "type": "object"
+    },
+    "DocumentBlock": {
+      "additionalProperties": false,
+      "properties": {
+        "entity": {
+          "title": "Entity",
+          "type": "string"
+        },
+        "collections": {
+          "items": {
+            "pattern": "^[a-z][a-z0-9._-]{0,63}$",
+            "type": "string"
+          },
+          "title": "Collections",
+          "type": "array"
+        },
+        "status": {
+          "default": "active",
+          "enum": [
+            "active",
+            "draft",
+            "all"
+          ],
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "entity",
+        "collections"
+      ],
+      "title": "DocumentBlock",
+      "type": "object"
+    },
+    "LessonSpec": {
+      "additionalProperties": false,
+      "description": "What is worth learning while using one skill.\n\nA skill declares it beside itself (``lessons:`` in its pack manifest or on\nits skill artifact), and a toolset source may override parts of it. Every\nfield is optional so the layers merge: ``kinds`` adds or re-describes kinds,\nand the other fields replace. The description of each kind is what the\nagent reads, both when it records a lesson and in the playbook's headings.",
+      "properties": {
+        "kinds": {
+          "anyOf": [
+            {
+              "patternProperties": {
+                "^[a-z][a-z0-9._-]{0,63}$": {
+                  "minLength": 1,
+                  "type": "string"
+                }
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Kinds"
+        },
+        "require": {
+          "anyOf": [
+            {
+              "items": {
+                "pattern": "^[a-z][a-z0-9._-]{0,63}$",
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Require"
+        },
+        "code": {
+          "anyOf": [
+            {
+              "items": {
+                "pattern": "^[a-z][a-z0-9._-]{0,63}$",
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Code"
+        },
+        "guidance": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Guidance"
+        },
+        "max_per_run": {
+          "anyOf": [
+            {
+              "maximum": 50,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Per Run"
+        }
+      },
+      "title": "LessonSpec",
+      "type": "object"
+    },
+    "ParameterDefinition": {
+      "additionalProperties": false,
+      "description": "One public, typed parameter shared by views and artifacts.\n\nThe definition is the single source for runtime validation and generated\nJSON Schema.  MCP declarations deliberately reference a view or artifact\nrather than repeating any of these fields.",
+      "properties": {
+        "type": {
+          "enum": [
+            "string",
+            "string_array",
+            "number",
+            "integer",
+            "boolean",
+            "datetime"
+          ],
+          "title": "Type",
+          "type": "string"
+        },
+        "required": {
+          "default": false,
+          "title": "Required",
+          "type": "boolean"
+        },
+        "default": {
+          "anyOf": [
+            {},
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Default"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Description"
+        },
+        "enum": {
+          "anyOf": [
+            {
+              "items": {},
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Enum"
+        },
+        "item_enum": {
+          "anyOf": [
+            {
+              "items": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Item Enum"
+        },
+        "minimum": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Minimum"
+        },
+        "maximum": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Maximum"
+        },
+        "min_length": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Min Length"
+        },
+        "max_length": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Length"
+        },
+        "min_items": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Min Items"
+        },
+        "max_items": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Items"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "title": "ParameterDefinition",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "artifacts": {
+      "items": {
+        "$ref": "#/$defs/ArtifactDefinition"
+      },
+      "title": "Artifacts",
+      "type": "array"
+    }
+  },
+  "required": [
+    "artifacts"
+  ],
+  "title": "ArtifactDefinitionFile",
+  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}

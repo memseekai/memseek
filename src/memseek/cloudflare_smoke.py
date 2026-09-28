@@ -62,26 +62,7 @@ class CloudflareSmokePlan:
 
 def _catalog_settings(settings: Settings) -> Settings:
     root = CATALOG_ROOT
-    return settings.model_copy(
-        update={
-            "models_file": root / "conf/models.yaml",
-            "processors_file": root / "conf/processors.yaml",
-            "collections_dir": root / "collections",
-            "derivations_dir": root / "derivations",
-            "triggers_dir": None,
-            "views_dir": None,
-            "artifacts_dir": root / "artifacts",
-            "computers_dir": root / "computers",
-            "programs_dir": root / "programs",
-            "agents_dir": root / "agents",
-            "context_policies_dir": root / "context_policies",
-            "toolsets_dir": root / "toolsets",
-            "mcp_dir": root / "mcp",
-            "packages_dir": root / "packages",
-            "search_profiles_file": root / "conf/search_profiles.yaml",
-            "rank_default_file": root / "conf/rank_default.yaml",
-        }
-    )
+    return settings.model_copy(update={"catalog_file": root / "catalog.yaml"})
 
 
 def _session_key(run_id: str) -> str:

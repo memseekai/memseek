@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=../../../schemas/views.schema.json
 views:
   # The relevance half of recall: one question, three layers, fused. Persona is
   # weighted highest because a stable trait outranks a single episode, and scenes

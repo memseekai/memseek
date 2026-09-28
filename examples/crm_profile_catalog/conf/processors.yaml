@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=../../../schemas/processors.schema.json
 processors:
   # Every CRM record becomes findable by meaning. The vector lands in the
   # record's embedding column; the annotation records the embedding space.

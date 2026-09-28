@@ -1,0 +1,216 @@
+{
+  "$defs": {
+    "CatalogConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "models": {
+          "description": "Catalog-relative path to model aliases and providers.",
+          "title": "Models",
+          "type": "string"
+        },
+        "ranking": {
+          "description": "Catalog-relative path to ranking configuration.",
+          "title": "Ranking",
+          "type": "string"
+        },
+        "search_profiles": {
+          "description": "Catalog-relative path to search profiles.",
+          "title": "Search Profiles",
+          "type": "string"
+        }
+      },
+      "required": [
+        "models",
+        "ranking",
+        "search_profiles"
+      ],
+      "title": "CatalogConfig",
+      "type": "object"
+    },
+    "TombstoneRetention": {
+      "additionalProperties": false,
+      "description": "A bounded scheduled physical-erasure policy for keyed tombstones.\n\nThe collection reference is deliberately exact so a retention rule cannot\nsilently start applying to a newly active collection version.",
+      "properties": {
+        "name": {
+          "pattern": "^[a-z][a-z0-9._-]{0,63}$",
+          "title": "Name",
+          "type": "string"
+        },
+        "collection": {
+          "title": "Collection",
+          "type": "string"
+        },
+        "after_days": {
+          "maximum": 3650,
+          "minimum": 1,
+          "title": "After Days",
+          "type": "integer"
+        },
+        "cron": {
+          "minLength": 1,
+          "title": "Cron",
+          "type": "string"
+        },
+        "max_pages": {
+          "default": 25,
+          "maximum": 100,
+          "minimum": 1,
+          "title": "Max Pages",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "name",
+        "collection",
+        "after_days",
+        "cron"
+      ],
+      "title": "TombstoneRetention",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "The table of contents of one complete, installable release.",
+  "properties": {
+    "name": {
+      "pattern": "^[a-z][a-z0-9._-]{0,63}$",
+      "title": "Name",
+      "type": "string"
+    },
+    "version": {
+      "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?:-[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?(?:\\+[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?$",
+      "title": "Version",
+      "type": "string"
+    },
+    "description": {
+      "default": "",
+      "title": "Description",
+      "type": "string"
+    },
+    "config": {
+      "$ref": "#/$defs/CatalogConfig"
+    },
+    "collections": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Collections",
+      "type": "object"
+    },
+    "processors": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Processors",
+      "type": "object"
+    },
+    "derivations": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Derivations",
+      "type": "object"
+    },
+    "triggers": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Triggers",
+      "type": "object"
+    },
+    "views": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Views",
+      "type": "object"
+    },
+    "artifacts": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Artifacts",
+      "type": "object"
+    },
+    "computers": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Computers",
+      "type": "object"
+    },
+    "programs": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Programs",
+      "type": "object"
+    },
+    "agents": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Agents",
+      "type": "object"
+    },
+    "context_policies": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Context Policies",
+      "type": "object"
+    },
+    "toolsets": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Toolsets",
+      "type": "object"
+    },
+    "mcp": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Mcp",
+      "type": "object"
+    },
+    "expose_mcp": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Explicit MCP interface to expose.",
+      "title": "Expose Mcp"
+    },
+    "optional_search_profiles": {
+      "default": [],
+      "items": {
+        "pattern": "^[a-z][a-z0-9._-]{0,63}$",
+        "type": "string"
+      },
+      "title": "Optional Search Profiles",
+      "type": "array"
+    },
+    "retentions": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/TombstoneRetention"
+      },
+      "title": "Retentions",
+      "type": "array"
+    }
+  },
+  "required": [
+    "name",
+    "version",
+    "config"
+  ],
+  "title": "CatalogManifest",
+  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}

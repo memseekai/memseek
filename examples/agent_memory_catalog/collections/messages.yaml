@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=../../../schemas/collections.schema.json
 collections:
   # L0 — the evidence layer. One immutable record per message, exactly as it
   # was said. Nothing here is interpreted, scored, or merged; the layer exists

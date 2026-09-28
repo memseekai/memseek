@@ -1,0 +1,37 @@
+# yaml-language-server: $schema=../../../schemas/models.schema.json
+# The Agent runs under the pi harness, which calls the model itself: memseek
+# reads the alias target and hands pi the provider and the model name. The
+# provider key must be one the harness manifest maps to a credential
+# (harnesses/pi/harness.yaml `model_env`). pi reads an optional thinking level
+# from a `:<level>` suffix, as in "anthropic:claude-sonnet-4-5:low".
+providers:
+  anthropic:
+    adapter: openai_compat
+    base_url: https://api.anthropic.com/v1
+    api_key_env: ANTHROPIC_API_KEY
+  openai:
+    adapter: openai_compat
+    base_url: https://api.openai.com/v1
+    api_key_env: PROVIDER_OPENAI_COMPAT_API_KEY
+  # Nothing in this catalog embeds, but a catalog declares one embedding model.
+  offline:
+    adapter: fake
+    base_url: https://embeddings.invalid/v1
+
+aliases:
+  scraper:
+    # targets: ["anthropic:claude-haiku-4-5"]
+    targets: ["openai:gpt-6-luna"]
+    # targets: ["openai:gpt-5.4-mini-2026-03-17"]
+    params: {max_output_tokens: 8000}
+    context_tokens: 200000
+
+embedding:
+  provider: offline
+  model: fake-embedding
+  dimensions: 1536
+  space: site-scrape-v1
+
+defaults:
+  derivation: scraper
+  fold: scraper

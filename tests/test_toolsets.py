@@ -10,7 +10,7 @@ import shutil
 from pathlib import Path
 
 import pytest
-from reference_catalog import materialize_reference_catalog
+from reference_catalog import declare_test_sources, materialize_reference_catalog
 
 from memseek.config import Settings
 from memseek.definitions import DefinitionError, load_definition_catalog
@@ -33,40 +33,14 @@ def renewal_root(tmp_path: Path) -> Path:
 
 def _reference_settings(root: Path) -> Settings:
     return Settings(
-        models_file=root / "conf/models.yaml",
-        processors_file=root / "conf/processors.yaml",
-        rank_default_file=root / "conf/rank_default.yaml",
-        search_profiles_file=root / "conf/search_profiles.yaml",
-        collections_dir=root / "collections",
-        derivations_dir=root / "derivations",
-        triggers_dir=root / "triggers",
-        views_dir=root / "views",
-        artifacts_dir=root / "artifacts",
-        mcp_dir=root / "mcp",
-        packages_dir=root / "packages",
-        toolsets_dir=root / "toolsets",
+        catalog_file=root / "catalog.yaml",
         llm_fake=True,
     )
 
 
 def _renewal_settings(root: Path) -> Settings:
     return Settings(
-        models_file=root / "conf/models.yaml",
-        processors_file=root / "conf/processors.yaml",
-        rank_default_file=root / "conf/rank_default.yaml",
-        search_profiles_file=root / "conf/search_profiles.yaml",
-        collections_dir=root / "collections",
-        derivations_dir=root / "derivations",
-        views_dir=None,
-        triggers_dir=None,
-        artifacts_dir=root / "artifacts",
-        computers_dir=root / "computers",
-        programs_dir=root / "programs",
-        agents_dir=root / "agents",
-        context_policies_dir=root / "context_policies",
-        toolsets_dir=root / "toolsets",
-        mcp_dir=root / "mcp",
-        packages_dir=root / "packages",
+        catalog_file=root / "catalog.yaml",
         llm_fake=True,
     )
 
@@ -74,6 +48,7 @@ def _renewal_settings(root: Path) -> Settings:
 def _write_toolset(root: Path, document: str) -> None:
     (root / "toolsets").mkdir(exist_ok=True)
     (root / "toolsets" / "test.yaml").write_text(document, encoding="utf-8")
+    declare_test_sources(root, "toolsets/test.yaml")
 
 
 def _replace(path: Path, old: str, new: str) -> None:
@@ -252,13 +227,11 @@ def test_toolset_cannot_widen_computer_capabilities(renewal_root: Path) -> None:
 
 def test_package_must_declare_what_a_bound_toolset_reaches(renewal_root: Path) -> None:
     _replace(
-        renewal_root / "packages/renewal.yaml",
-        "artifacts: [renewal_instructions@1, renewal_research_skill@1]\n",
-        "artifacts: [renewal_instructions@1]\n",
+        renewal_root / "catalog.yaml",
+        "  renewal_research_skill@1: artifacts/renewal_agent.yaml\n",
+        "",
     )
-    assert "omitted from its package" in str(
-        _error(_renewal_settings(renewal_root), code="package_dependency")
-    )
+    assert "artifact" in str(_error(_renewal_settings(renewal_root), code="source_reference"))
 
 
 # --- the legacy spelling --------------------------------------------------

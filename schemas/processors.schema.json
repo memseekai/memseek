@@ -1,0 +1,220 @@
+{
+  "$defs": {
+    "ProcessorDefinition": {
+      "additionalProperties": false,
+      "description": "One per-record enrichment capability.\n\nEvery processor writes an annotation object under ``annotations.<name>``.\nTwo kinds additionally project into dedicated storage: ``embedding``\nwrites the record's vector, and ``score`` mirrors its number into the\nflat rankable ``scores.<name>`` map (as do ``score_fields`` promotions\nof ``json`` processors).",
+      "properties": {
+        "name": {
+          "pattern": "^[a-z][a-z0-9_]{0,31}$",
+          "title": "Name",
+          "type": "string"
+        },
+        "definition_hash": {
+          "default": "",
+          "title": "Definition Hash",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "embedding",
+            "score",
+            "json"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "source": {
+          "anyOf": [
+            {
+              "enum": [
+                "llm",
+                "client",
+                "constant"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source"
+        },
+        "input": {
+          "$ref": "#/$defs/ProcessorInput"
+        },
+        "supersedes": {
+          "anyOf": [
+            {
+              "pattern": "^[a-z][a-z0-9_]{0,31}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Supersedes"
+        },
+        "scale": {
+          "anyOf": [
+            {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Scale"
+        },
+        "default": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Default"
+        },
+        "value": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Value"
+        },
+        "render": {
+          "default": false,
+          "title": "Render",
+          "type": "boolean"
+        },
+        "model": {
+          "anyOf": [
+            {
+              "pattern": "^[a-z][a-z0-9_]{0,31}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Model"
+        },
+        "prompt": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Prompt"
+        },
+        "output_schema": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Output Schema"
+        },
+        "default_output": {
+          "anyOf": [
+            {},
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Default Output"
+        },
+        "score_fields": {
+          "patternProperties": {
+            "^[a-z][a-z0-9_]{0,31}$": {
+              "type": "string"
+            }
+          },
+          "title": "Score Fields",
+          "type": "object"
+        }
+      },
+      "required": [
+        "name",
+        "kind",
+        "input"
+      ],
+      "title": "ProcessorDefinition",
+      "type": "object"
+    },
+    "ProcessorInput": {
+      "additionalProperties": false,
+      "properties": {
+        "collections": {
+          "items": {
+            "pattern": "^[a-z][a-z0-9._-]{0,63}$",
+            "type": "string"
+          },
+          "title": "Collections",
+          "type": "array"
+        },
+        "types": {
+          "default": [],
+          "items": {
+            "pattern": "^[a-z][a-z0-9._-]{0,63}$",
+            "type": "string"
+          },
+          "title": "Types",
+          "type": "array"
+        }
+      },
+      "required": [
+        "collections"
+      ],
+      "title": "ProcessorInput",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "processors": {
+      "items": {
+        "$ref": "#/$defs/ProcessorDefinition"
+      },
+      "title": "Processors",
+      "type": "array"
+    }
+  },
+  "required": [
+    "processors"
+  ],
+  "title": "ProcessorDefinitionFile",
+  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}

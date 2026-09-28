@@ -3,6 +3,8 @@ title: Implementing L0–L3 agent memory on memseek
 eyebrow: Design plan
 ---
 
+> Historical design notes. For the current source-map format, see [Catalog layout](catalog-layout.md).
+
 # Implementing L0–L3 agent memory on memseek — detailed plan
 
 This plan re-expresses the TencentDB Agent Memory design — the `L0 → L1 → L2 → L3`
@@ -198,7 +200,7 @@ examples/agent_memory_catalog/
 │                 scene_navigation.yaml  session_window.yaml
 ├── artifacts/    agent_context.yaml  maintained_skill.yaml
 ├── mcp/          agent_memory.yaml
-└── packages/     agent_memory.yaml
+└── catalog.yaml  the manifest: name@version → file for everything above
 ```
 
 Entity naming follows the shipped convention of one explicit dotted identifier per scope:
@@ -390,7 +392,7 @@ implementation of the original:
 | 3 — L2 scenes | `collections/scenes.yaml`, `derivations/scene_synthesis.yaml`, `views/scene_navigation.yaml` | phase 2, decision 0 |
 | 4 — L3 persona | `collections/persona.yaml`, `derivations/persona.yaml` | phase 3 |
 | 5 — skills | `derivations/skill_extract.yaml` (adapt shipped `skill`), extra keyed slots | phase 1 |
-| 6 — surface | `artifacts/agent_context.yaml`, `mcp/`, `packages/` | phases 2–5 |
+| 6 — surface | `artifacts/agent_context.yaml`, `mcp/`, `catalog.yaml` | phases 2–5 |
 
 Verification at each phase is the existing loop: `uv run memseek catalog-check --workspace W
 --dir examples/agent_memory_catalog --package agent_memory@0.1.0` reports what publishing

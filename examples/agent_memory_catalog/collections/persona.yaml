@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=../../../schemas/collections.schema.json
 collections:
   # L3 — the persona layer. Five keyed slots holding only what is stable across
   # scenes. A project fact ("mobile version 8 ships in October") belongs to L2 and

@@ -31,6 +31,7 @@ from memseek.definitions.models import (
     ContextPolicyDefinition,
     ProgramDefinition,
 )
+from memseek.definitions.toolsets import effective_computer
 from memseek.evidence_spine import ContextPressure
 
 
@@ -300,6 +301,28 @@ def _remote_computer_provider(settings: Settings) -> RemoteComputerProvider:
     return provider
 
 
+def _local_computer_provider(settings: Settings) -> ComputerProvider:
+    # Imported here because the local provider is built on this module.
+    from memseek.local_computer import LocalComputerProvider
+
+    provider = LocalComputerProvider(settings)
+    register_computer_provider("local", provider, replace=True)
+    return provider
+
+
+# Providers built from the running process's settings rather than registered
+# once at import.
+_SETTINGS_PROVIDERS: dict[str, Callable[[Settings], ComputerProvider]] = {
+    "cloudflare": _remote_computer_provider,
+    "local": _local_computer_provider,
+}
+
+
+def _provider_for(settings: Settings, name: str) -> ComputerProvider:
+    factory = _SETTINGS_PROVIDERS.get(name)
+    return factory(settings) if factory is not None else computer_provider(name)
+
+
 def configure_remote_computer_provider(settings: Settings) -> None:
     _remote_computer_provider(settings)
 
@@ -438,11 +461,7 @@ async def execute_program(
             else None
         ),
     )
-    provider = (
-        _remote_computer_provider(settings)
-        if computer.provider == "cloudflare"
-        else computer_provider(computer.provider)
-    )
+    provider = _provider_for(settings, computer.provider)
     result = await provider.execute(request)
     if result.awaiting_input:
         raise ComputerExecutionError("validation", "Programs cannot await user input")
@@ -499,6 +518,7 @@ async def execute_agent(
         raise ComputerExecutionError("reference", str(exc)) from exc
     if computer_ref not in agent.computers:
         raise ComputerExecutionError("capability", "Agent is not allowed to use this Computer")
+    computer = effective_computer(agent, computer, catalog)
     if toolset is not None:
         for tool in toolset.get("tools", ()):
             if tool.get("kind") == "mcp_server":
@@ -508,6 +528,15 @@ async def execute_agent(
                     "capability",
                     f"mcp_server tool {tool.get('name')!r} is declared but not yet executable",
                 )
+            if tool.get("kind") == "skillpack" and computer.provider == "cloudflare":
+                raise ComputerExecutionError(
+                    "capability",
+                    f"skillpack tool {tool.get('name')!r} is not yet executable on cloudflare",
+                )
+    if agent.harness is not None and computer.provider == "cloudflare":
+        raise ComputerExecutionError(
+            "capability", f"harness {agent.harness!r} is not yet executable on cloudflare"
+        )
     model_alias = catalog.models.aliases[agent.model]
     context_bytes = sum(len(value.encode("utf-8")) for value in context_files.values())
     input_bytes = len(_canonical_bytes(input_value))
@@ -561,11 +590,7 @@ async def execute_agent(
             },
         },
     )
-    provider = (
-        _remote_computer_provider(settings)
-        if computer.provider == "cloudflare"
-        else computer_provider(computer.provider)
-    )
+    provider = _provider_for(settings, computer.provider)
     result = await provider.execute(request)
     _validate_json(output_schema, result.value, "Agent output")
     encoded = _canonical_bytes(result.value)

@@ -163,11 +163,15 @@ collections:
 The other bundles it for release:
 
 ```yaml
-# packages/customer_memory.yaml
+# catalog.yaml
 name: customer_memory
 version: 1.0.0
-collections: [customer_events@1]
-search_profiles: [pg_default]
+config:
+  models: conf/models.yaml
+  ranking: conf/rank_default.yaml
+  search_profiles: conf/search_profiles.yaml
+collections:
+  customer_events@1: collections/events.yaml
 ```
 
 ## Guides: real builds, end to end

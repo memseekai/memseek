@@ -15,11 +15,19 @@ class DefinitionError(ValueError):
         *,
         file: str | Path | None = None,
         path: str = "",
+        line: int | None = None,
+        column: int | None = None,
     ) -> None:
         self.code = code
+        self.message = message
+        self.line = line
+        self.column = column
         self.file = str(file) if file is not None else None
         self.path = path
-        prefix = ": ".join(part for part in (self.file, self.path) if part)
+        location = self.file
+        if location and line is not None:
+            location = f"{location}:{line}:{column or 1}"
+        prefix = ": ".join(part for part in (location, self.path) if part)
         super().__init__(f"{prefix}: [{code}] {message}" if prefix else f"[{code}] {message}")
 
 

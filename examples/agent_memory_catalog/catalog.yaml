@@ -1,0 +1,39 @@
+# yaml-language-server: $schema=../../schemas/catalog.schema.json
+name: agent_memory
+version: 0.3.0
+description: Agent memory catalog.
+config:
+  models: conf/models.yaml
+  ranking: conf/rank_default.yaml
+  search_profiles: conf/search_profiles.yaml
+collections:
+  context_snapshots@1: collections/context_snapshots.yaml
+  learning_signals@1: collections/learning.yaml
+  memories@1: collections/memories.yaml
+  messages@1: collections/messages.yaml
+  persona@1: collections/persona.yaml
+  traces@1: collections/procedures.yaml
+  procedures@1: collections/procedures.yaml
+  scenes@1: collections/scenes.yaml
+  scenes@2: collections/scenes.yaml
+  scenes@3: collections/scenes.yaml
+processors:
+  embedding_v1: conf/processors.yaml
+  importance: conf/processors.yaml
+derivations:
+  l1_extract: derivations/l1_extract.yaml
+  persona: derivations/persona.yaml
+  scene_synthesis: derivations/scene_synthesis.yaml
+  skill_extract: derivations/skill_extract.yaml
+views:
+  memory_recall@1: views/recall.yaml
+  standing_instructions@1: views/recall.yaml
+  memory_audit@1: views/recall.yaml
+  session_window@1: views/recall.yaml
+  recent_messages@1: views/recall.yaml
+artifacts:
+  agent_context@1: artifacts/agent_context.yaml
+  maintained_procedure@1: artifacts/maintained_procedure.yaml
+mcp:
+  agent_memory@1: mcp/agent_memory.yaml
+expose_mcp: agent_memory@1

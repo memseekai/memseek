@@ -21,6 +21,7 @@ that sound related but are not.
 | **Ready** | **Active** | Ready means enrichment finished. Active means not a draft. A record can be one without the other. |
 | **Draft** | **Tombstone** | A draft proposes a value that isn't live yet. A tombstone withdraws one that was. |
 | **Program** | **Agent** | Both run in a Computer. A Program is fixed code with no model. An Agent is a model taking steps with tools. |
+| `learning` on a **toolset source** | `learning` on an **artifact** | The source one makes a loaded skill record lessons during a run and read them on the next, with no review. The artifact one names which reviewed value feedback should improve. |
 
 ## Start with the data
 
@@ -39,11 +40,11 @@ together, then puts it into effect for a workspace.
 
 ### Package
 
-A **package** is the release manifest inside a catalog. It lists the exact
-versions of the collections, views, artifacts, and other definitions that are
-meant to work together. If the catalog is the source tree, the package is the
-versioned release you install. Package versions look like
-`customer_memory@1.2.0`.
+A **package** is the compiled release of a catalog. Root `catalog.yaml` gives
+its identity and a direct source path for every authored definition. All declared
+definitions ship, including generated derivation processors and inline triggers.
+Package versions look like `customer_memory@1.2.0`; there is no separate package
+inventory to maintain.
 
 ### Collection
 
@@ -239,6 +240,17 @@ model involved. An **Agent** is a model plus versioned instructions, tools, and
 step limits, running the same way. All three are catalog definitions, referenced
 by exact version, and none of them can write a record. See
 [Computers, Programs & Agents](computers.md).
+
+### Lesson and playbook
+
+A **lesson** is one record an agent writes while using a skill: something a
+later run would otherwise have to rediscover. It is stored in the built-in
+`lessons` collection, names its `skill` and `kind`, and cites the record it
+rests on. A skill declares its kinds in `lessons:`. A **playbook** is one
+skill's lessons for one entity, grouped by kind and installed as `PLAYBOOK.md`
+beside the skill on the next run. A skill opts in with `learning` on its
+toolset source.
+See [How skill lessons work](skill-lessons.md).
 
 ### Session and invocation
 

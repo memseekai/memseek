@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=../../../schemas/derivations.schema.json
 name: crm_profile
 trigger:
   # Low enough that a single stable preference (importance ~6-8) trips it on its

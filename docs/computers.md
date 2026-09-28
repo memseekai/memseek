@@ -155,10 +155,11 @@ further down this page.
 
 ## The four files you write
 
-Each is an optional directory in your [catalog](catalog-layout.md). Nothing
-breaks if you have none of them.
+Each is an optional family in your [catalog](catalog-layout.md): list its
+definitions in `catalog.yaml` under the family's key. Nothing breaks if you
+have none of them.
 
-| Directory | Top-level key | What one entry describes |
+| Conventional file | Top-level key | What one entry describes |
 | --- | --- | --- |
 | `computers/*.yaml` | `computers:` | The **sandbox policy**: which provider, what may be mounted, which paths are writable, what capabilities exist, what may be written back, and what survives. |
 | `programs/*.yaml` | `programs:` | An **immutable code bundle**: a runtime, an entrypoint, the source, and input/output JSON Schemas. No model involved. |
@@ -313,7 +314,7 @@ writeback, and a 30-day workspace.
 | `name` | yes | — | Lowercase name, `[a-z][a-z0-9._-]{0,63}`. |
 | `version` | yes | — | Integer ≥ 1. Referenced everywhere as `name@version`. |
 | `active` | no | `false` | Marks this version as the current one for the name. References are always exact, so this is bookkeeping rather than routing — but two active versions of the same name is an error. |
-| `provider` | yes | — | Which runtime adapter executes it: `fake` for local development and CI, `cloudflare` for the deployed Worker. Lowercase, `[a-z][a-z0-9_]{0,31}`. |
+| `provider` | yes | — | Which runtime adapter executes it: `fake` for local development and CI, `cloudflare` for the deployed Worker, `local` for a harnessed Agent on the worker's own machine. Lowercase, `[a-z][a-z0-9_]{0,31}`. |
 | `context` | no | none | Read-only artifact mounts. See below. |
 | `writable` | no | `[/workspace, /outbox]` | The only roots that may change during a run. |
 | `runtime` | no | `{default: worker-javascript}` | Which backend runs code. |
@@ -645,6 +646,7 @@ The older spelling — `skills: [...]` and `tools: [computer, recall]` in place 
 | `skills` | no | none | Exact references to artifacts of `kind: skill`. Superseded by `toolset`; see [Toolsets](toolsets.md). |
 | `tools` | no | `[computer, recall]` | Which tool families the loop may use. `computer` is the filesystem and shell tools — the shell appears only if the Computer allows `exec`. `recall` is granted only if listed here. Superseded by `toolset`. |
 | `toolset` | no | none | Exact reference to a [toolset](toolsets.md) — the declared surface of tools and skills this Agent may reach. Mutually exclusive with `tools` and `skills`. |
+| `harness` | no | none | The agent loop that runs this Agent, by the name of a `harnesses/<name>/` module. Omitted, the Computer's built-in loop runs it. See [Harnesses and skill packs](#harnesses-and-skill-packs). |
 | `computers` | yes | — | Exact references to every Computer this Agent is allowed to run in. At least one. A run naming a Computer that is not on this list is refused. |
 | `context_policy` | yes | — | Exact reference to a context policy. |
 | `limits` | no | see below | Hard bounds on the loop. |
@@ -972,6 +974,7 @@ POST /invocations
 | `computer` | yes | Exact reference. |
 | `executor` | yes | `{kind: agent, agent, context_policy}` or `{kind: program, program}`. An Agent must list this Computer in its own `computers:`. |
 | `task.kind` | yes | `answer` or `task` for an Agent (both need `prompt`, up to 32 KiB); `compute` for a Program (needs `input`). The kind is passed to the run as the stated intent. |
+| `task.output_schema` | no | Agent only. A JSON Schema the answer's `value` must validate against. The Agent is shown it, and a value that breaks it fails the run as `validation`. Defaults to `{"type": "object"}`. |
 | `session.mode` | no | `new` (default), `resume`, or `fork`. `resume` and `fork` require `session_id`; `new` forbids it. |
 | `idempotency_key` | no | Up to 128 characters. Replaying the same key returns the original invocation instead of starting a second one. |
 
@@ -1251,22 +1254,44 @@ derivation the code arrives as the run's failure kind; over HTTP it is the
 
 ## Shipping it in a package
 
-A [package](packages.md) has to list everything it uses, and that includes all
-four of these families:
+A [catalog](catalog-layout.md) has to list everything it uses in
+`catalog.yaml`, and that includes all four of these families. Each entry maps
+an exact reference to the file that defines it:
 
 ```yaml
 name: computer_renewal_demo
 version: 1.0.0
-collections: [renewal_evidence@1, contract_terms@1, renewal_risks@1,
-              task_observations@1, renewal_proposals@1]
-processors: [embedding_v1, importance, contract_extract, renewal_assessment]
-artifacts: [renewal_instructions@1, renewal_research_skill@1]
-computers: [fast_workspace@1, research_workspace@1]
-programs: [contract_extract@3]
-agents: [renewal_analyst@1]
-context_policies: [evidence_spine@1]
-mcp: renewal_computer@1
-search_profiles: [pg_default]
+config:
+  models: conf/models.yaml
+  ranking: conf/rank_default.yaml
+  search_profiles: conf/search_profiles.yaml
+collections:
+  renewal_evidence@1: collections/renewal.yaml
+  contract_terms@1: collections/renewal.yaml
+  renewal_risks@1: collections/renewal.yaml
+  task_observations@1: collections/renewal.yaml
+  renewal_proposals@1: collections/renewal.yaml
+processors:
+  embedding_v1: conf/processors.yaml
+  importance: conf/processors.yaml
+derivations:
+  contract_extract: derivations/contract_extract.yaml
+  renewal_assessment: derivations/renewal_assessment.yaml
+artifacts:
+  renewal_instructions@1: artifacts/renewal_agent.yaml
+  renewal_research_skill@1: artifacts/renewal_agent.yaml
+computers:
+  fast_workspace@1: computers/workspaces.yaml
+  research_workspace@1: computers/workspaces.yaml
+programs:
+  contract_extract@3: programs/contract_extract.yaml
+agents:
+  renewal_analyst@1: agents/renewal_analyst.yaml
+context_policies:
+  evidence_spine@1: context_policies/evidence_spine.yaml
+mcp:
+  renewal_computer@1: mcp/renewal.yaml
+expose_mcp: renewal_computer@1
 ```
 
 The publish is rejected if anything is missing, and the message names what:
@@ -1302,7 +1327,9 @@ and step and token budgets it actually commits to. See
 
 `provider:` picks who is on the far side of that signed boundary. There are two,
 and they are for genuinely different jobs — this is the one place where reading
-the difference carefully will save you an afternoon.
+the difference carefully will save you an afternoon. A third, `local`, runs
+harnessed Agents on the worker's machine and is described in
+[Harnesses and skill packs](#harnesses-and-skill-packs).
 
 ### `fake` — for tests, and for validating a design
 
@@ -1383,6 +1410,118 @@ the wire protocol, the execution order, the tools an Agent actually gets, every
 limit, and its failure table — is on its own page:
 [The Cloudflare Computer runtime](computer-cloudflare.md).
 
+## Harnesses and skill packs
+
+An Agent normally runs under the Computer's built-in loop. Two optional modules
+change that without changing anything else in the catalog:
+
+- A **harness** is the agent loop. `harness: pi` on an Agent runs it under
+  [pi](https://github.com/earendil-works/pi), from `harnesses/pi/`.
+- A **skill pack** is a tool skill any harness can mount.
+  `{kind: skillpack, pack: browser-harness}` in a toolset grants
+  [browser-harness](https://github.com/browser-use/browser-harness), from
+  `skillpacks/browser-harness/`.
+
+Neither module names the other, and the provider names neither. Adding a
+harness or a pack means adding a directory with a manifest. The contracts are
+in `harnesses/README.md` and `skillpacks/README.md`.
+
+```yaml
+# agents/site_scraper.yaml
+agents:
+  - name: site_scraper
+    version: 1
+    model: scraper
+    instructions: scraper_instructions@1
+    toolset: scraper@1
+    harness: pi
+    computers: [scrape_workspace@1]
+    context_policy: scrape_budget@1
+
+# toolsets/scraper.yaml, one source among the others
+      - {name: browser, kind: skillpack, pack: browser-harness}
+```
+
+### The `local` provider
+
+Harnessed Agents run on `provider: local`. It is a development and evaluation
+provider. The harness runs as the worker's user, with the worker's network, on
+the worker's machine, so run the worker where the harness and pack binaries are
+installed. Each session gets a directory below `LOCAL_COMPUTER_ROOT` (default
+`~/.memseek/computers`), laid out like the sandbox: `.memseek/`, `inputs/`,
+`workspace/`, `outbox/`, plus the harness's skills directory.
+
+For each run the provider does the following:
+
+1. Resolves the harness and every pack, and fails with the install hint when a
+   required binary is missing.
+2. Writes the context files, mounts catalog skills and each pack's `SKILL.md`
+   where the harness discovers skills, and writes `.harness/input.json`.
+3. Runs the harness entry with `PATH`, `HOME`, the model key the harness
+   manifest names for the alias's provider, and each pack's declared variables.
+   Nothing else from the worker's environment is passed.
+4. Parses the one-line `HarnessOutput`, then collects `/outbox` under the same
+   rules as the Cloudflare runtime. An undeclared file fails the run.
+
+The receipt records the harness and pack versions and the harness's normalized
+metrics: wall time, steps, tool calls and errors, tokens, and cost.
+
+| Setting | Default | Meaning |
+| --- | --- | --- |
+| `LOCAL_COMPUTER_ROOT` | `~/.memseek/computers` | Where session directories live. |
+| `HARNESS_PATHS` | the repository's `harnesses/` | JSON list of directories searched for `<name>/harness.yaml`. |
+| `SKILLPACK_PATHS` | the repository's `skillpacks/` | JSON list of directories searched for `<name>/skillpack.yaml`. |
+
+The `cloudflare` provider refuses a harness and a skillpack source until its
+container can run them.
+
+### What a publish checks
+
+- The harness and every pack resolve through the paths above.
+- A pack's `capabilities` are allowed by every Computer the Agent may run on.
+  browser-harness needs `exec` and `network`.
+- A toolset source with `learning` requires every such Computer to list
+  `/outbox` in `writable`, and the catalog to declare the `pg_default` search
+  profile.
+
+### Learned skills
+
+Any skill a toolset loads, a pack or a catalog `skill` artifact, can learn with
+`learning: true` on its source. What is worth learning is declared beside the
+skill, as `lessons:` in its `skillpack.yaml` or on its artifact:
+
+```yaml
+lessons:
+  kinds:
+    helper: The code that produced your final rows, in `code` exactly as you ran it.
+    pitfall: What went wrong, or a playbook lesson that proved false, and what is true now.
+  require: [helper]
+  code: [helper]
+```
+
+Memseek adds the rest:
+
+- **Write.** The run gets the built-in `/outbox/lessons.jsonl` writeback into
+  the built-in `lessons@1` collection, and one `record_lessons` tool. Each
+  entry names its `skill` and `kind`, and the tool refuses a skill the run did
+  not load or a kind that skill does not declare.
+- **Read.** Materialization reads each skill's lessons for the run's entity
+  and writes `<skill>/PLAYBOOK.md`, grouped by the skill's kinds. The provider
+  installs it beside `SKILL.md`, points the agent at it, and inlines it in the
+  system prompt.
+
+For the steps, see [Make a skill learn from its runs](skill-learning.md). For
+every field and check, see [Skills that learn](toolsets.md#skills-that-learn).
+
+An invocation's task `input` can narrow what a run reads and writes back:
+`{"learning": "off" | "read" | "read_write", "native": ...}`. `learning` governs
+the playbooks and the lessons writeback. `native` governs the pack's own state
+directory: `off` is a fresh directory, `read` is a copy of the one kept for
+the entity, and `read_write` is the kept one. Both default to `read_write`.
+`memseek eval skill-learning` uses these to compare a cold run, browser-harness's
+own saved helpers, the learned playbook, and both together.
+`examples/site_scrape_catalog/` is the complete example.
+
 ## When something is rejected
 
 ### At publish time
@@ -1394,6 +1533,7 @@ limit, and its failure table — is on its own page:
 | `/.memseek and /inputs are always read-only` | They appear in `writable:`. |
 | `writeback paths must live below /outbox` | A `writeback.path` is elsewhere. |
 | `writeback path … is outside writable roots` | The path is under `/outbox` but `/outbox` is not writable. |
+| `a skill in this toolset learns, so computer '…' must list /outbox in writable` | Add `/outbox` to `writable`. See [Skills that learn](toolsets.md#skills-that-learn). |
 | `maintained_state writeback requires review` / `observations writeback cannot require review` | The `review` flag contradicts the type. |
 | `final_result writeback forbids collection and record_type` | Remove them; a final result is not ingested. |
 | `program requires exactly one of files or bundle` | Pick one. |
@@ -1407,7 +1547,7 @@ limit, and its failure table — is on its own page:
 | `agent references unknown model alias` | The `model:` name is not in `conf/models.yaml`. |
 | `context thresholds must be strictly increasing` | `pointerize < compact < pause`. |
 | `Computer-backed Tasks exceed limits.max_computer_runs` | Raise `max_computer_runs`; it defaults to `0`. |
-| `package omits …` | Add the named resource to the package manifest. |
+| `package omits …` | List the named resource in `catalog.yaml`. |
 
 ### At run time
 

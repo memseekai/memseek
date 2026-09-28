@@ -1,240 +1,180 @@
 ---
 title: Catalog layout
-eyebrow: YAML and Python sources
+eyebrow: Start at catalog.yaml
 ---
 
-Your whole memory design — what gets stored, how it is enriched, when reasoning
-runs, and how it is read back — lives in a small tree of YAML files called the
-**catalog**. This page is the map: which file to create for which purpose, and
-the naming rules they all share.
+Open **`catalog.yaml`** first. It is the complete table of contents of one
+release: every authored definition has a name and a direct path to its file.
+You do not need to guess a filename or search through directories.
 
-Read [Core concepts](concepts.md) first if records, entities, or current facts
-are new to you. The [Glossary](glossary.md) separates the catalog from the
-package that releases it, and a processor from a derivation.
+## A complete example
 
-## Which file do I create?
-
-Start from what you want to say, in words:
-
-| "I want to…" | Create or edit | Guide |
-| --- | --- | --- |
-| …store a new kind of record | `collections/*.yaml` | [Collections](collections.md) |
-| …name the models I use | `conf/models.yaml` | [Model aliases](models.md) |
-| …score or classify each record as it arrives | `conf/processors.yaml` | [Processors](processors.md) |
-| …combine records into profiles, reflections, or skills | `derivations/*.yaml` | [Derivations](derivations.md) |
-| …control when that reasoning runs | an inline `trigger:`, or `triggers/*.yaml` | [Triggers](triggers.md) |
-| …save a search my whole app can reuse | `views/*.yaml` | [Views & search](views-search.md) |
-| …assemble prompts or briefings from memory | `artifacts/*.yaml` | [Artifacts](artifacts.md) |
-| …run code or a working agent in a sandbox over memory | `computers/`, `programs/`, `agents/`, `context_policies/` | [Computers, Programs & Agents](computers.md) |
-| …choose exactly which tools an agent may call | `toolsets/*.yaml` | [Toolsets](toolsets.md) |
-| …publish tools to an external MCP client | `mcp/*.yaml` | [MCP](mcp.md) |
-| …ship all of the above as one installable unit | `packages/*.yaml` | [Packages](packages.md) |
-
-## Recommended tree
+The [site scrape catalog](https://github.com/memseekai/memseek/tree/main/examples/site_scrape_catalog)
+uses feature folders:
 
 ```text
-my-memory/
-├── conf/
+site_scrape_catalog/
+├── catalog.yaml
+├── config/
 │   ├── models.yaml
-│   ├── processors.yaml
-│   ├── processors/                     # optional, split into fragments
-│   ├── rank_default.yaml
-│   ├── search_profiles.yaml
-│   └── deployment_overrides.yaml       # optional, operator-owned
-├── collections/
-│   └── customer.yaml
-├── derivations/
-│   └── customer_profile.yaml
-├── triggers/
-│   └── nightly_profile.yaml            # optional, for reusable triggers
-├── views/
-│   └── customer_context.yaml
-├── artifacts/
-│   └── customer_brief.yaml
-├── computers/                          # optional, sandboxed execution
-│   └── research_workspace.yaml
-├── programs/                           # optional, versioned deterministic code
-│   └── contract_extract.yaml
-├── agents/                             # optional, model-driven working agents
-│   └── renewal_analyst.yaml
-├── context_policies/                   # optional, an agent's token budget
-├── toolsets/                           # optional, the tools an agent may call
-│   └── evidence_spine.yaml
-├── mcp/
-│   └── customer_memory.yaml            # optional, agent tool allowlist
-└── packages/
-    └── customer_memory.yaml
+│   ├── ranking.yaml
+│   └── search_profiles.yaml
+├── scraping/
+│   ├── agent.yaml
+│   ├── tools.yaml
+│   ├── workspace.yaml
+│   ├── budget.yaml
+│   ├── instructions.yaml
+│   ├── views.yaml
+│   ├── tasks.yaml
+│   └── processors.yaml
+└── evaluation/
+    └── runs.yaml
 ```
 
-Directories are read in filename order, always the same way, so the result never
-depends on how your filesystem happens to be sorted.
+```yaml
+name: site_scrape
+version: 1.0.0
+description: Scrape websites and reuse lessons from earlier runs.
+config:
+  models: config/models.yaml
+  ranking: config/ranking.yaml
+  search_profiles: config/search_profiles.yaml
 
-How much can go in one file depends on the kind:
+# Run the scraper
+agents:
+  site_scraper@1: scraping/agent.yaml
+toolsets:
+  scraper@1: scraping/tools.yaml
+computers:
+  scrape_workspace@1: scraping/workspace.yaml
+context_policies:
+  scrape_budget@1: scraping/budget.yaml
 
-- **Several per file** — collections, views, artifacts, processors, computers,
-  programs, agents, and context policies. Group them however reads best.
-- **One per file** — each derivation, each standalone trigger, and each MCP
-  interface.
-- **Either** — a package file holds one package, or several under a
-  `packages:` list.
+# Assemble instructions and read memory
+artifacts:
+  scraper_instructions@1: scraping/instructions.yaml
+views:
+  current_task@1: scraping/views.yaml
+  site_learnings@1: scraping/views.yaml
 
-## What each file family holds
+# Store tasks and evaluation results
+collections:
+  scrape_tasks@1: scraping/tasks.yaml
+  skill_eval_runs@1: evaluation/runs.yaml
+processors:
+  importance: scraping/processors.yaml
+```
 
-| Path | Top-level shape | Contains |
+Follow `scraper_instructions@1` to `scraping/instructions.yaml`. If that artifact
+references `current_task@1`, its source is immediately visible in the root too.
+Paths are relative to `catalog.yaml`, regardless of your working directory.
+
+## Choose filenames for readers
+
+Group by feature, or retain familiar `collections/`, `views/`, and `derivations/`
+directories. Directory names have no compiler meaning. Prefer one substantial
+definition per file; small related definitions may share a file. Every definition
+in a declared file must have its own root entry.
+
+Definitions retain their normal YAML shape:
+
+| Root section | Source file shape | Reference |
 | --- | --- | --- |
-| `conf/models.yaml` | `aliases`, `defaults` | Which provider models you use, under stable names |
-| `conf/processors.yaml` | `processors: [...]` | Per-record enrichment: embeddings, scores, structured data |
-| `conf/rank_default.yaml` | `candidates`, `variants` | The default relevance formula for each search mode |
-| `conf/search_profiles.yaml` | `profiles: {...}` | Where and how collections are searched |
-| `conf/processors/*.yaml` | `processors: [...]` | Optional fragments, for splitting a long processor list |
-| `conf/search_profiles/*.yaml` | `profiles: {...}` | Optional search-profile fragments |
-| `conf/deployment_overrides.yaml` | `collection_profiles` | Operator's choice of which search setup a collection uses |
-| `collections/*.yaml` | `collections: [...]` | Versioned contracts for what a record may be |
-| `derivations/*.yaml` | one mapping | One bounded piece of automated reasoning |
-| `triggers/*.yaml` | one mapping | A reusable trigger pointing at a derivation |
-| `views/*.yaml` | `views: [...]` | Saved, named, typed searches |
-| `artifacts/*.yaml` | `artifacts: [...]` | Recipes that render memory into text |
-| `computers/*.yaml` | `computers: [...]` | Sandbox policies: what may be mounted, written, and returned |
-| `programs/*.yaml` | `programs: [...]` | Versioned deterministic code, with input and output schemas |
-| `agents/*.yaml` | `agents: [...]` | Model, instructions, tools, and limits for a working agent |
-| `context_policies/*.yaml` | `context_policies: [...]` | How an agent's context budget is managed as it fills |
-| `toolsets/*.yaml` | `toolsets: [...]` | The declared surface of tools and skills an agent may reach |
-| `mcp/*.yaml` | one mapping | The allowlist of operations this package publishes to MCP clients |
-| `packages/*.yaml` | one mapping | The exact versions that ship together |
+| `collections`, `views`, `artifacts` | Matching list, e.g. `views: [...]` | `name@1` |
+| `computers`, `programs`, `agents`, `context_policies`, `toolsets` | Matching list | `name@1` |
+| `processors` | `processors: [...]` | `name` |
+| `derivations` | One derivation mapping | `name` |
+| `triggers` | One standalone trigger mapping | `name` |
+| `mcp` | One MCP interface mapping | `name@1` |
 
-## Two ways to publish a design
+Models, ranking, and search profiles retain their existing configuration shapes.
+The three `config` paths are required; nothing is inherited from deployment files.
+Every configured search profile belongs to the release; name optional ones under
+`optional_search_profiles`.
 
-Both paths run the identical validation, so a design that loads one way loads
-the other way too.
+## Derivations and triggers
 
-**Upload it to a workspace.** Send the YAML files to `POST /catalog`, or use the
-SDK's publish call. This is how a multi-tenant product ships a design per
-customer, and how you deploy without restarting anything. Once installed, that
-package is the source of truth for that workspace; it is never quietly blended
-with another tenant's definitions.
+```yaml
+derivations:
+  crm_profile: profile/maintain.yaml
+  crm_summary: profile/summarize.yaml
+  crm_profile_rebuild: profile/rebuild.yaml
+triggers:
+  nightly_rebuild: profile/nightly.yaml
+```
 
-**Point the service at a directory.** A deployment can load a catalog straight
-from disk. This suits a single-tenant deployment or local development, where the
-design lives in your repository alongside the code.
+Each derivation declares its sources, tasks, and emission in its own file. Its
+processor and any inline `trigger:` are included automatically. Do not repeat
+the derivation under `processors`, or list its generated `<name>.default` trigger.
+Use `triggers` only for separately authored trigger files.
 
-The repository ships a starter tree you can copy as a starting point rather than
-authoring every file from scratch.
-
-## The rules every file follows
-
-Memseek is deliberately strict about YAML, because the alternative is a typo
-that silently does nothing until a user notices.
-
-- **Unknown fields are errors.** There is no typo tolerance. A misspelled key
-  fails the publish rather than being ignored.
-- **Duplicate keys are errors**, including inside uploaded text.
-- **Names are lowercase and bounded.** Public names match
-  `[a-z][a-z0-9._-]{0,63}`; processor names are stricter, matching
-  `[a-z][a-z0-9_]{0,31}`.
-- **References to collections, views, and artifacts use exact versions** —
-  `name@1`. Computers, programs, agents, and context policies are *always*
-  referenced this way, everywhere.
-- **Package versions use three-part versions** — `name@1.0.0`.
-- **Uploaded paths are relative**, end in `.yaml` or `.yml`, and must sit in the
-  layout above.
-- **Never write a `definition_hash` yourself.** Those are computed for you.
-
-Uploads are capped at 256 files, 512 KiB per file, and 4 MiB in total.
-`deployment_overrides.yaml` is an operator setting on the filesystem, not
-something a workspace uploads.
-
-The whole design is validated as one connected whole *before* anything about
-your workspace changes, so a broken definition can never leave you half-switched
-between two designs.
-
-## When validation fails
-
-Every error carries a machine-readable code, the file it came from, and the
-path inside that file where possible. The codes you will meet:
-
-| Code | Means |
-| --- | --- |
-| `yaml` | The file isn't valid YAML, or has a duplicate key. |
-| `schema` | A field is missing, mistyped, or unknown. |
-| `reference` | Something points at a name or version that doesn't exist. |
-| `duplicate` | The same name is defined twice. |
-| `budget` | A derivation's declared limits don't add up or exceed what's allowed. |
-| `capability` | A search or model setup can't do what a definition needs. |
-| `package_reference` | A package lists something that isn't in the catalog. |
-| `catalog_incompatible` | The design conflicts with what's already installed. |
-| `automatic_cycle` | Automated reasoning would set itself off in a loop. |
-
-Treat this validation as a deployment gate — the same way you would treat a
-failing migration.
-
-## Seeing the tree as a graph
-
-The directories say where a definition lives; they do not say what references
-it. For that, compile the tree and draw it:
+## Validate and navigate locally
 
 ```console
-uv run memseek catalog-graph --dir ./my-catalog --out my-catalog.html
+uv run memseek catalog-validate --dir examples/site_scrape_catalog
+uv run memseek catalog-locate scraper_instructions@1 --dir examples/site_scrape_catalog
 ```
 
-The page lays the package out in flow order and makes each part's compiled
-definition, budgets, and references clickable. It is the fastest way to check a
-design against what you meant before publishing it, and it is often quicker than
-reading the files when you inherit someone else's catalog. Details in
-[Seeing the package](packages.md#seeing-the-package).
+Without `--dir`, both commands find the nearest ancestor containing
+`catalog.yaml`. Validation does not connect to a database or call a model.
+It checks schemas, references, source ownership, dependencies, and static
+capabilities. Credentials can still affect whether a configured backend is
+available. Use `--json` for structured results and diagnostics.
 
-## Generating definitions from Python
+`catalog-locate` prints a file, line, and column. Use `--kind artifacts` to
+disambiguate names shared across families, and an exact version when necessary.
+It also locates generated processors and triggers at their owning derivation.
 
-Most people write YAML. If your application *generates* memory designs — one per
-customer, say — you can build the definitions in Python instead:
+Examples contain `yaml-language-server: $schema=...` comments for editor
+completion and structural checks. Generate the schemas after model changes:
 
-```python
-from memseek.definitions import DefinitionSources, compile_definition_catalog
-
-source = DefinitionSources(
-    models=models,
-    processors=(embedding, importance),
-    rank_defaults=rank_defaults,
-    search_profiles={"pg_default": pg_default},
-    collections=(events,),
-    derivations=(profile,),
-    views=(context,),
-    artifacts=(brief,),
-    packages=(package,),
-)
-catalog = compile_definition_catalog(settings, source)
+```console
+uv run python scripts/generate_catalog_schemas.py
 ```
 
-This is not a second, looser schema. It is serialized and put through exactly
-the same duplicate-key, reference, dependency, budget, and fingerprinting checks
-as YAML. To publish generated definitions to a workspace, serialize them to YAML
-and use the SDK's file-publishing call.
+Semantic cross-file checks belong to `catalog-validate`. For an interactive
+view of the wiring, use [the catalog graph](packages.md#seeing-the-package).
 
-To load from a directory instead, point the settings at your tree:
+## Strict, explicit loading
+
+Only listed files load. Unrelated YAML files are ignored. Missing paths, wrong
+names or versions, unlisted definitions in grouped files, duplicate definitions,
+unknown fields, and duplicate YAML keys fail validation. Paths cannot escape the
+catalog root, including through symlinks. Every path is catalog-relative, uses
+forward slashes, and ends in `.yaml` or `.yml`; `catalog.yaml` cannot list
+itself. One file serves one family: listing the same file under `collections:`
+and `views:` fails, although several entries of one family may share a file.
+Moving a source file and updating its root entries does not change definition
+identity.
+
+One root compiles to one complete package. No separate `packages/` manifests,
+module indexes, imports, or automatic directory discovery are supported.
+
+To load a catalog at service startup:
 
 ```python
 from memseek.config import Settings
 from memseek.definitions import load_definition_catalog
 
-settings = Settings(
-    collections_dir="my-memory/collections",
-    derivations_dir="my-memory/derivations",
-    triggers_dir="my-memory/triggers",
-    views_dir="my-memory/views",
-    artifacts_dir="my-memory/artifacts",
-    mcp_dir="my-memory/mcp",
-    packages_dir="my-memory/packages",
-    models_file="my-memory/conf/models.yaml",
-    processors_file="my-memory/conf/processors.yaml",
-    rank_default_file="my-memory/conf/rank_default.yaml",
-    search_profiles_file="my-memory/conf/search_profiles.yaml",
-)
-catalog = load_definition_catalog(settings)
+catalog = load_definition_catalog(Settings(catalog_file="my-memory/catalog.yaml"))
 ```
 
-## Where to go next
+Or set `CATALOG_FILE`. The file must be named `catalog.yaml`. Leaving it unset
+means the service supplies no default catalog; workspaces publish their own.
+The old directory settings (`COLLECTIONS_DIR`, `PACKAGES_DIR`,
+`PROCESSORS_FILE`, and the other `*_DIR` variables) are rejected with
+`set catalog_file to catalog.yaml` when `CATALOG_FILE` is unset. Operator search-profile overrides remain
+separate from uploaded definitions.
 
-Build the files in the order they depend on each other:
-[Collections](collections.md) → [Model aliases](models.md) →
-[Processors](processors.md) → [Derivations](derivations.md) →
-[Triggers](triggers.md) → [Views & search](views-search.md) →
-[Artifacts](artifacts.md) → [Packages](packages.md).
+## Migrating an older catalog
+
+Create `catalog.yaml`, move package identity and policies into it, and replace
+membership lists with name-to-file mappings. Declare derivations separately and
+omit their generated processors and inline triggers. Declare all definitions in
+any grouped file, including inactive versions. Add explicit configuration paths,
+and remove the old package manifest.
+
+Existing stored catalogs must be republished in the new format. There is no
+legacy loader or automatic data conversion. Compare release contents and bump
+the package version when the migration includes previously omitted definitions.

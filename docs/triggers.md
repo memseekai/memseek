@@ -86,7 +86,7 @@ trigger:
   cooldown_s: 60
 ```
 
-**Standalone.** A file under `triggers/` is one mapping that names an existing
+**Standalone.** A file listed under `triggers:` in `catalog.yaml` is one mapping that names an existing
 processor. It attaches additional conditions without copying any computation:
 
 ```yaml

@@ -1,0 +1,154 @@
+{
+  "$defs": {
+    "AgentDefinition": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "pattern": "^[a-z][a-z0-9._-]{0,63}$",
+          "title": "Name",
+          "type": "string"
+        },
+        "definition_hash": {
+          "default": "",
+          "title": "Definition Hash",
+          "type": "string"
+        },
+        "version": {
+          "minimum": 1,
+          "title": "Version",
+          "type": "integer"
+        },
+        "active": {
+          "default": false,
+          "title": "Active",
+          "type": "boolean"
+        },
+        "model": {
+          "pattern": "^[a-z][a-z0-9_]{0,31}$",
+          "title": "Model",
+          "type": "string"
+        },
+        "instructions": {
+          "title": "Instructions",
+          "type": "string"
+        },
+        "skills": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Skills",
+          "type": "array"
+        },
+        "tools": {
+          "default": [
+            "computer",
+            "recall"
+          ],
+          "items": {
+            "enum": [
+              "computer",
+              "recall"
+            ],
+            "type": "string"
+          },
+          "title": "Tools",
+          "type": "array"
+        },
+        "toolset": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Toolset"
+        },
+        "computers": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Computers",
+          "type": "array"
+        },
+        "context_policy": {
+          "title": "Context Policy",
+          "type": "string"
+        },
+        "limits": {
+          "$ref": "#/$defs/AgentLimits"
+        },
+        "harness": {
+          "anyOf": [
+            {
+              "pattern": "^[a-z][a-z0-9._-]{0,63}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Harness"
+        }
+      },
+      "required": [
+        "name",
+        "version",
+        "model",
+        "instructions",
+        "computers",
+        "context_policy"
+      ],
+      "title": "AgentDefinition",
+      "type": "object"
+    },
+    "AgentLimits": {
+      "additionalProperties": false,
+      "properties": {
+        "max_steps": {
+          "default": 32,
+          "maximum": 128,
+          "minimum": 1,
+          "title": "Max Steps",
+          "type": "integer"
+        },
+        "max_wall_s": {
+          "default": 300,
+          "maximum": 3600,
+          "minimum": 1,
+          "title": "Max Wall S",
+          "type": "integer"
+        },
+        "max_output_bytes": {
+          "default": 10485760,
+          "maximum": 67108864,
+          "minimum": 1,
+          "title": "Max Output Bytes",
+          "type": "integer"
+        }
+      },
+      "title": "AgentLimits",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "agents": {
+      "items": {
+        "$ref": "#/$defs/AgentDefinition"
+      },
+      "title": "Agents",
+      "type": "array"
+    }
+  },
+  "required": [
+    "agents"
+  ],
+  "title": "AgentDefinitionFile",
+  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}

@@ -25,6 +25,8 @@ from memseek.workspace_catalog import (
     _compile_overlay,
 )
 
+REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
+
 
 def _gbrain_catalog_files() -> dict[str, str]:
     root = Path(__file__).resolve().parents[1] / "examples" / "gbrain_catalog"
@@ -168,14 +170,23 @@ async def test_workspace_can_install_and_use_a_custom_yaml_catalog(
       additionalProperties: true
     search_profile: pg_default
 """,
-            "packages/customer_memory.yaml": """name: customer_memory
+            "catalog.yaml": """name: customer_memory
 version: 1.0.0
-collections: [customer_chat@1, customer_profiles@1]
-processors: [customer_profile]
-triggers: [customer_profile.default]
-views: [customer_context@1]
-artifacts: [customer_prompt@1]
-search_profiles: [pg_default]
+config:
+  models: conf/models.yaml
+  ranking: conf/rank_default.yaml
+  search_profiles: conf/search_profiles.yaml
+collections:
+  customer_chat@1: collections/customer.yaml
+  customer_profiles@1: collections/customer.yaml
+derivations:
+  customer_profile: derivations/customer_profile.yaml
+processors:
+  importance: conf/processors.yaml
+views:
+  customer_context@1: views/customer.yaml
+artifacts:
+  customer_prompt@1: artifacts/customer.yaml
 """,
             "derivations/customer_profile.yaml": """name: customer_profile
 trigger:
@@ -274,6 +285,15 @@ emit:
 """,
         },
     }
+    root = REPOSITORY_ROOT
+    payload["files"].setdefault("conf/models.yaml", (root / "conf/models.yaml").read_text())
+    payload["files"].setdefault(
+        "conf/search_profiles.yaml", "profiles: {pg_default: {backend: pg}}\n"
+    )
+    payload["files"].setdefault(
+        "conf/rank_default.yaml", (root / "conf/rank_default.yaml").read_text()
+    )
+
     async with app.router.lifespan_context(app):
         transport = httpx.ASGITransport(app=app)
         async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
@@ -357,14 +377,28 @@ async def test_workspace_can_install_a_catalog_of_collections_alone(
     scale: [1, 10]
     value: 5
 """,
-            "packages/notes.yaml": """name: notes
+            "catalog.yaml": """name: notes
 version: 1.0.0
-collections: [notes@1]
-processors: [importance]
-search_profiles: [pg_default]
+config:
+  models: conf/models.yaml
+  ranking: conf/rank_default.yaml
+  search_profiles: conf/search_profiles.yaml
+collections:
+  notes@1: collections/notes.yaml
+processors:
+  importance: conf/processors.yaml
 """,
         },
     }
+
+    root = REPOSITORY_ROOT
+    payload["files"].setdefault("conf/models.yaml", (root / "conf/models.yaml").read_text())
+    payload["files"].setdefault(
+        "conf/search_profiles.yaml", "profiles: {pg_default: {backend: pg}}\n"
+    )
+    payload["files"].setdefault(
+        "conf/rank_default.yaml", (root / "conf/rank_default.yaml").read_text()
+    )
 
     async with app.router.lifespan_context(app):
         transport = httpx.ASGITransport(app=app)
@@ -443,6 +477,32 @@ async def test_unresolvable_stored_catalog_is_not_reported_as_a_bad_credential(
     assert unauthorized.json()["error"] == "unauthorized"
 
 
+async def test_writing_before_any_publish_says_to_publish_rather_than_failing(
+    bare_settings: Settings,
+    db_pool: DatabasePool,
+) -> None:
+    """A route's own ``except Exception`` must not turn ``no_catalog`` into a 500."""
+
+    credential = await create_workspace(db_pool, "never-published")
+    app = create_app(bare_settings, pool=create_pool(bare_settings), verify_storage=False)
+    headers = {"Authorization": f"Bearer {credential.api_key}"}
+
+    async with app.router.lifespan_context(app):
+        transport = httpx.ASGITransport(app=app)
+        async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+            written = await client.post(
+                "/records",
+                headers=headers,
+                json={"records": [{"entity": "site:example.com", "type": "task", "text": "x"}]},
+            )
+
+    assert written.status_code == 409, written.text
+    assert written.json() == {
+        "error": "no_catalog",
+        "detail": "workspace 'never-published' has no published catalog; publish a package first",
+    }
+
+
 async def test_catalog_cache_coalesces_compilation_and_keeps_yaml_in_database(
     settings: Settings,
     db_pool: DatabasePool,
@@ -488,7 +548,7 @@ async def test_catalog_cache_coalesces_compilation_and_keeps_yaml_in_database(
 
     # A second process publishes a new catalog while this registry stays alive.
     changed = {
-        name: text.replace("0.13.0", "0.13.1") if name.startswith("packages/") else text
+        name: text.replace("0.13.0", "0.13.1") if name == "catalog.yaml" else text
         for name, text in request.files.items()
     }
     other = WorkspaceCatalogRegistry(db_pool, settings, registry.default_catalog)
@@ -508,7 +568,7 @@ def test_uploaded_catalog_matches_disk_and_parses_every_file_once(
     gbrain_settings: Settings,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from memseek import workspace_catalog as catalog_module
+    from memseek.definitions import manifest as catalog_module
 
     files = _gbrain_catalog_files()
     expected = load_definition_catalog(gbrain_settings)
@@ -538,18 +598,28 @@ def test_uploaded_fragments_preserve_catalog_identity(gbrain_settings: Settings)
     processors = yaml.safe_load(files.pop("conf/processors.yaml"))["processors"]
     files["conf/processors/a.yml"] = yaml.safe_dump({"processors": processors[:2]})
     files["conf/processors/b.yaml"] = yaml.safe_dump({"processors": processors[2:]})
-    profiles = yaml.safe_load(files.pop("conf/search_profiles.yaml"))["profiles"]
-    for index, (name, profile) in enumerate(profiles.items()):
-        files[f"conf/search_profiles/{index}.yml"] = yaml.safe_dump({"profiles": {name: profile}})
+    manifest = yaml.safe_load(files["catalog.yaml"])
+    for index, group in enumerate([processors[:2], processors[2:]]):
+        path = "conf/processors/a.yml" if index == 0 else "conf/processors/b.yaml"
+        for processor in group:
+            manifest["processors"][processor["name"]] = path
+    files["catalog.yaml"] = yaml.safe_dump(manifest)
     assert _compile_overlay(gbrain_settings, files).catalog_hash == expected.catalog_hash
 
 
 def test_duplicate_uploaded_keys_report_the_authored_source(gbrain_settings: Settings) -> None:
     from memseek.definitions import DefinitionError
+    from memseek.definitions.manifest import resolve_sources
 
     files = _gbrain_catalog_files()
-    files["collections/nested/invalid.yaml"] = "name: first\nname: second\n"
+    files["collections/core.yaml"] = "name: first\nname: second\n"
+    # Corrupt a file actually declared by the root; unrelated files are ignored.
+    import yaml
+
+    manifest = yaml.safe_load(files["catalog.yaml"])
+    target = next(iter(manifest["collections"].values()))
+    files[target] = "name: first\nname: second\n"
     with pytest.raises(DefinitionError) as caught:
-        _compile_overlay(gbrain_settings, files)
+        resolve_sources(files)
     assert caught.value.code == "yaml"
-    assert caught.value.file == "collections/nested/invalid.yaml"
+    assert caught.value.file == target

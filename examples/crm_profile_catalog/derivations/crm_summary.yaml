@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=../../../schemas/derivations.schema.json
 name: crm_summary
 # The summary is a synthesis OVER the durable slots, not another slot emitted
 # beside them. So it is its own derivation, chained off the profile: whenever a

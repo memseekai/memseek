@@ -1,0 +1,122 @@
+{
+  "$defs": {
+    "ContextPolicyDefinition": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "pattern": "^[a-z][a-z0-9._-]{0,63}$",
+          "title": "Name",
+          "type": "string"
+        },
+        "definition_hash": {
+          "default": "",
+          "title": "Definition Hash",
+          "type": "string"
+        },
+        "version": {
+          "minimum": 1,
+          "title": "Version",
+          "type": "integer"
+        },
+        "active": {
+          "default": false,
+          "title": "Active",
+          "type": "boolean"
+        },
+        "max_input_tokens": {
+          "default": 50000,
+          "minimum": 4096,
+          "title": "Max Input Tokens",
+          "type": "integer"
+        },
+        "reserve_output_tokens": {
+          "default": 4000,
+          "minimum": 256,
+          "title": "Reserve Output Tokens",
+          "type": "integer"
+        },
+        "thresholds": {
+          "$ref": "#/$defs/ContextThresholds"
+        },
+        "max_recall_pages": {
+          "default": 5,
+          "maximum": 20,
+          "minimum": 1,
+          "title": "Max Recall Pages",
+          "type": "integer"
+        },
+        "max_recall_hits": {
+          "default": 50,
+          "maximum": 200,
+          "minimum": 1,
+          "title": "Max Recall Hits",
+          "type": "integer"
+        },
+        "max_exposed_bytes": {
+          "default": 262144,
+          "maximum": 4194304,
+          "minimum": 1,
+          "title": "Max Exposed Bytes",
+          "type": "integer"
+        },
+        "receipt_fanout": {
+          "default": 8,
+          "maximum": 32,
+          "minimum": 2,
+          "title": "Receipt Fanout",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "name",
+        "version"
+      ],
+      "title": "ContextPolicyDefinition",
+      "type": "object"
+    },
+    "ContextThresholds": {
+      "additionalProperties": false,
+      "properties": {
+        "pointerize": {
+          "default": 0.7,
+          "exclusiveMaximum": 1,
+          "exclusiveMinimum": 0,
+          "title": "Pointerize",
+          "type": "number"
+        },
+        "compact": {
+          "default": 0.82,
+          "exclusiveMaximum": 1,
+          "exclusiveMinimum": 0,
+          "title": "Compact",
+          "type": "number"
+        },
+        "pause": {
+          "default": 0.92,
+          "exclusiveMaximum": 1,
+          "exclusiveMinimum": 0,
+          "title": "Pause",
+          "type": "number"
+        }
+      },
+      "title": "ContextThresholds",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "context_policies": {
+      "items": {
+        "$ref": "#/$defs/ContextPolicyDefinition"
+      },
+      "title": "Context Policies",
+      "type": "array"
+    }
+  },
+  "required": [
+    "context_policies"
+  ],
+  "title": "ContextPolicyDefinitionFile",
+  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}

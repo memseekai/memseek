@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=../../../schemas/models.schema.json
 # Point these targets at models your own account can call. Both completion
 # aliases deliberately name the same model here, so the cheap/strong split is
 # only a token-budget distinction in this example, not two price tiers -- every

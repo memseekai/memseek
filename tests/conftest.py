@@ -24,21 +24,7 @@ def catalog_settings(settings: Settings, root: Path) -> Settings:
     reference catalog; `examples/*_catalog/` hold the worked ones.
     """
 
-    return settings.model_copy(
-        update={
-            "models_file": root / "conf/models.yaml",
-            "processors_file": root / "conf/processors.yaml",
-            "collections_dir": root / "collections",
-            "derivations_dir": root / "derivations",
-            "triggers_dir": root / "triggers",
-            "views_dir": root / "views",
-            "artifacts_dir": root / "artifacts",
-            "mcp_dir": root / "mcp",
-            "packages_dir": root / "packages",
-            "search_profiles_file": root / "conf/search_profiles.yaml",
-            "rank_default_file": root / "conf/rank_default.yaml",
-        }
-    )
+    return settings.model_copy(update={"catalog_file": root / "catalog.yaml"})
 
 
 @pytest.fixture(scope="session")
@@ -65,18 +51,7 @@ def settings(bare_settings: Settings) -> Settings:
     more: a process ships no definitions unless it is told where they are.
     """
 
-    return catalog_settings(
-        bare_settings,
-        REPOSITORY_ROOT / "resources",
-    ).model_copy(
-        update={
-            # The reference catalog carries its own processors and its own
-            # ranking, because that ranking names a scorer the catalog defines.
-            # Models and search profiles stay deployment configuration.
-            "models_file": REPOSITORY_ROOT / "conf/models.yaml",
-            "search_profiles_file": REPOSITORY_ROOT / "conf/search_profiles.yaml",
-        }
-    )
+    return catalog_settings(bare_settings, REPOSITORY_ROOT / "resources")
 
 
 @pytest.fixture

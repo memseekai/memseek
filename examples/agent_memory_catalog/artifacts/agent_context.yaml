@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=../../../schemas/artifacts.schema.json
 artifacts:
   # The recall flow of the source design's §7, as one bounded render: persona,
   # then independently maintained scene blocks, then hard rules, then relevance.

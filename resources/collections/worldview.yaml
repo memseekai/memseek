@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=../../schemas/collections.schema.json
 collections:
   # A tier ABOVE reflections: the agent's durable, high-level convictions.
   # Keyed, so each conviction is one current answer that can be superseded —

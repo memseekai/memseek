@@ -1,5 +1,11 @@
 # Run the Computer renewal example
 
+Each example catalog starts at **`catalog.yaml`**, a direct map from definition
+names to source files. Run `uv run memseek catalog-validate --dir <catalog>`
+before publishing. Derivations include their processors and inline triggers
+automatically. See [Catalog layout](../docs/catalog-layout.md).
+
+
 Run these commands from the **repository root**, where `Makefile` lives.
 Use the full checkout: the example needs its catalog, support modules, Memseek
 source, and Docker configuration. Copying the Python script alone is insufficient.

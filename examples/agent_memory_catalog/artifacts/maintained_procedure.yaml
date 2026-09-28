@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=../../../schemas/artifacts.schema.json
 artifacts:
   # The reviewed value: the four skill sections as one promotable unit. The
   # engine checks that skill_extract emits exactly these keys, completely, and

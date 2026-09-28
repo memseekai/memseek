@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=../../../schemas/mcp.schema.json
 name: gbrain
 version: 1
 title: Gbrain memory

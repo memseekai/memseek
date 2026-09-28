@@ -1,0 +1,39 @@
+# yaml-language-server: $schema=../../schemas/catalog.schema.json
+name: site_scrape
+version: 1.0.0
+description: Scrape websites and reuse lessons from earlier runs.
+config:
+  models: config/models.yaml
+  ranking: config/ranking.yaml
+  search_profiles: config/search_profiles.yaml
+
+# Run the scraper
+agents:
+  site_scraper@1: scraping/agent.yaml
+
+toolsets:
+  scraper@1: scraping/tools.yaml
+
+computers:
+  scrape_workspace@1: scraping/workspace.yaml
+
+context_policies:
+  scrape_budget@1: scraping/budget.yaml
+
+# Assemble the agent's instructions
+artifacts:
+  scraper_instructions@1: scraping/instructions.yaml
+
+# Read tasks and previous learnings
+views:
+  current_task@1: scraping/views.yaml
+  site_learnings@1: scraping/views.yaml
+
+# Store tasks and evaluation results
+collections:
+  scrape_tasks@1: scraping/tasks.yaml
+  skill_eval_runs@1: evaluation/runs.yaml
+
+# Enrich records
+processors:
+  importance: scraping/processors.yaml

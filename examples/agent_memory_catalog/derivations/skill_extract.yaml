@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=../../../schemas/derivations.schema.json
 # The parallel pipeline: a completed task trace becomes a reusable procedure.
 #
 # The source design runs a tool-using review agent that calls skill_create /

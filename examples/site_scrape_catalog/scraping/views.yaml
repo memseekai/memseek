@@ -1,0 +1,37 @@
+# yaml-language-server: $schema=../../../schemas/views.schema.json
+views:
+  # The task the current run is about: the newest one for this site.
+  - name: current_task
+    version: 1
+    active: true
+    required_capabilities: [recent]
+    parameters:
+      entity: {type: string, required: true}
+    query:
+      mode: recent
+      scope:
+        entities: ["{{entity}}"]
+        collections: [scrape_tasks]
+        status: active
+      k: 1
+      include: [text, occurred_at]
+      render: true
+
+  # Everything learned about this site, newest first, for every skill. The
+  # lessons collection is built in because a skill in scraper@1 learns.
+  - name: site_learnings
+    version: 1
+    active: true
+    required_capabilities: [recent]
+    parameters:
+      entity: {type: string, required: true}
+    query:
+      mode: recent
+      scope:
+        entities: ["{{entity}}"]
+        collections: [lessons]
+        status: active
+      k: 40
+      include: [text, occurred_at]
+      render: true
+

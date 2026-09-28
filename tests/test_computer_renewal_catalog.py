@@ -41,22 +41,7 @@ ROOT = Path(__file__).resolve().parents[1] / "examples" / "computer_renewal_cata
 def _settings(settings: Settings) -> Settings:
     return settings.model_copy(
         update={
-            "models_file": ROOT / "conf/models.yaml",
-            "processors_file": ROOT / "conf/processors.yaml",
-            "collections_dir": ROOT / "collections",
-            "derivations_dir": ROOT / "derivations",
-            "views_dir": None,
-            "artifacts_dir": ROOT / "artifacts",
-            "computers_dir": ROOT / "computers",
-            "programs_dir": ROOT / "programs",
-            "agents_dir": ROOT / "agents",
-            "context_policies_dir": ROOT / "context_policies",
-            "toolsets_dir": ROOT / "toolsets",
-            "mcp_dir": ROOT / "mcp",
-            "packages_dir": ROOT / "packages",
-            "triggers_dir": None,
-            "search_profiles_file": ROOT / "conf/search_profiles.yaml",
-            "rank_default_file": ROOT / "conf/rank_default.yaml",
+            "catalog_file": ROOT / "catalog.yaml",
         }
     )
 

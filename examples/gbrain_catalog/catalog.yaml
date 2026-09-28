@@ -1,0 +1,46 @@
+# yaml-language-server: $schema=../../schemas/catalog.schema.json
+name: gbrain
+version: 0.13.0
+description: Gbrain catalog.
+config:
+  models: conf/models.yaml
+  ranking: conf/rank_default.yaml
+  search_profiles: conf/search_profiles.yaml
+collections:
+  atoms@1: collections/atoms.yaml
+  concepts@1: collections/concepts.yaml
+  edges@1: collections/edges.yaml
+  facts@1: collections/facts.yaml
+  pages@1: collections/pages.yaml
+  patterns@1: collections/patterns.yaml
+  syntheses@1: collections/syntheses.yaml
+  syntheses@2: collections/syntheses.yaml
+  takes@1: collections/takes.yaml
+  transcripts@1: collections/transcripts.yaml
+processors:
+  embedding_v1: conf/processors.yaml
+  importance: conf/processors.yaml
+derivations:
+  atom_extraction: derivations/atom_extraction.yaml
+  concept_synthesis: derivations/concept_synthesis.yaml
+  consolidate: derivations/consolidate.yaml
+  enrich_thin: derivations/enrich_thin.yaml
+  fact_extraction: derivations/fact_extraction.yaml
+  link_extraction: derivations/link_extraction.yaml
+  pattern_detection: derivations/pattern_detection.yaml
+  repair_synthesis: derivations/repair_synthesis.yaml
+views:
+  gbrain_search@1: views/gbrain_search.yaml
+  graph_query@1: views/graph_query.yaml
+  orphan_pages@1: views/orphan_pages.yaml
+artifacts:
+  gbrain_context@1: artifacts/gbrain_context.yaml
+mcp:
+  gbrain@1: mcp/gbrain.yaml
+expose_mcp: gbrain@1
+retentions:
+- name: purge_pages
+  collection: pages@1
+  after_days: 30
+  cron: 23 3 * * *
+  max_pages: 25

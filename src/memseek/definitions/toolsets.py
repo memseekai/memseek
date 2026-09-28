@@ -16,6 +16,7 @@ from .base import split_exact_reference
 from .models import (
     AgentDefinition,
     ComputerDefinition,
+    ComputerWriteback,
     ToolsetDefinition,
     ToolSourceDefinition,
 )
@@ -60,6 +61,30 @@ def effective_toolset(
     return ToolsetDefinition(
         name=LEGACY_TOOLSET, version=1, sources=tuple(_legacy_sources(agent, computer))
     )
+
+
+def effective_computer(
+    agent: AgentDefinition,
+    computer: ComputerDefinition,
+    catalog: DefinitionCatalog,
+) -> ComputerDefinition:
+    """The Computer as a run of ``agent`` sees it, with the lessons writeback when a skill learns.
+
+    The built-in lessons writeback is the one path a toolset adds. The catalog
+    has already checked that the Computer lets the run write to /outbox.
+    """
+
+    from memseek.lessons import LESSONS_PATH, writeback_document
+
+    toolset = effective_toolset(agent, computer, catalog)
+    collects = any(
+        source.learning is not None and source.learning.collect
+        for source in toolset.learning_sources
+    )
+    if not collects or any(item.path == LESSONS_PATH for item in computer.writeback):
+        return computer
+    lessons = ComputerWriteback.model_validate(writeback_document())
+    return computer.model_copy(update={"writeback": (*computer.writeback, lessons)})
 
 
 def _legacy_sources(
@@ -116,4 +141,9 @@ def _legacy_sources(
     return sources
 
 
-__all__ = ["LEGACY_FILESYSTEM_MODES", "LEGACY_TOOLSET", "effective_toolset"]
+__all__ = [
+    "LEGACY_FILESYSTEM_MODES",
+    "LEGACY_TOOLSET",
+    "effective_computer",
+    "effective_toolset",
+]

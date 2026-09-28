@@ -1,0 +1,311 @@
+{
+  "$defs": {
+    "GraphProjection": {
+      "additionalProperties": false,
+      "description": "The canonical collections projected by a graph-derived view.\n\n``subject``/``object``/``predicate`` are the default declared-field names,\nbut authors may map all three roles onto another collection vocabulary.\nKeeping that mapping in the view lets one workspace expose several graphs\nwithout giving callers arbitrary storage access or coupling the runtime to\nan example package's collection names.",
+      "properties": {
+        "edges": {
+          "pattern": "^[a-z][a-z0-9._-]{0,63}$",
+          "title": "Edges",
+          "type": "string"
+        },
+        "subject": {
+          "default": "subject",
+          "pattern": "^[a-z][a-z0-9._-]{0,63}$",
+          "title": "Subject",
+          "type": "string"
+        },
+        "object": {
+          "default": "object",
+          "pattern": "^[a-z][a-z0-9._-]{0,63}$",
+          "title": "Object",
+          "type": "string"
+        },
+        "predicate": {
+          "default": "predicate",
+          "pattern": "^[a-z][a-z0-9._-]{0,63}$",
+          "title": "Predicate",
+          "type": "string"
+        },
+        "nodes": {
+          "anyOf": [
+            {
+              "pattern": "^[a-z][a-z0-9._-]{0,63}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Nodes"
+        }
+      },
+      "required": [
+        "edges"
+      ],
+      "title": "GraphProjection",
+      "type": "object"
+    },
+    "ParameterDefinition": {
+      "additionalProperties": false,
+      "description": "One public, typed parameter shared by views and artifacts.\n\nThe definition is the single source for runtime validation and generated\nJSON Schema.  MCP declarations deliberately reference a view or artifact\nrather than repeating any of these fields.",
+      "properties": {
+        "type": {
+          "enum": [
+            "string",
+            "string_array",
+            "number",
+            "integer",
+            "boolean",
+            "datetime"
+          ],
+          "title": "Type",
+          "type": "string"
+        },
+        "required": {
+          "default": false,
+          "title": "Required",
+          "type": "boolean"
+        },
+        "default": {
+          "anyOf": [
+            {},
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Default"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Description"
+        },
+        "enum": {
+          "anyOf": [
+            {
+              "items": {},
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Enum"
+        },
+        "item_enum": {
+          "anyOf": [
+            {
+              "items": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Item Enum"
+        },
+        "minimum": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Minimum"
+        },
+        "maximum": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Maximum"
+        },
+        "min_length": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Min Length"
+        },
+        "max_length": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Length"
+        },
+        "min_items": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Min Items"
+        },
+        "max_items": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Items"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "title": "ParameterDefinition",
+      "type": "object"
+    },
+    "ViewDefinition": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "pattern": "^[a-z][a-z0-9._-]{0,63}$",
+          "title": "Name",
+          "type": "string"
+        },
+        "definition_hash": {
+          "default": "",
+          "title": "Definition Hash",
+          "type": "string"
+        },
+        "version": {
+          "minimum": 1,
+          "title": "Version",
+          "type": "integer"
+        },
+        "active": {
+          "default": false,
+          "title": "Active",
+          "type": "boolean"
+        },
+        "kind": {
+          "default": "search",
+          "enum": [
+            "search",
+            "graph",
+            "graph_orphans"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "parameters": {
+          "patternProperties": {
+            "^[a-z][a-z0-9._-]{0,63}$": {
+              "$ref": "#/$defs/ParameterDefinition"
+            }
+          },
+          "title": "Parameters",
+          "type": "object"
+        },
+        "query": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Query"
+        },
+        "graph": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/GraphProjection"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "required_capabilities": {
+          "default": [],
+          "items": {
+            "enum": [
+              "vector",
+              "text",
+              "recent",
+              "structured"
+            ],
+            "type": "string"
+          },
+          "title": "Required Capabilities",
+          "type": "array"
+        }
+      },
+      "required": [
+        "name",
+        "version"
+      ],
+      "title": "ViewDefinition",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "views": {
+      "items": {
+        "$ref": "#/$defs/ViewDefinition"
+      },
+      "title": "Views",
+      "type": "array"
+    }
+  },
+  "required": [
+    "views"
+  ],
+  "title": "ViewDefinitionFile",
+  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}

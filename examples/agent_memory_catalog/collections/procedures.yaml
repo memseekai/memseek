@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=../../../schemas/collections.schema.json
 collections:
   # A completed task trace: the L0 of the Skill pipeline. Ingested under the skill's
   # own entity (`skill.<slug>`), which is how a new skill comes into existence —

@@ -12,23 +12,11 @@ _CATALOG_ROOT = Path(__file__).parents[1] / "examples" / "agent_memory_catalog"
 
 
 def _example_settings(tmp_path: Path) -> Settings:
-    """Load only the example catalog, with an explicitly empty trigger directory."""
+    """Load only the example catalog."""
 
-    triggers = tmp_path / "triggers"
-    triggers.mkdir()
     return Settings(
         llm_fake=True,
-        models_file=_CATALOG_ROOT / "conf/models.yaml",
-        processors_file=_CATALOG_ROOT / "conf/processors.yaml",
-        rank_default_file=_CATALOG_ROOT / "conf/rank_default.yaml",
-        search_profiles_file=_CATALOG_ROOT / "conf/search_profiles.yaml",
-        collections_dir=_CATALOG_ROOT / "collections",
-        derivations_dir=_CATALOG_ROOT / "derivations",
-        triggers_dir=triggers,
-        views_dir=_CATALOG_ROOT / "views",
-        artifacts_dir=_CATALOG_ROOT / "artifacts",
-        mcp_dir=_CATALOG_ROOT / "mcp",
-        packages_dir=_CATALOG_ROOT / "packages",
+        catalog_file=_CATALOG_ROOT / "catalog.yaml",
     )
 
 

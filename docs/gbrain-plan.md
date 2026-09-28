@@ -3,6 +3,8 @@ title: The gbrain capability plan
 eyebrow: Design plan
 ---
 
+> Historical design notes. For the current source-map format, see [Catalog layout](catalog-layout.md).
+
 # Implementing gbrain on memseek — detailed plan
 
 This plan re-expresses [Garry Tan's gbrain](https://github.com/garrytan/gbrain) as memseek
@@ -491,8 +493,10 @@ MCP is a **separate, explicit package interface**, not an automatic projection o
 view, or artifact. A package binds one exact versioned declaration:
 
 ```yaml
-# packages/gbrain.yaml
-mcp: gbrain@1
+# catalog.yaml
+mcp:
+  gbrain@1: mcp/gbrain.yaml
+expose_mcp: gbrain@1
 ```
 
 The declaration lives at

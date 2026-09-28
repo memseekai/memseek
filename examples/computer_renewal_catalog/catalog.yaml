@@ -1,0 +1,38 @@
+# yaml-language-server: $schema=../../schemas/catalog.schema.json
+name: computer_renewal_demo
+version: 1.0.0
+description: Computer renewal demo catalog.
+config:
+  models: conf/models.yaml
+  ranking: conf/rank_default.yaml
+  search_profiles: conf/search_profiles.yaml
+collections:
+  renewal_evidence@1: collections/renewal.yaml
+  contract_terms@1: collections/renewal.yaml
+  renewal_risks@1: collections/renewal.yaml
+  task_observations@1: collections/renewal.yaml
+  renewal_proposals@1: collections/renewal.yaml
+processors:
+  embedding_v1: conf/processors.yaml
+  importance: conf/processors.yaml
+derivations:
+  contract_extract: derivations/contract_extract.yaml
+  renewal_assessment: derivations/renewal_assessment.yaml
+artifacts:
+  renewal_instructions@1: artifacts/renewal_agent.yaml
+  renewal_research_skill@1: artifacts/renewal_agent.yaml
+computers:
+  fast_workspace@1: computers/workspaces.yaml
+  research_workspace@1: computers/workspaces.yaml
+programs:
+  contract_extract@3: programs/contract_extract.yaml
+agents:
+  renewal_analyst@1: agents/renewal_analyst.yaml
+  renewal_analyst@2: agents/renewal_analyst.yaml
+context_policies:
+  evidence_spine@1: context_policies/evidence_spine.yaml
+toolsets:
+  renewal@1: toolsets/renewal.yaml
+mcp:
+  renewal_computer@1: mcp/renewal.yaml
+expose_mcp: renewal_computer@1

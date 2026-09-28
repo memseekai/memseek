@@ -1,0 +1,31 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "candidates": {
+      "maximum": 1000,
+      "minimum": 1,
+      "title": "Candidates",
+      "type": "integer"
+    },
+    "variants": {
+      "additionalProperties": true,
+      "propertyNames": {
+        "enum": [
+          "hybrid",
+          "vector",
+          "text",
+          "recent"
+        ]
+      },
+      "title": "Variants",
+      "type": "object"
+    }
+  },
+  "required": [
+    "candidates",
+    "variants"
+  ],
+  "title": "RankDefaults",
+  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}

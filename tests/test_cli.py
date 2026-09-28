@@ -23,13 +23,45 @@ def test_parser_exposes_every_operational_command() -> None:
         "mcp",
         # Definition evolution.
         "catalog-check",
+        "catalog-validate",
+        "catalog-locate",
         "catalog-graph",
         "catalog-prune",
         "migrate-collection-hashes",
         "backfill",
         "reembed",
         "rebind-cursor",
+        # Evaluations.
+        "eval",
     }
+
+
+def test_skill_learning_eval_parses_its_run_shape(capsys: pytest.CaptureFixture[str]) -> None:
+    args = cli.build_parser().parse_args(
+        ["eval", "skill-learning", "--suite", "evals/scrape_suite.yaml", "--trials", "2"]
+    )
+    assert (args.eval_command, args.trials, args.k_train, args.arms) == (
+        "skill-learning",
+        2,
+        3,
+        "cold,native,playbook,playbook+native",
+    )
+
+    status = cli.main(
+        [
+            "eval",
+            "skill-learning",
+            "--suite",
+            "evals/scrape_suite.yaml",
+            "--arms",
+            "warm",
+            "--api-key",
+            "k",
+        ]
+    )
+
+    assert status == 1
+    assert json.loads(capsys.readouterr().err)["error"] == "ValidationError"
 
 
 def test_mcp_check_is_a_non_server_diagnostic_mode() -> None:

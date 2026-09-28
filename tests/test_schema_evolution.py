@@ -501,9 +501,7 @@ async def test_cursor_rebinding_records_an_audited_decision(
     changes["sources"]["legacy"]["kind"] = "changes"
     files = catalog_files()
     files["derivations/archive_notes.yaml"] = __import__("yaml").safe_dump(changes)
-    files["packages/evolving.yaml"] = files["packages/evolving.yaml"].replace(
-        "archive_notes", "rolling_archive"
-    )
+    files["catalog.yaml"] = files["catalog.yaml"].replace("archive_notes:", "rolling_archive:")
 
     headers = {"Authorization": f"Bearer {workspace.api_key}"}
     app = build_app(settings)

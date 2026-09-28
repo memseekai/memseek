@@ -1,0 +1,213 @@
+{
+  "$defs": {
+    "McpToolDefinition": {
+      "additionalProperties": false,
+      "description": "One explicitly exposed operation in a package MCP interface.\n\nA tool can bind only an existing named view or artifact.  The fixed\n``answer`` and ``record`` kinds deliberately have no arbitrary target or\ntransport configuration: their server adapters remain the sole authority\nover those operations.",
+      "properties": {
+        "name": {
+          "pattern": "^[a-z][a-z0-9._-]{0,63}$",
+          "title": "Name",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "view",
+            "artifact",
+            "answer",
+            "record",
+            "ingest",
+            "invocation"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "description": {
+          "minLength": 1,
+          "title": "Description",
+          "type": "string"
+        },
+        "title": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Title"
+        },
+        "view": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "View"
+        },
+        "artifact": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Artifact"
+        },
+        "collection": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Collection"
+        },
+        "computer": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Computer"
+        },
+        "agent": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Agent"
+        },
+        "program": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Program"
+        },
+        "context_policy": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Context Policy"
+        },
+        "invocation_task": {
+          "anyOf": [
+            {
+              "enum": [
+                "answer",
+                "task",
+                "compute"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Invocation Task"
+        }
+      },
+      "required": [
+        "name",
+        "kind",
+        "description"
+      ],
+      "title": "McpToolDefinition",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "A versioned, curated MCP surface owned by one package.\n\nUnlike views and artifacts, MCP definitions do not have an active alias:\na package always selects one exact interface version.",
+  "properties": {
+    "name": {
+      "pattern": "^[a-z][a-z0-9._-]{0,63}$",
+      "title": "Name",
+      "type": "string"
+    },
+    "definition_hash": {
+      "default": "",
+      "title": "Definition Hash",
+      "type": "string"
+    },
+    "version": {
+      "minimum": 1,
+      "title": "Version",
+      "type": "integer"
+    },
+    "title": {
+      "anyOf": [
+        {
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Title"
+    },
+    "instructions": {
+      "anyOf": [
+        {
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Instructions"
+    },
+    "tools": {
+      "items": {
+        "$ref": "#/$defs/McpToolDefinition"
+      },
+      "title": "Tools",
+      "type": "array"
+    }
+  },
+  "required": [
+    "name",
+    "version",
+    "tools"
+  ],
+  "title": "McpDefinition",
+  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}

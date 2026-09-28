@@ -33,32 +33,18 @@ RENEWAL_ROOT = REPOSITORY_ROOT / "examples" / "computer_renewal_catalog"
 # that never opted into the new feature. These constants are the cheap proof
 # that a change is hash-neutral. Update one only alongside a deliberate edit to
 # the catalog it covers, and say so in the commit.
-REFERENCE_CATALOG_HASH = "9a23acb2e11cb6b9aa070f8538a3097cd6272f2251d695af70a30b2a76f5e8ee"
-# Moved once, deliberately, when the renewal catalog adopted a toolset. The
+REFERENCE_CATALOG_HASH = "4ec6b07315a41cb57624e36b3554a2bc6e571741719ee541c6fd200f8bbe34f2"
+# Updated for explicit catalog membership: all declared definitions now ship.
+# Previously changed when the renewal catalog adopted a toolset. The
 # reference constant above did not move, which is the actual proof: a catalog
 # that declares no toolsets hashes exactly as it did before the family existed.
-RENEWAL_CATALOG_HASH = "2ffe917780b238732750f2adb89a74db557ffc45ccd33edeb46456ce1d5f6e54"
+RENEWAL_CATALOG_HASH = "b47f5b19dbde4ea2e77c2985b69f8753619fa8141dc3e01ead1225932e7a6f60"
 
 
 def _renewal_settings(bare_settings: Settings) -> Settings:
     return bare_settings.model_copy(
         update={
-            "models_file": RENEWAL_ROOT / "conf/models.yaml",
-            "processors_file": RENEWAL_ROOT / "conf/processors.yaml",
-            "collections_dir": RENEWAL_ROOT / "collections",
-            "derivations_dir": RENEWAL_ROOT / "derivations",
-            "views_dir": None,
-            "artifacts_dir": RENEWAL_ROOT / "artifacts",
-            "computers_dir": RENEWAL_ROOT / "computers",
-            "programs_dir": RENEWAL_ROOT / "programs",
-            "agents_dir": RENEWAL_ROOT / "agents",
-            "context_policies_dir": RENEWAL_ROOT / "context_policies",
-            "toolsets_dir": RENEWAL_ROOT / "toolsets",
-            "mcp_dir": RENEWAL_ROOT / "mcp",
-            "packages_dir": RENEWAL_ROOT / "packages",
-            "triggers_dir": None,
-            "search_profiles_file": RENEWAL_ROOT / "conf/search_profiles.yaml",
-            "rank_default_file": RENEWAL_ROOT / "conf/rank_default.yaml",
+            "catalog_file": RENEWAL_ROOT / "catalog.yaml",
         }
     )
 
@@ -182,17 +168,10 @@ def test_gbrain_catalog_is_a_separate_self_contained_package(gbrain_settings: Se
     assert orphan_view.graph.nodes == "pages"
     assert catalog.resolve_artifact("gbrain_context").lifecycle == "live"
     package = catalog.resolve_package("gbrain", "0.13.0")
-    assert package.collections == (
-        "pages@1",
-        "edges@1",
-        "syntheses@2",
-        "atoms@1",
-        "facts@1",
-        "patterns@1",
-        "concepts@1",
-        "takes@1",
-        "transcripts@1",
-    )
+    assert set(package.collections) == {
+        f"{name}@{version}" for name, version in catalog.collections
+    }
+
     assert package.mcp == "gbrain@1"
     interface = catalog.resolve_mcp(package.mcp)
     assert [tool.name for tool in interface.tools] == [

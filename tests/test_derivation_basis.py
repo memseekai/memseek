@@ -506,15 +506,7 @@ def test_crm_example_exposes_incremental_and_rebuild_intent(settings: Settings) 
     root = Path("examples/crm_profile_catalog")
     crm_settings = settings.model_copy(
         update={
-            "models_file": root / "conf/models.yaml",
-            "processors_file": root / "conf/processors.yaml",
-            "collections_dir": root / "collections",
-            "triggers_dir": root / "triggers",
-            "views_dir": root / "views",
-            "artifacts_dir": root / "artifacts",
-            "mcp_dir": root / "mcp",
-            "packages_dir": root / "packages",
-            "derivations_dir": root / "derivations",
+            "catalog_file": root / "catalog.yaml",
         }
     )
     catalog = load_definition_catalog(crm_settings)

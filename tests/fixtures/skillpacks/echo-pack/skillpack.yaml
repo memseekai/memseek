@@ -1,0 +1,11 @@
+name: echo-pack
+version: 2
+requires:
+  - {bin: echo, install: "coreutils"}
+skill:
+  command: [echo, "---\nname: echo-pack\ndescription: Scrape a page.\n---\n\nScrape the page."]
+env:
+  pass: [ECHO_PASS]
+  set: {ECHO_STATE: "{state}", ECHO_RUNTIME: "{runtime}"}
+capabilities: [exec]
+stop: [sh, -c, 'echo "stopped with $ECHO_RUNTIME" > "$ECHO_STATE/stopped"']

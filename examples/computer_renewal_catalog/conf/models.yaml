@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=../../../schemas/models.schema.json
 providers:
   workers_ai:
     adapter: fake
