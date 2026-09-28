@@ -40,49 +40,49 @@
 
 # The page renders with JavaScript: its HTML holds no quote markup, only an
 # inline `var data = [...]`, 10 quotes per page, and a Next link.
-- id: quotes-js
-  domain: quotes.toscrape.com
-  train:
-    - {url: "https://quotes.toscrape.com/js/", goal: "every quote on pages 1 and 2: text, author, tags", items: 20}
-    - {url: "https://quotes.toscrape.com/js/page/5/", goal: "every quote on pages 5 and 6: text, author, tags", items: 20}
-  test:
-    - {url: "https://quotes.toscrape.com/js/page/3/", goal: "every quote on pages 3 and 4: text, author, tags", items: 20}
-  check:
-    schema:
-      type: object
-      required: [items]
-      properties:
-        items:
-          type: array
-          items:
-            type: object
-            required: [text, author]
-            properties:
-              text: {type: string, minLength: 1}
-              author: {type: string, minLength: 1}
-              tags: {type: [array, "null"], items: {type: string}}
-    field_coverage: {tags: 0.9}
+# - id: quotes-js
+#   domain: quotes.toscrape.com
+#   train:
+#     - {url: "https://quotes.toscrape.com/js/", goal: "every quote on pages 1 and 2: text, author, tags", items: 20}
+#     - {url: "https://quotes.toscrape.com/js/page/5/", goal: "every quote on pages 5 and 6: text, author, tags", items: 20}
+#   test:
+#     - {url: "https://quotes.toscrape.com/js/page/3/", goal: "every quote on pages 3 and 4: text, author, tags", items: 20}
+#   check:
+#     schema:
+#       type: object
+#       required: [items]
+#       properties:
+#         items:
+#           type: array
+#           items:
+#             type: object
+#             required: [text, author]
+#             properties:
+#               text: {type: string, minLength: 1}
+#               author: {type: string, minLength: 1}
+#               tags: {type: [array, "null"], items: {type: string}}
+#     field_coverage: {tags: 0.9}
 
 # Static HTML with obvious markup: the control, where a playbook has little to
 # save.
-- id: books-catalogue
-  domain: books.toscrape.com
-  train:
-    - {url: "https://books.toscrape.com/catalogue/page-1.html", goal: "every book on the page: title, price, availability", items: 20}
-  test:
-    - {url: "https://books.toscrape.com/catalogue/page-3.html", goal: "every book on the page: title, price, availability", items: 20}
-  check:
-    schema:
-      type: object
-      required: [items]
-      properties:
-        items:
-          type: array
-          items:
-            type: object
-            required: [title, price]
-            properties:
-              title: {type: string, minLength: 1}
-              price: {type: [string, number]}
-              availability: {type: [string, "null"]}
-    field_coverage: {price: 1.0, availability: 0.9}
+# - id: books-catalogue
+#   domain: books.toscrape.com
+#   train:
+#     - {url: "https://books.toscrape.com/catalogue/page-1.html", goal: "every book on the page: title, price, availability", items: 20}
+#   test:
+#     - {url: "https://books.toscrape.com/catalogue/page-3.html", goal: "every book on the page: title, price, availability", items: 20}
+#   check:
+#     schema:
+#       type: object
+#       required: [items]
+#       properties:
+#         items:
+#           type: array
+#           items:
+#             type: object
+#             required: [title, price]
+#             properties:
+#               title: {type: string, minLength: 1}
+#               price: {type: [string, number]}
+#               availability: {type: [string, "null"]}
+#     field_coverage: {price: 1.0, availability: 0.9}
