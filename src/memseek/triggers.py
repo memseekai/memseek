@@ -458,7 +458,6 @@ async def _accumulator_matches(
     entity: str,
     definition: PipelineDefinition,
     trigger: StandaloneTrigger,
-    catalog: DefinitionCatalog,
     watermark: int,
 ) -> bool:
     assert trigger.accumulator is not None
@@ -482,10 +481,9 @@ async def _accumulator_matches(
             expression_params: list[Any] = [metric.scorer]
         else:
             assert metric.annotation is not None
-            versions = _field_versions(catalog, definition.driver, metric.annotation)
-            if not versions:
-                return False
-            expression, expression_params = field_value_expression(versions)
+            assert metric.path is not None
+            expression = "(row.annotations #>> %s::text[])"
+            expression_params = [[metric.annotation, *metric.path.split(".")]]
         if metric.aggregate == "sum":
             aggregate = f"coalesce(sum(coalesce({expression}::double precision, 0)), 0)"
         elif metric.aggregate == "distinct_count":
@@ -772,7 +770,6 @@ async def evaluate_entity_triggers_tx(
             entity=entity,
             definition=definition,
             trigger=trigger,
-            catalog=catalog,
             watermark=watermark,
         ):
             arrivals.append("threshold")
