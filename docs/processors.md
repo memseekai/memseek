@@ -218,6 +218,10 @@ scores are not sent.
 
 #### `kind: score` with a judgment
 
+The examples in this section come from `examples/support_triage_catalog`,
+which [Triage a support inbox with Jev](support-triage-example.md) walks
+through.
+
 A judgment score processor has exactly one question, of type `noul` or
 `score`. It requires `scale` and `default`, and it forbids `prompt` and
 `value`.
@@ -234,12 +238,12 @@ A judgment score processor has exactly one question, of type `noul` or
   questions:
     urgency:
       type: score
-      instructions: "How soon does `record.text` need a response?"
+      instructions: "How urgently does the customer who wrote `record.text` need a response?"
       criteria:
-        - "Whenever convenient"
-        - "Within a few days"
-        - "Today"
-        - "Right now: the customer is blocked"
+        - "Whenever convenient: a question or feedback"
+        - "Within a few days: an inconvenience with a workaround"
+        - "Today: blocked, or money is at stake"
+        - "Now: an outage or data loss affecting their business"
 ```
 
 Memseek maps the answer onto `scale` in a straight line. A `noul` of 0 becomes
@@ -273,15 +277,23 @@ the questions.
   questions:
     needs_reply:
       type: noul
-      instructions: "Does `record.text` ask the support team to do something?"
+      instructions: "Does `record.text` need a reply from support?"
     topic:
       type: choice
       instructions: "What is `record.text` mainly about?"
-      criteria: {billing: null, technical: null, account: null, other: null}
+      criteria:
+        billing: "Charges, invoices, refunds, payment methods"
+        technical: "Errors, outages, bugs, how the product works"
+        account: "Logins, users, permissions, plan changes"
+        other: null
     frustration:
       type: score
-      instructions: "How frustrated is the writer of `record.text`?"
+      instructions: "How frustrated is the customer who wrote `record.text`?"
       criteria: ["Calm", "Annoyed", "Angry"]
+  default_output:
+    needs_reply: {noul: 0}
+    topic: {choice: other, probabilities: {}, confidence: 0}
+    frustration: {score: 0, probabilities: [1, 0, 0], confidence: 0}
   score_fields:
     needs_reply_p: needs_reply.noul
     frustration: frustration.score

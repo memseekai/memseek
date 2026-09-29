@@ -619,12 +619,12 @@ text, so `judge` does one or more of three jobs in a derivation:
 - **Label.** Turn each kept item into a new record that holds the answers.
 - **Inform.** Give a later `llm` prompt the answers for every item.
 
-This task, from the support triage example, labels new tickets with the team
+This task, from the support triage example's `route_tickets` derivation, labels new tickets with the team
 that should handle them. It uses the customer's account record as shared
 context:
 
 ```yaml
-- id: routing
+- id: route
   use: judge
   input: "{{new_tickets.records}}"
   with:
@@ -634,16 +634,17 @@ context:
     questions:
       team:
         type: choice
-        instructions: "Which team should handle `item.content.text`?"
+        instructions: "Which team should handle the request in `item.content.text`?"
         criteria:
-          billing: "Charges, invoices, refunds"
-          technical: "Errors, outages, integrations"
-          sales: "Plans, upgrades, pricing"
+          billing: "Charges, invoices, refunds, payment methods"
+          technical: "Errors, outages, bugs, integrations"
+          sales: "Upgrades, pricing, new seats or features"
       covered:
         type: noul
-        instructions: "Is the request in `item.content.text` covered by the plan in `context.account`?"
-    keep:
-      team: {confidence_gte: 0.6}
+        instructions: >-
+          Is the request in `item.content.text` covered by the plan and
+          notes in `context.account`?
+    keep: {team: {confidence_gte: 0.6}}
     records:
       text: "{{item.content.text}}"
       content: {kind: route}
@@ -709,7 +710,7 @@ For each kept item, `records` builds one record draft:
   `content.judgment`, so you cannot declare a `judgment` field yourself.
 - The draft cites the item it was built from.
 
-Point `emit.from` at the drafts, for example `"{{routing.records}}"`.
+Point `emit.from` at the drafts, for example `"{{route.records}}"`.
 
 #### Result
 
