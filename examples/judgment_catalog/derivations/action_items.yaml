@@ -1,0 +1,70 @@
+# yaml-language-server: $schema=../../../schemas/derivations.schema.json
+# A. Jev screens every new message; the strong model sees only the ones
+# judged actionable. The trigger sums intent_v1's actionable.noul, so about
+# five clearly actionable messages fire a run.
+name: action_items
+trigger:
+  accumulator:
+    metric: {annotation: intent_v1, path: actionable.noul}
+    threshold: 5
+sources:
+  new_messages:
+    kind: changes
+    collections: [main]
+    types: [chat, message]
+    max_records: 100
+model: strong
+limits: {max_llm_calls: 2, max_judgments: 100, max_judgment_tokens: 200000}
+tasks:
+  - id: triage
+    use: judge
+    input: "{{new_messages.records}}"
+    with:
+      model: jev
+      questions:
+        actionable:
+          type: noul
+          instructions: "Does `item.content.text` ask someone to do something?"
+      keep: {actionable: {noul_gte: 0.65}}
+  - id: result
+    use: llm
+    with:
+      output_schema:
+        type: object
+        required: [records]
+        properties:
+          records:
+            type: array
+            maxItems: 20
+            items:
+              type: object
+              required: [text, citations, content]
+              properties:
+                text: {type: string, minLength: 1}
+                citations:
+                  type: array
+                  minItems: 1
+                  uniqueItems: true
+                  items: {type: string, format: uuid}
+                content:
+                  type: object
+                  required: [kind]
+                  properties:
+                    kind: {const: action_item}
+                    owner: {type: string}
+                    due: {type: string}
+                  additionalProperties: false
+              additionalProperties: false
+        additionalProperties: false
+      max_output_tokens: 2000
+      prompt: |
+        Messages judged actionable:
+        <data untrusted="true">{{triage.kept}}</data>
+
+        Extract each concrete action item with its owner and due date when
+        stated. Cite the full UUID of the message it came from. Return only:
+        {"records":[{"text":"...","citations":["uuid"],"content":{"kind":"action_item","owner":"...","due":"..."}}]}
+emit:
+  from: "{{result.records}}"
+  collection: plans
+  type: action_item

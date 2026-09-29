@@ -1,0 +1,59 @@
+# yaml-language-server: $schema=../../../schemas/processors.schema.json
+processors:
+  - name: embedding_v1
+    kind: embedding
+    input: {collections: [main, plans, support, ticket_labels]}
+
+  # A fast scorer: one score question, mapped linearly onto the scale. The
+  # annotation keeps the raw answer beside the value, probabilities included.
+  - name: importance
+    kind: score
+    source: judgment
+    model: jev
+    input: {collections: [main, support]}
+    scale: [1, 10]
+    default: 5
+    render: true
+    questions:
+      importance:
+        type: score
+        instructions: "How significant is `record.text` for future decisions, plans, relationships, or identity?"
+        criteria:
+          - "Routine and disposable"
+          - "Mildly useful context"
+          - "Worth remembering"
+          - "Likely to change future decisions"
+
+  # Several judgments about one message in one call. The stored annotation is
+  # the answer map; score_fields promote numeric leaves into scores.*, and the
+  # action_items trigger sums actionable.noul. A trigger reads only required
+  # annotations, and a required json processor needs a terminal default: a
+  # failed judgment counts as not actionable.
+  - name: intent_v1
+    kind: json
+    source: judgment
+    model: jev
+    input: {collections: [main]}
+    questions:
+      actionable:
+        type: noul
+        instructions: "Does `record.text` ask someone to do something?"
+        criteria:
+          true: "An explicit request, task, or commitment"
+          false: "Information or chatter only"
+      topic:
+        type: choice
+        instructions: "What is `record.text` mainly about?"
+        criteria: {bug: "Something is broken", feature: "A new capability", question: null, other: null}
+      urgency:
+        type: score
+        instructions: "How time-sensitive is `record.text`?"
+        criteria: ["Can wait", "This week", "Today"]
+    default_output:
+      actionable: {noul: 0}
+      topic: {choice: other, probabilities: {}, confidence: 0}
+      urgency: {score: 0, probabilities: [1, 0, 0], confidence: 0}
+    score_fields:
+      actionable_p: actionable.noul
+      urgency: urgency.score
+      topic_confidence: topic.confidence

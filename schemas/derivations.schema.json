@@ -709,6 +709,19 @@
           "minimum": 0,
           "title": "Max Preserved Bytes",
           "type": "integer"
+        },
+        "max_judgments": {
+          "default": 0,
+          "maximum": 10000,
+          "minimum": 0,
+          "title": "Max Judgments",
+          "type": "integer"
+        },
+        "max_judgment_tokens": {
+          "default": 400000,
+          "minimum": 1,
+          "title": "Max Judgment Tokens",
+          "type": "integer"
         }
       },
       "title": "PipelineLimits",

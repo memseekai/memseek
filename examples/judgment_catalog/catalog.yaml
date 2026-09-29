@@ -1,0 +1,20 @@
+# yaml-language-server: $schema=../../schemas/catalog.schema.json
+name: judgment_examples
+version: 1.0.0
+description: System One judgment models as processors, triggers, and derivation Tasks.
+config:
+  models: conf/models.yaml
+  ranking: conf/rank_default.yaml
+  search_profiles: conf/search_profiles.yaml
+collections:
+  main@1: collections/judgment.yaml
+  plans@1: collections/judgment.yaml
+  support@1: collections/judgment.yaml
+  ticket_labels@1: collections/judgment.yaml
+processors:
+  embedding_v1: conf/processors.yaml
+  importance: conf/processors.yaml
+  intent_v1: conf/processors.yaml
+derivations:
+  action_items: derivations/action_items.yaml
+  ticket_triage: derivations/ticket_triage.yaml

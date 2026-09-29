@@ -1,0 +1,33 @@
+# yaml-language-server: $schema=../../../schemas/models.schema.json
+providers:
+  openai:
+    adapter: openai_compat
+    base_url: https://api.openai.com/v1
+    api_key_env: OPENAI_API_KEY
+  # A System One endpoint answers typed questions and writes no text.
+  typesafe:
+    adapter: typesafe
+    base_url: https://api.typesafe.ai
+    api_key_env: TYPESAFE_API_KEY
+    json_capability: none
+
+aliases:
+  strong:
+    targets: ["openai:gpt-5.4-2026-03-05"]
+    params: {max_output_tokens: 4000}
+    context_tokens: 120000
+
+  # Pinned: keep thresholds are calibrated against one version, and
+  # jev-latest moves.
+  jev:
+    targets: ["typesafe:jev-1.13.0"]
+
+embedding:
+  provider: openai
+  model: text-embedding-3-small
+  dimensions: 1536
+  space: default-v1
+
+defaults:
+  derivation: strong
+  fold: strong

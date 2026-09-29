@@ -20,6 +20,7 @@ from uuid import UUID
 from pydantic import Field, TypeAdapter, model_validator
 
 from memseek.definitions.base import ProcessorName, StrictModel
+from memseek.definitions.judgment import KeepClause, KeepSpec, QuestionMap, compile_keep
 
 if TYPE_CHECKING:
     from memseek.answer import AnswerRequest
@@ -87,6 +88,40 @@ class TemplateTaskConfig(TaskConfigModel):
     template: str
 
 
+class JudgeRecordsConfig(StrictModel):
+    """Turns each kept item into an emit-ready record draft that cites it."""
+
+    key: str | None = None
+    text: str | None = None
+    content: dict[str, Any] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def validate_records(self) -> JudgeRecordsConfig:
+        if "judgment" in self.content:
+            raise ValueError("records.content.judgment is reserved for the answers")
+        return self
+
+
+class JudgeTaskConfig(TaskConfigModel):
+    """One judgment call per input item, all questions batched against it."""
+
+    model: ProcessorName | None = None
+    context: dict[str, Any] | None = None
+    questions: QuestionMap
+    keep: KeepSpec | None = None
+    records: JudgeRecordsConfig | None = None
+
+    @model_validator(mode="after")
+    def validate_judge(self) -> JudgeTaskConfig:
+        if self.keep is not None:
+            compile_keep(self.questions, self.keep)
+        return self
+
+    @property
+    def keep_clauses(self) -> tuple[KeepClause, ...]:
+        return compile_keep(self.questions, self.keep or {})
+
+
 type TaskConfig = TaskConfigModel
 
 
@@ -97,6 +132,8 @@ class TaskContext(Protocol):
     def entity(self) -> str: ...
 
     async def complete_json(self, config: LLMTaskConfig) -> TaskResult[Any]: ...
+
+    async def judge(self, value: Any, config: JudgeTaskConfig) -> TaskResult[dict[str, Any]]: ...
 
     async def search(self, config: SearchTaskConfig) -> TaskResult[Any]: ...
 
@@ -202,6 +239,10 @@ async def _llm(context: TaskContext, value: Any, config: TaskConfig) -> TaskResu
     return await context.complete_json(cast(LLMTaskConfig, config))
 
 
+async def _judge(context: TaskContext, value: Any, config: TaskConfig) -> TaskResult[Any]:
+    return await context.judge(value, cast(JudgeTaskConfig, config))
+
+
 async def _search(context: TaskContext, value: Any, config: TaskConfig) -> TaskResult[Any]:
     del value
     return await context.search(cast(SearchTaskConfig, config))
@@ -223,6 +264,12 @@ register_task(
     handler=_llm,
 )
 register_task(
+    "judge",
+    implementation_hash=_builtin_hash("judge"),
+    config_model=JudgeTaskConfig,
+    handler=_judge,
+)
+register_task(
     "search",
     implementation_hash=_builtin_hash("search"),
     config_model=SearchTaskConfig,
@@ -237,6 +284,8 @@ register_task(
 
 
 __all__ = [
+    "JudgeRecordsConfig",
+    "JudgeTaskConfig",
     "LLMTaskConfig",
     "RegisteredTask",
     "SearchTaskConfig",

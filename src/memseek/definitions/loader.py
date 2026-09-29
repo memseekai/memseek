@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+import re
 from collections import deque
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
@@ -30,6 +31,7 @@ from memseek.derive.schema import (
     ViewSource,
 )
 from memseek.derive.tasks import (
+    JudgeTaskConfig,
     LLMTaskConfig,
     SearchTaskConfig,
     TemplateTaskConfig,
@@ -1383,6 +1385,7 @@ class _CatalogBuilder:
         retrieval_bound = 0
         llm_calls = 0
         computer_runs = 0
+        judge_tasks = 0
         for index, task in enumerate(definition.tasks):
             try:
                 adapter = task_adapter(task.use)
@@ -1423,6 +1426,32 @@ class _CatalogBuilder:
                             file=path,
                             path=f"tasks[{index}].with.max_steps",
                         )
+            if isinstance(config, JudgeTaskConfig):
+                judge_tasks += 1
+                if not isinstance(task.input, str) or not re.fullmatch(
+                    r"{{\s*[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*\s*}}", task.input
+                ):
+                    raise DefinitionError(
+                        "task_input",
+                        "judge Task input must be one exact list reference, "
+                        "such as {{source.records}}",
+                        file=path,
+                        path=f"tasks[{index}].input",
+                    )
+                alias_name = config.model or definition.model
+                if alias_name is None:
+                    raise DefinitionError(
+                        "model_kind",
+                        "judge Task requires with.model or a judgment pipeline model",
+                        file=path,
+                        path=f"tasks[{index}].with.model",
+                    )
+                self._alias(
+                    alias_name,
+                    path,
+                    f"tasks[{index}].with.model" if config.model else "model",
+                    use="judgment",
+                )
             if isinstance(config, LLMTaskConfig):
                 _check_json_schema(
                     config.output_schema,
@@ -1521,6 +1550,13 @@ class _CatalogBuilder:
             )
         if llm_calls > limits.max_llm_calls:
             raise DefinitionError("budget", "pipeline exceeds max_llm_calls", file=path)
+        if judge_tasks and limits.max_judgments == 0:
+            raise DefinitionError(
+                "budget",
+                "judge Tasks need limits.max_judgments; opt in explicitly",
+                file=path,
+                path="limits.max_judgments",
+            )
         if computer_runs > limits.max_computer_runs:
             raise DefinitionError(
                 "budget",
@@ -1689,6 +1725,28 @@ class _CatalogBuilder:
                         config.template,
                         available,
                         context=f"tasks[{index}].with.template",
+                    )
+                elif isinstance(config, JudgeTaskConfig):
+                    refs = (
+                        input_refs
+                        | require_known_references(
+                            config.context, available, context=f"tasks[{index}].with.context"
+                        )
+                        | require_known_references(
+                            config.records.model_dump() if config.records else None,
+                            available | {"item"},
+                            context=f"tasks[{index}].with.records",
+                        )
+                    )
+                    # Instructions are static: anything dynamic belongs in the state.
+                    require_known_references(
+                        {
+                            "model": config.model,
+                            "questions": task.config.get("questions"),
+                            "keep": config.keep,
+                        },
+                        set(),
+                        context=f"tasks[{index}].with",
                     )
                 else:
                     require_known_references(
@@ -4330,6 +4388,8 @@ class _CatalogBuilder:
                         alias_names.add(
                             config.model or definition.model or self.models.defaults.derivation
                         )
+                    elif isinstance(config, JudgeTaskConfig):
+                        alias_names.add(config.model or str(definition.model))
             aliases = {
                 alias: self.models.aliases[alias].model_dump(mode="json")
                 for alias in sorted(alias_names)
