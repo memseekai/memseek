@@ -11,12 +11,22 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
 
+from memseek.definitions.judgment import (
+    ChoiceQuestion,
+    NoulQuestion,
+    Question,
+    ScoreQuestion,
+    parse_answers,
+    questions_json,
+)
 from memseek.render import estimate_tokens
 
 from .registry import (
     Completion,
     CompletionOutput,
     EmbeddingResult,
+    Judgment,
+    JudgmentRequest,
     LLMTransportError,
     ProviderEndpoint,
     materialize_json_schema,
@@ -55,6 +65,19 @@ class FakeEmbeddingCall:
     texts: tuple[str, ...]
 
 
+@dataclass(frozen=True, slots=True)
+class FakeJudgmentCall:
+    model: str
+    state: Any
+    questions: dict[str, Any]
+
+
+class FakeJudgmentResponseError(LLMTransportError):
+    """An enqueued judgment that does not answer the questions asked."""
+
+    kind = "response"
+
+
 class FakeLLMProvider:
     """Controllable fake with exact FIFO completions and deterministic fallbacks."""
 
@@ -63,16 +86,20 @@ class FakeLLMProvider:
     def __init__(self) -> None:
         self._completions: deque[Completion] = deque()
         self._failures: deque[str] = deque()
+        self._judgments: deque[Mapping[str, Any]] = deque()
         self.completion_calls: list[FakeCompletionCall] = []
         self.embedding_calls: list[FakeEmbeddingCall] = []
+        self.judgment_calls: list[FakeJudgmentCall] = []
 
     def reset(self) -> None:
         """Clear queued behavior and captured calls."""
 
         self._completions.clear()
         self._failures.clear()
+        self._judgments.clear()
         self.completion_calls.clear()
         self.embedding_calls.clear()
+        self.judgment_calls.clear()
 
     def enqueue(self, *completions: Completion | str) -> None:
         """Append exact completion objects to the provider's FIFO queue."""
@@ -83,6 +110,11 @@ class FakeLLMProvider:
             )
 
     queue_completion = enqueue
+
+    def enqueue_judgment(self, *answers: Mapping[str, Any]) -> None:
+        """Append raw answer maps, in the judgment API's response shape, to a FIFO queue."""
+
+        self._judgments.extend(answers)
 
     def fail_next(self, count: int, *, kind: str = "transport") -> None:
         """Make the next ``count`` provider operations fail deterministically."""
@@ -155,6 +187,28 @@ class FakeLLMProvider:
             vectors=vectors,
             prompt_tokens=sum(estimate_tokens(text) for text in texts),
         )
+
+    async def judge(
+        self, endpoint: ProviderEndpoint, model: str, request: JudgmentRequest
+    ) -> Judgment:
+        del endpoint
+        self.judgment_calls.append(
+            FakeJudgmentCall(
+                model=model, state=request.state, questions=questions_json(request.questions)
+            )
+        )
+        self._maybe_fail()
+        raw = (
+            self._judgments.popleft()
+            if self._judgments
+            else {name: _default_answer(q) for name, q in request.questions.items()}
+        )
+        try:
+            answers = parse_answers(request.questions, raw)
+        except ValueError as exc:
+            raise FakeJudgmentResponseError(str(exc)) from exc
+        state_tokens = estimate_tokens(json.dumps(request.state, sort_keys=True, default=str))
+        return Judgment(answers=answers, model=model, input_tokens=state_tokens, output_tokens=0)
 
     @staticmethod
     def _default_completion(prompt: str) -> str:
@@ -230,6 +284,28 @@ class FakeLLMProvider:
         if "event" in prompt.casefold() or '"records"' in prompt:
             return '{"records":[]}'
         return "{}"
+
+
+def _default_answer(question: Question) -> dict[str, Any]:
+    """A deterministic, uninformative answer: a coin flip, the first option, the midpoint."""
+
+    match question:
+        case NoulQuestion():
+            return {"noul": 0.5}
+        case ChoiceQuestion():
+            options = list(question.criteria)
+            return {
+                "choice": options[0],
+                "probabilities": dict.fromkeys(options, 1 / len(options)),
+                "confidence": 0.5,
+            }
+        case ScoreQuestion():
+            levels = len(question.criteria)
+            return {
+                "score": (levels - 1) / 2,
+                "probabilities": [1 / levels] * levels,
+                "confidence": 0.5,
+            }
 
 
 def _normalized_embedding(text: str, dimension: int) -> tuple[float, ...]:
