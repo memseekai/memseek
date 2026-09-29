@@ -1,0 +1,65 @@
+# yaml-language-server: $schema=../../../schemas/collections.schema.json
+collections:
+  # One keyed slot per customer: write it under key `profile` and each write
+  # replaces the last. route_tickets reads it as shared context.
+  - name: accounts
+    version: 1
+    active: true
+    mode: keyed
+    schema:
+      type: object
+      required: [text, plan]
+      properties:
+        text: {type: string}
+        plan: {type: string, enum: [basic, premium]}
+        notes: {type: string}
+        tombstone: {type: boolean}
+      additionalProperties: false
+    required_processors: [embedding_v1, importance]
+    search_profile: pg_default
+
+  # A trigger reads only required annotations, so signals must be required
+  # for escalate to count frustration.
+  - name: tickets
+    version: 1
+    active: true
+    mode: event
+    schema:
+      type: object
+      required: [text]
+      properties:
+        text: {type: string}
+        subject: {type: string}
+      additionalProperties: false
+    required_processors: [embedding_v1, urgency, signals]
+    search_profile: pg_default
+
+  - name: routes
+    version: 1
+    active: true
+    mode: event
+    schema:
+      type: object
+      required: [text, kind, judgment]
+      properties:
+        text: {type: string}
+        kind: {const: route}
+        judgment: {type: object}
+      additionalProperties: false
+    required_processors: [embedding_v1]
+    search_profile: pg_default
+
+  - name: escalations
+    version: 1
+    active: true
+    mode: event
+    schema:
+      type: object
+      required: [text, kind, severity]
+      properties:
+        text: {type: string}
+        kind: {const: escalation}
+        severity: {type: string, enum: [high, critical]}
+      additionalProperties: false
+    required_processors: [embedding_v1]
+    search_profile: pg_default

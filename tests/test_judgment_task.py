@@ -7,6 +7,7 @@ from typing import Any
 from uuid import UUID, uuid4
 
 import pytest
+from support_inbox import CATALOG, TEAMS, choice, noul, script_inbox
 
 from memseek.auth import create_workspace
 from memseek.config import Settings
@@ -28,8 +29,6 @@ from memseek.jobs import claim_job
 from memseek.llm.fake import fake
 from memseek.llm.registry import Completion
 from memseek.records import PublicRecordInput, RecordBatchRequest, insert_public_records
-
-CATALOG = Path(__file__).resolve().parents[1] / "examples" / "judgment_catalog"
 
 
 @pytest.fixture
@@ -73,67 +72,78 @@ def _execution(definition: PipelineDefinition, settings: Settings) -> _Execution
     )
 
 
-def _records(source: str, texts: list[str], **content: str) -> tuple[dict[str, Any], list[UUID]]:
+ACCOUNT_ID = uuid4()
+PROFILE: dict[str, Any] = {
+    "id": str(ACCOUNT_ID),
+    "key": "profile",
+    "content": {"text": "Northwind, basic plan", "plan": "basic", "notes": "No SSO"},
+}
+
+
+def _tickets(texts: list[str]) -> tuple[dict[str, Any], list[UUID]]:
     ids = [uuid4() for _ in texts]
     rows = [
-        {"id": str(record_id), "key": None, "content": {"text": text, **content}}
+        {"id": str(record_id), "key": None, "content": {"text": text}}
         for record_id, text in zip(ids, texts, strict=True)
     ]
     variables = {
-        "entity": "person:1",
+        "entity": "customer:northwind",
         "run": {"now": "2026-01-01T00:00:00Z", "checkpoint": 1, "source_ids": []},
-        source: ProvenanceValue({"records": rows}, frozenset(ids)),
+        "new_tickets": ProvenanceValue({"records": rows}, frozenset(ids)),
+        "account": ProvenanceValue({"records": [PROFILE]}, frozenset({ACCOUNT_ID})),
     }
     return variables, ids
 
 
-def _noul(value: float) -> dict[str, Any]:
-    return {"actionable": {"type": "noul", "noul": value}}
+def _citations(ids: list[UUID]) -> dict[str, frozenset[UUID]]:
+    return {"new_tickets": frozenset(ids), "account": frozenset({ACCOUNT_ID})}
 
 
-def _team(choice: str, confidence: float) -> dict[str, Any]:
-    probabilities = {"billing": 0.1, "technical": 0.1, "sales": 0.1}
-    probabilities[choice] = 0.8
-    return {
-        "team": {
-            "type": "choice",
-            "choice": choice,
-            "probabilities": probabilities,
-            "confidence": confidence,
-        }
-    }
+def _route(team: str, confidence: float, covered: float = 0.5) -> dict[str, Any]:
+    return {"team": choice(team, confidence, TEAMS), "covered": noul(covered)}
 
 
 def test_example_catalog_compiles_judgment_processors_and_tasks(
     catalog: DefinitionCatalog,
 ) -> None:
-    action_items = catalog.derivations["action_items"]
-    assert [task.use for task in action_items.tasks] == ["judge", "llm"]
-    assert action_items.trigger is not None
-    assert action_items.trigger.accumulator is not None
-    metric = action_items.trigger.accumulator.metric
+    escalate = catalog.derivations["escalate"]
+    assert [task.use for task in escalate.tasks] == ["judge", "llm"]
+    assert escalate.trigger is not None
+    assert escalate.trigger.accumulator is not None
+    metric = escalate.trigger.accumulator.metric
     assert not isinstance(metric, str)
-    assert (metric.annotation, metric.path) == ("intent_v1", "actionable.noul")
-    assert catalog.derivations["ticket_triage"].limits.max_judgments == 200
-    assert catalog.processors["intent_v1"].source == "judgment"
-    assert catalog.processors["importance"].source == "judgment"
+    assert (metric.annotation, metric.path, metric.aggregate) == (
+        "signals",
+        "frustration.score",
+        "sum",
+    )
+    route = catalog.derivations["route_tickets"]
+    assert route.trigger is None
+    assert (route.limits.max_llm_calls, route.limits.max_judgments) == (0, 50)
+    assert {name: catalog.processors[name].source for name in ("urgency", "signals")} == {
+        "urgency": "judgment",
+        "signals": "judgment",
+    }
 
 
 async def test_judge_filters_in_front_of_an_llm(
     judgment_settings: Settings, catalog: DefinitionCatalog, db_pool: DatabasePool
 ) -> None:
-    definition = catalog.derivations["action_items"]
-    execution = _execution(definition, judgment_settings)
-    variables, (fix_it, chatter, send_it) = _records(
-        "new_messages", ["Please fix the export by Friday", "lol nice", "Send me the deck"]
+    execution = _execution(catalog.derivations["escalate"], judgment_settings)
+    variables, (outage, thanks, refund) = _tickets(
+        ["The API is down", "Thanks, all good now", "Refund the double charge"]
     )
     fake.reset()
-    fake.enqueue_judgment(_noul(0.9), _noul(0.2), _noul(0.7))
+    fake.enqueue_judgment(
+        {"needs_escalation": noul(0.95)},
+        {"needs_escalation": noul(0.1)},
+        {"needs_escalation": noul(0.7)},
+    )
     fake.enqueue(
         Completion(
-            '{"records":[{"text":"Fix the export","citations":["'
-            + str(fix_it)
-            + '"],"content":{"kind":"action_item","due":"Friday"}}]}'
+            '{"records":[{"text":"Outage: page on-call","citations":["'
+            + str(outage)
+            + '"],"content":{"kind":"escalation","severity":"critical"}}]}'
         )
     )
 
@@ -143,43 +153,41 @@ async def test_judge_filters_in_front_of_an_llm(
         judgment_settings,
         catalog,
         variables=variables,
-        citations={"new_messages": frozenset({fix_it, chatter, send_it})},
+        citations=_citations([outage, thanks, refund]),
     )
 
     assert [call.state["item"]["content"]["text"] for call in fake.judgment_calls] == [
-        "Please fix the export by Friday",
-        "lol nice",
-        "Send me the deck",
+        "The API is down",
+        "Thanks, all good now",
+        "Refund the double charge",
     ]
     prompt = fake.completion_calls[0].prompt
-    assert (str(fix_it) in prompt, str(chatter) in prompt, str(send_it) in prompt) == (
+    assert (str(outage) in prompt, str(thanks) in prompt, str(refund) in prompt) == (
         True,
         False,
         True,
     )
     assert execution.task_trace is not None
-    assert execution.task_trace[0]["citation_ids"] == sorted([str(fix_it), str(send_it)])
+    assert execution.task_trace[0]["citation_ids"] == sorted([str(outage), str(refund)])
     assert execution.output == [
         {
-            "text": "Fix the export",
-            "citations": [str(fix_it)],
-            "content": {"kind": "action_item", "due": "Friday"},
+            "text": "Outage: page on-call",
+            "citations": [str(outage)],
+            "content": {"kind": "escalation", "severity": "critical"},
         }
     ]
     assert (execution.judgments, execution.logical_llm_calls) == (3, 1)
     assert [call["resolved"] for call in execution.model_calls[:3]] == ["fake:jev-1.13.0"] * 3
 
 
-async def test_judge_records_cite_only_kept_items_and_pass_emit(
+async def test_route_records_cite_only_kept_items_and_pass_emit(
     judgment_settings: Settings, catalog: DefinitionCatalog, db_pool: DatabasePool
 ) -> None:
-    definition = catalog.derivations["ticket_triage"]
+    definition = catalog.derivations["route_tickets"]
     execution = _execution(definition, judgment_settings)
-    variables, (refund, unclear) = _records(
-        "tickets", ["Refund request", "Something about my account"]
-    )
+    variables, (refund, vague) = _tickets(["Refund invoice 42", "Something is off"])
     fake.reset()
-    fake.enqueue_judgment(_team("billing", 0.9), _team("sales", 0.4))
+    fake.enqueue_judgment(_route("billing", 0.9, covered=0.8), _route("sales", 0.4))
 
     await _execute_tasks(
         execution,
@@ -187,19 +195,21 @@ async def test_judge_records_cite_only_kept_items_and_pass_emit(
         judgment_settings,
         catalog,
         variables=variables,
-        citations={"tickets": frozenset({refund, unclear})},
+        citations=_citations([refund, vague]),
     )
 
-    billing = _team("billing", 0.9)["team"]
-    del billing["type"]
+    assert [call.state["context"] for call in fake.judgment_calls] == [
+        {"account": [PROFILE]},
+        {"account": [PROFILE]},
+    ]
     assert execution.output == [
         {
-            "text": "Refund request",
-            "content": {"kind": "ticket_label", "judgment": {"team": billing}},
+            "text": "Refund invoice 42",
+            "content": {"kind": "route", "judgment": _route("billing", 0.9, covered=0.8)},
             "citations": [str(refund)],
         }
     ]
-    assert execution.final_visible_ids == frozenset({refund})
+    assert vague not in execution.final_visible_ids
     candidate = compile_candidate_set(
         execution.output,
         emit=definition.emit,
@@ -209,7 +219,7 @@ async def test_judge_records_cite_only_kept_items_and_pass_emit(
         catalog=catalog,
     )
     assert [(record.content["kind"], record.citations) for record in candidate.records] == [
-        ("ticket_label", (refund,))
+        ("route", (refund,))
     ]
     assert execution.logical_llm_calls == 0
 
@@ -217,17 +227,14 @@ async def test_judge_records_cite_only_kept_items_and_pass_emit(
 async def test_judge_output_lists_every_item_with_its_answers(
     judgment_settings: Settings, catalog: DefinitionCatalog, db_pool: DatabasePool
 ) -> None:
-    definition = catalog.derivations["ticket_triage"]
+    definition = catalog.derivations["route_tickets"]
     probe = definition.model_copy(
-        update={
-            "tasks": definition.tasks,
-            "emit": definition.emit.model_copy(update={"from_": "{{labels.items}}"}),
-        }
+        update={"emit": definition.emit.model_copy(update={"from_": "{{route.items}}"})}
     )
     execution = _execution(probe, judgment_settings)
-    variables, (ticket,) = _records("tickets", ["Upgrade pricing?"])
+    variables, (ticket,) = _tickets(["Upgrade pricing?"])
     fake.reset()
-    fake.enqueue_judgment(_team("sales", 0.3))
+    fake.enqueue_judgment(_route("sales", 0.3))
 
     await _execute_tasks(
         execution,
@@ -235,23 +242,21 @@ async def test_judge_output_lists_every_item_with_its_answers(
         judgment_settings,
         catalog,
         variables=variables,
-        citations={"tickets": frozenset({ticket})},
+        citations=_citations([ticket]),
     )
 
-    sales = _team("sales", 0.3)["team"]
-    del sales["type"]
-    assert execution.output == [{"id": str(ticket), "answers": {"team": sales}, "kept": False}]
+    assert execution.output == [{"id": str(ticket), "answers": _route("sales", 0.3), "kept": False}]
 
 
 async def test_judge_refuses_to_exceed_max_judgments(
     judgment_settings: Settings, catalog: DefinitionCatalog, db_pool: DatabasePool
 ) -> None:
-    definition = catalog.derivations["ticket_triage"]
+    definition = catalog.derivations["route_tickets"]
     tight = definition.model_copy(
         update={"limits": definition.limits.model_copy(update={"max_judgments": 1})}
     )
     execution = _execution(tight, judgment_settings)
-    variables, ids = _records("tickets", ["one", "two"])
+    variables, ids = _tickets(["one", "two"])
     fake.reset()
 
     with pytest.raises(DerivationError, match="run exceeds max_judgments") as caught:
@@ -261,17 +266,41 @@ async def test_judge_refuses_to_exceed_max_judgments(
             judgment_settings,
             catalog,
             variables=variables,
-            citations={"tickets": frozenset(ids)},
+            citations=_citations(ids),
         )
 
     assert caught.value.kind == "budget"
     assert fake.judgment_calls == []
 
 
+async def test_judge_refuses_to_exceed_max_judgment_tokens(
+    judgment_settings: Settings, catalog: DefinitionCatalog, db_pool: DatabasePool
+) -> None:
+    definition = catalog.derivations["route_tickets"]
+    tight = definition.model_copy(
+        update={"limits": definition.limits.model_copy(update={"max_judgment_tokens": 50})}
+    )
+    execution = _execution(tight, judgment_settings)
+    variables, ids = _tickets(["one"])
+    fake.reset()
+
+    with pytest.raises(DerivationError, match="cannot fit max_judgment_tokens"):
+        await _execute_tasks(
+            execution,
+            db_pool,
+            judgment_settings,
+            catalog,
+            variables=variables,
+            citations=_citations(ids),
+        )
+
+    assert fake.judgment_calls == []
+
+
 def _catalog_error(tmp_path: Path, old: str, new: str) -> DefinitionError:
     root = tmp_path / "catalog"
     shutil.copytree(CATALOG, root)
-    path = root / "derivations" / "ticket_triage.yaml"
+    path = root / "derivations" / "route_tickets.yaml"
     source = path.read_text(encoding="utf-8")
     assert old in source
     path.write_text(source.replace(old, new, 1), encoding="utf-8")
@@ -296,14 +325,14 @@ def _catalog_error(tmp_path: Path, old: str, new: str) -> DefinitionError:
             "model alias 'strong' cannot be used for judgment",
         ),
         (
-            "limits: {max_llm_calls: 0, max_judgments: 200}",
-            "limits: {max_llm_calls: 0}",
+            "max_judgments: 50, ",
+            "",
             "budget",
             "judge Tasks need limits.max_judgments; opt in explicitly",
         ),
         (
-            'input: "{{tickets.records}}"',
-            'input: "tickets: {{tickets.records}}"',
+            'input: "{{new_tickets.records}}"',
+            'input: "tickets: {{new_tickets.records}}"',
             "task_input",
             "judge Task input must be one exact list reference, such as {{source.records}}",
         ),
@@ -314,7 +343,7 @@ def _catalog_error(tmp_path: Path, old: str, new: str) -> DefinitionError:
             "keep.team.noul_gte does not apply to a choice question",
         ),
         (
-            'instructions: "Which team should handle `item.content.text`?"',
+            'instructions: "Which team should handle the request in `item.content.text`?"',
             'instructions: "Which team should handle {{entity}}?"',
             "template_reference",
             "tasks[0].with references unavailable variable(s): entity",
@@ -330,56 +359,73 @@ def test_invalid_judge_tasks_fail_to_load(
     assert message in error.message
 
 
-async def test_ticket_triage_labels_confident_tickets_end_to_end(
-    judgment_settings: Settings, catalog: DefinitionCatalog, db_pool: DatabasePool
+async def test_route_tickets_routes_confident_tickets_end_to_end(
+    judgment_settings: Settings,
+    catalog: DefinitionCatalog,
+    db_pool: DatabasePool,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     credential = await create_workspace(db_pool, "judge-e2e")
+    account = PublicRecordInput(
+        entity="customer:northwind",
+        collection="accounts",
+        type="profile",
+        key="profile",
+        text="Northwind Traders on the basic plan.",
+        content={"plan": "basic"},
+    )
+    tickets = tuple(
+        PublicRecordInput(
+            entity="customer:northwind", collection="tickets", type="ticket", text=text
+        )
+        for text in (
+            "You charged our card twice for September.",
+            "Something looks off with our account.",
+        )
+    )
     inserted = await insert_public_records(
         db_pool,
         workspace=credential.workspace,
-        request=RecordBatchRequest(
-            records=tuple(
-                PublicRecordInput(
-                    entity="acme",
-                    collection="support",
-                    type="ticket",
-                    text=text,
-                )
-                for text in ("Please refund invoice 42", "Hmm")
-            )
-        ),
+        request=RecordBatchRequest(records=(account, *tickets)),
         catalog=catalog,
         settings=judgment_settings,
     )
-    refund_id, vague_id = (record.id for record in inserted.inserted)
+    account_id, refund_id, vague_id = (record.id for record in inserted.inserted)
     fake.reset()
-    assert (await enrich_once(db_pool, judgment_settings, catalog)).ready == 2
+    script_inbox(monkeypatch)
+    assert (await enrich_once(db_pool, judgment_settings, catalog)).ready == 3
     await enqueue_derivation_job(
-        db_pool, workspace=credential.workspace, derivation="ticket_triage", entity="acme"
+        db_pool,
+        workspace=credential.workspace,
+        derivation="route_tickets",
+        entity="customer:northwind",
     )
     claimed = await claim_job(
         db_pool,
         worker_id="judge-e2e",
         kinds=("derive",),
-        derivations=("ticket_triage",),
+        derivations=("route_tickets",),
         lease_s=judgment_settings.job_lease_s,
         max_attempts=judgment_settings.job_max_attempts,
     )
     assert claimed is not None
     fake.reset()
-    fake.enqueue_judgment(_team("billing", 0.9), _team("sales", 0.3))
 
     result = await process_derivation_job(
         db_pool, claimed=claimed, settings=judgment_settings, catalog=catalog
     )
 
     assert (result.disposition, result.output_count) == ("done", 1)
+    assert [call.state["context"]["account"][0]["id"] for call in fake.judgment_calls] == [
+        str(account_id),
+        str(account_id),
+    ]
     async with db_pool.connection() as conn:
-        labels = await (
+        routes = await (
             await conn.execute(
                 """
                 select type, content, derived_from from record
-                where workspace = %s and collection = 'ticket_labels'
+                where workspace = %s and collection = 'routes'
                 """,
                 (credential.workspace,),
             )
@@ -394,20 +440,21 @@ async def test_ticket_triage_labels_confident_tickets_end_to_end(
                 (credential.workspace,),
             )
         ).fetchone()
-    billing = _team("billing", 0.9)["team"]
-    del billing["type"]
-    assert [(row["type"], row["content"]) for row in labels] == [
+    assert [(row["type"], row["content"]) for row in routes] == [
         (
-            "label",
+            "route",
             {
-                "text": "Please refund invoice 42",
-                "kind": "ticket_label",
-                "judgment": {"team": billing},
+                "text": "You charged our card twice for September.",
+                "kind": "route",
+                "judgment": {
+                    "team": choice("billing", 0.91, TEAMS),
+                    "covered": noul(0.85),
+                },
             },
         )
     ]
-    assert refund_id in labels[0]["derived_from"]
-    assert vague_id not in labels[0]["derived_from"]
+    assert refund_id in routes[0]["derived_from"]
+    assert vague_id not in routes[0]["derived_from"]
     assert run is not None
     assert run["content"]["usage"]["judgments"] == 2
     assert [call["resolved"] for call in run["content"]["model_calls"]] == [

@@ -1,0 +1,77 @@
+# yaml-language-server: $schema=../../../schemas/derivations.schema.json
+# Jev screens every new ticket and the strong model writes notes only for the
+# ones it keeps: one cheap call per ticket, one expensive call per run.
+name: escalate
+# Fires on the signals annotation, not on a timer: each new ticket adds its
+# frustration score (0 calm, 1 annoyed, 2 angry), and a run starts once the
+# sum since the last run reaches 3, such as one angry and one annoyed ticket.
+trigger:
+  accumulator:
+    metric: {annotation: signals, path: frustration.score, aggregate: sum}
+    threshold: 3
+sources:
+  new_tickets:
+    kind: changes
+    collections: [tickets]
+    max_records: 50
+model: strong
+limits: {max_llm_calls: 2, max_judgments: 50, max_judgment_tokens: 100000}
+tasks:
+  - id: screen
+    use: judge
+    input: "{{new_tickets.records}}"
+    with:
+      model: jev
+      questions:
+        needs_escalation:
+          type: noul
+          instructions: >-
+            Does `item.content.text` need a senior person today: an outage,
+            money charged in error, or a customer threatening to leave?
+      # Only tickets Jev is fairly sure about reach the strong model.
+      keep: {needs_escalation: {noul_gte: 0.7}}
+  - id: notes
+    use: llm
+    with:
+      output_schema:
+        type: object
+        required: [records]
+        properties:
+          records:
+            type: array
+            maxItems: 20
+            items:
+              type: object
+              required: [text, citations, content]
+              properties:
+                text: {type: string, minLength: 1}
+                citations:
+                  type: array
+                  minItems: 1
+                  maxItems: 1
+                  items: {type: string, format: uuid}
+                content:
+                  type: object
+                  required: [kind, severity]
+                  properties:
+                    kind: {const: escalation}
+                    severity: {type: string, enum: [high, critical]}
+                  additionalProperties: false
+              additionalProperties: false
+        additionalProperties: false
+      max_output_tokens: 2000
+      # screen.kept holds the original ticket records that passed keep. It is
+      # customer text, so it goes inside an untrusted-data element.
+      prompt: |
+        Tickets judged to need escalation:
+        <data untrusted="true">{{screen.kept}}</data>
+
+        Write one escalation note per ticket for the on-call lead: what
+        happened, what the customer needs, and what to do first. Use
+        severity "critical" for outages and "high" otherwise. Cite the
+        ticket's full UUID. Return only:
+        {"records":[{"text":"...","citations":["uuid"],"content":{"kind":"escalation","severity":"high"}}]}
+emit:
+  from: "{{notes.records}}"
+  collection: escalations
+  type: escalation

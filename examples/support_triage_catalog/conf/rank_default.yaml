@@ -1,13 +1,6 @@
 # yaml-language-server: $schema=../../../schemas/ranking.schema.json
-# Deployment-level ranking, and deliberately scorer-free.
-#
-# Ranking that references a scorer belongs to the catalog that defines that
-# scorer: `resources/conf/rank_default.yaml` is the reference catalog's version
-# and does use `importance`. This file has to compile against a service that has
-# published nothing at all, so it ranks on the two signals every record has —
-# how well it matches, and how recently it was touched.
-#
-# A published catalog carrying its own conf/rank_default.yaml replaces this.
+# Search ranking on the two signals every record has: how well it matches,
+# and how recently it was touched.
 candidates: 200
 variants:
   hybrid:

@@ -1,108 +1,56 @@
 from __future__ import annotations
 
 import re
+import shutil
 from pathlib import Path
 from typing import Any
 from uuid import UUID
 
 import pytest
-from psycopg.types.json import Jsonb
 from reference_catalog import declare_test_sources, materialize_reference_catalog
+from support_inbox import CATALOG, TOPICS, choice, noul, score, script_inbox
 
+from memseek.auth import create_workspace
 from memseek.config import Settings
+from memseek.db import DatabasePool
 from memseek.definitions import DefinitionCatalog, DefinitionError, load_definition_catalog
 from memseek.enrichment import enrich_once
 from memseek.llm.fake import fake
+from memseek.records import PublicRecordInput, RecordBatchRequest, insert_public_records
 
-IMPORTANCE_JEV = """
-  - name: importance
-    kind: score
-    source: judgment
-    model: jev
-    input: {collections: [main, outcomes, calendar_events]}
-    scale: [1, 10]
-    default: 5
-    render: true
-    questions:
-      importance:
-        type: score
-        instructions: "How significant is `record.text` for future decisions?"
-        criteria: ["Routine", "Mildly useful", "Worth remembering", "Changes decisions"]
-"""
-
-INTENT_V1 = """
-  - name: intent_v1
-    kind: json
-    source: judgment
-    model: jev
-    input: {collections: [main], types: [chat, message]}
-    questions:
-      actionable:
-        type: noul
-        instructions: "Does `record.text` ask someone to do something?"
-        criteria:
-          true: "An explicit request, task, or commitment"
-          false: "Information or chatter only"
-      topic:
-        type: choice
-        instructions: "What is `record.text` mainly about?"
-        criteria: {bug: "Something is broken", feature: "A new capability", other: null}
-    score_fields:
-      actionable_p: actionable.noul
-      topic_bug: topic.probabilities.bug
-"""
-
-
-def _catalog_root(tmp_path: Path, processors: str) -> Path:
-    root = materialize_reference_catalog(tmp_path / "catalog")
-    path = root / "conf" / "processors.yaml"
-    source = path.read_text(encoding="utf-8")
-    start = source.index("  - name: importance")
-    end = source.index("  - name: sentiment_v1")
-    path.write_text(source[:start] + processors.lstrip("\n") + "\n" + source[end:])
-    core = root / "collections" / "core.yaml"
-    core.write_text(
-        core.read_text().replace(
-            "required_processors: [embedding_v1, importance]\n    search_profile",
-            "required_processors: [embedding_v1, importance]\n"
-            "    optional_processors: [intent_v1]\n    search_profile",
-            1,
-        )
-    )
-    declare_test_sources(root, "conf/processors.yaml")
-    return root
+ENTITY = "customer:northwind"
 
 
 @pytest.fixture
-def judged(tmp_path: Path, settings: Settings) -> tuple[Settings, DefinitionCatalog]:
-    root = _catalog_root(tmp_path, IMPORTANCE_JEV + INTENT_V1)
-    judged_settings = settings.model_copy(update={"catalog_file": root / "catalog.yaml"})
-    return judged_settings, load_definition_catalog(judged_settings)
+def inbox_settings(bare_settings: Settings) -> Settings:
+    return bare_settings.model_copy(update={"catalog_file": CATALOG / "catalog.yaml"})
 
 
-async def _record(db_pool: Any, catalog: DefinitionCatalog, record_type: str, text: str) -> UUID:
-    main = catalog.resolve_collection("main")
-    async with db_pool.connection() as conn:
-        await conn.execute(
-            "insert into workspace (id, api_key_hash) values ('judged', %s) on conflict do nothing",
-            ("a" * 64,),
-        )
-        row = await (
-            await conn.execute(
-                """
-                insert into record (workspace, collection, collection_version, collection_hash,
-                                    entity, type, content)
-                values ('judged', 'main', %s, %s, 'entity-1', %s, %s)
-                returning id
-                """,
-                (main.version, main.contract_hash, record_type, Jsonb({"text": text})),
+@pytest.fixture
+def catalog(inbox_settings: Settings) -> DefinitionCatalog:
+    return load_definition_catalog(inbox_settings)
+
+
+async def _tickets(
+    db_pool: DatabasePool, settings: Settings, catalog: DefinitionCatalog, *texts: str
+) -> tuple[str, list[UUID]]:
+    credential = await create_workspace(db_pool, "judged")
+    inserted = await insert_public_records(
+        db_pool,
+        workspace=credential.workspace,
+        request=RecordBatchRequest(
+            records=tuple(
+                PublicRecordInput(entity=ENTITY, collection="tickets", type="ticket", text=text)
+                for text in texts
             )
-        ).fetchone()
-    assert row is not None
-    return row["id"]
+        ),
+        catalog=catalog,
+        settings=settings,
+    )
+    return credential.workspace, [record.id for record in inserted.inserted]
 
 
-async def _stored(db_pool: Any, record_id: UUID) -> dict[str, Any]:
+async def _stored(db_pool: DatabasePool, record_id: UUID) -> dict[str, Any]:
     async with db_pool.connection() as conn:
         row = await (
             await conn.execute(
@@ -114,7 +62,7 @@ async def _stored(db_pool: Any, record_id: UUID) -> dict[str, Any]:
     return dict(row)
 
 
-async def _run(db_pool: Any, processor: str) -> dict[str, Any]:
+async def _run(db_pool: DatabasePool, processor: str) -> dict[str, Any]:
     async with db_pool.connection() as conn:
         row = await (
             await conn.execute(
@@ -129,61 +77,75 @@ async def _run(db_pool: Any, processor: str) -> dict[str, Any]:
     return row["content"]
 
 
-async def test_score_judgment_maps_onto_the_scale_and_keeps_the_raw_answer(
-    db_pool: Any, judged: tuple[Settings, DefinitionCatalog]
+async def _escalate_jobs(db_pool: DatabasePool, workspace: str) -> int:
+    async with db_pool.connection() as conn:
+        row = await (
+            await conn.execute(
+                "select count(*) as jobs from job where workspace = %s and derivation = 'escalate'",
+                (workspace,),
+            )
+        ).fetchone()
+    assert row is not None
+    return int(row["jobs"])
+
+
+async def test_urgency_maps_the_score_onto_the_scale_and_keeps_the_raw_answer(
+    db_pool: DatabasePool,
+    inbox_settings: Settings,
+    catalog: DefinitionCatalog,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    settings, catalog = judged
-    record_id = await _record(db_pool, catalog, "event", "We are moving to Lisbon in May.")
-    fake.reset()
-    fake.enqueue_judgment(
-        {"importance": {"score": 2.4, "probabilities": [0.0, 0.1, 0.4, 0.5], "confidence": 0.8}}
+    _, (record_id,) = await _tickets(
+        db_pool, inbox_settings, catalog, "You charged our card twice for September."
     )
+    fake.reset()
+    script_inbox(monkeypatch)
 
-    result = await enrich_once(db_pool, settings, catalog)
+    assert (await enrich_once(db_pool, inbox_settings, catalog)).ready == 1
 
-    assert result.ready == 1
     stored = await _stored(db_pool, record_id)
-    assert stored["annotations"]["importance"] == {
-        "value": pytest.approx(8.2),
-        "judgment": {
-            "importance": {
-                "score": 2.4,
-                "probabilities": [0.0, 0.1, 0.4, 0.5],
-                "confidence": 0.8,
-            }
-        },
+    assert stored["annotations"]["urgency"] == {
+        "value": pytest.approx(8.8),
+        "judgment": {"urgency": score(2.6, 4)},
     }
-    assert stored["scores"]["importance"] == pytest.approx(8.2)
-    assert fake.judgment_calls[0].model == "jev-1.13.0"
-    assert fake.judgment_calls[0].state["record"]["text"] == "We are moving to Lisbon in May."
-    assert fake.judgment_calls[0].state["record"]["content"] == {}
-    run = await _run(db_pool, "importance")
+    assert stored["scores"]["urgency"] == pytest.approx(8.8)
+    urgency_call = next(call for call in fake.judgment_calls if "urgency" in call.questions)
+    assert urgency_call.model == "jev-1.13.0"
+    assert urgency_call.state["record"]["text"] == "You charged our card twice for September."
+    run = await _run(db_pool, "urgency")
     assert [(call["outcome"], call["resolved"]) for call in run["model_calls"]] == [
         ("ok", "fake:jev-1.13.0")
     ]
 
 
-async def test_score_judgment_falls_back_to_the_default_when_attempts_run_out(
-    db_pool: Any, judged: tuple[Settings, DefinitionCatalog], monkeypatch: pytest.MonkeyPatch
+async def test_urgency_falls_back_to_the_default_when_attempts_run_out(
+    db_pool: DatabasePool,
+    inbox_settings: Settings,
+    catalog: DefinitionCatalog,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    settings, catalog = judged
-    record_id = await _record(db_pool, catalog, "event", "Lunch was fine.")
+    _, (record_id,) = await _tickets(db_pool, inbox_settings, catalog, "Lunch was fine.")
     fake.reset()
-    out_of_range = {"importance": {"score": 7, "probabilities": [0.25] * 4, "confidence": 0.5}}
-    fake.enqueue_judgment(out_of_range, out_of_range)
+    judge = fake.judge
+
+    async def out_of_range(endpoint: Any, model: str, request: Any) -> Any:
+        if set(request.questions) == {"urgency"}:
+            fake.enqueue_judgment({"urgency": score(7, 4)})
+        return await judge(endpoint, model, request)
 
     async def no_sleep(_seconds: float) -> None:
         return None
 
+    monkeypatch.setattr(fake, "judge", out_of_range)
     monkeypatch.setattr("memseek.llm.runtime.asyncio.sleep", no_sleep)
 
-    await enrich_once(db_pool, settings, catalog)
+    await enrich_once(db_pool, inbox_settings, catalog)
 
     stored = await _stored(db_pool, record_id)
-    assert stored["annotations"]["importance"] == {"value": 5.0}
-    assert stored["scores"]["importance"] == 5.0
+    assert stored["annotations"]["urgency"] == {"value": 5.0}
+    assert stored["scores"]["urgency"] == 5.0
     assert "judgment:" in stored["enrichment_error"]
-    run = await _run(db_pool, "importance")
+    run = await _run(db_pool, "urgency")
     assert run["warnings"] == ["judgment_default"]
     assert [(call["outcome"], call["error_kind"]) for call in run["model_calls"]] == [
         ("error", "response"),
@@ -191,78 +153,108 @@ async def test_score_judgment_falls_back_to_the_default_when_attempts_run_out(
     ]
 
 
-async def test_json_judgment_stores_the_answer_map_and_promotes_score_fields(
-    db_pool: Any, judged: tuple[Settings, DefinitionCatalog]
+async def test_signals_stores_the_answer_map_and_promotes_score_fields(
+    db_pool: DatabasePool,
+    inbox_settings: Settings,
+    catalog: DefinitionCatalog,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    settings, catalog = judged
-    record_id = await _record(db_pool, catalog, "chat", "The export button crashes, please fix")
-    fake.reset()
-    await enrich_once(db_pool, settings, catalog)
-    fake.enqueue_judgment(
-        {
-            "actionable": {"type": "noul", "noul": 0.91},
-            "topic": {
-                "type": "choice",
-                "choice": "bug",
-                "probabilities": {"bug": 0.8, "feature": 0.15, "other": 0.05},
-                "confidence": 0.73,
-            },
-        }
+    _, (record_id,) = await _tickets(
+        db_pool, inbox_settings, catalog, "Every call has returned 503 since 9am."
     )
+    fake.reset()
+    script_inbox(monkeypatch)
 
-    result = await enrich_once(db_pool, settings, catalog)
+    await enrich_once(db_pool, inbox_settings, catalog)
 
-    assert result.kind == "optional"
     stored = await _stored(db_pool, record_id)
-    assert stored["annotations"]["intent_v1"] == {
-        "actionable": {"noul": 0.91},
-        "topic": {
-            "choice": "bug",
-            "probabilities": {"bug": 0.8, "feature": 0.15, "other": 0.05},
-            "confidence": 0.73,
-        },
+    assert stored["annotations"]["signals"] == {
+        "needs_reply": noul(0.99),
+        "topic": choice("technical", 0.95, TOPICS),
+        "frustration": score(1.2, 3),
     }
-    assert (stored["scores"]["actionable_p"], stored["scores"]["topic_bug"]) == (0.91, 0.8)
+    assert {
+        name: stored["scores"][name]
+        for name in ("needs_reply_p", "frustration", "topic_confidence")
+    } == {"needs_reply_p": 0.99, "frustration": 1.2, "topic_confidence": 0.95}
 
 
 @pytest.mark.parametrize(
-    ("processors", "message"),
+    ("texts", "jobs"),
+    [
+        # Two tickets, frustration 1.9 + 1.2: the sum crosses 3 on fewer than 3 records.
+        (("You charged our card twice.", "Every call returned 503."), 1),
+        # Three calm tickets, 0.1 + 0.3 + 0.8: three records, but the sum stays under 3.
+        (("How do I export last quarter?", "SSO with Okta?", "Something looks off."), 0),
+    ],
+)
+async def test_escalate_fires_on_the_sum_of_signals_frustration_score(
+    db_pool: DatabasePool,
+    inbox_settings: Settings,
+    catalog: DefinitionCatalog,
+    monkeypatch: pytest.MonkeyPatch,
+    texts: tuple[str, ...],
+    jobs: int,
+) -> None:
+    workspace, _ = await _tickets(db_pool, inbox_settings, catalog, *texts)
+    fake.reset()
+    script_inbox(monkeypatch)
+
+    assert (await enrich_once(db_pool, inbox_settings, catalog)).ready == len(texts)
+
+    assert await _escalate_jobs(db_pool, workspace) == jobs
+
+
+def _processor_error(tmp_path: Path, old: str, new: str) -> DefinitionError:
+    root = tmp_path / "catalog"
+    shutil.copytree(CATALOG, root)
+    path = root / "conf" / "processors.yaml"
+    source = path.read_text(encoding="utf-8")
+    assert old in source
+    path.write_text(source.replace(old, new, 1), encoding="utf-8")
+    with pytest.raises(DefinitionError) as caught:
+        load_definition_catalog(Settings(catalog_file=root / "catalog.yaml", llm_fake=True))
+    return caught.value
+
+
+@pytest.mark.parametrize(
+    ("old", "new", "message"),
     [
         (
-            IMPORTANCE_JEV
-            + INTENT_V1.replace(
-                "    score_fields:", "    output_schema: {type: object}\n    score_fields:"
-            ),
+            "    score_fields:\n",
+            "    output_schema: {type: object}\n    score_fields:\n",
             "judgment json processor forbids output_schema; questions define it",
         ),
         (
-            IMPORTANCE_JEV.replace("type: score", "type: choice").replace(
-                'criteria: ["Routine", "Mildly useful", "Worth remembering", "Changes decisions"]',
-                "criteria: {low: null, high: null}",
-            )
-            + INTENT_V1,
+            "      urgency:\n        type: score\n",
+            '      calm:\n        type: noul\n        instructions: "Is `record.text` calm?"\n'
+            "      urgency:\n        type: score\n",
             "judgment score processor requires exactly one noul or score question",
         ),
         (
-            IMPORTANCE_JEV
-            + INTENT_V1.replace("actionable_p: actionable.noul", "actionable_p: topic.choice"),
+            "needs_reply_p: needs_reply.noul",
+            "needs_reply_p: topic.choice",
             "score path 'topic.choice' must resolve to a numeric schema leaf",
         ),
         (
-            IMPORTANCE_JEV + INTENT_V1.replace("model: jev", "model: cheap"),
-            "model alias 'cheap' cannot be used for judgment",
+            "    model: jev\n    input: {collections: [tickets]}\n    questions:",
+            "    model: strong\n    input: {collections: [tickets]}\n    questions:",
+            "model alias 'strong' cannot be used for judgment",
+        ),
+        (
+            "    default_output:\n"
+            "      needs_reply: {noul: 0}\n"
+            "      topic: {choice: other, probabilities: {}, confidence: 0}\n"
+            "      frustration: {score: 0, probabilities: [1, 0, 0], confidence: 0}\n",
+            "",
+            "required processor 'signals' has no terminal default",
         ),
     ],
 )
 def test_invalid_judgment_processors_fail_to_load(
-    tmp_path: Path, processors: str, message: str
+    tmp_path: Path, old: str, new: str, message: str
 ) -> None:
-    root = _catalog_root(tmp_path, processors)
-
-    with pytest.raises(DefinitionError) as caught:
-        load_definition_catalog(Settings(catalog_file=root / "catalog.yaml", llm_fake=True))
-
-    assert message in caught.value.message
+    assert message in _processor_error(tmp_path, old, new).message
 
 
 def test_shipped_commented_judgment_processors_compile_once_enabled(tmp_path: Path) -> None:
