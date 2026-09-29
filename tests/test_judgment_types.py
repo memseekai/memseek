@@ -1,12 +1,16 @@
 from __future__ import annotations
 
 import re
+from pathlib import Path
 from typing import Any
 
 import pytest
 from jsonschema import Draft202012Validator
 from pydantic import TypeAdapter, ValidationError
+from reference_catalog import materialize_reference_catalog
 
+from memseek.config import Settings
+from memseek.definitions import DefinitionError, load_definition_catalog
 from memseek.definitions.judgment import (
     QuestionMap,
     Questions,
@@ -190,3 +194,62 @@ def test_keep_rejects_operators_outside_the_closed_set(keep: dict[str, Any], mes
 def test_question_limits_are_enforced(raw: dict[str, Any]) -> None:
     with pytest.raises(ValidationError):
         QUESTIONS.validate_python(raw)
+
+
+def _catalog_error(tmp_path: Path, file: str, old: str, new: str) -> DefinitionError:
+    root = materialize_reference_catalog(tmp_path / "catalog")
+    path = root / file
+    source = path.read_text(encoding="utf-8")
+    assert old in source
+    path.write_text(source.replace(old, new, 1), encoding="utf-8")
+    with pytest.raises(DefinitionError) as caught:
+        load_definition_catalog(Settings(catalog_file=root / "catalog.yaml", llm_fake=True))
+    return caught.value
+
+
+@pytest.mark.parametrize(
+    ("file", "old", "new", "path", "message"),
+    [
+        (
+            "conf/models.yaml",
+            'targets: ["typesafe:jev-1.13.0"]',
+            'targets: ["typesafe:jev-1.13.0", "openai:gpt-5.4-2026-03-05"]',
+            "aliases.jev.targets",
+            "alias targets must all support completion or all support judgment",
+        ),
+        (
+            "conf/models.yaml",
+            'targets: ["typesafe:jev-1.13.0"]',
+            'targets: ["typesafe:jev-1.13.0"]\n    params: {temperature: 0}',
+            "aliases.jev",
+            "a judgment alias forbids params and context_tokens",
+        ),
+        (
+            "conf/models.yaml",
+            "  derivation: strong",
+            "  derivation: jev",
+            "defaults.derivation",
+            "model alias 'jev' cannot be used for completion",
+        ),
+        (
+            "conf/processors.yaml",
+            "model: importance_scorer",
+            "model: jev",
+            "processors.importance.model",
+            "model alias 'jev' cannot be used for completion",
+        ),
+        (
+            "derivations/reflection.yaml",
+            "model: strong",
+            "model: jev",
+            "tasks[2].with.model",
+            "model alias 'jev' cannot be used for completion",
+        ),
+    ],
+)
+def test_alias_kind_must_match_its_use(
+    tmp_path: Path, file: str, old: str, new: str, path: str, message: str
+) -> None:
+    error = _catalog_error(tmp_path, file, old, new)
+
+    assert (error.code, error.path, error.message) == ("model_kind", path, message)

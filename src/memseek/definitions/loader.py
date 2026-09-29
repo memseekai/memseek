@@ -38,7 +38,11 @@ from memseek.derive.tasks import (
     task_implementation_hashes,
 )
 from memseek.derive.tasks_computer import AgentTaskConfig, ComputerTaskConfig
-from memseek.llm.registry import provider_descriptor, validate_generation_params
+from memseek.llm.registry import (
+    ModelCapability,
+    provider_descriptor,
+    validate_generation_params,
+)
 from memseek.search.rank import RankValidationError, validate_rank_expression
 from memseek.search.registry import backend_descriptor, required_capabilities
 from memseek.search.scope import field_annotation_names
@@ -586,6 +590,7 @@ class _CatalogBuilder:
         self.settings = settings
         self.documents = documents
         self.models: ModelCatalog | None = None
+        self.alias_capabilities: dict[str, frozenset[ModelCapability]] = {}
         self.processors: dict[str, ProcessorDefinition] = {}
         self.score_owners: dict[str, str] = {}
         self.rank_defaults: RankDefaults | None = None
@@ -680,9 +685,31 @@ class _CatalogBuilder:
                     path=f"providers.{provider_name}.json_capability",
                 )
         for alias_name, alias in self.models.aliases.items():
-            for target in alias.targets:
-                provider_name = target.split(":", 1)[0]
-                adapter = self.models.providers[provider_name].adapter
+            adapters = [
+                self.models.providers[target.split(":", 1)[0]].adapter for target in alias.targets
+            ]
+            supported = [provider_descriptor(adapter).alias_capabilities for adapter in adapters]
+            capabilities = supported[0].intersection(*supported[1:])
+            if not capabilities:
+                raise DefinitionError(
+                    "model_kind",
+                    "alias targets must all support completion or all support judgment",
+                    file=path,
+                    path=f"aliases.{alias_name}.targets",
+                )
+            self.alias_capabilities[alias_name] = capabilities
+            if "completion" not in capabilities:
+                # Judgment models take no generation parameters and bound
+                # their own context, so neither check applies.
+                if alias.params or alias.context_tokens is not None:
+                    raise DefinitionError(
+                        "model_kind",
+                        "a judgment alias forbids params and context_tokens",
+                        file=path,
+                        path=f"aliases.{alias_name}",
+                    )
+                continue
+            for adapter in adapters:
                 try:
                     validate_generation_params(adapter, alias.params)
                 except ValueError as exc:
@@ -696,6 +723,11 @@ class _CatalogBuilder:
                     file=path,
                     path=f"aliases.{alias_name}.context_tokens",
                 )
+        for role, alias_name in (
+            ("defaults.derivation", self.models.defaults.derivation),
+            ("defaults.fold", self.models.defaults.fold),
+        ):
+            self._alias(alias_name, path, role)
         embedding_adapter = self.models.providers[self.models.embedding.provider].adapter
         if not provider_descriptor(embedding_adapter).supports_embedding:
             raise DefinitionError(
@@ -1499,7 +1531,9 @@ class _CatalogBuilder:
                 path="limits.max_computer_runs",
             )
 
-    def _alias(self, name: str, path: Path, field: str) -> ModelAlias:
+    def _alias(
+        self, name: str, path: Path, field: str, *, use: ModelCapability = "completion"
+    ) -> ModelAlias:
         assert self.models is not None
         try:
             alias = self.models.aliases[name]
@@ -1507,6 +1541,13 @@ class _CatalogBuilder:
             raise DefinitionError(
                 "reference", f"unknown model alias {name!r}", file=path, path=field
             ) from exc
+        if use not in self.alias_capabilities[name]:
+            raise DefinitionError(
+                "model_kind",
+                f"model alias {name!r} cannot be used for {use}",
+                file=path,
+                path=field,
+            )
         return alias
 
     def _validate_step_params(
@@ -3070,6 +3111,7 @@ class _CatalogBuilder:
                         file=path,
                         path=f"agents[{index}].model",
                     )
+                self._alias(definition.model, path, f"agents[{index}].model")
                 artifact_refs = (definition.instructions, *definition.skills)
                 for field_index, reference in enumerate(artifact_refs):
                     name, version = split_exact_reference(reference)
