@@ -544,8 +544,10 @@ shape while an embedded reference renders it safely as text.
 - `with` configures the task itself and is validated when your definitions load,
   so a misconfigured task fails at deploy time rather than mid-run.
 
-The built-in tasks require `input` to be omitted and reference named values in
-their configured prompt, search specification, or template. Installed
+The built-in `llm`, `search`, and `template` tasks require `input` to be
+omitted and reference named values in their configured prompt, search
+specification, or template. The built-in `judge` task requires one exact list
+`input` reference. Installed
 deterministic tasks should prefer an exact typed `input` reference.
 
 There is no special final task and no requirement that it be an LLM. Any
@@ -605,6 +607,87 @@ hits. Selected canonical hit IDs become provenance and citation authority.
 deterministic composition or as a small stand-in in tests. The emitted value
 must still resolve to a JSON record list, so custom code is normally more
 useful for deterministic structured output.
+
+### Built-in `judge`
+
+`judge` asks a [judgment model](models.md#judgment-models) the same questions
+about every item in a list, one call per item. Jev cannot write record text,
+so in a derivation it plays one of three roles:
+
+- a **filter or router** in front of an expensive `llm` task;
+- a **per-item labeller** whose answers are emitted directly as records;
+- a **feature source** that a later `llm` prompt reads.
+
+```yaml
+- id: triage
+  use: judge
+  input: "{{new_messages.records}}"
+  with:
+    model: jev
+    context:
+      profile: "{{current_profile.records}}"
+    questions:
+      actionable: {type: noul, instructions: "Does `item.content.text` ask someone to do something?"}
+      topic:
+        type: choice
+        instructions: "What is `item.content.text` about, given `context.profile`?"
+        criteria: {bug: null, feature: null, other: null}
+    keep:
+      actionable: {noul_gte: 0.65}
+      topic: {choice_in: [bug, feature], confidence_gte: 0.5}
+    records:
+      text: "{{item.content.text}}"
+      content: {kind: triage}
+```
+
+`input` must be one exact reference to a list: any record source's `.records`,
+or an earlier task's list, such as search hits or an `llm` array. A single
+object counts as a list of one. `judge` reads typed records, never
+`.rendered`, because a judgment model takes structured state rather than
+escaped prompt text. Each call's state is
+`{"item": <the item>, "context": <rendered context>}`, so the model's context
+limit applies per item and irrelevant state stays out.
+
+`with` fields:
+
+- `model`: a judgment alias. It falls back to the derivation's `model:` when
+  that is a judgment alias. There is no catalog-wide default, so a `judge`
+  task with neither fails to load.
+- `context`: optional shared state, rendered once with the usual templates and
+  placed at `state.context`.
+- `questions`: the same vocabulary as [judgment
+  processors](processors.md#source-judgment). Instructions are static; paths
+  use `item.*` and `context.*`.
+- `keep`: an optional gate. Every clause must pass for an item to be kept.
+  The operators are a closed set of thresholds on the raw answers: `noul_gte`,
+  `noul_lte`, `choice_in`, `score_gte`, `score_lte`, `confidence_gte` (choice
+  and score), and `prob_gte: {<option>: x}` (choice).
+- `records`: optional. Turns each kept item into an emit-ready record draft
+  whose content is `content` merged with `{judgment: <answers>}`, and which
+  cites the item it judged. `key` and `text` are per-item templates that may
+  use `{{item.*}}`. An event collection requires `text` and forbids `key`.
+
+The result always has this shape:
+
+```json
+{"items":   [{"id": "<uuid>", "answers": {...}, "kept": true}],
+ "kept":    [<the original items that passed keep>],
+ "records": [{"text": "...", "content": {"kind": "triage", "judgment": {...}}, "citations": ["<uuid>"]}]}
+```
+
+`kept` appears only when `keep:` is declared, and `records` only when
+`records:` is declared. The task can read every item, but its citation
+authority narrows to the items that passed, plus any records the context
+referenced. A later `llm` task that reads `{{triage.kept}}` therefore cannot
+cite a message the gate rejected.
+
+Judgments have their own budgets, `max_judgments` and `max_judgment_tokens`
+(see [Run-wide limits](#run-wide-limits)). They do not count against
+`max_llm_calls` or `max_total_tokens`, because a per-record fan-out would
+exhaust those at once. There are no correction calls: answers are
+structurally typed, and one that fails validation is retried as a transport
+error. `examples/judgment_catalog` has two complete derivations, a filter in
+front of an `llm` task and a pure labeller that makes no LLM call.
 
 ### Built-in `computer` and `agent`
 
@@ -1057,6 +1140,14 @@ Three more limits apply only to [sandboxed tasks](computers.md):
 - `max_agent_steps` bounds an agent's tool loop, up to 128; the agent's own
   limit and the task's `max_steps` can only lower it further.
 - `max_computer_output_bytes` bounds the size of a returned result.
+
+Two limits apply only to [`judge`](#built-in-judge) tasks:
+
+- `max_judgments` bounds judgment calls, one per judged item. It **defaults to
+  `0`**, so a derivation with a `judge` task must opt in.
+- `max_judgment_tokens` (default 400,000) bounds the input tokens of every
+  judgment call in the run. Each batch is estimated before it is sent, and the
+  reported usage is added afterwards.
 
 Catalog compilation also verifies task-specific static bounds where possible.
 Installed tasks are trusted async deployment code; they remain unable to

@@ -44,10 +44,11 @@ Every processor answers two questions:
 
 - **`kind`** — *what shape does it write?* `embedding`, `score` (one
   number), or `json` (a structured object).
-- **`source`** — *who produces the value?* `llm` (a model call), `client`
-  (the caller supplies it at ingest time), or `constant` (a fixed configured
-  value). The `embedding` kind has no `source`: it always uses the `embed`
-  model alias.
+- **`source`** — *who produces the value?* `llm` (a model call), `judgment`
+  (a [judgment model](models.md#judgment-models) answering typed questions),
+  `client` (the caller supplies it at ingest time), or `constant` (a fixed
+  configured value). The `embedding` kind has no `source`: it always uses the
+  `embed` model alias.
 
 Common fields for every processor:
 
@@ -172,12 +173,110 @@ JSON fields:
   the output schema, and the name must not collide with any other score
   name.
 
+### `source: judgment`
+
+A judgment processor asks a judgment model such as TypeSafe's Jev a fixed set
+of questions about each record. It takes no prompt and parses no text: the
+answers come back typed. It runs on exactly the records an `llm` processor
+with the same `input` would run on.
+
+`questions:` uses the vocabulary of the Jev HTTP API, so examples from
+TypeSafe's documentation can be copied as they are. The key is the answer id.
+
+| `type` | `criteria` | answer |
+| --- | --- | --- |
+| `noul` | optional `{true, false}` descriptions | `noul` in [0, 1] |
+| `choice` | map from option to a description or `null`, 2 to 255 options | `choice`, `probabilities`, `confidence` |
+| `score` | ordered list of 2 to 10 level descriptions | `score` in [0, n-1], `probabilities` (one per level), `confidence` |
+
+`instructions` and each criterion accept a string, an object, or a list. A
+processor declares 1 to 64 questions. Instructions are static: they take no
+templates, so a changed question always shows up as a changed processor hash.
+
+Each record is judged on its own, all of its processor's questions in one
+call. Instructions point into the state with backtick paths. The state is:
+
+```json
+{"record": {"collection": "main", "type": "chat", "key": null,
+            "occurred_at": "2026-09-28T10:02:00Z",
+            "text": "<the record text, middle-truncated to SCORER_TEXT_CHARS>",
+            "content": {"...": "the other content fields"}}}
+```
+
+Annotations and internal metadata are left out.
+
+A **score** judgment processor has exactly one `noul` or `score` question,
+and requires `scale` and `default`. The answer maps linearly onto the scale: a
+`noul` from [0, 1], a `score` from [0, n-1]. A `choice` has no order, so it
+cannot be a score; promote one of its probabilities through a json processor
+instead.
+
+```yaml
+- name: importance
+  kind: score
+  source: judgment
+  model: jev
+  input: {collections: [main]}
+  scale: [1, 10]
+  default: 5
+  questions:
+    importance:
+      type: score
+      instructions: "How significant is `record.text` for future decisions?"
+      criteria: ["Routine", "Mildly useful", "Worth remembering", "Changes decisions"]
+```
+
+A score of 2.4 on those 4 levels becomes 1 + 2.4 / 3 × 9 = 8.2. The
+annotation keeps the raw answer beside the value, so the probabilities stay
+auditable: `{"value": 8.2, "judgment": {"importance": {"score": 2.4,
+"probabilities": [...], "confidence": 0.8}}}`.
+
+A **json** judgment processor stores the answer map itself. It forbids
+`output_schema`, because the schema is synthesized from the questions, and
+`score_fields` paths are checked against that synthesized schema. They must
+end at a number: `noul`, `score`, `confidence`, or `probabilities.<option>`.
+
+```yaml
+- name: intent_v1
+  kind: json
+  source: judgment
+  model: jev
+  input: {collections: [main], types: [chat, message]}
+  questions:
+    actionable:
+      type: noul
+      instructions: "Does `record.text` ask someone to do something?"
+    topic:
+      type: choice
+      instructions: "What is `record.text` mainly about?"
+      criteria: {bug: "Something is broken", feature: null, other: null}
+  score_fields:
+    actionable_p: actionable.noul
+    topic_bug: topic.probabilities.bug
+```
+
+When a judgment fails after its retries, a score processor writes its
+`default` and a json processor writes its `default_output`, or a terminal
+failure marker when it has none, exactly as `llm` processors do. A judgment
+annotation can drive an accumulator trigger like any other:
+`metric: {annotation: intent_v1, path: actionable.noul}`.
+
+Judgment models are jagged: they are fast and cheap, but a probability is a
+calibrated guess, not a fact.
+
+- Batch independent questions about one state into one processor.
+- Keep arithmetic, dates, and lookups in code; ask the model only what needs
+  judgment.
+- Gate actions on `confidence`, and calibrate thresholds against the pinned
+  version before relying on them.
+
 ### Score limits
 
 A catalog may declare at most **8 score names** in total (score processors
 plus `score_fields` promotions), of which at most **4** may come from
-`source: llm` score processors. Scores are meant to be a few strong signals,
-not a feature store.
+`source: llm` score processors. Judgment score processors do not count
+toward that 4. Scores are meant to be a few strong signals, not a feature
+store.
 
 ## Binding processors to collections
 

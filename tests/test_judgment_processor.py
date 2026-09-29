@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from typing import Any
 from uuid import UUID
@@ -262,3 +263,22 @@ def test_invalid_judgment_processors_fail_to_load(
         load_definition_catalog(Settings(catalog_file=root / "catalog.yaml", llm_fake=True))
 
     assert message in caught.value.message
+
+
+def test_shipped_commented_judgment_processors_compile_once_enabled(tmp_path: Path) -> None:
+    root = materialize_reference_catalog(tmp_path / "catalog")
+    path = root / "conf" / "processors.yaml"
+    path.write_text(re.sub(r"(?m)^  # (?=- |  )", "  ", path.read_text(encoding="utf-8")))
+    declare_test_sources(root, "conf/processors.yaml")
+
+    catalog = load_definition_catalog(Settings(catalog_file=root / "catalog.yaml", llm_fake=True))
+
+    assert {name: catalog.processors[name].kind for name in ("importance_jev", "intent_v1")} == {
+        "importance_jev": "score",
+        "intent_v1": "json",
+    }
+    assert set(catalog.processors["intent_v1"].score_fields) == {
+        "actionable_p",
+        "urgency",
+        "topic_confidence",
+    }

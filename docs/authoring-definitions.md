@@ -10,7 +10,8 @@ beside every definition. One root produces one complete release.
 ## Start from a worked example
 
 Copy `examples/site_scrape_catalog/` for an agent with learned browser skills,
-`examples/crm_profile_catalog/` for incremental CRM profiles, or
+`examples/crm_profile_catalog/` for incremental CRM profiles,
+`examples/judgment_catalog/` for judgment-model processors and `judge` tasks, or
 `examples/computer_renewal_catalog/` for deterministic and agent execution.
 
 Open the copied `catalog.yaml`. Follow its paths to change the definitions.
