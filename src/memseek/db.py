@@ -216,7 +216,7 @@ async def _verify_persisted_semantics(
                 sorted(
                     name
                     for name, item in catalog.processors.items()
-                    if item.kind == "embedding" or item.source == "llm"
+                    if item.kind == "embedding" or item.source in {"llm", "judgment"}
                 )
             )
             history_result = await conn.execute(

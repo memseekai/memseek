@@ -751,11 +751,9 @@ class _CatalogBuilder:
                 if definition.kind == "score":
                     self._claim_score_name(definition.name, definition.name, path, index)
                 if definition.kind == "json":
-                    assert definition.output_schema is not None
-                    _check_json_schema(
-                        definition.output_schema, path, f"processors[{index}].output_schema"
-                    )
-                    if definition.output_schema.get("type") != "object":
+                    output_schema = definition.effective_output_schema
+                    _check_json_schema(output_schema, path, f"processors[{index}].output_schema")
+                    if output_schema.get("type") != "object":
                         raise DefinitionError(
                             "output_schema",
                             "processor output_schema must have type object",
@@ -763,7 +761,7 @@ class _CatalogBuilder:
                             path=f"processors[{index}].output_schema.type",
                         )
                     for score_name, score_path in definition.score_fields.items():
-                        leaf = self._schema_at_path(definition.output_schema, score_path)
+                        leaf = self._schema_at_path(output_schema, score_path)
                         if leaf is None or leaf.get("type") not in {"number", "integer"}:
                             raise DefinitionError(
                                 "score_field",
@@ -775,7 +773,7 @@ class _CatalogBuilder:
                     if definition.default_output is not None:
                         try:
                             Draft202012Validator(
-                                definition.output_schema, format_checker=FormatChecker()
+                                output_schema, format_checker=FormatChecker()
                             ).validate(definition.default_output)
                         except JsonSchemaValidationError as exc:
                             raise DefinitionError(
@@ -4085,7 +4083,14 @@ class _CatalogBuilder:
                     file=self.paths[("processor", processor.name)],
                     path="input.collections",
                 )
-            if processor.model is not None:
+            if processor.model is not None and processor.source == "judgment":
+                self._alias(
+                    processor.model,
+                    self.paths[("processor", processor.name)],
+                    f"processors.{processor.name}.model",
+                    use="judgment",
+                )
+            elif processor.model is not None:
                 alias = self._alias(
                     processor.model,
                     self.paths[("processor", processor.name)],

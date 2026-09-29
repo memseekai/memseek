@@ -1,5 +1,115 @@
 {
   "$defs": {
+    "ChoiceQuestion": {
+      "additionalProperties": false,
+      "description": "A pick-one question over named options.",
+      "properties": {
+        "type": {
+          "const": "choice",
+          "title": "Type",
+          "type": "string"
+        },
+        "instructions": {
+          "$ref": "#/$defs/Instruction"
+        },
+        "criteria": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/Instruction"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "title": "Criteria",
+          "type": "object"
+        }
+      },
+      "required": [
+        "type",
+        "instructions",
+        "criteria"
+      ],
+      "title": "ChoiceQuestion",
+      "type": "object"
+    },
+    "Instruction": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        {
+          "items": {},
+          "type": "array"
+        }
+      ]
+    },
+    "NoulCriteria": {
+      "additionalProperties": false,
+      "properties": {
+        "true": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Instruction"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "false": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Instruction"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "title": "NoulCriteria",
+      "type": "object"
+    },
+    "NoulQuestion": {
+      "additionalProperties": false,
+      "description": "A yes-or-no question answered with a probability in [0, 1].",
+      "properties": {
+        "type": {
+          "const": "noul",
+          "title": "Type",
+          "type": "string"
+        },
+        "instructions": {
+          "$ref": "#/$defs/Instruction"
+        },
+        "criteria": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/NoulCriteria"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "type",
+        "instructions"
+      ],
+      "title": "NoulQuestion",
+      "type": "object"
+    },
     "ProcessorDefinition": {
       "additionalProperties": false,
       "description": "One per-record enrichment capability.\n\nEvery processor writes an annotation object under ``annotations.<name>``.\nTwo kinds additionally project into dedicated storage: ``embedding``\nwrites the record's vector, and ``score`` mirrors its number into the\nflat rankable ``scores.<name>`` map (as do ``score_fields`` promotions\nof ``json`` processors).",
@@ -28,6 +138,7 @@
             {
               "enum": [
                 "llm",
+                "judgment",
                 "client",
                 "constant"
               ],
@@ -132,6 +243,17 @@
           "default": null,
           "title": "Prompt"
         },
+        "questions": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/QuestionMap"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "output_schema": {
           "anyOf": [
             {
@@ -198,6 +320,63 @@
         "collections"
       ],
       "title": "ProcessorInput",
+      "type": "object"
+    },
+    "Question": {
+      "discriminator": {
+        "mapping": {
+          "choice": "#/$defs/ChoiceQuestion",
+          "noul": "#/$defs/NoulQuestion",
+          "score": "#/$defs/ScoreQuestion"
+        },
+        "propertyName": "type"
+      },
+      "oneOf": [
+        {
+          "$ref": "#/$defs/NoulQuestion"
+        },
+        {
+          "$ref": "#/$defs/ChoiceQuestion"
+        },
+        {
+          "$ref": "#/$defs/ScoreQuestion"
+        }
+      ]
+    },
+    "QuestionMap": {
+      "patternProperties": {
+        "^[a-z][a-z0-9_]{0,31}$": {
+          "$ref": "#/$defs/Question"
+        }
+      },
+      "type": "object"
+    },
+    "ScoreQuestion": {
+      "additionalProperties": false,
+      "description": "An ordinal question over 2 to 10 ordered levels.",
+      "properties": {
+        "type": {
+          "const": "score",
+          "title": "Type",
+          "type": "string"
+        },
+        "instructions": {
+          "$ref": "#/$defs/Instruction"
+        },
+        "criteria": {
+          "items": {
+            "$ref": "#/$defs/Instruction"
+          },
+          "title": "Criteria",
+          "type": "array"
+        }
+      },
+      "required": [
+        "type",
+        "instructions",
+        "criteria"
+      ],
+      "title": "ScoreQuestion",
       "type": "object"
     }
   },

@@ -26,8 +26,9 @@ from memseek.definitions import (
     ProcessorDefinition,
     canonical_json,
 )
+from memseek.definitions.judgment import Answer, NoulAnswer, ScoreAnswer, answers_json
 from memseek.llm.registry import TEXT_OUTPUT, LLMTransportError
-from memseek.llm.runtime import ModelAttempt, ModelAttemptsExhausted, complete, embed
+from memseek.llm.runtime import ModelAttempt, ModelAttemptsExhausted, complete, embed, judge
 from memseek.locks import acquire_workspace_lock
 from memseek.logging import log_event
 from memseek.render import (
@@ -906,6 +907,124 @@ async def _generic_results(
     return results
 
 
+def _judgment_state(record: _Record, settings: Settings) -> tuple[dict[str, Any], bool]:
+    """The state a judgment model sees: one record, without annotations or metadata."""
+
+    text, truncated = truncate_middle(record.text, settings.scorer_text_chars)
+    content = {name: value for name, value in record.content.items() if name != "text"}
+    return (
+        {
+            "record": {
+                "collection": record.collection,
+                "type": record.type,
+                "key": record.key,
+                "occurred_at": record.occurred_at.isoformat().replace("+00:00", "Z"),
+                "text": text,
+                "content": content,
+            }
+        },
+        truncated,
+    )
+
+
+def _judgment_value(processor: ProcessorDefinition, answers: Mapping[str, Answer]) -> Any:
+    if processor.kind == "json":
+        return answers_json(answers)
+    assert processor.scale is not None
+    (answer,) = answers.values()
+    assert isinstance(answer, NoulAnswer | ScoreAnswer)
+    low, high = processor.scale
+    return {"value": low + answer.unit * (high - low), "judgment": answers_json(answers)}
+
+
+def _judgment_scores(processor: ProcessorDefinition, value: Any) -> dict[str, float]:
+    if processor.kind == "score":
+        return {processor.name: value["value"]}
+    return _project_score_fields(processor, value)
+
+
+async def _judgment_results(
+    records: Sequence[_Record],
+    settings: Settings,
+    catalog: DefinitionCatalog,
+    processor: ProcessorDefinition,
+) -> list[_AnnotationResult]:
+    """Judge each record on its own, all of the processor's questions in one call."""
+
+    assert processor.model is not None
+    assert processor.questions is not None
+    model = processor.model
+    questions = processor.questions
+    processor_hash = catalog.processor_config_hashes[processor.name]
+    fallback = (
+        {"value": processor.default} if processor.kind == "score" else processor.default_output
+    )
+
+    async def one(record: _Record) -> _AnnotationResult:
+        state, truncated = _judgment_state(record, settings)
+        started_at = datetime.now(UTC)
+        try:
+            call = await judge(
+                settings,
+                catalog,
+                model,
+                state,
+                questions,
+                context=f"processor:{processor.name}",
+            )
+            value = _validate_annotation(
+                processor, _judgment_value(processor, call.judgment.answers), settings
+            )
+        except (LLMTransportError, ValueError) as exc:
+            attempts = exc.attempts if isinstance(exc, ModelAttemptsExhausted) else ()
+            resolved = attempts[-1].resolved if attempts else None
+            meta = {"truncated": truncated, "usage": _attempt_usage(attempts)}
+            if fallback is None:
+                return _terminal_annotation_result(
+                    record,
+                    processor,
+                    processor_hash,
+                    warning="judgment_terminal_failure",
+                    error=_compact_error("judgment", exc),
+                    attempts=attempts,
+                    resolved=resolved,
+                    physical_meta=meta,
+                )
+            value = _validate_annotation(processor, fallback, settings)
+            return _AnnotationResult(
+                target=record,
+                processor=processor.name,
+                value=value,
+                processor_hash=processor_hash,
+                attempts=attempts,
+                resolved=resolved,
+                warnings=("judgment_default",),
+                error=_compact_error("judgment", exc),
+                score_values=_judgment_scores(processor, value),
+                physical_meta={**meta, "default": True},
+                started_at=started_at,
+                completed_at=datetime.now(UTC),
+            )
+        return _AnnotationResult(
+            target=record,
+            processor=processor.name,
+            value=value,
+            processor_hash=processor_hash,
+            attempts=call.attempts,
+            resolved=call.resolved,
+            score_values=_judgment_scores(processor, value),
+            physical_meta={
+                "resolved": call.resolved,
+                "truncated": truncated,
+                "usage": _attempt_usage(call.attempts),
+            },
+            started_at=started_at,
+            completed_at=datetime.now(UTC),
+        )
+
+    return list(await asyncio.gather(*(one(record) for record in records)))
+
+
 async def _prepare_processor(
     records: Sequence[_Record],
     settings: Settings,
@@ -938,6 +1057,8 @@ async def _prepare_processor(
                 )
         if processor.source == "llm":
             prepared.extend(await _llm_scorer_results(non_tombstones, settings, catalog, processor))
+        elif processor.source == "judgment":
+            prepared.extend(await _judgment_results(non_tombstones, settings, catalog, processor))
         elif processor.source == "constant":
             assert processor.value is not None
             prepared.extend(
@@ -954,6 +1075,8 @@ async def _prepare_processor(
         return prepared
     if processor.kind == "embedding":
         return await _embedding_results(targets, settings, catalog, name)
+    if processor.source == "judgment":
+        return await _judgment_results(targets, settings, catalog, processor)
     return await _generic_results(targets, settings, catalog, processor)
 
 

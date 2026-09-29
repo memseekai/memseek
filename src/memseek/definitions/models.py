@@ -28,6 +28,7 @@ from .base import (
     ensure_unique,
     split_exact_reference,
 )
+from .judgment import NoulQuestion, QuestionMap, ScoreQuestion, answer_schema
 
 # An absolute ceiling on a declared embedding batch.  The declared value is the
 # operative limit; this only stops a typo from turning into an unbounded request.
@@ -221,7 +222,7 @@ class ProcessorDefinition(DefinitionModel):
 
     name: ProcessorName
     kind: Literal["embedding", "score", "json"]
-    source: Literal["llm", "client", "constant"] | None = None
+    source: Literal["llm", "judgment", "client", "constant"] | None = None
     input: ProcessorInput
     # The processor this one replaces.  Purely a *reading* preference: both
     # annotations stay on the record, separately auditable, and neither is ever
@@ -234,13 +235,25 @@ class ProcessorDefinition(DefinitionModel):
     default: float | None = None
     value: float | None = None
     render: bool = False
-    # llm source only
+    # llm and judgment sources
     model: ProcessorName | None = None
+    # llm source only
     prompt: str | None = None
+    # judgment source only
+    questions: QuestionMap | None = None
     # json kind only
     output_schema: dict[str, Any] | None = None
     default_output: Any | None = None
     score_fields: dict[ProcessorName, str] = Field(default_factory=dict)
+
+    @model_serializer(mode="wrap")
+    def _serialize(self, handler: Any) -> dict[str, Any]:
+        dumped = dict(handler(self))
+        # Absent, questions stay out of the dump so every existing processor
+        # keeps the hash its stored annotations were written under.
+        if self.questions is None:
+            dumped.pop("questions", None)
+        return dumped
 
     @field_validator("score_fields")
     @classmethod
@@ -262,6 +275,7 @@ class ProcessorDefinition(DefinitionModel):
                 "prompt": self.prompt,
                 "output_schema": self.output_schema,
                 "default_output": self.default_output,
+                "questions": self.questions,
             }
             present = sorted(name for name, item in forbidden.items() if item is not None)
             if present or self.render or self.score_fields:
@@ -271,7 +285,13 @@ class ProcessorDefinition(DefinitionModel):
             return self
 
         if self.source is None:
-            raise ValueError(f"{self.kind} processor requires source (llm, client, or constant)")
+            raise ValueError(
+                f"{self.kind} processor requires source (llm, judgment, client, or constant)"
+            )
+        if (self.source == "judgment") != (self.questions is not None):
+            raise ValueError("questions is required by, and only allowed for, source: judgment")
+        if self.source == "judgment" and (self.model is None or self.prompt is not None):
+            raise ValueError("judgment processor requires model and forbids prompt")
 
         if self.kind == "score":
             if self.scale is None:
@@ -291,6 +311,18 @@ class ProcessorDefinition(DefinitionModel):
                     raise ValueError("llm score processor requires default, model, and prompt")
                 if self.value is not None:
                     raise ValueError("llm score processor forbids value")
+            elif self.source == "judgment":
+                assert self.questions is not None
+                if self.default is None or self.value is not None:
+                    raise ValueError("judgment score processor requires default and forbids value")
+                # A choice has no order, so it has nothing to map onto a scale.
+                if len(self.questions) != 1 or not all(
+                    isinstance(question, NoulQuestion | ScoreQuestion)
+                    for question in self.questions.values()
+                ):
+                    raise ValueError(
+                        "judgment score processor requires exactly one noul or score question"
+                    )
             elif self.source == "client":
                 if (
                     self.model is not None
@@ -313,6 +345,12 @@ class ProcessorDefinition(DefinitionModel):
             raise ValueError("json processor forbids scale, default, and value")
         if self.render:
             raise ValueError("render is available only for score processors")
+        if self.source == "judgment":
+            if self.output_schema is not None:
+                raise ValueError(
+                    "judgment json processor forbids output_schema; questions define it"
+                )
+            return self
         if self.output_schema is None:
             raise ValueError("json processor requires output_schema")
         if self.source == "llm":
@@ -334,11 +372,16 @@ class ProcessorDefinition(DefinitionModel):
         if self.kind == "score":
             assert self.scale is not None
             low, high = self.scale
-            return {
+            schema: dict[str, Any] = {
                 "type": "object",
                 "required": ["value"],
                 "properties": {"value": {"type": "number", "minimum": low, "maximum": high}},
             }
+            if self.questions is not None:
+                schema["properties"]["judgment"] = answer_schema(self.questions)
+            return schema
+        if self.questions is not None:
+            return answer_schema(self.questions)
         assert self.output_schema is not None
         return self.output_schema
 
