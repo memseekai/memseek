@@ -176,7 +176,7 @@ async def test_judge_records_cite_only_kept_items_and_pass_emit(
     definition = catalog.derivations["ticket_triage"]
     execution = _execution(definition, judgment_settings)
     variables, (refund, unclear) = _records(
-        "tickets", ["Refund request", "Something about my account"], body="details"
+        "tickets", ["Refund request", "Something about my account"]
     )
     fake.reset()
     fake.enqueue_judgment(_team("billing", 0.9), _team("sales", 0.4))
@@ -314,7 +314,7 @@ def _catalog_error(tmp_path: Path, old: str, new: str) -> DefinitionError:
             "keep.team.noul_gte does not apply to a choice question",
         ),
         (
-            'instructions: "Which team should handle `item.content.body`?"',
+            'instructions: "Which team should handle `item.content.text`?"',
             'instructions: "Which team should handle {{entity}}?"',
             "template_reference",
             "tasks[0].with references unavailable variable(s): entity",
@@ -344,7 +344,6 @@ async def test_ticket_triage_labels_confident_tickets_end_to_end(
                     collection="support",
                     type="ticket",
                     text=text,
-                    content={"body": text},
                 )
                 for text in ("Please refund invoice 42", "Hmm")
             )

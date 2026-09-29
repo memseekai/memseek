@@ -17,7 +17,7 @@ tasks:
       questions:
         team:
           type: choice
-          instructions: "Which team should handle `item.content.body`?"
+          instructions: "Which team should handle `item.content.text`?"
           criteria:
             billing: "Payments, refunds"
             technical: "Bugs, outages"

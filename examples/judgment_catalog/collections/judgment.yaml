@@ -38,7 +38,6 @@ collections:
       required: [text]
       properties:
         text: {type: string}
-        body: {type: string}
       additionalProperties: false
     required_processors: [embedding_v1, importance]
     search_profile: pg_default
