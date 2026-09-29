@@ -113,11 +113,10 @@ process-wide setting that would also, wrongly, describe every other endpoint.
 
 ## Judgment models
 
-A judgment model answers typed questions about a state and writes no text.
-TypeSafe's Jev models are the first supported: you send a JSON state and a
-batch of questions, and each answer comes back as a probability (`noul`), a
-picked option (`choice`), or a level on an ordered scale (`score`), with
-per-option probabilities and a confidence.
+A judgment model answers questions you wrote in advance with typed answers
+instead of text. TypeSafe's Jev models are supported through the `typesafe`
+adapter. [Judgment models](judgment-models.md) explains what they are for and
+how to write questions. This section lists what `conf/models.yaml` needs.
 
 ```yaml
 providers:
@@ -125,35 +124,30 @@ providers:
     adapter: typesafe
     base_url: https://api.typesafe.ai
     api_key_env: TYPESAFE_API_KEY
-    json_capability: none      # judgment output is typed by its questions
+    json_capability: none        # required: Jev answers are typed by the questions
 
 aliases:
   jev:
     targets: ["typesafe:jev-1.13.0"]
 ```
 
-An alias is either a **completion alias** or a **judgment alias**, decided by
-its targets:
+An alias is either an **LLM alias** or a **judgment alias**. Memseek decides
+which from the adapters of its targets:
 
-- All targets must support completion, or all must support judgment. An alias
-  that mixes the two fails to load.
-- A judgment alias takes no `params` and no `context_tokens`. Jev has no
-  generation parameters and bounds its own context.
-- The use must match the kind. `source: llm` processors, the `llm` Task, agents,
-  and both `defaults` need a completion alias. `source: judgment` processors
-  and the `judge` Task need a judgment alias. A mismatch is a load error that
-  names the file and path.
+- Every target of one alias must use the same kind of adapter. An alias that
+  mixes `typesafe` and `openai_compat` targets fails to load.
+- A judgment alias forbids `params` and `context_tokens`.
+- LLM processors, the `llm` task, agents, `defaults.derivation`, and
+  `defaults.fold` need an LLM alias.
+- Judgment processors and the `judge` task need a judgment alias.
 
-Pin a version such as `jev-1.13.0` rather than `jev-latest`. Thresholds in
-`keep:` blocks and triggers are calibrated against one version, and the
-`latest` alias moves. Run audits record the version the provider reports
-having used, so `resolved` reads `typesafe:jev-1.13.0` even when the target
-names an alias.
+A use of the wrong kind fails to load with the message
+`model alias '<name>' cannot be used for judgment`, or `for completion` when a
+judgment alias is used where an LLM alias belongs.
 
-A 429 or 5xx response is retried once per target, and a 429's `retry-after`
-sets the wait (capped at 30 seconds). A response that does not answer every
-question, answers with the wrong type, or returns a number out of range is
-treated as a transport error and retried the same way.
+Pin a version such as `jev-1.13.0` rather than `jev-latest`, because
+`jev-latest` moves to each new release. The run audit records the version
+TypeSafe reports, for example `typesafe:jev-1.13.0`.
 
 ## Rules the file must satisfy
 
@@ -179,7 +173,7 @@ treated as a transport error and retried the same way.
 | A judgment processor | Its own `model:` field, which must be a judgment alias. |
 | An embedding processor | The `embedding:` block; it has no choice to make. |
 | A model step inside a [derivation](derivations.md) | The step's `model:`, else the derivation's `model:`, else `defaults.derivation`. |
-| A `judge` Task inside a derivation | The Task's `with.model`, else the derivation's `model:` if that is a judgment alias. There is no catalog-wide default. |
+| A `judge` task inside a derivation | The task's `with.model`, else the derivation's `model:` if that is a judgment alias. There is no catalog-wide default. |
 
 Changing an alias's target or params shows up in the record of every run that
 used it, so an unexplained change in output can always be traced to a model

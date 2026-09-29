@@ -127,6 +127,14 @@ A **model alias** is a stable name for a provider model, such as `strong`,
 names, so a deployment can change providers — or upgrade a model — without
 anyone rewriting the design.
 
+### Judgment model and `noul`
+
+A **judgment model** answers questions you wrote in advance with typed answers,
+not text: a yes-or-no probability, a picked option, or a position on a scale.
+TypeSafe's Jev is the supported judgment model. A **`noul`** is TypeSafe's name
+for a yes-or-no question, answered with the probability that the answer is yes.
+See [Judgment models](judgment-models.md).
+
 ### Enrichment processor
 
 An **enrichment processor**, usually just **processor**, performs one small

@@ -610,84 +610,140 @@ useful for deterministic structured output.
 
 ### Built-in `judge`
 
-`judge` asks a [judgment model](models.md#judgment-models) the same questions
-about every item in a list, one call per item. Jev cannot write record text,
-so in a derivation it plays one of three roles:
+`judge` asks a [judgment model](judgment-models.md) the same questions about
+every item in a list, with one call per item. A judgment model cannot write
+text, so `judge` does one or more of three jobs in a derivation:
 
-- a **filter or router** in front of an expensive `llm` task;
-- a **per-item labeller** whose answers are emitted directly as records;
-- a **feature source** that a later `llm` prompt reads.
+- **Filter.** Keep only the items that pass a threshold, and pass those to a
+  later `llm` task.
+- **Label.** Turn each kept item into a new record that holds the answers.
+- **Inform.** Give a later `llm` prompt the answers for every item.
+
+This task, from the support triage example, labels new tickets with the team
+that should handle them. It uses the customer's account record as shared
+context:
 
 ```yaml
-- id: triage
+- id: routing
   use: judge
-  input: "{{new_messages.records}}"
+  input: "{{new_tickets.records}}"
   with:
     model: jev
     context:
-      profile: "{{current_profile.records}}"
+      account: "{{account.records}}"
     questions:
-      actionable: {type: noul, instructions: "Does `item.content.text` ask someone to do something?"}
-      topic:
+      team:
         type: choice
-        instructions: "What is `item.content.text` about, given `context.profile`?"
-        criteria: {bug: null, feature: null, other: null}
+        instructions: "Which team should handle `item.content.text`?"
+        criteria:
+          billing: "Charges, invoices, refunds"
+          technical: "Errors, outages, integrations"
+          sales: "Plans, upgrades, pricing"
+      covered:
+        type: noul
+        instructions: "Is the request in `item.content.text` covered by the plan in `context.account`?"
     keep:
-      actionable: {noul_gte: 0.65}
-      topic: {choice_in: [bug, feature], confidence_gte: 0.5}
+      team: {confidence_gte: 0.6}
     records:
       text: "{{item.content.text}}"
-      content: {kind: triage}
+      content: {kind: route}
 ```
 
-`input` must be one exact reference to a list: any record source's `.records`,
-or an earlier task's list, such as search hits or an `llm` array. A single
-object counts as a list of one. `judge` reads typed records, never
-`.rendered`, because a judgment model takes structured state rather than
-escaped prompt text. Each call's state is
-`{"item": <the item>, "context": <rendered context>}`, so the model's context
-limit applies per item and irrelevant state stays out.
+#### Fields
 
-`with` fields:
+- `input` (required): one exact reference to a list. Use a source's
+  `.records`, such as `"{{new_tickets.records}}"`, or a list that an earlier
+  task returned. A single record counts as a list of one. `judge` reads the
+  typed records, not `.rendered`.
+- `with.model`: a judgment alias. If you leave it out, the derivation's
+  `model:` is used when that is a judgment alias. There is no catalog-wide
+  default, so a `judge` task with neither fails to load.
+- `with.context` (optional): data that every item is judged against, such as
+  a profile or a policy. It can use templates. Memseek renders it once,
+  before it judges the first item.
+- `with.questions` (required): the same question format as
+  [judgment processors](processors.md#questions). Questions cannot contain
+  templates.
+- `with.keep` (optional): the thresholds an item must pass to be kept.
+- `with.records` (optional): how to turn each kept item into a record draft
+  that `emit` can write.
 
-- `model`: a judgment alias. It falls back to the derivation's `model:` when
-  that is a judgment alias. There is no catalog-wide default, so a `judge`
-  task with neither fails to load.
-- `context`: optional shared state, rendered once with the usual templates and
-  placed at `state.context`.
-- `questions`: the same vocabulary as [judgment
-  processors](processors.md#source-judgment). Instructions are static; paths
-  use `item.*` and `context.*`.
-- `keep`: an optional gate. Every clause must pass for an item to be kept.
-  The operators are a closed set of thresholds on the raw answers: `noul_gte`,
-  `noul_lte`, `choice_in`, `score_gte`, `score_lte`, `confidence_gte` (choice
-  and score), and `prob_gte: {<option>: x}` (choice).
-- `records`: optional. Turns each kept item into an emit-ready record draft
-  whose content is `content` merged with `{judgment: <answers>}`, and which
-  cites the item it judged. `key` and `text` are per-item templates that may
-  use `{{item.*}}`. An event collection requires `text` and forbids `key`.
+#### What the model reads
 
-The result always has this shape:
+Each call sends one item and the context:
 
 ```json
-{"items":   [{"id": "<uuid>", "answers": {...}, "kept": true}],
- "kept":    [<the original items that passed keep>],
- "records": [{"text": "...", "content": {"kind": "triage", "judgment": {...}}, "citations": ["<uuid>"]}]}
+{"item": {"id": "5f0c...", "type": "ticket", "content": {"text": "..."}},
+ "context": {"account": [{"key": "profile", "content": {"plan": "basic"}}]}}
 ```
 
-`kept` appears only when `keep:` is declared, and `records` only when
-`records:` is declared. The task can read every item, but its citation
-authority narrows to the items that passed, plus any records the context
-referenced. A later `llm` task that reads `{{triage.kept}}` therefore cannot
-cite a message the gate rejected.
+Questions refer to this data with backtick paths, such as
+`` `item.content.text` `` and `` `context.account` ``. `context` is left out
+when you do not declare it.
 
-Judgments have their own budgets, `max_judgments` and `max_judgment_tokens`
-(see [Run-wide limits](#run-wide-limits)). They do not count against
-`max_llm_calls` or `max_total_tokens`, because a per-record fan-out would
-exhaust those at once. There are no correction calls: answers are
-structurally typed, and one that fails validation is retried as a transport
-error. `examples/judgment_catalog` has two complete derivations, a filter in
-front of an `llm` task and a pure labeller that makes no LLM call.
+#### `keep`: decide which items pass
+
+`keep` maps a question name to one or more tests. An item is kept only when
+every test passes.
+
+| Test | Question types | Passes when |
+| --- | --- | --- |
+| `noul_gte: x` | `noul` | the `noul` is at least `x` |
+| `noul_lte: x` | `noul` | the `noul` is at most `x` |
+| `choice_in: [a, b]` | `choice` | the chosen option is in the list |
+| `prob_gte: {a: x}` | `choice` | option `a` has a probability of at least `x` |
+| `score_gte: x` | `score` | the `score` is at least `x` |
+| `score_lte: x` | `score` | the `score` is at most `x` |
+| `confidence_gte: x` | `choice`, `score` | the `confidence` is at least `x` |
+
+The catalog fails to load if a test names a question that does not exist, an
+option that the question does not declare, or a question of the wrong type.
+
+#### `records`: write the answers as new records
+
+For each kept item, `records` builds one record draft:
+
+- `text` and `key` are templates that can use `{{item...}}`. An event
+  collection needs `text` and forbids `key`.
+- `content` is copied into the draft. Memseek adds the answers under
+  `content.judgment`, so you cannot declare a `judgment` field yourself.
+- The draft cites the item it was built from.
+
+Point `emit.from` at the drafts, for example `"{{routing.records}}"`.
+
+#### Result
+
+The task returns this value to later tasks:
+
+```json
+{"items":   [{"id": "5f0c...", "answers": {"team": {...}, "covered": {...}}, "kept": true}],
+ "kept":    [{"id": "5f0c...", "type": "ticket", "content": {"text": "..."}}],
+ "records": [{"text": "...", "content": {"kind": "route", "judgment": {...}}, "citations": ["5f0c..."]}]}
+```
+
+- `items` lists every judged item with its answers, in input order.
+- `kept` holds the original items that passed `keep`. It appears only when you
+  declare `keep`.
+- `records` holds the drafts. It appears only when you declare `records`.
+
+A later `llm` task can read `{{screen.kept}}` and cite those items, and the
+records from `context`. It cannot cite an item that `keep` rejected.
+
+#### Budgets and failures
+
+Judgment calls have their own [run-wide limits](#run-wide-limits),
+`max_judgments` and `max_judgment_tokens`. They do not count against
+`max_llm_calls` or `max_total_tokens`. `max_judgments` defaults to 0, so you
+must raise it in every derivation that uses `judge`. The catalog fails to load
+if you forget.
+
+Memseek retries a failed call once. If the retry fails too, the run fails and
+its error names the judgment. `judge` never asks the model to correct an
+answer, because a typed answer is either valid or rejected.
+
+[Triage a support inbox with Jev](support-triage-example.md) walks through two
+complete derivations: one that labels tickets, and one that screens tickets
+before an `llm` task writes escalation notes.
 
 ### Built-in `computer` and `agent`
 
@@ -1143,11 +1199,12 @@ Three more limits apply only to [sandboxed tasks](computers.md):
 
 Two limits apply only to [`judge`](#built-in-judge) tasks:
 
-- `max_judgments` bounds judgment calls, one per judged item. It **defaults to
-  `0`**, so a derivation with a `judge` task must opt in.
-- `max_judgment_tokens` (default 400,000) bounds the input tokens of every
-  judgment call in the run. Each batch is estimated before it is sent, and the
-  reported usage is added afterwards.
+- `max_judgments` is the most judgment calls one run can make. Each judged item
+  is one call. It **defaults to `0`**, so a derivation with a `judge` task must
+  raise it.
+- `max_judgment_tokens` (default 400,000) is the most input tokens that all of
+  a run's judgment calls can send. Memseek estimates a task's tokens before it
+  sends them, and adds the usage TypeSafe reports afterwards.
 
 Catalog compilation also verifies task-specific static bounds where possible.
 Installed tasks are trusted async deployment code; they remain unable to
