@@ -8,7 +8,7 @@ TEST_DATABASE_URL ?= $(COMPOSE_TEST_DATABASE_URL)
 COMPUTER_RUNTIME_PORT ?= 8799
 COMPUTER_RUNTIME_SECRET ?= local-computer-demo
 
-.PHONY: help sync format lint typecheck build docs docs-build reference catalog-graph database database-down migrate migration-current quickstart up down logs check test e2e computer-demo computer-demo-cloudflare site-scrape-demo pi-trace cloudflare-agent-smoke cloudflare-agent-smoke-local cloudflare-agent-smoke-setup
+.PHONY: help sync format lint typecheck build docs docs-build reference catalog-graph database database-down migrate migration-current quickstart up down logs check test e2e computer-demo computer-demo-cloudflare site-scrape-demo support-triage-demo pi-trace cloudflare-agent-smoke cloudflare-agent-smoke-local cloudflare-agent-smoke-setup
 
 help:
 	@echo "up             Run the whole local stack in Docker: postgres, api, worker, catalog"
@@ -17,6 +17,7 @@ help:
 	@echo "computer-demo  Run the Computer-backed renewal demo against the Docker stack"
 	@echo "computer-demo-cloudflare  The same demo, driven by a real Cloudflare Agent"
 	@echo "site-scrape-demo  Scrape URL=... twice with pi + browser-harness; the second run uses the playbook"
+	@echo "support-triage-demo  Triage a customer's support inbox with TypeSafe Jev against the Docker stack"
 	@echo "pi-trace       Follow what the newest pi run is doing, turn by turn (ROOT=<session dir> for another)"
 	@echo "cloudflare-agent-smoke  Run a real Workers AI Agent against one durable Computer"
 	@echo "cloudflare-agent-smoke-local  Run the same canary against wrangler dev, nothing deployed"
@@ -135,6 +136,15 @@ URL ?=
 site-scrape-demo:
 	@if [ -z "$(URL)" ]; then echo "usage: make site-scrape-demo URL=https://..." >&2; exit 2; fi
 	@$(UV) run python examples/site_scrape.py "$(URL)"
+
+# Needs `make up` with TYPESAFE_API_KEY and OPENAI_API_KEY in the environment
+# or .env, since the worker makes the judgment and LLM calls. The demo
+# publishes its own catalog, so it mints a fresh workspace in the stack's
+# database rather than replacing the catalog of the one in MEMSEEK_API_KEY.
+support-triage-demo:
+	@env -u MEMSEEK_API_KEY \
+		DATABASE_URL="postgresql://postgres:postgres@127.0.0.1:$${MEMSEEK_DB_PORT:-5433}/memseek" \
+		$(UV) run python examples/support_triage.py
 
 pi-trace:
 	@node harnesses/pi/trace.mjs $(ROOT) --follow $(if $(FULL),--full,)

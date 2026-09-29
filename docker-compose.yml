@@ -60,6 +60,7 @@ services:
       # variable each provider reads. Without a key the deterministic reads
       # still work and anything model-backed fails loudly.
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      TYPESAFE_API_KEY: ${TYPESAFE_API_KEY:-}
       LLM_FAKE: ${LLM_FAKE:-0}
       # Browser origins allowed to call this API and /mcp with a workspace key.
       # Exact origins only — wildcards are rejected — written either as one
@@ -99,6 +100,7 @@ services:
     environment:
       DATABASE_URL: postgresql://postgres:postgres@postgres:5432/memseek
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      TYPESAFE_API_KEY: ${TYPESAFE_API_KEY:-}
       LLM_FAKE: ${LLM_FAKE:-0}
       # The worker is the process that runs derivations and durable
       # invocations, so it is the one that talks to the Computer runtime.
