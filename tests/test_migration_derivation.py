@@ -113,11 +113,8 @@ async def test_mapping_carries_a_keyed_slot_forward_when_asked() -> None:
     [
         ({"keep": [], "set": {}}, "keep or set must produce it"),
         ({"keep": ["text"], "set": {"text": {"value": "x"}}}, "cannot both produce"),
-        ({"keep": [], "drop": ["text"], "set": {"text": {"value": "x"}}}, "text cannot be dropped"),
-        (
-            {"keep": ["text", "a"], "drop": ["a"]},
-            "drop cannot name mapped properties",
-        ),
+        # Output content is exactly keep plus set, so there is nothing to drop.
+        ({"keep": ["text"], "drop": ["legacy"]}, "Extra inputs are not permitted"),
         (
             {"keep": ["text"], "set": {"x": {"from": "content.a", "value": "b"}}},
             "exactly one of from or value",

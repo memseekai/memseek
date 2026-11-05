@@ -578,8 +578,10 @@ erasable through the existing provenance closure. The originals are untouched â€
 history is preserved by construction.
 
 `map_records` is deliberately not a language: it copies properties (`keep`),
-computes them from a path, constant, default, or scalar cast (`set`), drops them
-(`drop`), and carries a keyed slot forward (`carry_key`). Anything richer belongs
+computes them from a path, constant, default, or scalar cast (`set`), and
+carries a keyed slot forward (`carry_key`). A migrated record holds only the
+properties `keep` and `set` produce, so a property the new contract no longer
+declares is dropped by leaving it out. Anything richer belongs
 in an `llm` task in the same pipeline, where the output is still schema-validated
 and still reviewable before promotion.
 
