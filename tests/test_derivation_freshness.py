@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from dataclasses import replace
 from datetime import UTC, datetime
 from types import MappingProxyType
@@ -444,3 +445,59 @@ async def test_stale_citation_repair_reruns_when_a_cited_parent_moves_again(
     moved = await _profile_calls(db_pool, settings, catalog, workspace=workspace)
 
     assert (stale, unchanged, moved) == (1, 0, 1)
+
+
+async def _role_versions(pool: DatabasePool, *, workspace: str) -> list[tuple[str, list[UUID]]]:
+    async with pool.connection() as conn:
+        await conn.execute(
+            "update record set enriched_at = now() where workspace = %s and enriched_at is null",
+            (workspace,),
+        )
+        result = await conn.execute(
+            """
+            select content->>'text' as text, derived_from[2:] as citations
+            from record
+            where workspace = %s and collection = 'profiles' and key = 'role'
+            order by seq
+            """,
+            (workspace,),
+        )
+        return [(row["text"], row["citations"]) for row in await result.fetchall()]
+
+
+async def test_an_output_equal_to_its_head_is_not_written_again(
+    settings: Settings, db_pool: DatabasePool
+) -> None:
+    credential = await create_workspace(db_pool, "unchanged-output")
+    workspace = credential.workspace
+    catalog = _profile_catalog(settings, _snapshot())
+    occurred = datetime(2026, 1, 15, tzinfo=UTC)
+
+    async def run_with(role: str, citation: UUID) -> str:
+        event = f"evidence for {role} via {citation}"
+        await _insert_event(db_pool, catalog, workspace=workspace, text=event, occurred_at=occurred)
+        await _role_versions(db_pool, workspace=workspace)
+        fake.reset()
+        fake.enqueue(
+            json.dumps({"records": [{"key": "role", "text": role, "citations": [str(citation)]}]})
+        )
+        assert await _run_profile(db_pool, settings, catalog, workspace=workspace) == "done"
+        return (await _latest_run(db_pool, workspace=workspace))["status"]
+
+    first = await _insert_event(
+        db_pool, catalog, workspace=workspace, text="first", occurred_at=occurred
+    )
+    second = await _insert_event(
+        db_pool, catalog, workspace=workspace, text="second", occurred_at=occurred
+    )
+    statuses = [await run_with("VP of Product.", first)]
+    statuses.append(await run_with("VP of Product.", first))
+    statuses.append(await run_with("VP of Product.", second))
+    statuses.append(await run_with("CTO.", second))
+
+    assert statuses == ["ok", "noop", "ok", "ok"]
+    assert await _role_versions(db_pool, workspace=workspace) == [
+        ("VP of Product.", [first]),
+        ("VP of Product.", [second]),
+        ("CTO.", [second]),
+    ]

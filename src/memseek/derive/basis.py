@@ -59,6 +59,10 @@ class ExpectedHead:
     record_id: UUID | None
     content: Mapping[str, Any] | None = None
     depth: int | None = None
+    type: str | None = None
+    collection_version: int | None = None
+    # The head's own citations when a derivation run wrote it; None otherwise.
+    citations: frozenset[UUID] | None = None
 
     def manifest(self) -> dict[str, Any]:
         return {
@@ -443,60 +447,57 @@ async def _expected_heads(
     input_rows: tuple[DerivationRecord, ...] = (),
 ) -> tuple[ExpectedHead, ...]:
     emit = definition.emit
+    keys: tuple[str, ...] = ()
     if emit.keys:
-        keys = emit.keys
+        keys = tuple(emit.keys)
     elif emit.driver_key:
         if len(input_rows) != 1 or input_rows[0].key is None:
             raise DerivationError("config", "driver_key emission requires one keyed input record")
         keys = (input_rows[0].key,)
     elif not emit.dynamic_keys:
         return ()
-    if emit.dynamic_keys:
-        result = await conn.execute(
-            """
-            select distinct on (key) id, key, content, depth
-            from record
-            where workspace = %s and entity = %s and collection = %s
-              and status = 'active' and key is not null
-            order by key, seq desc
-            """,
-            (workspace, entity, emit.collection),
-        )
-        ordered = await result.fetchall()
-        return tuple(
-            ExpectedHead(
-                collection=emit.collection,
-                key=str(row["key"]),
-                record_id=cast(UUID, row["id"]),
-                content=cast(Mapping[str, Any], row["content"]),
-                depth=int(row["depth"]) if row.get("depth") is not None else None,
-            )
-            for row in ordered
-        )
-    result = await conn.execute(
-        """
-        select distinct on (key) id, key, content, depth
+    clauses = [
+        "workspace = %s",
+        "entity = %s",
+        "collection = %s",
+        "status = 'active'",
+        "key is not null",
+    ]
+    params: list[Any] = [workspace, entity, emit.collection]
+    if not emit.dynamic_keys:
+        clauses.append("key = any(%s::text[])")
+        params.append(list(keys))
+    query = cast(
+        LiteralString,
+        f"""
+        select distinct on (key) id, key, type, collection_version, content, depth,
+               case when run_id is null then null
+                    else array_remove(derived_from, run_id) end as citations
         from record
-        where workspace = %s and entity = %s and collection = %s
-          and status = 'active' and key = any(%s::text[])
+        where {" and ".join(clauses)}
         order by key, seq desc
         """,
-        (workspace, entity, emit.collection, list(keys)),
     )
+    result = await conn.execute(query, params)
     rows = {str(row["key"]): row for row in await result.fetchall()}
-    return tuple(
-        ExpectedHead(
-            collection=emit.collection,
-            key=key,
-            record_id=cast(UUID | None, rows.get(key, {}).get("id")),
-            content=cast(Mapping[str, Any] | None, rows.get(key, {}).get("content")),
-            depth=(
-                int(rows[key]["depth"])
-                if key in rows and rows[key].get("depth") is not None
-                else None
-            ),
-        )
-        for key in keys
+    if emit.dynamic_keys:
+        keys = tuple(rows)
+    return tuple(_expected_head(emit.collection, key, rows.get(key)) for key in keys)
+
+
+def _expected_head(collection: str, key: str, row: Mapping[str, Any] | None) -> ExpectedHead:
+    if row is None:
+        return ExpectedHead(collection=collection, key=key, record_id=None)
+    citations = row["citations"]
+    return ExpectedHead(
+        collection=collection,
+        key=key,
+        record_id=cast(UUID, row["id"]),
+        content=cast(Mapping[str, Any], row["content"]),
+        depth=int(row["depth"]) if row["depth"] is not None else None,
+        type=str(row["type"]),
+        collection_version=int(row["collection_version"]),
+        citations=frozenset(citations) if citations is not None else None,
     )
 
 

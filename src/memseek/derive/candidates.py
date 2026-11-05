@@ -39,6 +39,8 @@ class CandidateSet:
     status: Literal["active", "draft"]
     records: tuple[CandidateRecord, ...]
     divergence: tuple[dict[str, Any], ...]
+    # Keyed records equal to their active head: covered, but not written again.
+    unchanged: tuple[CandidateRecord, ...] = ()
 
     @property
     def coverage(self) -> Literal["partial", "complete"]:
@@ -49,7 +51,9 @@ class CandidateSet:
             "effect": self.effect,
             "coverage": self.coverage,
             "status": self.status,
-            "covered_keys": [record.key for record in self.records if record.key is not None],
+            "covered_keys": [
+                record.key for record in (*self.records, *self.unchanged) if record.key is not None
+            ],
             "divergence": list(self.divergence),
         }
 
@@ -167,11 +171,25 @@ def _content(item: Mapping[str, Any], *, settings: Settings) -> dict[str, Any]:
     return content
 
 
+def _equals_head(
+    record: CandidateRecord, head: ExpectedHead | None, *, emit: EmitDefinition, version: int
+) -> bool:
+    return (
+        head is not None
+        and head.record_id is not None
+        and head.type == emit.type
+        and head.collection_version == version
+        and head.content == record.content
+        and head.citations == frozenset(record.citations)
+    )
+
+
 def _divergence(
     records: tuple[CandidateRecord, ...],
     *,
     emit: EmitDefinition,
     basis: EvaluationBasis,
+    unchanged: frozenset[UUID],
 ) -> tuple[dict[str, Any], ...]:
     heads = {(head.collection, head.key): head for head in basis.expected_heads}
     report: list[dict[str, Any]] = []
@@ -196,7 +214,7 @@ def _divergence(
                 "key": record.key,
                 "change": change,
                 "active_record_id": str(active_id) if active_id is not None else None,
-                "candidate_record_id": str(record.id),
+                "candidate_record_id": str(active_id if record.id in unchanged else record.id),
             }
         )
     return tuple(report)
@@ -344,12 +362,29 @@ def compile_candidate_set(
     if emit.dynamic_keys:
         basis = _dynamic_candidate_basis(basis, emit=emit, records=result)
         _validate_dynamic_capacity(basis=basis, emit=emit, records=result)
+    status = emission_status(emit)
+    unchanged: tuple[CandidateRecord, ...] = ()
+    if status == "active":
+        # Drafts stay whole: promotion checks every draft row against
+        # covered_keys, and a reviewer promotes the set, not single keys.
+        version = catalog.resolve_collection(emit.collection, emit.collection_version).version
+        heads = {
+            head.key: head for head in basis.expected_heads if head.collection == emit.collection
+        }
+        unchanged = tuple(
+            record
+            for record in result
+            if record.key is not None
+            and _equals_head(record, heads.get(record.key), emit=emit, version=version)
+        )
+    unchanged_ids = frozenset(record.id for record in unchanged)
     return CandidateSet(
         basis=basis,
         effect=effect,
-        status=emission_status(emit),
-        records=result,
-        divergence=_divergence(result, emit=emit, basis=basis),
+        status=status,
+        records=tuple(record for record in result if record.id not in unchanged_ids),
+        divergence=_divergence(result, emit=emit, basis=basis, unchanged=unchanged_ids),
+        unchanged=unchanged,
     )
 
 

@@ -1131,6 +1131,12 @@ The runtime infers the transition:
 | no `review` | Validated output | Commit active records after guard verification. |
 | `review: required` | Bounded keyed output | Write drafts that a human must approve before they go live. |
 
+A live keyed record whose type, version, content, and citations all equal the
+slot's active head is not written again: the head already says it. The run's
+`candidate_set` still lists the key as covered and reports it `unchanged`, and a
+run whose every record is unchanged commits as a noop. Reviewed drafts are
+always written, because promotion approves the whole set.
+
 `driver_key` exists for repair and rewrite derivations, where the key is not known
 when the catalog is authored — it is whichever slot the driving record happens to
 occupy. It requires `max_records: 1`, forbids static `keys`, and forbids
