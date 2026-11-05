@@ -9,6 +9,7 @@ resolve bare wikilinks such as ``[[Acme]]``.
 
 from __future__ import annotations
 
+import functools
 import hashlib
 import re
 from collections.abc import Mapping
@@ -253,13 +254,23 @@ def infer_predicate(
             return predicate, 0.95  # type: ignore[return-value]
 
     if normalized_type == "person" and target.startswith("companies/"):
-        if re.search(_PARTNER_ROLE_PATTERN, global_context, re.IGNORECASE):
-            return "invested_in", 0.8
-        if re.search(_ADVISOR_ROLE_PATTERN, global_context, re.IGNORECASE):
-            return "advises", 0.8
-        if re.search(_EMPLOYEE_ROLE_PATTERN, global_context, re.IGNORECASE):
-            return "works_at", 0.8
+        role = _page_role(global_context)
+        if role is not None:
+            return role, 0.8
     return "mentions", 0.6
+
+
+# Every reference on a page shares its global context, so the page-wide role
+# scan is cached by that text: a page is scanned once, not once per link.
+@functools.lru_cache(maxsize=32)
+def _page_role(global_context: str) -> GraphPredicate | None:
+    if re.search(_PARTNER_ROLE_PATTERN, global_context, re.IGNORECASE):
+        return "invested_in"
+    if re.search(_ADVISOR_ROLE_PATTERN, global_context, re.IGNORECASE):
+        return "advises"
+    if re.search(_EMPLOYEE_ROLE_PATTERN, global_context, re.IGNORECASE):
+        return "works_at"
+    return None
 
 
 def _mask_ranges(content: str, ranges: list[tuple[int, int]]) -> str:
