@@ -1923,7 +1923,7 @@ that manifest), `SEARCH_PROFILE_OVERRIDES_FILE`, `TASK_MODULES`. The old
 | `WORKER_POLL_MS` / `WORKER_CONCURRENCY` / `INDEX_CONCURRENCY` | `500` / `4` / `1` | |
 | `JOB_LEASE_S` / `JOB_HEARTBEAT_S` / `JOB_MAX_ATTEMPTS` | `300` / `60` / `3` | Heartbeat **must** be < half the lease |
 | `UNREADY_RETRY_S` | `2` | |
-| `CRON_TICK_S` | `30` | |
+| `CRON_TICK_S` | `15` | How often each worker asks the cron scheduler (seconds, under 60). |
 | `ENRICH_BATCH` / `ENRICH_LLM_BATCH` | `32` / `16` | |
 | `SCORER_TEXT_CHARS` | `12000` | The embedding equivalent is `embedding.max_text_chars` in `conf/models.yaml` |
 | `ARTIFACT_USE_RETENTION_DAYS` / `_PURGE_BATCH` | `90` / `500` | Retention ceiling 3650 |

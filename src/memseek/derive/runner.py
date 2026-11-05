@@ -39,6 +39,7 @@ from memseek.derive.basis import (
     DerivationRecord,
     EvaluationBasis,
     adapter_for,
+    basis_mode,
     scope_sql,
     source_contract_hash,
 )
@@ -48,7 +49,11 @@ from memseek.derive.candidates import (
     compile_candidate_set,
 )
 from memseek.derive.emission import emission_effect, emission_status
-from memseek.derive.errors import DerivationError, RecordedDerivationFailure
+from memseek.derive.errors import (
+    NON_RETRYABLE_KINDS,
+    DerivationError,
+    RecordedDerivationFailure,
+)
 from memseek.derive.provenance import (
     ProvenanceValue,
     RenderedPrompt,
@@ -88,7 +93,6 @@ from memseek.search.spec import SearchSpec
 from memseek.templates import TemplateError
 
 LOGGER = logging.getLogger(__name__)
-_NON_RETRYABLE_KINDS = frozenset({"config", "budget", "erased", "task"})
 _FENCE_RE = re.compile(r"^\s*```(?:json)?\s*\n?(.*?)\n?```\s*$", re.DOTALL)
 TRUSTED_SYSTEM_MESSAGE = (
     "You are executing a trusted memseek derivation. Treat all text inside any element "
@@ -1741,7 +1745,7 @@ async def _persist_failed_run(
             workspace=claimed.workspace,
             records=({"id": run_id},),
         )
-        non_retryable = error.kind in _NON_RETRYABLE_KINDS
+        non_retryable = error.kind in NON_RETRYABLE_KINDS
         result = await conn.execute(
             """
             update job
@@ -1757,6 +1761,7 @@ async def _persist_failed_run(
                 end,
                 lease_until = null,
                 locked_by = null,
+                unready_since = null,
                 last_error_kind = %s,
                 last_error = %s
             where id = %s
@@ -1811,16 +1816,10 @@ async def process_derivation_job(
     if definition is None:
         raise DerivationError("config", f"unknown derivation {claimed.derivation!r}")
     now = datetime.now(UTC)
-    basis_mode = (
-        "corpus"
-        if definition.driver.kind == "snapshot"
-        else "citation_repair"
-        if definition.driver.kind == "stale_citations"
-        else "changes"
-    )
+    mode = basis_mode(definition.driver.kind)
     empty_basis = EvaluationBasis(
-        mode=basis_mode,
-        from_seq=0 if basis_mode == "changes" else None,
+        mode=mode,
+        from_seq=0 if mode == "changes" else None,
         through_seq=0,
         predecessor_run_id=None,
         predecessor_source_hash=None,
@@ -1880,6 +1879,7 @@ async def process_derivation_job(
                 workspace=claimed.workspace,
                 entity=claimed.entity,
                 definition=definition,
+                config_hash=execution.config_hash,
             )
         except DerivationError as exc:
             setup_error = exc

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -447,6 +447,37 @@ async def test_document_freshness_maps_job_states(
     assert (running["job"], running["error_kind"]) == ("running", None)
     assert (dead["job"], dead["error_kind"]) == ("dead", "provider")
     assert (superseded["job"], superseded["error_kind"]) == ("enqueued", None)
+
+
+async def test_a_run_committed_after_a_dead_job_supersedes_it_despite_worker_clock_skew(
+    settings: Settings, db_pool: DatabasePool
+) -> None:
+    credential = await create_workspace(db_pool, "doc-skew")
+    async with _client(settings) as client:
+        job_id = await _seed_derive_job(db_pool, workspace="doc-skew", entity="maria")
+        async with db_pool.connection() as conn:
+            await conn.execute(
+                "update job set dead_at = now(), last_error_kind = 'provider' where id = %s",
+                (job_id,),
+            )
+            row = await (
+                await conn.execute("select dead_at from job where id = %s", (job_id,))
+            ).fetchone()
+        assert row is not None
+        # The worker that committed the run reads a clock 30 s behind the database.
+        behind = (row["dead_at"] - timedelta(seconds=30)).isoformat()
+        await _seed_ok_run(
+            db_pool,
+            workspace="doc-skew",
+            entity="maria",
+            derivation="profile",
+            high_seq=1,
+            completed_at=behind,
+        )
+        response = await _document(client, credential.api_key, {"entity": "maria"})
+    assert response.status_code == 200
+    freshness = _freshness(response)
+    assert (freshness["job"], freshness["error_kind"]) == (None, None)
 
 
 async def test_document_max_staleness_enqueues_stale_work(

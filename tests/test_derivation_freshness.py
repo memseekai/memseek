@@ -395,6 +395,11 @@ async def test_a_definition_change_reruns_an_unchanged_snapshot(
                 "profile": profile.model_copy(update={"definition_hash": "edited"}),
             }
         ),
+        # The loader derives the processor config hash from the whole
+        # definition, so an edit moves it too; the run digest reads it.
+        processor_config_hashes=MappingProxyType(
+            {**catalog.processor_config_hashes, "profile": "edited"}
+        ),
     )
 
     rerun = await _profile_calls(db_pool, settings, edited, workspace=credential.workspace)

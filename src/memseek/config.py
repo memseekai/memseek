@@ -174,7 +174,9 @@ class Settings(BaseSettings):
     # A derive job still not ready this long after its first release is
     # dead-lettered as not_ready_timeout instead of holding its mailbox.
     unready_timeout_s: int = 3600
-    cron_tick_s: int = 30
+    # How often a worker asks the cron scheduler; kept under a minute so an app
+    # clock running ahead of the database cannot delay a tick by a whole minute.
+    cron_tick_s: int = Field(default=15, ge=1, le=59)
 
     context_doc_order_score: str = "importance"
 

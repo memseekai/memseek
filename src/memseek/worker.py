@@ -473,6 +473,7 @@ async def _drain_derivation_jobs(
 ) -> tuple[int, int]:
     """Run configured derivations through one shared job lane."""
 
+    from memseek.derive.errors import NON_RETRYABLE_KINDS
     from memseek.derive.runner import (
         DerivationError,
         RecordedDerivationFailure,
@@ -561,7 +562,7 @@ async def _drain_derivation_jobs(
             if isinstance(exc, RecordedDerivationFailure):
                 continue
             try:
-                if exc.kind in {"config", "budget", "erased"}:
+                if exc.kind in NON_RETRYABLE_KINDS:
                     await dead_letter_job(
                         runtime.pool,
                         claimed,
@@ -688,27 +689,14 @@ async def _cron_entities(
     has_more = len(candidates) > _CRON_PAGE_SIZE
     candidates = candidates[:_CRON_PAGE_SIZE]
     page_cursor = candidates[-1] if has_more else None
-    if mode == "any":
-        # A provenance-repair driver is already a bounded, per-entity selector.
-        # Reuse that selector before queueing cron work so an hourly repair does
-        # not create one noop run for every unrelated entity in the workspace.
-        if definition.driver.kind == "stale_citations":
-            from memseek.derive.basis import adapter_for
-
-            adapter = adapter_for(definition.driver.kind)
-            selected: list[str] = []
-            for entity in candidates:
-                basis = await adapter.resolve(
-                    conn,
-                    workspace=workspace,
-                    entity=entity,
-                    definition=definition,
-                )
-                if basis is not None and basis.input_rows:
-                    selected.append(entity)
-            return selected, has_more, page_cursor
+    if mode == "any" and definition.driver.kind != "stale_citations":
         return candidates, has_more, page_cursor
-    from memseek.triggers import _scope_clauses, _watermark
+    # Dirty mode, and a provenance-repair driver even in any mode, ask the
+    # same probe read freshness uses, so a cron page queues only entities whose
+    # next run would read a different basis (snapshot windows and stale
+    # citations included) instead of one noop run per unrelated entity.
+    from memseek.derive.basis import pending_input
+    from memseek.triggers import _watermark
 
     selected: list[str] = []
     for entity in candidates:
@@ -718,19 +706,14 @@ async def _cron_entities(
             entity=entity,
             derivation=definition.name,
         )
-        clauses, params = _scope_clauses(
-            definition.driver,
+        dirty, _pending_unready = await pending_input(
+            conn,
             workspace=workspace,
             entity=entity,
+            definition=definition,
             watermark=watermark,
         )
-        query = f"select exists(select 1 from record row where {' and '.join(clauses)}) as dirty"
-        result = await conn.execute(
-            query,
-            params,
-        )
-        row = await result.fetchone()
-        if row is not None and row["dirty"]:
+        if dirty:
             selected.append(entity)
     return selected, has_more, page_cursor
 
@@ -1300,13 +1283,13 @@ async def run_worker_once(
             purge_finished_jobs(runtime.pool, retention_days=runtime.settings.job_retention_days),
             0,
         )
-    # Cron ticks are minute-granular, so asking the scheduler more than once per
-    # minute only repeats the sweep of every workspace.
+    # Cron ticks are minute-granular, so asking the scheduler every pass only
+    # repeats the sweep of every workspace.
     if (
         runtime.catalog_registry is not None
         or getattr(runtime.catalog, "triggers", None)
         or any(package.retentions for package in getattr(runtime.catalog, "packages", {}).values())
-    ) and runtime.cadence.due("cron_schedule", 60):
+    ) and runtime.cadence.due("cron_schedule", runtime.settings.cron_tick_s):
         from memseek.triggers import schedule_cron_jobs
 
         cron_jobs = await lanes.run(

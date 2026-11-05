@@ -66,15 +66,16 @@ async def _watermarks(
     workspace: str,
     entity: str,
     derivations: list[str],
-) -> dict[str, tuple[int, str | None]]:
+) -> dict[str, tuple[int, str | None, datetime]]:
     result = await conn.execute(
         """
         select processor.name,
                (latest.content->>'high_seq')::bigint as watermark,
-               latest.content->>'completed_at' as completed_at
+               latest.content->>'completed_at' as completed_at,
+               latest.created_at as recorded_at
         from unnest(%s::text[]) as processor(name)
         cross join lateral (
-          select content
+          select content, created_at
           from record
           where workspace = %s
             and entity = %s
@@ -93,6 +94,7 @@ async def _watermarks(
         str(row["name"]): (
             int(row["watermark"]),
             row["completed_at"] if isinstance(row["completed_at"], str) else None,
+            row["recorded_at"],
         )
         for row in await result.fetchall()
     }
@@ -126,15 +128,17 @@ async def _job_rows(
 
 
 def _job_state(
-    rows: list[dict[str, Any]], *, last_run_at: str | None
+    rows: list[dict[str, Any]], *, last_run_recorded_at: datetime | None
 ) -> tuple[JobState | None, str | None]:
     """Map job rows onto the freshness ``job`` states.
 
     A dead-lettered derive job blocks the lane until a later successful or
     noop run supersedes it, even when a newer active job already exists.
+    "Later" compares the run record's database insert time with ``dead_at``:
+    the run's own ``completed_at`` comes from the worker's clock.
     """
 
-    last_run = _parse_run_time(last_run_at)
+    last_run = last_run_recorded_at
     for row in rows:
         if row["dead_at"] is not None:
             if last_run is not None and last_run >= row["dead_at"]:
@@ -166,7 +170,9 @@ async def compute_freshness(
     jobs = await _job_rows(conn, workspace=workspace, entity=entity, derivations=names)
     entries: list[DerivationFreshness] = []
     for definition in definitions:
-        watermark, last_run_at = watermarks.get(definition.name, (0, None))
+        watermark, last_run_at, last_run_recorded_at = watermarks.get(
+            definition.name, (0, None, None)
+        )
         dirty, pending_unready = await pending_input(
             conn,
             workspace=workspace,
@@ -174,7 +180,9 @@ async def compute_freshness(
             definition=definition,
             watermark=watermark,
         )
-        job, error_kind = _job_state(jobs.get(definition.name, []), last_run_at=last_run_at)
+        job, error_kind = _job_state(
+            jobs.get(definition.name, []), last_run_recorded_at=last_run_recorded_at
+        )
         entries.append(
             DerivationFreshness(
                 derivation=definition.name,
