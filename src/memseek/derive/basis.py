@@ -442,15 +442,29 @@ async def _snapshot_input(
     clauses, params = _snapshot_scope_sql(source, workspace=workspace, entity=entity)
     window = source.window
     where = " and ".join(clauses)
+    # The checkpoint stops below the oldest unready row, so a corpus waiting on
+    # one late enrichment still runs over the ready prefix it already has.
     checkpoint_query = cast(
         LiteralString,
-        f"select coalesce(max(record.seq), 0) as high_seq from record where {where}",
+        f"""
+        with first_unready as (
+          select min(record.seq) as seq
+          from record
+          where {where} and record.enriched_at is null
+        )
+        select coalesce(max(record.seq), 0) as high_seq,
+               (select seq from first_unready) as unready_seq
+        from record
+        where {where}
+          and record.seq < coalesce((select seq from first_unready), 9223372036854775807)
+        """,
     )
-    checkpoint_result = await conn.execute(checkpoint_query, params)
+    checkpoint_result = await conn.execute(checkpoint_query, [*params, *params])
     checkpoint_row = await checkpoint_result.fetchone()
     through_seq = int(checkpoint_row["high_seq"] if checkpoint_row is not None else 0)
     if through_seq == 0:
-        return 0, None, ()
+        unready = checkpoint_row is not None and checkpoint_row.get("unready_seq") is not None
+        return 0, None, None if unready else ()
     # A recent window takes the newest N rows at/below the checkpoint (fetched
     # descending, then presented ascending); otherwise the whole corpus is read
     # ascending with the usual max_records ceiling.

@@ -303,7 +303,8 @@ starts over.
 **How "complete" is pinned.** Records keep arriving while a run is computing, so
 "all matching records" needs a cutoff, or two runs could disagree about what
 "all" meant. At run start Memseek reads the highest sequence number (`seq`) among
-matching rows and freezes it as `{{run.checkpoint}}`. The source is then exactly
+matching rows below the oldest unready match and freezes it as
+`{{run.checkpoint}}`. The source is then exactly
 every matching record with `seq` at or below that checkpoint — no more, no less.
 Anything that arrives afterward has a higher `seq` and belongs to the *next*
 run, not this one. That is all "captured at one canonical sequence checkpoint"
@@ -318,7 +319,9 @@ Completeness is strict:
 
 - exceeding `max_records` fails the run;
 - not fitting `max_tokens` or `max_visible_records` fails the run; and
-- an unready matching row makes the run wait rather than silently excluding it.
+- an unready matching row moves the checkpoint below it rather than silently
+  excluding it, so the run covers the ready prefix and the unready row belongs
+  to a later run. When no ready row precedes it, the run waits.
 
 Narrow the source, raise a safe bound, or introduce a compacted upstream
 collection when the complete history no longer fits one run.

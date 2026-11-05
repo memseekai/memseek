@@ -240,3 +240,86 @@ async def test_stale_citations_is_dirty_only_while_a_citation_is_stale(
 
     assert current == {"dirty": False, "pending_unready": False}
     assert stale == {"dirty": True, "pending_unready": False}
+
+
+def _snapshot(**overrides: Any) -> dict[str, Any]:
+    return {
+        "kind": "snapshot",
+        "collections": ["main"],
+        "types": ["event"],
+        "statuses": ["active"],
+        "keyed": False,
+        "max_records": 50,
+        "max_tokens": 24000,
+        "allow_empty": False,
+        **overrides,
+    }
+
+
+async def _latest_run(pool: DatabasePool, *, workspace: str) -> dict[str, Any]:
+    async with pool.connection() as conn:
+        result = await conn.execute(
+            """
+            select content from record
+            where workspace = %s and collection = '_system' and type = 'run'
+              and content->>'operation' = 'derive'
+            order by seq desc limit 1
+            """,
+            (workspace,),
+        )
+        row = await result.fetchone()
+    assert row is not None
+    return row["content"]
+
+
+async def test_snapshot_runs_over_the_ready_prefix_below_an_unready_row(
+    settings: Settings, db_pool: DatabasePool
+) -> None:
+    credential = await create_workspace(db_pool, "snapshot-ready-prefix")
+    catalog = _profile_catalog(settings, _snapshot())
+    occurred = datetime(2026, 1, 15, tzinfo=UTC)
+    first = await _insert_event(
+        db_pool, catalog, workspace=credential.workspace, text="ready", occurred_at=occurred
+    )
+    await _insert_event(
+        db_pool,
+        catalog,
+        workspace=credential.workspace,
+        text="awaiting enrichment",
+        occurred_at=occurred,
+        ready=False,
+    )
+    fake.reset()
+
+    disposition = await _run_profile(db_pool, settings, catalog, workspace=credential.workspace)
+    assert disposition == "done"
+    run = await _latest_run(db_pool, workspace=credential.workspace)
+    async with db_pool.connection() as conn:
+        seq_row = await (
+            await conn.execute("select seq from record where id = %s", (first,))
+        ).fetchone()
+    assert seq_row is not None
+    freshness = await _profile_freshness(db_pool, catalog, workspace=credential.workspace)
+
+    assert (run["high_seq"], run["basis"]["input_ids"]) == (seq_row["seq"], [str(first)])
+    assert freshness == {"dirty": True, "pending_unready": True}
+
+
+async def test_snapshot_with_only_unready_rows_waits(
+    settings: Settings, db_pool: DatabasePool
+) -> None:
+    credential = await create_workspace(db_pool, "snapshot-all-unready")
+    catalog = _profile_catalog(settings, _snapshot(allow_empty=True))
+    await _insert_event(
+        db_pool,
+        catalog,
+        workspace=credential.workspace,
+        text="awaiting enrichment",
+        occurred_at=datetime(2026, 1, 15, tzinfo=UTC),
+        ready=False,
+    )
+    fake.reset()
+
+    disposition = await _run_profile(db_pool, settings, catalog, workspace=credential.workspace)
+
+    assert disposition == "not_ready"
