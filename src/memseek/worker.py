@@ -473,6 +473,7 @@ async def _drain_derivation_jobs(
 ) -> tuple[int, int]:
     """Run configured derivations through one shared job lane."""
 
+    from memseek.derive.errors import NON_RETRYABLE_KINDS
     from memseek.derive.runner import (
         DerivationError,
         RecordedDerivationFailure,
@@ -561,7 +562,7 @@ async def _drain_derivation_jobs(
             if isinstance(exc, RecordedDerivationFailure):
                 continue
             try:
-                if exc.kind in {"config", "budget", "erased"}:
+                if exc.kind in NON_RETRYABLE_KINDS:
                     await dead_letter_job(
                         runtime.pool,
                         claimed,
@@ -1300,13 +1301,13 @@ async def run_worker_once(
             purge_finished_jobs(runtime.pool, retention_days=runtime.settings.job_retention_days),
             0,
         )
-    # Cron ticks are minute-granular, so asking the scheduler more than once per
-    # minute only repeats the sweep of every workspace.
+    # Cron ticks are minute-granular, so asking the scheduler every pass only
+    # repeats the sweep of every workspace.
     if (
         runtime.catalog_registry is not None
         or getattr(runtime.catalog, "triggers", None)
         or any(package.retentions for package in getattr(runtime.catalog, "packages", {}).values())
-    ) and runtime.cadence.due("cron_schedule", 60):
+    ) and runtime.cadence.due("cron_schedule", runtime.settings.cron_tick_s):
         from memseek.triggers import schedule_cron_jobs
 
         cron_jobs = await lanes.run(

@@ -32,7 +32,6 @@ from memseek.derive.schema import (
 )
 from memseek.locks import advisory_lock_key
 from memseek.logging import log_event
-from memseek.models import ClaimedJob, LeaseLost
 from memseek.search.scope import field_value_expression
 
 LOGGER = logging.getLogger(__name__)
@@ -1215,22 +1214,7 @@ async def _schedule_workspaces(
     return inserted
 
 
-async def claim_owned_tx(conn: DatabaseConnection, claimed: ClaimedJob) -> None:
-    result = await conn.execute(
-        """
-        select 1 as owned from job
-        where id = %s and locked_by = %s and done_at is null and dead_at is null
-          and lease_until > clock_timestamp()
-        for update
-        """,
-        (claimed.id, claimed.claim_token),
-    )
-    if await result.fetchone() is None:
-        raise LeaseLost(f"job lease lost: {claimed.id}")
-
-
 __all__ = [
-    "claim_owned_tx",
     "enqueue_derive_tx",
     "evaluate_entity_triggers_tx",
     "evaluate_ready_triggers_tx",
