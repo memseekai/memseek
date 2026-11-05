@@ -445,6 +445,7 @@ async def _expected_heads(
     entity: str,
     definition: PipelineDefinition,
     input_rows: tuple[DerivationRecord, ...] = (),
+    ids_only: bool = False,
 ) -> tuple[ExpectedHead, ...]:
     emit = definition.emit
     keys: tuple[str, ...] = ()
@@ -467,27 +468,51 @@ async def _expected_heads(
     if not emit.dynamic_keys:
         clauses.append("key = any(%s::text[])")
         params.append(list(keys))
-    query = cast(
-        LiteralString,
-        f"""
-        select distinct on (key) id, key, type, collection_version, content, depth,
+    columns = (
+        "id, key"
+        if ids_only
+        else """id, key, type, collection_version, content, depth,
                case when run_id is null then null
-                    else array_remove(derived_from, run_id) end as citations
+                    else array_remove(derived_from, run_id) end as citations"""
+    )
+    heads = f"""
+        select distinct on (key) {columns}, content->>'tombstone' = 'true' as retired
         from record
         where {" and ".join(clauses)}
         order by key, seq desc
-        """,
-    )
-    result = await conn.execute(query, params)
+        """
+    if emit.dynamic_keys:
+        # Retired dynamic keys accumulate forever, so only live heads are
+        # preconditions.  One run can retract at most max_records keys, so a
+        # live set beyond max_active_keys + max_records can never commit.
+        assert emit.max_active_keys is not None
+        bound = emit.max_active_keys + emit.max_records
+        query = cast(
+            LiteralString,
+            f"select * from ({heads}) heads where retired is not true order by key limit %s",
+        )
+        result = await conn.execute(query, [*params, bound + 1])
+    else:
+        result = await conn.execute(cast(LiteralString, heads), params)
     rows = {str(row["key"]): row for row in await result.fetchall()}
     if emit.dynamic_keys:
+        if len(rows) > bound:
+            raise DerivationError(
+                "validation", "dynamic keyed collection exceeds emit.max_active_keys"
+            )
         keys = tuple(rows)
-    return tuple(_expected_head(emit.collection, key, rows.get(key)) for key in keys)
+    return tuple(
+        _expected_head(emit.collection, key, rows.get(key), ids_only=ids_only) for key in keys
+    )
 
 
-def _expected_head(collection: str, key: str, row: Mapping[str, Any] | None) -> ExpectedHead:
+def _expected_head(
+    collection: str, key: str, row: Mapping[str, Any] | None, *, ids_only: bool
+) -> ExpectedHead:
     if row is None:
         return ExpectedHead(collection=collection, key=key, record_id=None)
+    if ids_only:
+        return ExpectedHead(collection=collection, key=key, record_id=cast(UUID, row["id"]))
     citations = row["citations"]
     return ExpectedHead(
         collection=collection,
@@ -774,6 +799,7 @@ async def _verify_heads(
         entity=entity,
         definition=definition,
         input_rows=input_rows,
+        ids_only=True,
     )
     expected_for_verification = expected
     if definition.emit.dynamic_keys:

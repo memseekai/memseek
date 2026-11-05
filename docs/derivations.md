@@ -1145,9 +1145,13 @@ occupy. It requires `max_records: 1`, forbids static `keys`, and forbids
 `dynamic_keys: true` is for a bounded collection of independent named blocks,
 such as scene documents. It requires `max_active_keys`; it cannot combine with
 static `keys`, `driver_key`, `complete`, or `review`. Before the task runs, the
-engine captures every current head in that output collection. At commit it checks
-that none changed and that the proposed live set remains within the declared
-bound. A new name receives an explicit empty-head precondition in the receipt.
+engine captures every live head in that output collection; retracted keys are not
+preconditions, so they never grow the capture. At commit it checks that none
+changed and that the proposed live set remains within the declared bound. A new
+name, including a retracted one brought back, receives an explicit empty-head
+precondition in the receipt. A live set larger than `max_active_keys` plus
+`max_records` fails before the task runs, because no single run could retract
+enough keys to commit.
 
 `collection_version` may pin a version; otherwise catalog compilation resolves
 the active one. A keyed emission requires a keyed or mixed collection. An

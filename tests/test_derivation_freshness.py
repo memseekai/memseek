@@ -9,12 +9,15 @@ from types import MappingProxyType
 from typing import Any
 from uuid import UUID
 
+import pytest
 from psycopg.types.json import Jsonb
 
 from memseek.auth import create_workspace
 from memseek.config import Settings
 from memseek.db import DatabasePool
 from memseek.definitions import DefinitionCatalog, load_definition_catalog
+from memseek.derive.basis import adapter_for
+from memseek.derive.errors import DerivationError
 from memseek.derive.runner import enqueue_derivation_job, process_derivation_job
 from memseek.derive.schema import PipelineDefinition
 from memseek.freshness import compute_freshness
@@ -186,6 +189,7 @@ async def _insert_profile_fact(
     workspace: str,
     key: str,
     derived_from: tuple[UUID, ...] = (),
+    tombstone: bool = False,
 ) -> UUID:
     collection = catalog.resolve_collection("profiles")
     async with pool.connection() as conn:
@@ -204,7 +208,7 @@ async def _insert_profile_fact(
                 collection.contract_hash,
                 ENTITY,
                 key,
-                Jsonb({"text": f"{key} value"}),
+                Jsonb({"text": "", "tombstone": True} if tombstone else {"text": f"{key} value"}),
                 list(derived_from),
             ),
         )
@@ -501,3 +505,45 @@ async def test_an_output_equal_to_its_head_is_not_written_again(
         ("VP of Product.", [second]),
         ("CTO.", [second]),
     ]
+
+
+def _dynamic_profile(catalog: DefinitionCatalog) -> PipelineDefinition:
+    profile = catalog.derivations["profile"].model_dump(mode="python", by_alias=True)
+    emit = {**profile["emit"], "keys": (), "dynamic_keys": True, "max_active_keys": 2}
+    return PipelineDefinition.model_validate({**profile, "emit": {**emit, "max_records": 1}})
+
+
+async def test_dynamic_heads_skip_retired_keys_and_stop_at_the_reachable_bound(
+    settings: Settings, db_pool: DatabasePool
+) -> None:
+    credential = await create_workspace(db_pool, "dynamic-heads")
+    workspace = credential.workspace
+    catalog = _profile_catalog(settings, _snapshot())
+    definition = _dynamic_profile(catalog)
+    await _insert_event(
+        db_pool,
+        catalog,
+        workspace=workspace,
+        text="evidence",
+        occurred_at=datetime(2026, 1, 15, tzinfo=UTC),
+    )
+    for key in ("retired_a", "retired_b", "retired_c"):
+        await _insert_profile_fact(db_pool, catalog, workspace=workspace, key=key)
+        await _insert_profile_fact(db_pool, catalog, workspace=workspace, key=key, tombstone=True)
+    live = await _insert_profile_fact(db_pool, catalog, workspace=workspace, key="live")
+
+    async def heads() -> list[tuple[str, UUID | None]]:
+        async with db_pool.connection() as conn:
+            basis = await adapter_for("snapshot").resolve(
+                conn, workspace=workspace, entity=ENTITY, definition=definition
+            )
+        assert basis is not None
+        return [(head.key, head.record_id) for head in basis.expected_heads]
+
+    within = await heads()
+    for key in ("extra_a", "extra_b", "extra_c"):
+        await _insert_profile_fact(db_pool, catalog, workspace=workspace, key=key)
+
+    assert within == [("live", live)]
+    with pytest.raises(DerivationError, match="max_active_keys"):
+        await heads()
