@@ -100,7 +100,7 @@ async def apply_migrations(
         },
     )
     try:
-        async with engine.begin() as connection:
+        async with engine.connect() as connection:
             await connection.run_sync(_upgrade_database, config)
     finally:
         await engine.dispose()

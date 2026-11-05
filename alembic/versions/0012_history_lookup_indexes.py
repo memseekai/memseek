@@ -19,44 +19,47 @@ def upgrade() -> None:
     """Serve the cursor, cron checkpoint, and job-state reads from indexes.
 
     ``record_run_lookup`` keyed runs by ``content->>'derivation'``, which no run
-    writes, so every cursor read scanned the entity's run history.
+    writes, so every cursor read scanned the entity's run history.  The builds
+    run concurrently so a large ``record`` table keeps accepting writes.
     """
 
-    op.execute("drop index record_run_lookup")
-    op.execute(
-        """
-        create index record_derive_cursor
-          on record (workspace, entity, (content->>'processor'), seq desc)
-          where collection = '_system'
-            and type = 'run'
-            and content->>'operation' = 'derive'
-            and content->>'status' in ('ok', 'noop')
-        """
-    )
-    op.execute(
-        """
-        create index job_cron_checkpoint
-          on job (workspace, derivation, (payload->>'trigger'), (payload->>'scheduled_at'))
-          where kind = 'cron_scan'
-        """
-    )
-    op.execute(
-        """
-        create index job_derive_unfinished
-          on job (workspace, derivation, entity, created_at desc, id)
-          where kind = 'derive' and done_at is null
-        """
-    )
+    with op.get_context().autocommit_block():
+        op.execute("drop index concurrently if exists record_run_lookup")
+        op.execute(
+            """
+            create index concurrently if not exists record_derive_cursor
+              on record (workspace, entity, (content->>'processor'), seq desc)
+              where collection = '_system'
+                and type = 'run'
+                and content->>'operation' = 'derive'
+                and content->>'status' in ('ok', 'noop')
+            """
+        )
+        op.execute(
+            """
+            create index concurrently if not exists job_cron_checkpoint
+              on job (workspace, derivation, (payload->>'trigger'), (payload->>'scheduled_at'))
+              where kind = 'cron_scan'
+            """
+        )
+        op.execute(
+            """
+            create index concurrently if not exists job_derive_unfinished
+              on job (workspace, derivation, entity, created_at desc, id)
+              where kind = 'derive' and done_at is null
+            """
+        )
 
 
 def downgrade() -> None:
-    op.execute("drop index job_derive_unfinished")
-    op.execute("drop index job_cron_checkpoint")
-    op.execute("drop index record_derive_cursor")
-    op.execute(
-        """
-        create index record_run_lookup
-          on record (workspace, entity, ((content->>'derivation')), seq desc)
-          where type = 'run'
-        """
-    )
+    with op.get_context().autocommit_block():
+        op.execute("drop index concurrently if exists job_derive_unfinished")
+        op.execute("drop index concurrently if exists job_cron_checkpoint")
+        op.execute("drop index concurrently if exists record_derive_cursor")
+        op.execute(
+            """
+            create index concurrently if not exists record_run_lookup
+              on record (workspace, entity, ((content->>'derivation')), seq desc)
+              where type = 'run'
+            """
+        )

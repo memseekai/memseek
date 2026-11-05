@@ -22,8 +22,8 @@ from memseek.migrations import (
 async def test_migration_is_idempotent_and_schema_is_present(
     settings: Settings, db_pool: DatabasePool
 ) -> None:
-    assert await apply_migrations(settings.database_url) == "0012_history_lookup_indexes"
-    assert await apply_migrations(settings.database_url) == "0012_history_lookup_indexes"
+    assert await apply_migrations(settings.database_url) == "0013_scheduling_state"
+    assert await apply_migrations(settings.database_url) == "0013_scheduling_state"
     async with db_pool.connection() as conn:
         result = await conn.execute(
             """
@@ -35,6 +35,7 @@ async def test_migration_is_idempotent_and_schema_is_present(
               to_regclass('public.artifact_use')::text as artifact_use,
               to_regclass('public.computer_session')::text as computer_session,
               to_regclass('public.invocation')::text as invocation,
+              to_regclass('public.cron_checkpoint')::text as cron_checkpoint,
               (select version_num from alembic_version) as revision,
               exists (select 1 from pg_extension where extname = 'vector') as vector
             """
@@ -48,7 +49,8 @@ async def test_migration_is_idempotent_and_schema_is_present(
         "artifact_use": "artifact_use",
         "computer_session": "computer_session",
         "invocation": "invocation",
-        "revision": "0012_history_lookup_indexes",
+        "cron_checkpoint": "cron_checkpoint",
+        "revision": "0013_scheduling_state",
         "vector": True,
     }
 
@@ -64,7 +66,7 @@ def test_normative_migration_checksum_drift_is_rejected(tmp_path: Path) -> None:
 def test_alembic_revision_graph_has_one_head(settings: Settings) -> None:
     config = build_alembic_config(settings.database_url)
     scripts = ScriptDirectory.from_config(config)
-    assert scripts.get_heads() == ["0012_history_lookup_indexes"]
+    assert scripts.get_heads() == ["0013_scheduling_state"]
 
 
 def test_plain_postgresql_url_selects_installed_psycopg_driver() -> None:
@@ -88,15 +90,25 @@ async def test_expected_job_and_record_indexes_exist(
         )
         definitions = {row["indexname"]: row["indexdef"] for row in await result.fetchall()}
         indexes = set(definitions)
+        invalid = await conn.execute(
+            "select indexrelid::regclass::text as name from pg_index where not indisvalid"
+        )
+        invalid_indexes = await invalid.fetchall()
+    assert invalid_indexes == []
     assert {
         "record_keyed_current",
         "record_vec",
         "record_fts",
         "record_graph_edges_out",
         "record_graph_edges_in",
-        "job_ready",
+        "record_derive_cursor",
+        "job_claim",
+        "job_lease_expiry",
+        "job_finished_at",
+        "job_derive_unfinished",
         "job_active_derive",
     } <= indexes
+    assert not {"record_run_lookup", "job_ready", "job_cron_checkpoint"} & indexes
     for name in ("record_graph_edges_out", "record_graph_edges_in"):
         assert "workspace, collection" in definitions[name]
         assert "collection = 'edges'" not in definitions[name]
