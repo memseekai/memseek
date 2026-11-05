@@ -185,6 +185,30 @@ def _renderable(item: DerivationRecord) -> RenderableRecord:
     )
 
 
+class _RowPacker:
+    """Accumulate rendered rows while their newline-joined estimate fits a budget.
+
+    The estimate is tracked in bytes as rows are added, so packing n rows costs
+    one render and one encode per row rather than a re-render of the prefix.
+    """
+
+    def __init__(self, max_tokens: int) -> None:
+        self.max_tokens = max_tokens
+        self.rows: list[str] = []
+        self._bytes = 0
+
+    def add(self, row: str) -> bool:
+        size = self._bytes + len(row.encode("utf-8")) + bool(self.rows)
+        if max(1, (size + 3) // 4) > self.max_tokens:
+            return False
+        self.rows.append(row)
+        self._bytes = size
+        return True
+
+    def render(self) -> str:
+        return render_rows(self.rows, fence=None)
+
+
 def _pack_rows(
     rows: Sequence[DerivationRecord],
     *,
@@ -195,19 +219,15 @@ def _pack_rows(
     """Pack the longest prefix that fits; empty when even the first row does not."""
 
     selected: list[DerivationRecord] = []
-    rendered: list[str] = []
-    used_bytes = 0
+    packer = _RowPacker(max_tokens)
     for item in rows:
         if max_records is not None and len(selected) >= max_records:
             break
         row = render_record(_renderable(item), profile="derivation_input", catalog=catalog)
-        candidate_bytes = used_bytes + len(row.encode("utf-8")) + bool(selected)
-        if max(1, (candidate_bytes + 3) // 4) > max_tokens:
+        if not packer.add(row):
             break
         selected.append(item)
-        rendered.append(row)
-        used_bytes = candidate_bytes
-    return tuple(selected), render_rows(rendered, fence=None)
+    return tuple(selected), packer.render()
 
 
 def _record_value(item: DerivationRecord) -> dict[str, Any]:
@@ -511,6 +531,7 @@ async def _retrieve(
     for item, hits in results:
         selected: list[dict[str, Any]] = []
         selected_ids: set[UUID] = set()
+        packer = _RowPacker(step.max_tokens)
         for hit in hits:
             try:
                 hit_id = UUID(str(hit["id"]))
@@ -524,17 +545,14 @@ async def _retrieve(
                 break
             if execution.retrieved_count >= execution.definition.limits.max_retrieved_records:
                 break
-            candidate = [*selected, hit]
-            rendered = _hit_render(candidate)
-            if _tokens(rendered) > step.max_tokens:
+            if not packer.add(_hit_row(hit)):
                 break
             selected.append(hit)
             selected_ids.add(hit_id)
             execution.retrieved_count += 1
             if new_id:
                 execution.visible_ids.add(hit_id)
-        rendered = _hit_render(selected)
-        source = ProvenanceValue(rendered, frozenset(selected_ids), pre_escaped=True)
+        source = ProvenanceValue(packer.render(), frozenset(selected_ids), pre_escaped=True)
         source_ids.update(source.source_ids)
         payload.append(
             {
@@ -555,20 +573,17 @@ async def _retrieve(
     return ProvenanceValue(payload, frozenset(source_ids))
 
 
-def _hit_render(hits: Sequence[Mapping[str, Any]]) -> str:
-    rows = []
-    for hit in hits:
-        identity = "/".join(str(part) for part in (hit.get("collection"), hit.get("type")) if part)
-        metadata = [
-            f"[id={hit['id']}]",
-            str(hit.get("occurred_at", "")),
-            identity,
-        ]
-        if hit.get("key") is not None:
-            metadata.append(f"key {escape_untrusted(str(hit['key']))}")
-        metadata.append(escape_untrusted(str(hit.get("text", ""))))
-        rows.append(" | ".join(metadata))
-    return render_rows(rows, fence=None)
+def _hit_row(hit: Mapping[str, Any]) -> str:
+    identity = "/".join(str(part) for part in (hit.get("collection"), hit.get("type")) if part)
+    metadata = [
+        f"[id={hit['id']}]",
+        str(hit.get("occurred_at", "")),
+        identity,
+    ]
+    if hit.get("key") is not None:
+        metadata.append(f"key {escape_untrusted(str(hit['key']))}")
+    metadata.append(escape_untrusted(str(hit.get("text", ""))))
+    return " | ".join(metadata)
 
 
 async def _resolve_view_sources(
@@ -614,6 +629,7 @@ async def _resolve_view_sources(
         hits = result.get("hits", ())
         selected: list[dict[str, Any]] = []
         selected_ids: set[UUID] = set()
+        packer = _RowPacker(source.max_tokens)
         for hit in hits:
             try:
                 hit_id = UUID(str(hit["id"]))
@@ -627,14 +643,13 @@ async def _resolve_view_sources(
                 and len(execution.visible_ids) >= execution.definition.limits.max_visible_records
             ):
                 break
-            candidate = [*selected, dict(hit)]
-            if _tokens(_hit_render(candidate)) > source.max_tokens:
+            if not packer.add(_hit_row(hit)):
                 break
             selected.append(dict(hit))
             selected_ids.add(hit_id)
             if new_id:
                 execution.visible_ids.add(hit_id)
-        rendered = _hit_render(selected)
+        rendered = packer.render()
         ids = frozenset(selected_ids)
         variables[name] = ProvenanceValue(
             {
