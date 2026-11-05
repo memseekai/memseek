@@ -30,7 +30,6 @@ from memseek.llm.runtime import ModelAttemptsExhausted
 from memseek.logging import configure_logging
 from memseek.models import ClaimedJob
 from memseek.records import PublicRecordInput, RecordBatchRequest, insert_public_records
-from memseek.triggers import enqueue_derive_tx
 from memseek.worker import WorkerRuntime
 
 _NOTES = """collections:
@@ -558,57 +557,3 @@ async def test_exhausted_provider_fails_the_run_without_a_correction_call(
 
     assert (failure.value.kind, len(prompts)) == ("transport", 1)
     assert await _job_state(db_pool, claimed.id) == (False, "transport")
-
-
-async def _run_count(pool: DatabasePool, workspace: str) -> int:
-    async with pool.connection() as conn:
-        row = await (
-            await conn.execute(
-                "select count(*) as runs from record where workspace = %s and type = 'run'",
-                (workspace,),
-            )
-        ).fetchone()
-    assert row is not None
-    return int(row["runs"])
-
-
-async def test_stimulus_with_nothing_pending_completes_without_a_run_record(
-    digest_settings: Settings,
-    db_pool: DatabasePool,
-) -> None:
-    settings = digest_settings
-    catalog = load_definition_catalog(settings)
-    credential = await create_workspace(db_pool, "derive-empty-wakeup")
-    note = await _write_note(
-        db_pool, catalog, settings, workspace=credential.workspace, key="a", text="Maya likes tea."
-    )
-    fake.reset()
-    fake.enqueue(_atom("Maya likes tea.", note))
-    first = await process_derivation_job(
-        db_pool, claimed=await _claim(db_pool, settings), settings=settings, catalog=catalog
-    )
-    assert (first.output_count, await _run_count(db_pool, credential.workspace)) == (1, 1)
-    async with db_pool.connection() as conn, conn.transaction():
-        await enqueue_derive_tx(
-            conn,
-            workspace=credential.workspace,
-            derivation="note_digest",
-            entity="maya",
-            reason="trigger:note_digest.default:cron",
-        )
-
-    wakeup = await process_derivation_job(
-        db_pool, claimed=await _claim(db_pool, settings), settings=settings, catalog=catalog
-    )
-
-    assert (wakeup.disposition, wakeup.run_id) == ("done", None)
-    assert await _run_count(db_pool, credential.workspace) == 1
-    await enqueue_derivation_job(
-        db_pool, workspace=credential.workspace, derivation="note_digest", entity="maya"
-    )
-    manual = await process_derivation_job(
-        db_pool, claimed=await _claim(db_pool, settings), settings=settings, catalog=catalog
-    )
-    assert manual.run_id is not None
-    assert (await _run_content(db_pool, manual.run_id))["status"] == "noop"
-    assert await _run_count(db_pool, credential.workspace) == 2

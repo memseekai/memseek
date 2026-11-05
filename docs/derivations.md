@@ -268,10 +268,7 @@ it, so the run commits as a `noop` that moves the cursor past that row and
 lists it in the run's `skipped` entries (`seq`, `id`, `reason: budget`). The
 rows after it are processed by the successor run.
 
-With `allow_empty: false`, an empty batch runs no tasks. A manual run records
-it as an audited `noop` run, which also supersedes a dead-lettered job; a
-trigger or cron wakeup that finds nothing pending completes its job without a
-run record, so idle wakeups do not grow the run history. With
+With `allow_empty: false`, an empty batch becomes a cheap audited no-op. With
 `allow_empty: true`, tasks may run even when no driving rows match.
 
 The cursor also stores a private hash of the fields that decide source
