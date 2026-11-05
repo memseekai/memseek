@@ -1528,7 +1528,9 @@ async def _commit_execution(
     catalog: DefinitionCatalog,
     claimed: ClaimedJob,
     execution: _Execution,
-) -> UUID:
+    *,
+    receipt: bool = True,
+) -> UUID | None:
     run_id = uuid4()
     output_definition = execution.definition.emit
     collection = catalog.resolve_collection(
@@ -1579,36 +1581,37 @@ async def _commit_execution(
         # The predecessor is a control dependency only; it does not add a
         # semantic abstraction level to the run itself.
         run_depth = max((parent_depths[item] for item in execution.visible_ids), default=0)
-        run_content = _run_content(
-            execution, run_id=run_id, status="ok" if execution.outputs else "noop"
-        )
-        await insert_canonical_record_tx(
-            conn,
-            CanonicalRecordWrite(
-                id=run_id,
-                workspace=claimed.workspace,
-                collection="_system",
-                collection_version=SYSTEM_COLLECTION_VERSION,
-                collection_hash=SYSTEM_COLLECTION_HASH,
-                entity=claimed.entity or "",
-                type="run",
-                content=run_content,
-                ready=True,
-                depth=run_depth,
-                derived_from=run_parents,
-            ),
-            settings,
-        )
-        from memseek.projections import on_records_ready_tx
+        if receipt:
+            run_content = _run_content(
+                execution, run_id=run_id, status="ok" if execution.outputs else "noop"
+            )
+            await insert_canonical_record_tx(
+                conn,
+                CanonicalRecordWrite(
+                    id=run_id,
+                    workspace=claimed.workspace,
+                    collection="_system",
+                    collection_version=SYSTEM_COLLECTION_VERSION,
+                    collection_hash=SYSTEM_COLLECTION_HASH,
+                    entity=claimed.entity or "",
+                    type="run",
+                    content=run_content,
+                    ready=True,
+                    depth=run_depth,
+                    derived_from=run_parents,
+                ),
+                settings,
+            )
+            from memseek.projections import on_records_ready_tx
 
-        # The run record is control state, not a trigger stimulus: evaluating
-        # here would coalesce into the still-claimed job. Triggers are
-        # re-evaluated once, after the job is marked done.
-        await on_records_ready_tx(
-            conn,
-            workspace=claimed.workspace,
-            records=({"id": run_id},),
-        )
+            # The run record is control state, not a trigger stimulus: evaluating
+            # here would coalesce into the still-claimed job. Triggers are
+            # re-evaluated once, after the job is marked done.
+            await on_records_ready_tx(
+                conn,
+                workspace=claimed.workspace,
+                records=({"id": run_id},),
+            )
         output_writes: list[CanonicalRecordWrite] = []
         for draft in execution.outputs:
             continuity_depths: list[int] = []
@@ -1676,7 +1679,7 @@ async def _commit_execution(
             entity=claimed.entity or "",
             catalog=catalog,
         )
-    return run_id
+    return run_id if receipt else None
 
 
 async def _persist_failed_run(
@@ -2002,7 +2005,19 @@ async def process_derivation_job(
                         reason="budget",
                     )
             execution.completed_at = datetime.now(UTC)
-        run_id = await _commit_execution(pool, settings, catalog, claimed, execution)
+        # A non-manual wakeup that found nothing to read leaves no trace worth
+        # keeping. A manual run keeps its noop receipt: it is the operator's
+        # retry lever, and it supersedes a dead-lettered job in freshness.
+        empty_wakeup = (
+            oversized is None
+            and not input_rows
+            and not definition.driver.allow_empty
+            and high_seq == wm
+            and claimed.payload.get("manual") is not True
+        )
+        run_id = await _commit_execution(
+            pool, settings, catalog, claimed, execution, receipt=not empty_wakeup
+        )
     except TimeoutError as exc:
         error = DerivationError("timeout", "derivation exceeded max_wall_s", wm=wm)
         await _persist_failed_run(pool, settings, catalog, claimed, execution, error)
@@ -2021,7 +2036,7 @@ async def process_derivation_job(
         "info",
         "run.completed",
         workspace=claimed.workspace,
-        run_id=str(run_id),
+        run_id=None if run_id is None else str(run_id),
         derivation=definition.name,
         status="ok" if execution.outputs else "noop",
         high_seq=execution.high_seq,
