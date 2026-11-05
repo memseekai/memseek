@@ -14,6 +14,7 @@ from memseek.config import Settings
 from memseek.definitions import load_definition_catalog
 from memseek.derive import basis as basis_module
 from memseek.derive.basis import (
+    BasisMode,
     ChangesBasisAdapter,
     EvaluationBasis,
     ExpectedHead,
@@ -651,3 +652,31 @@ async def test_snapshot_unready_window_row_defers_run() -> None:
     assert through_seq == 250
     assert from_seq is None
     assert inputs is None
+
+
+@pytest.mark.parametrize(
+    ("mode", "through_seq", "expected"),
+    [
+        ("corpus", 42, 42),
+        ("corpus", 0, 17),
+        ("citation_repair", 0, 17),
+        ("changes", 0, 17),
+    ],
+)
+def test_a_run_never_rewinds_the_cursor_to_zero_when_its_scope_is_empty(
+    mode: BasisMode, through_seq: int, expected: int
+) -> None:
+    from memseek.derive.runner import _next_high_seq
+
+    basis = EvaluationBasis(
+        mode=mode,
+        from_seq=None,
+        through_seq=through_seq,
+        predecessor_run_id=None,
+        predecessor_source_hash=None,
+        input_rows=(),
+        read_rows={},
+        expected_heads=(),
+    )
+
+    assert _next_high_seq(basis, (), watermark=17) == expected
