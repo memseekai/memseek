@@ -45,7 +45,7 @@ from __future__ import annotations
 
 import json
 import re
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 from uuid import UUID
@@ -219,8 +219,6 @@ def _stringify(value: Any, *, trusted: bool, pre_escaped: bool) -> str:
 def _reference_shape(value: str) -> re.Match[str] | None:
     """Return the exact-reference match, rejecting stray template delimiters."""
 
-    for match in _REFERENCE_RE.finditer(value):
-        del match
     remainder = _REFERENCE_RE.sub("", value)
     if "{{" in remainder:
         raise TemplateError("unsupported or unbalanced template expression", code="template_syntax")
@@ -316,15 +314,3 @@ def foreach_items(
             code="foreach_cap",
         )
     return list(payload), provenance
-
-
-def union_source_ids(values: Iterable[Any]) -> frozenset[UUID]:
-    """Return the deduplicated union of provenance across arbitrary values."""
-
-    combined: frozenset[UUID] = frozenset()
-    for value in values:
-        if isinstance(value, ProvenanceValue):
-            combined = combined | value.source_ids | _resolved_source_ids(value.value)
-        else:
-            combined = combined | _resolved_source_ids(value)
-    return combined

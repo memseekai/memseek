@@ -702,7 +702,7 @@ async def _stale_citation_input(
     workspace: str,
     entity: str,
     source: StreamSource,
-) -> tuple[DerivationRecord, ...] | None:
+) -> tuple[DerivationRecord, ...]:
     """Return ready current keyed records with a directly stale citation.
 
     This is deliberately a narrow provenance join, not a general YAML-accessible
@@ -1065,8 +1065,6 @@ class StaleCitationBasisAdapter:
         inputs = await _stale_citation_input(
             conn, workspace=workspace, entity=entity, source=definition.driver
         )
-        if inputs is None:
-            return None
         through_seq = max((item.seq for item in inputs), default=0)
         if not inputs and not definition.driver.allow_empty:
             return EvaluationBasis(
@@ -1154,14 +1152,23 @@ _ADAPTERS: dict[BasisMode, BasisAdapter] = {
 }
 
 
+_MODES: dict[str, BasisMode] = {
+    "changes": "changes",
+    "snapshot": "corpus",
+    "stale_citations": "citation_repair",
+}
+
+
+def basis_mode(kind: str) -> BasisMode:
+    """Map the friendly source kind to its private receipt mode."""
+
+    return _MODES[kind]
+
+
 def adapter_for(kind: str) -> BasisAdapter:
     """Map the friendly source kind to its private receipt Adapter."""
 
-    if kind == "snapshot":
-        return _ADAPTERS["corpus"]
-    if kind == "stale_citations":
-        return _ADAPTERS["citation_repair"]
-    return _ADAPTERS[cast(BasisMode, kind)]
+    return _ADAPTERS[basis_mode(kind)]
 
 
 __all__ = [
@@ -1176,6 +1183,7 @@ __all__ = [
     "StaleCitationBasisAdapter",
     "adapter_for",
     "basis_digest",
+    "basis_mode",
     "derivation_record",
     "pending_input",
     "scope_sql",
