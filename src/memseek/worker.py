@@ -580,6 +580,9 @@ async def _drain_invocation_jobs(runtime: WorkerRuntime, *, worker_id: str) -> i
                 continue
 
 
+_CRON_PAGE_SIZE = 500
+
+
 async def _cron_entities(
     conn: Any,
     *,
@@ -605,13 +608,14 @@ async def _cron_entities(
         from record
         where {" and ".join(clauses)}
         order by entity
-        limit 501
+        limit %s
         """,
-        params,
+        [*params, _CRON_PAGE_SIZE + 1],
     )
     candidates = [str(row["entity"]) for row in await result.fetchall()]
-    has_more = len(candidates) > 500
-    page_cursor = candidates[499] if has_more else None
+    has_more = len(candidates) > _CRON_PAGE_SIZE
+    candidates = candidates[:_CRON_PAGE_SIZE]
+    page_cursor = candidates[-1] if has_more else None
     if mode == "any":
         # A provenance-repair driver is already a bounded, per-entity selector.
         # Reuse that selector before queueing cron work so an hourly repair does
@@ -693,7 +697,7 @@ async def _process_cron_scan(runtime: WorkerRuntime, claimed: object) -> bool:
             mode=mode,
             cursor=cursor,
         )
-        for entity in entities[:500]:
+        for entity in entities:
             due = await _cooldown_due(
                 conn,
                 workspace=claimed.workspace,
@@ -712,9 +716,9 @@ async def _process_cron_scan(runtime: WorkerRuntime, claimed: object) -> bool:
             scheduled_at = claimed.payload.get("scheduled_at")
             if not isinstance(scheduled_at, str):
                 raise ValueError("cron scheduled_at is malformed")
-            dedupe = (
-                f"{claimed.dedupe_key or f'cron:{definition.name}:{scheduled_at}'}:{page_cursor}"
-            )
+            # Every page keys off the root tick, so a page's key stays bounded
+            # and a re-run predecessor maps onto the same successor.
+            dedupe = f"cron:{trigger.name}:{definition.name}:{scheduled_at}:{page_cursor}"
             await conn.execute(
                 """
                 insert into job (workspace, kind, derivation, dedupe_key, payload)
@@ -755,7 +759,7 @@ async def _process_cron_scan(runtime: WorkerRuntime, claimed: object) -> bool:
         job_id=str(claimed.id),
         workspace=claimed.workspace,
         derivation=claimed.derivation,
-        entity_count=min(len(entities), 500),
+        entity_count=len(entities),
         chained=has_more,
     )
     return True
