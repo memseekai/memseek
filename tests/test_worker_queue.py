@@ -17,6 +17,7 @@ from reference_catalog import declare_test_sources, materialize_reference_catalo
 import memseek.derive.runner as derive_runner_module
 import memseek.erase as erase_module
 import memseek.jobs as jobs_module
+import memseek.projections as projections_module
 import memseek.triggers as triggers_module
 import memseek.worker as worker_module
 from memseek.config import Settings
@@ -432,3 +433,35 @@ async def test_heartbeat_gives_up_before_the_known_lease_expires(
         await worker_module._with_heartbeat(runtime, _claimed_derive(), long_operation())
     assert asyncio.get_running_loop().time() - started < 3
     assert cancelled == [True]
+
+
+async def test_non_derive_job_past_its_runtime_cap_is_retried(
+    settings: Settings,
+    db_pool: DatabasePool,
+    cron_catalog: DefinitionCatalog,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def hung_projection(*_args: Any, **_kwargs: Any) -> None:
+        await asyncio.sleep(30)
+
+    monkeypatch.setattr(projections_module, "execute_projection_job", hung_projection)
+    async with db_pool.connection() as conn:
+        await conn.execute(
+            "insert into workspace (id, api_key_hash) values ('hung', %s)", ("0" * 64,)
+        )
+        await conn.execute(
+            "insert into job (workspace, kind, payload) values ('hung', 'index_upsert', %s)",
+            (Jsonb({"records": []}),),
+        )
+    runtime = WorkerRuntime(
+        settings=settings.model_copy(update={"job_max_runtime_s": 1}),
+        catalog=cron_catalog,
+        pool=db_pool,
+    )
+
+    drained = worker_module._drain_projection_jobs(runtime, worker_id="w", backends=None)
+    assert await asyncio.wait_for(drained, timeout=5) == 0
+    retried = "select attempts, last_error_kind, done_at from job where workspace = 'hung'"
+    assert await _rows(db_pool, retried, ()) == [
+        {"attempts": 1, "last_error_kind": "TimeoutError", "done_at": None}
+    ]

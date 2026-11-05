@@ -279,7 +279,7 @@ async def test_projection_backend_failure_log_excludes_payload_and_exception_mes
     monkeypatch.setattr(worker_module, "_retry_claim", retry)
 
     async def await_direct(
-        runtime: WorkerRuntime, claimed_job: object, operation: Awaitable[Any]
+        runtime: WorkerRuntime, claimed_job: object, operation: Awaitable[Any], **_kwargs: Any
     ) -> Any:
         del runtime, claimed_job
         return await operation
@@ -428,7 +428,7 @@ async def test_derivation_config_failure_is_dead_lettered_without_exposing_detai
     )
 
     async def await_direct(
-        runtime: WorkerRuntime, claimed_job: object, operation: Awaitable[Any]
+        runtime: WorkerRuntime, claimed_job: object, operation: Awaitable[Any], **_kwargs: Any
     ) -> Any:
         del runtime, claimed_job
         return await operation

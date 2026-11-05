@@ -305,9 +305,19 @@ async def _with_heartbeat[T](
     runtime: WorkerRuntime,
     claimed: object,
     operation: Awaitable[T],
+    *,
+    max_runtime_s: float | None = None,
 ) -> T:
+    """Run ``operation`` under a renewed lease, optionally capped in wall time.
+
+    A capped operation that overruns is cancelled and raises ``TimeoutError``,
+    which the lanes treat as a retryable failure.
+    """
+
     stop = asyncio.Event()
-    operation_task = asyncio.ensure_future(operation)
+    operation_task = asyncio.ensure_future(
+        operation if max_runtime_s is None else asyncio.wait_for(operation, max_runtime_s)
+    )
     heartbeat_task = asyncio.create_task(_heartbeat_loop(runtime, claimed, stop))
     try:
         done, _pending = await asyncio.wait(
@@ -416,6 +426,7 @@ async def _drain_projection_jobs(
                     claimed,
                     backends=backends,
                 ),
+                max_runtime_s=runtime.settings.job_max_runtime_s,
             )
             stage = "completion"
             await complete_job(runtime.pool, claimed)
@@ -608,6 +619,7 @@ async def _drain_invocation_jobs(runtime: WorkerRuntime, *, worker_id: str) -> i
                     settings=runtime.settings,
                     final_attempt=claimed.attempts >= runtime.settings.job_max_attempts,
                 ),
+                max_runtime_s=runtime.settings.job_max_runtime_s,
             )
             await complete_job(runtime.pool, claimed)
             completed += 1
@@ -843,7 +855,12 @@ async def _drain_cron_jobs(runtime: WorkerRuntime, *, worker_id: str) -> int:
         if claimed is None:
             return completed
         try:
-            await _with_heartbeat(runtime, claimed, _process_cron_scan(runtime, claimed))
+            await _with_heartbeat(
+                runtime,
+                claimed,
+                _process_cron_scan(runtime, claimed),
+                max_runtime_s=runtime.settings.job_max_runtime_s,
+            )
             completed += 1
         except LeaseLost:
             continue
@@ -968,7 +985,12 @@ async def _drain_retention_jobs(runtime: WorkerRuntime, *, worker_id: str) -> in
         if claimed is None:
             return completed
         try:
-            await _with_heartbeat(runtime, claimed, _process_retention_purge(runtime, claimed))
+            await _with_heartbeat(
+                runtime,
+                claimed,
+                _process_retention_purge(runtime, claimed),
+                max_runtime_s=runtime.settings.job_max_runtime_s,
+            )
             completed += 1
         except LeaseLost:
             continue
@@ -1175,7 +1197,10 @@ async def _drain_backfill_jobs(runtime: WorkerRuntime, *, worker_id: str) -> tup
         return 0, 0
     try:
         return 1, await _with_heartbeat(
-            runtime, claimed, _process_annotation_backfill(runtime, claimed)
+            runtime,
+            claimed,
+            _process_annotation_backfill(runtime, claimed),
+            max_runtime_s=runtime.settings.job_max_runtime_s,
         )
     except LeaseLost:
         # Another worker owns it now; the next pass picks up whatever is queued.
