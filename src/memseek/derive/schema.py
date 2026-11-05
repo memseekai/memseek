@@ -276,6 +276,30 @@ class TriggerConditions(StrictModel):
     retraction: RetractionCondition | None = None
     cooldown_s: int = Field(default=0, ge=0)
     debounce_s: int = Field(default=0, ge=0, le=604_800)
+    max_wait_s: int | None = Field(default=None, ge=1, le=604_800)
+
+    @model_validator(mode="after")
+    def _max_wait_caps_a_window(self) -> TriggerConditions:
+        if self.max_wait_s is None:
+            return self
+        windows = [
+            window
+            for window in (self.debounce_s, self.quiet.after_s if self.quiet else 0)
+            if window > 0
+        ]
+        if not windows:
+            raise ValueError("max_wait_s requires debounce_s or a quiet condition")
+        if self.max_wait_s < max(windows):
+            raise ValueError("max_wait_s must be at least the debounce_s or quiet after_s it caps")
+        return self
+
+    @model_serializer(mode="wrap")
+    def _serialize(self, handler: Any) -> dict[str, Any]:
+        dumped = dict(handler(self))
+        # Unset, it stays out of the dump so existing triggers keep their hash.
+        if self.max_wait_s is None:
+            dumped.pop("max_wait_s", None)
+        return dumped
 
     @property
     def automatic(self) -> bool:

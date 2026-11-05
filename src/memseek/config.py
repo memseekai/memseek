@@ -168,7 +168,6 @@ class Settings(BaseSettings):
     job_max_attempts: int = 3
     unready_retry_s: int = 2
     cron_tick_s: int = 30
-    max_cron_catchup: int = 100
 
     context_doc_order_score: str = "importance"
 
@@ -342,7 +341,6 @@ class Settings(BaseSettings):
             "JOB_MAX_ATTEMPTS": self.job_max_attempts,
             "UNREADY_RETRY_S": self.unready_retry_s,
             "CRON_TICK_S": self.cron_tick_s,
-            "MAX_CRON_CATCHUP": self.max_cron_catchup,
             "ARTIFACT_USE_RETENTION_DAYS": self.artifact_use_retention_days,
             "ARTIFACT_USE_PURGE_BATCH": self.artifact_use_purge_batch,
             "MAX_FEEDBACK_COMMENT_CHARS": self.max_feedback_comment_chars,

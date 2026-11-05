@@ -68,7 +68,7 @@ condition by intent instead, see [Choosing a condition](#choosing-a-condition).
 - [The readiness gate](#the-readiness-gate) — why triggers only ever see ready rows
 - [`where` predicates](#where-predicates) — filtering any scoped condition
 - [One coalescing mailbox per entity](#one-coalescing-mailbox-per-entity) — how stimuli merge
-- [Pacing: cooldown and debounce](#pacing-cooldown-and-debounce) — rate-limit and settle
+- [Pacing: cooldown and debounce](#pacing-cooldown-debounce-and-max-wait) — rate-limit and settle
 - [Compile-time validation](#compile-time-validation) — what the catalog rejects
 - [Observing triggers](#observing-triggers) — the surfaces that report trigger activity
 
@@ -123,7 +123,7 @@ one trigger, and a processor may have many triggers.
 
 Conditions absent from YAML are disabled. A declared trigger must enable at
 least one condition. Manual execution requires no trigger at all. Two pacing
-modifiers, [`cooldown_s` and `debounce_s`](#pacing-cooldown-and-debounce),
+modifiers, [`cooldown_s` and `debounce_s`](#pacing-cooldown-debounce-and-max-wait),
 apply per trigger.
 
 ## The readiness gate
@@ -411,10 +411,10 @@ boundary instead of one per message or a polling cron.
 
 Two properties worth knowing:
 
-- The settle deadline extends the shared mailbox. A later non-quiet stimulus
-  with an earlier permitted time (a manual run, a plain write trigger) can
-  still pull the job earlier; quiet then simply re-arms for whatever arrives
-  next.
+- The settle deadline belongs to the quiet reason alone. Another stimulus on
+  the same job (a manual run, a plain write trigger) keeps its own earlier
+  deadline, and the job runs at that one; quiet then simply re-arms for
+  whatever arrives next.
 - `after_s` accepts 1 second through 7 days.
 
 ### `at`: run at a record's datetime
@@ -468,10 +468,13 @@ scan population:
 - `any` — every non-system entity ever seen in the workspace.
 
 Cron scans are persisted, deduplicated jobs keyed by
-`cron:<processor>:<scheduled-time>`. The scheduler records the last completed
-bucket and backfills missed buckets after a restart, bounded by
-`MAX_CRON_CATCHUP`; a brand-new schedule starts at its latest due bucket
-rather than replaying history. A scan pages entities in lexical order, 500 per
+`cron:<trigger>:<processor>:<scheduled-time>`, so two cron triggers on one
+processor never share a scan. The scheduler reads the database clock and keeps
+the last scheduled bucket per trigger in `cron_checkpoint`; each pass schedules
+only the latest due bucket, and only when it is newer than that checkpoint.
+Ticks missed during downtime collapse into that one scan: a cron reason is a
+boolean on a coalescing mailbox, so replaying each missed tick would add
+nothing. One worker at a time runs the scheduler, under an advisory lock. A scan pages entities in lexical order, 500 per
 page, chaining a follow-up job per page — progress is durable and a restart
 never silently truncates a large scan.
 
@@ -576,12 +579,19 @@ monotonic boolean key — `trigger:profile.default:threshold`,
 counters. The committed run stores the sorted reason strings as
 `trigger_reasons`.
 
-When stimuli disagree about timing, the merge rule depends on the stimulus:
+Each reason also keeps its own deadline in the job's `stimuli` column, and
+the job's `run_after` is the earliest of them: the job runs as soon as any
+pending stimulus allows it. When the same reason arrives again, the merge
+rule depends on the stimulus:
 
-- most stimuli keep the **earliest** permitted `run_after`;
+- most stimuli keep their **earliest** permitted time;
 - settle-style stimuli — `quiet`, and any condition under `debounce_s` —
-  **extend** the shared deadline instead, so an ongoing burst keeps pushing
-  the run out until it ends.
+  **extend** their own deadline instead, so an ongoing burst keeps pushing
+  that reason out until it ends.
+
+A settle window never delays another reason. A manual request, or a plain
+write trigger that is already due, runs the job on time even while a `quiet`
+reason on the same job is still settling.
 
 Coalescing is a mailbox, not proof that every stimulus was consumed. After
 every successful run the runtime re-evaluates every trigger targeting that
@@ -590,7 +600,7 @@ enqueue a successor, and the next pending `at` deadline re-arms. The
 guarantee is one current-state refresh, not one LLM call per stimulus — and
 no stimulus is ever dropped.
 
-## Pacing: cooldown and debounce
+## Pacing: cooldown, debounce, and max wait
 
 ```yaml
 trigger:
@@ -599,17 +609,33 @@ trigger:
   debounce_s: 30    # and let arrivals settle for 30 s before running
 ```
 
-The two modifiers pace a trigger from opposite ends:
+`cooldown_s` and `debounce_s` pace a trigger from opposite ends, and `max_wait_s`
+bounds the debounce:
 
 | Modifier | Question it answers | Mechanics |
 | --- | --- | --- |
 | `cooldown_s` | "Not again *so soon after the last run*." | Pushes `run_after` to `last success + cooldown_s`. Trailing-edge rate limit. |
 | `debounce_s` | "Not yet — *the burst may not be over*." | Pushes `run_after` to `now + debounce_s` and extends it while stimuli keep arriving. Leading-edge settle window, up to 7 days. |
+| `max_wait_s` | "But not *forever*." | Stops a `debounce_s` or `quiet` deadline from moving past the first stimulus plus `max_wait_s`. |
 
 Both delay work; neither drops data. A stimulus that fires early coalesces
 with its `run_after` pushed to the due time; reasons still cooling remain
 discoverable from the records and are re-evaluated after the run. Manual runs
 bypass cooldown.
+
+A settle window that keeps extending can starve a stream that never pauses.
+`max_wait_s` caps it: once a reason has waited that long since its first
+stimulus on the pending job, further arrivals stop pushing it out.
+
+```yaml
+trigger:
+  quiet: {collections: [main], types: [chat], statuses: [active], after_s: 900}
+  max_wait_s: 3600  # summarize at least hourly during a nonstop conversation
+```
+
+`max_wait_s` accepts 1 second through 7 days and applies to `debounce_s` and
+`quiet` alike. It requires one of them and must be at least the window it
+caps. Unset, a window extends until the burst ends.
 
 `debounce_s` applies to the data conditions (`write`, `accumulator`,
 `changed`, `retraction`, `census`, `lifecycle`). It never delays `read` (a
@@ -624,6 +650,8 @@ chatty window.
 Catalog compilation rejects, before anything runs:
 
 - a declared trigger with no enabled conditions;
+- a `max_wait_s` without `debounce_s` or `quiet`, or shorter than the window
+  it caps;
 - an invalid cron expression;
 - a consuming scope (`write`, `quiet`, `changed`, `retraction`) that is not a
   subset of the target's driving source, including non-consumable collection

@@ -2007,6 +2007,8 @@ async def enqueue_derivation_job(
         raise ValueError("workspace and entity must be non-empty and entity cannot be '*'")
     if run_after is not None and (run_after.tzinfo is None or run_after.utcoffset() is None):
         raise ValueError("run_after must include a timezone")
+    from memseek.triggers import coalesce_derive_stimulus_tx
+
     async with pool.connection() as conn, conn.transaction():
         await acquire_workspace_lock(conn, workspace)
         if run_after is None:
@@ -2017,22 +2019,15 @@ async def enqueue_derivation_job(
             when = row["now"].astimezone(UTC)
         else:
             when = run_after
-        result = await conn.execute(
-            """
-            insert into job (workspace, kind, derivation, entity, run_after, payload)
-            values (%s, 'derive', %s, %s, %s, '{"manual": true}')
-            on conflict (workspace, derivation, entity)
-              where kind = 'derive' and done_at is null and dead_at is null
-            do update set payload = job.payload || excluded.payload,
-                          run_after = least(job.run_after, excluded.run_after)
-            returning id, run_after, (xmax = 0) as inserted
-            """,
-            (workspace, derivation, entity, when),
+        return await coalesce_derive_stimulus_tx(
+            conn,
+            workspace=workspace,
+            derivation=derivation,
+            entity=entity,
+            reason="manual",
+            due=when,
+            coalesce="earliest",
         )
-        row = await result.fetchone()
-    if row is None:
-        raise RuntimeError("derive job enqueue returned no row")
-    return cast(UUID, row["id"]), not bool(row["inserted"]), cast(datetime, row["run_after"])
 
 
 __all__ = [

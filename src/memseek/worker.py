@@ -1206,7 +1206,6 @@ async def run_worker_once(
                     if runtime.catalog_registry is not None
                     else None
                 ),
-                max_catchup=runtime.settings.max_cron_catchup,
             ),
             0,
         )
