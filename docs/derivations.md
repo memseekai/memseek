@@ -1188,7 +1188,9 @@ limits:
 - `max_visible_records` bounds the union of driving, current, record, view,
   and searched canonical records.
 - `max_total_tokens` bounds prompt plus completion usage for the run.
-- `max_wall_s` bounds task execution wall time.
+- `max_wall_s` bounds task execution wall time. A run that exceeds it fails
+  with `timeout` and is retried with backoff, since a slow provider or search
+  is usually transient; it dead-letters only after the job's attempts run out.
 
 Three more limits apply only to [sandboxed tasks](computers.md):
 

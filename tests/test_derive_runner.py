@@ -310,3 +310,46 @@ async def test_failed_run_receipt_does_not_fold_trigger_reasons_into_the_retry(
         ).fetchone()
     assert row is not None
     assert (row["payload"], row["retrying"]) == ({"manual": True}, True)
+
+
+async def _job_state(pool: DatabasePool, job_id: UUID) -> tuple[bool, str | None]:
+    async with pool.connection() as conn:
+        row = await (
+            await conn.execute(
+                "select dead_at is not null as dead, last_error_kind from job where id = %s",
+                (job_id,),
+            )
+        ).fetchone()
+    assert row is not None
+    return bool(row["dead"]), row["last_error_kind"]
+
+
+async def test_run_over_its_wall_clock_is_retried_not_dead_lettered(
+    gbrain_settings: Settings,
+    db_pool: DatabasePool,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    assert gbrain_settings.catalog_file is not None
+    root = tmp_path / "slow_catalog"
+    digest = _digest()
+    digest["limits"]["max_wall_s"] = 1
+    _write_catalog(root, gbrain_settings.catalog_file.parent, digest)
+    settings = gbrain_settings.model_copy(update={"catalog_file": root / "catalog.yaml"})
+    catalog = load_definition_catalog(settings)
+    credential = await create_workspace(db_pool, "derive-wall-clock")
+    await _write_note(
+        db_pool, catalog, settings, workspace=credential.workspace, key="a", text="Maya likes tea."
+    )
+    claimed = await _claim(db_pool, settings)
+
+    async def stalled_provider(*_: Any, **__: Any) -> Any:
+        await asyncio.sleep(30)
+
+    monkeypatch.setattr(runner_module, "complete", stalled_provider)
+
+    with pytest.raises(DerivationError) as failure:
+        await process_derivation_job(db_pool, claimed=claimed, settings=settings, catalog=catalog)
+
+    assert failure.value.kind == "timeout"
+    assert await _job_state(db_pool, claimed.id) == (False, "timeout")

@@ -1967,7 +1967,7 @@ async def process_derivation_job(
             execution.completed_at = datetime.now(UTC)
         run_id = await _commit_execution(pool, settings, catalog, claimed, execution)
     except TimeoutError as exc:
-        error = DerivationError("budget", "derivation exceeded MAX_RUN_WALL_S", wm=wm)
+        error = DerivationError("timeout", "derivation exceeded max_wall_s", wm=wm)
         await _persist_failed_run(pool, settings, catalog, claimed, execution, error)
         raise error from exc
     except LeaseLost:
