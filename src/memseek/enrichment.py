@@ -252,16 +252,25 @@ async def _snapshot_optional(
     catalogs: dict[str | None, DefinitionCatalog] = {None: catalog}
     if catalog_for_workspace is not None:
         # Resolve definitions before acquiring any record locks. Only workspaces
-        # with ready public records can have optional work.
+        # with ready public records can have optional work. The per-workspace probe
+        # stops at the first such record instead of scanning all history.
         async with pool.connection() as conn:
             result = await conn.execute(
-                "select distinct workspace from record "
-                "where enriched_at is not null and collection <> '_system' order by workspace"
+                """
+                select id from workspace
+                where exists (
+                  select 1 from record
+                  where record.workspace = workspace.id
+                    and record.enriched_at is not null
+                    and record.collection <> '_system'
+                )
+                order by id
+                """
             )
             workspaces = await result.fetchall()
         catalogs = {}
         for row in workspaces:
-            workspace = str(row["workspace"])
+            workspace = str(row["id"])
             catalogs[workspace] = await catalog_for_workspace(workspace)
     bindings: list[dict[str, object]] = []
     for workspace, selected_catalog in catalogs.items():
@@ -283,6 +292,13 @@ async def _snapshot_optional(
                 )
     if not bindings:
         return [], None, catalog
+    # A shared catalog's bindings carry no workspace and apply to all of them.
+    # Per-workspace bindings join on plain equality so the planner can hash on
+    # workspace; an `is null or` disjunction pairs every record with every
+    # workspace's bindings.
+    workspace_match: LiteralString = (
+        "true" if catalog_for_workspace is None else "binding.workspace = record_row.workspace"
+    )
     # An explicit backfill owns its target until it completes or is cancelled.
     # Otherwise the opportunistic lane can consume its work without accounting
     # for it in the backfill handle.
@@ -313,7 +329,7 @@ async def _snapshot_optional(
             )
               on binding.collection = record_row.collection
              and binding.version = record_row.collection_version
-             and (binding.workspace is null or binding.workspace = record_row.workspace)
+             and {workspace_match}
             where {eligible}
             order by record_row.seq, binding.ordinal
             limit 1
@@ -334,7 +350,7 @@ async def _snapshot_optional(
             )
               on binding.collection = record_row.collection
              and binding.version = record_row.collection_version
-             and (binding.workspace is null or binding.workspace = record_row.workspace)
+             and {workspace_match}
              and binding.processor = %s
             where record_row.workspace = %s and {eligible}
             order by record_row.seq
