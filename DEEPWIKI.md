@@ -1054,8 +1054,8 @@ Sources: [`run_worker_once`](src/memseek/worker.py#L821-L917) ·
 
 ### 7.5 Cron scans and retention
 
-- The worker schedules only **due** UTC buckets, capped by `MAX_CRON_CATCHUP`, and persists them as
-  `cron_scan` jobs.
+- The worker schedules only the **latest due** UTC bucket per schedule, checkpointed in
+  `cron_checkpoint`, and persists it as a `cron_scan` job; missed ticks collapse into it.
 - A scan pages `entities:any` or `entities:dirty` in **lexical batches of 500**; chained cursors
   survive process restarts.
 - `retention_purge` jobs schedule only the *latest* due tick, then reuse canonical erasure via
@@ -1923,7 +1923,7 @@ that manifest), `SEARCH_PROFILE_OVERRIDES_FILE`, `TASK_MODULES`. The old
 | `WORKER_POLL_MS` / `WORKER_CONCURRENCY` / `INDEX_CONCURRENCY` | `500` / `4` / `1` | |
 | `JOB_LEASE_S` / `JOB_HEARTBEAT_S` / `JOB_MAX_ATTEMPTS` | `300` / `60` / `3` | Heartbeat **must** be < half the lease |
 | `UNREADY_RETRY_S` | `2` | |
-| `CRON_TICK_S` / `MAX_CRON_CATCHUP` | `30` / `100` | |
+| `CRON_TICK_S` | `30` | |
 | `ENRICH_BATCH` / `ENRICH_LLM_BATCH` | `32` / `16` | |
 | `SCORER_TEXT_CHARS` | `12000` | The embedding equivalent is `embedding.max_text_chars` in `conf/models.yaml` |
 | `ARTIFACT_USE_RETENTION_DAYS` / `_PURGE_BATCH` | `90` / `500` | Retention ceiling 3650 |

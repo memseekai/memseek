@@ -468,10 +468,13 @@ scan population:
 - `any` — every non-system entity ever seen in the workspace.
 
 Cron scans are persisted, deduplicated jobs keyed by
-`cron:<processor>:<scheduled-time>`. The scheduler records the last completed
-bucket and backfills missed buckets after a restart, bounded by
-`MAX_CRON_CATCHUP`; a brand-new schedule starts at its latest due bucket
-rather than replaying history. A scan pages entities in lexical order, 500 per
+`cron:<trigger>:<processor>:<scheduled-time>`, so two cron triggers on one
+processor never share a scan. The scheduler reads the database clock and keeps
+the last scheduled bucket per trigger in `cron_checkpoint`; each pass schedules
+only the latest due bucket, and only when it is newer than that checkpoint.
+Ticks missed during downtime collapse into that one scan: a cron reason is a
+boolean on a coalescing mailbox, so replaying each missed tick would add
+nothing. One worker at a time runs the scheduler, under an advisory lock. A scan pages entities in lexical order, 500 per
 page, chaining a follow-up job per page — progress is durable and a restart
 never silently truncates a large scan.
 

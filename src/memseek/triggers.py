@@ -1,4 +1,4 @@
-"""M5 trigger evaluation, coalescing, and persisted cron scan primitives.
+"""M5 trigger evaluation, coalescing, and checkpointed cron scheduling.
 
 PostgreSQL remains the source of trigger truth.  Ready-transition evaluation is
 performed inside the caller's mutation transaction, so a trigger can never see
@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Awaitable, Callable, Mapping, Sequence
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any, Literal, LiteralString, cast
 from uuid import UUID
@@ -27,6 +28,7 @@ from memseek.derive.schema import (
     StandaloneTrigger,
     WriteCondition,
 )
+from memseek.locks import advisory_lock_key
 from memseek.logging import log_event
 from memseek.models import ClaimedJob, LeaseLost
 from memseek.search.scope import field_value_expression
@@ -991,166 +993,177 @@ async def evaluate_ready_triggers_tx(
     return total
 
 
+_CRON_SCHEDULER_LOCK = advisory_lock_key("cron-scheduler")
+
+
+@dataclass(frozen=True, slots=True)
+class _CronSchedule:
+    """One cron-driven job source and the checkpoint row that paces it."""
+
+    checkpoint: str
+    expr: str
+    kind: Literal["cron_scan", "retention_purge"]
+    derivation: str | None
+    dedupe_prefix: str
+    payload: Mapping[str, Any]
+
+
+def _cron_schedules(catalog: DefinitionCatalog) -> list[_CronSchedule]:
+    schedules = [
+        _CronSchedule(
+            checkpoint=trigger.name,
+            expr=trigger.cron.expr,
+            kind="cron_scan",
+            derivation=trigger.processor,
+            dedupe_prefix=f"cron:{trigger.name}:{trigger.processor}",
+            payload={"trigger": trigger.name, "entities": trigger.cron.entities, "cursor": None},
+        )
+        for trigger in sorted(catalog.triggers.values(), key=lambda value: value.name)
+        if trigger.cron is not None
+    ]
+    for _key, package in sorted(catalog.packages.items()):
+        for retention in package.retentions:
+            name = f"retention:{package.name}@{package.version}:{retention.name}"
+            schedules.append(
+                _CronSchedule(
+                    checkpoint=name,
+                    expr=retention.cron,
+                    kind="retention_purge",
+                    derivation=None,
+                    dedupe_prefix=name,
+                    payload={
+                        "package_name": package.name,
+                        "package_version": package.version,
+                        "retention": retention.name,
+                    },
+                )
+            )
+    return schedules
+
+
+def _latest_bucket(expr: str, current: datetime) -> datetime:
+    minute = current.replace(second=0, microsecond=0)
+    if croniter.match(expr, minute):
+        return minute.astimezone(UTC)
+    return croniter(expr, current).get_prev(datetime).astimezone(UTC)
+
+
 async def schedule_cron_jobs(
     pool: DatabasePool,
     *,
     catalog: DefinitionCatalog,
     catalog_for_workspace: Callable[[str], Awaitable[DefinitionCatalog]] | None = None,
     now: datetime | None = None,
-    max_catchup: int = 100,
 ) -> int:
-    """Insert due deduplicated cron-scan jobs for every workspace.
+    """Insert the latest due cron-scan and retention job for every workspace.
 
-    The last persisted schedule bucket is the restart checkpoint.  A brand-new
-    schedule intentionally starts at its latest due bucket; an existing one
-    catches up at most ``max_catchup`` buckets per scheduler pass.
+    ``cron_checkpoint`` holds the last scheduled bucket per schedule.  A pass
+    schedules only the latest bucket, and only when it is newer than the
+    checkpoint: missed ticks collapse into it, because a cron reason is a
+    boolean on a coalescing mailbox and replaying N scans adds nothing.  The
+    job and its checkpoint commit together, one transaction per workspace.
+    A session advisory lock keeps concurrent workers from sweeping at once;
+    a worker that loses it skips the pass.  ``now`` defaults to the database
+    clock.
     """
 
-    current = now or datetime.now(UTC)
-    if current.tzinfo is None or current.utcoffset() is None:
+    if now is not None and (now.tzinfo is None or now.utcoffset() is None):
         raise ValueError("now must include a timezone")
-    if max_catchup <= 0:
-        raise ValueError("max_catchup must be positive")
     if (
         not catalog.triggers
         and not any(package.retentions for package in catalog.packages.values())
         and catalog_for_workspace is None
     ):
         return 0
-    inserted = 0
-    async with pool.connection() as conn, conn.transaction():
-        workspaces = await conn.execute("select id from workspace order by id")
-        workspace_rows = await workspaces.fetchall()
-        for workspace_row in workspace_rows:
-            workspace = str(workspace_row["id"])
-            if catalog_for_workspace is None:
-                selected_catalog = catalog
-            else:
-                try:
-                    selected_catalog = await catalog_for_workspace(workspace)
-                except Exception as exc:
-                    # Scheduling sweeps every workspace on the deployment, so one
-                    # whose stored overlay no longer resolves must cost only its
-                    # own cron work.  Aborting here would roll the whole
-                    # transaction back and leave every other workspace unscheduled.
-                    log_event(
-                        LOGGER,
-                        "error",
-                        "cron.workspace_skipped",
-                        workspace=workspace,
-                        exception_type=type(exc).__name__,
-                    )
-                    continue
-            cron_triggers = tuple(
-                trigger
-                for trigger in selected_catalog.triggers.values()
-                if trigger.cron is not None
+    async with pool.connection() as conn:
+        result = await conn.execute(
+            "select pg_try_advisory_lock(%s) as acquired, clock_timestamp() as now",
+            (_CRON_SCHEDULER_LOCK,),
+        )
+        row = await result.fetchone()
+        await conn.commit()
+        if row is None or not row["acquired"]:
+            return 0
+        try:
+            current = now or row["now"]
+            return await _schedule_workspaces(
+                conn,
+                catalog=catalog,
+                catalog_for_workspace=catalog_for_workspace,
+                current=current,
             )
-            for trigger in sorted(cron_triggers, key=lambda value: value.name):
-                assert trigger.cron is not None
-                iterator = croniter(trigger.cron.expr, current)
-                minute = current.replace(second=0, microsecond=0)
-                latest = (
-                    minute
-                    if croniter.match(trigger.cron.expr, minute)
-                    else iterator.get_prev(datetime)
-                ).astimezone(UTC)
-                checkpoint_result = await conn.execute(
-                    """
-                    select max(payload->>'scheduled_at') as scheduled_at
-                    from job
-                    where workspace = %s and kind = 'cron_scan'
-                      and derivation = %s and payload->>'trigger' = %s
-                    """,
-                    (workspace, trigger.processor, trigger.name),
-                )
-                checkpoint_row = await checkpoint_result.fetchone()
-                checkpoint = checkpoint_row["scheduled_at"] if checkpoint_row else None
-                if not isinstance(checkpoint, str):
-                    buckets = [latest]
-                else:
-                    try:
-                        previous = datetime.fromisoformat(checkpoint.replace("Z", "+00:00"))
-                    except ValueError:
-                        previous = latest
-                    buckets = []
-                    cursor = previous.astimezone(UTC)
-                    for _ in range(max_catchup):
-                        candidate = croniter(trigger.cron.expr, cursor).get_next(datetime)
-                        candidate = candidate.astimezone(UTC)
-                        if candidate > latest:
-                            break
-                        buckets.append(candidate)
-                        cursor = candidate
-                for due in buckets[:max_catchup]:
-                    stamp = due.isoformat().replace("+00:00", "Z")
-                    dedupe = f"cron:{trigger.processor}:{stamp}"
-                    result = await conn.execute(
-                        """
-                        insert into job (workspace, kind, derivation, dedupe_key, payload)
-                        values (%s, 'cron_scan', %s, %s, %s)
-                        on conflict (workspace, dedupe_key) where dedupe_key is not null do nothing
-                        returning id
-                        """,
-                        (
-                            workspace,
-                            trigger.processor,
-                            dedupe,
-                            Jsonb(
-                                {
-                                    "trigger": trigger.name,
-                                    "scheduled_at": stamp,
-                                    "entities": trigger.cron.entities,
-                                    "cursor": None,
-                                }
-                            ),
-                        ),
-                    )
-                    if await result.fetchone() is not None:
-                        inserted += 1
+        finally:
+            await conn.execute("select pg_advisory_unlock(%s)", (_CRON_SCHEDULER_LOCK,))
+            await conn.commit()
 
-            retention_policies = tuple(
-                (package, retention)
-                for _key, package in sorted(selected_catalog.packages.items())
-                for retention in package.retentions
-            )
-            for package, retention in retention_policies:
-                iterator = croniter(retention.cron, current)
-                minute = current.replace(second=0, microsecond=0)
-                latest = (
-                    minute
-                    if croniter.match(retention.cron, minute)
-                    else iterator.get_prev(datetime)
-                ).astimezone(UTC)
-                # Retention has no missed-time semantics: an expired page is
-                # still eligible at the latest tick. Deliberately avoid
-                # catch-up buckets so downtime cannot turn a 25-page batch
-                # into a large destructive backlog on one worker pass.
-                for due in (latest,):
-                    stamp = due.isoformat().replace("+00:00", "Z")
-                    dedupe = f"retention:{package.name}@{package.version}:{retention.name}:{stamp}"
-                    result = await conn.execute(
-                        """
-                        insert into job (workspace, kind, dedupe_key, payload)
-                        values (%s, 'retention_purge', %s, %s)
-                        on conflict (workspace, dedupe_key) where dedupe_key is not null do nothing
-                        returning id
-                        """,
-                        (
-                            workspace,
-                            dedupe,
-                            Jsonb(
-                                {
-                                    "package_name": package.name,
-                                    "package_version": package.version,
-                                    "retention": retention.name,
-                                    "scheduled_at": stamp,
-                                }
-                            ),
-                        ),
+
+async def _schedule_workspaces(
+    conn: DatabaseConnection,
+    *,
+    catalog: DefinitionCatalog,
+    catalog_for_workspace: Callable[[str], Awaitable[DefinitionCatalog]] | None,
+    current: datetime,
+) -> int:
+    result = await conn.execute("select id from workspace order by id")
+    workspaces = [str(row["id"]) for row in await result.fetchall()]
+    await conn.commit()
+    latest: dict[str, datetime] = {}
+    inserted = 0
+    for workspace in workspaces:
+        if catalog_for_workspace is None:
+            selected_catalog = catalog
+        else:
+            try:
+                selected_catalog = await catalog_for_workspace(workspace)
+            except Exception as exc:
+                # Scheduling sweeps every workspace on the deployment, so one
+                # whose stored overlay no longer resolves must cost only its
+                # own cron work.
+                log_event(
+                    LOGGER,
+                    "error",
+                    "cron.workspace_skipped",
+                    workspace=workspace,
+                    exception_type=type(exc).__name__,
+                )
+                continue
+        schedules = _cron_schedules(selected_catalog)
+        if not schedules:
+            continue
+        async with conn.transaction():
+            for schedule in schedules:
+                if schedule.expr not in latest:
+                    latest[schedule.expr] = _latest_bucket(schedule.expr, current)
+                due = latest[schedule.expr]
+                stamp = due.isoformat().replace("+00:00", "Z")
+                result = await conn.execute(
+                    """
+                    with advanced as (
+                      insert into cron_checkpoint (workspace, trigger, scheduled_at)
+                      values (%(workspace)s, %(checkpoint)s, %(due)s)
+                      on conflict (workspace, trigger) do update
+                        set scheduled_at = excluded.scheduled_at
+                        where cron_checkpoint.scheduled_at < excluded.scheduled_at
+                      returning 1
                     )
-                    if await result.fetchone() is not None:
-                        inserted += 1
+                    insert into job (workspace, kind, derivation, dedupe_key, payload)
+                    select %(workspace)s, %(kind)s, %(derivation)s, %(dedupe)s, %(payload)s
+                    from advanced
+                    on conflict (workspace, dedupe_key) where dedupe_key is not null do nothing
+                    returning id
+                    """,
+                    {
+                        "workspace": workspace,
+                        "checkpoint": schedule.checkpoint,
+                        "due": due,
+                        "kind": schedule.kind,
+                        "derivation": schedule.derivation,
+                        "dedupe": f"{schedule.dedupe_prefix}:{stamp}",
+                        "payload": Jsonb({**schedule.payload, "scheduled_at": stamp}),
+                    },
+                )
+                if await result.fetchone() is not None:
+                    inserted += 1
     return inserted
 
 
