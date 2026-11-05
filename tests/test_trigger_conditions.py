@@ -18,6 +18,7 @@ from reference_catalog import declare_test_sources, materialize_reference_catalo
 from memseek.config import Settings
 from memseek.db import DatabaseConnection, DatabasePool
 from memseek.definitions import DefinitionCatalog, load_definition_catalog
+from memseek.projections import on_records_ready_tx
 from memseek.triggers import evaluate_entity_triggers_tx
 
 _STANDALONE_TRIGGERS = {
@@ -362,6 +363,116 @@ async def test_max_wait_stops_a_quiet_window_from_extending(
         assert job is not None
         assert job["payload"].get("trigger:skill.capped_quiet:quiet") is True
         assert job["run_after"] == first_deadline
+
+
+async def test_collections_filter_skips_triggers_scoped_elsewhere(
+    db_pool: DatabasePool, trigger_catalog: DefinitionCatalog
+) -> None:
+    async with db_pool.connection() as conn, conn.transaction():
+        await _create_workspace(conn, "ws")
+        entity = "user:filtered"
+        await _insert_record(
+            conn,
+            workspace="ws",
+            entity=entity,
+            collection="main",
+            type_="observation",
+            content={"text": "pending"},
+        )
+
+        await evaluate_entity_triggers_tx(
+            conn,
+            workspace="ws",
+            entity=entity,
+            catalog=trigger_catalog,
+            collections={"calendar_events"},
+        )
+        assert await _active_job(conn, workspace="ws", derivation="profile", entity=entity) is None
+
+        await evaluate_entity_triggers_tx(
+            conn,
+            workspace="ws",
+            entity=entity,
+            catalog=trigger_catalog,
+            collections={"main"},
+        )
+        job = await _active_job(conn, workspace="ws", derivation="profile", entity=entity)
+        assert job is not None
+        assert job["payload"] == {"trigger:profile.write_debounce:write": True}
+
+
+async def test_readiness_in_a_read_source_reevaluates_the_trigger(
+    db_pool: DatabasePool, trigger_catalog: DefinitionCatalog
+) -> None:
+    """A not-ready job waits on the processor's sources, not only its trigger scope.
+
+    ``profile`` reads ``profiles`` as a current source. A ``profiles`` record
+    turning ready can make a released profile job runnable, so the pending
+    write must coalesce again and pull that job back in.
+    """
+
+    async with db_pool.connection() as conn, conn.transaction():
+        await _create_workspace(conn, "ws")
+        entity = "user:read-source"
+        await _insert_record(
+            conn,
+            workspace="ws",
+            entity=entity,
+            collection="main",
+            type_="observation",
+            content={"text": "pending"},
+        )
+
+        await evaluate_entity_triggers_tx(
+            conn,
+            workspace="ws",
+            entity=entity,
+            catalog=trigger_catalog,
+            collections={"profiles"},
+        )
+
+        job = await _active_job(conn, workspace="ws", derivation="profile", entity=entity)
+        assert job is not None
+        assert job["payload"] == {"trigger:profile.write_debounce:write": True}
+
+
+async def test_system_record_readiness_does_not_refire_data_triggers(
+    db_pool: DatabasePool, trigger_catalog: DefinitionCatalog
+) -> None:
+    async with db_pool.connection() as conn, conn.transaction():
+        await _create_workspace(conn, "ws")
+        entity = "user:system-ready"
+        await _insert_record(
+            conn,
+            workspace="ws",
+            entity=entity,
+            collection="main",
+            type_="observation",
+            content={"text": "already handled"},
+        )
+        seq = await _insert_record(
+            conn,
+            workspace="ws",
+            entity=entity,
+            collection="_system",
+            type_="erasure",
+            content={"text": "bookkeeping"},
+        )
+        result = await conn.execute("select id from record where seq = %s", (seq,))
+        row = await result.fetchone()
+        assert row is not None
+
+        await on_records_ready_tx(
+            conn,
+            workspace="ws",
+            records=({"id": row["id"], "collection": "_system"},),
+            catalog=trigger_catalog,
+        )
+
+        result = await conn.execute("select count(*) as jobs from job where kind = 'derive'")
+        count = await result.fetchone()
+        assert count is not None
+        assert count["jobs"] == 0
 
 
 async def test_at_trigger_schedules_and_retires_record_deadlines(

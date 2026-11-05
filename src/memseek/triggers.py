@@ -10,7 +10,7 @@ reason keeps its own deadline, and the earliest one is the job's ``run_after``.
 from __future__ import annotations
 
 import logging
-from collections.abc import Awaitable, Callable, Mapping, Sequence
+from collections.abc import Awaitable, Callable, Collection, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any, Literal, LiteralString, cast
@@ -25,7 +25,9 @@ from memseek.definitions.models import DeclaredField
 from memseek.derive.schema import (
     PipelineDefinition,
     RecordScope,
+    RecordSource,
     StandaloneTrigger,
+    ViewSource,
     WriteCondition,
 )
 from memseek.locks import advisory_lock_key
@@ -103,16 +105,25 @@ def _scope_clauses(
     return clauses, params
 
 
-async def _watermark(
+@dataclass(frozen=True, slots=True)
+class _RunState:
+    """What the latest successful run left behind for one processor and entity."""
+
+    watermark: int
+    last_success: datetime | None
+
+
+async def _run_state(
     conn: DatabaseConnection,
     *,
     workspace: str,
     entity: str,
     derivation: str,
-) -> int:
+) -> _RunState:
     result = await conn.execute(
         """
-        select (content->>'high_seq')::bigint as watermark
+        select (content->>'high_seq')::bigint as watermark,
+               content->>'completed_at' as completed_at
         from record
         where workspace = %s and entity = %s
           and collection = '_system' and type = 'run'
@@ -125,32 +136,15 @@ async def _watermark(
         (workspace, entity, derivation),
     )
     row = await result.fetchone()
-    return int(row["watermark"] or 0) if row is not None else 0
-
-
-async def _last_success(
-    conn: DatabaseConnection,
-    *,
-    workspace: str,
-    entity: str,
-    derivation: str,
-) -> datetime | None:
-    result = await conn.execute(
-        """
-        select content->>'completed_at' as completed_at
-        from record
-        where workspace = %s and entity = %s
-          and collection = '_system' and type = 'run'
-          and content->>'operation' = 'derive'
-          and content->>'processor' = %s
-          and content->>'status' in ('ok', 'noop')
-        order by seq desc
-        limit 1
-        """,
-        (workspace, entity, derivation),
+    if row is None:
+        return _RunState(watermark=0, last_success=None)
+    return _RunState(
+        watermark=int(row["watermark"] or 0),
+        last_success=_parse_completed_at(row["completed_at"]),
     )
-    row = await result.fetchone()
-    value = row["completed_at"] if row is not None else None
+
+
+def _parse_completed_at(value: Any) -> datetime | None:
     if not isinstance(value, str):
         return None
     try:
@@ -158,6 +152,17 @@ async def _last_success(
     except ValueError:
         return None
     return parsed if parsed.tzinfo is not None and parsed.utcoffset() is not None else None
+
+
+async def _watermark(
+    conn: DatabaseConnection,
+    *,
+    workspace: str,
+    entity: str,
+    derivation: str,
+) -> int:
+    state = await _run_state(conn, workspace=workspace, entity=entity, derivation=derivation)
+    return state.watermark
 
 
 def _field_versions(
@@ -444,6 +449,12 @@ async def coalesce_derive_stimulus_tx(
     return cast(UUID, row["id"]), not bool(row["inserted"]), cast(datetime, row["run_after"])
 
 
+def _cooldown_until(now: datetime, cooldown_s: int, last_success: datetime | None) -> datetime:
+    if cooldown_s <= 0 or last_success is None:
+        return now
+    return max(now, last_success + timedelta(seconds=cooldown_s))
+
+
 async def _cooldown_due(
     conn: DatabaseConnection,
     *,
@@ -455,15 +466,13 @@ async def _cooldown_due(
     current = now if now is not None else await _db_now(conn)
     if trigger.cooldown_s <= 0:
         return current
-    last = await _last_success(
+    state = await _run_state(
         conn,
         workspace=workspace,
         entity=entity,
         derivation=trigger.processor,
     )
-    if last is None:
-        return current
-    return max(current, last + timedelta(seconds=trigger.cooldown_s))
+    return _cooldown_until(current, trigger.cooldown_s, state.last_success)
 
 
 async def _scope_matches(
@@ -765,6 +774,7 @@ async def _at_deadline(
     entity: str,
     trigger: StandaloneTrigger,
     catalog: DefinitionCatalog,
+    last_success: datetime | None,
 ) -> datetime | None:
     """The earliest unhandled record deadline, or None when nothing is pending.
 
@@ -792,12 +802,7 @@ async def _at_deadline(
     )
     clauses.extend(where_clauses)
     params.extend(where_params)
-    floor = await _last_success(
-        conn,
-        workspace=workspace,
-        entity=entity,
-        derivation=trigger.processor,
-    ) or datetime(1970, 1, 1, tzinfo=UTC)
+    floor = last_success or datetime(1970, 1, 1, tzinfo=UTC)
     query = f"""
         select min(candidate.deadline) as deadline from (
           select ({value_sql} + make_interval(secs => %s)) as deadline
@@ -817,12 +822,37 @@ async def _at_deadline(
     return deadline.astimezone(UTC)
 
 
+def _trigger_collections(
+    trigger: StandaloneTrigger, definition: PipelineDefinition
+) -> set[str] | None:
+    """Collections whose readiness can change what this trigger enqueues.
+
+    That is every scope the trigger observes plus everything its processor
+    reads: a source row turning ready can make a released not-ready job
+    runnable, and re-coalescing its pending reason is what pulls it back in.
+    ``None`` means a view source hides what is read, so nothing is skipped.
+    """
+
+    names = {
+        collection for scope in trigger.observed_scopes.values() for collection in scope.collections
+    }
+    for source in definition.sources.values():
+        if isinstance(source, ViewSource):
+            return None
+        if isinstance(source, RecordSource):
+            names.add(source.collection)
+        else:
+            names.update(source.collections)
+    return names
+
+
 async def evaluate_entity_triggers_tx(
     conn: DatabaseConnection,
     *,
     workspace: str,
     entity: str,
     catalog: DefinitionCatalog,
+    collections: Collection[str] | None = None,
 ) -> int:
     """Evaluate every ready-transition trigger condition for one entity.
 
@@ -831,20 +861,30 @@ async def evaluate_entity_triggers_tx(
     ``debounce_s``. Quiet enqueues a settle deadline that extends while
     matching records keep arriving. At enqueues the earliest unhandled record
     deadline.
+
+    ``collections`` names the collections whose records just became ready.
+    When given, triggers whose scopes cannot see any of them are skipped;
+    ``None`` evaluates every trigger, which a watermark advance needs.
     """
 
     fired = 0
+    run_states: dict[str, _RunState] = {}
     for name in sorted(catalog.triggers):
         trigger = catalog.triggers[name]
         definition = catalog.derivations.get(trigger.processor)
         if definition is None:
             continue
-        watermark = await _watermark(
-            conn,
-            workspace=workspace,
-            entity=entity,
-            derivation=definition.name,
-        )
+        if collections is not None:
+            relevant = _trigger_collections(trigger, definition)
+            if relevant is not None and relevant.isdisjoint(collections):
+                continue
+        state = run_states.get(definition.name)
+        if state is None:
+            state = await _run_state(
+                conn, workspace=workspace, entity=entity, derivation=definition.name
+            )
+            run_states[definition.name] = state
+        watermark = state.watermark
         arrivals: list[TriggerCondition] = []
         if trigger.write is not None and await _scope_matches(
             conn,
@@ -920,16 +960,18 @@ async def evaluate_entity_triggers_tx(
                 entity=entity,
                 trigger=trigger,
                 catalog=catalog,
+                last_success=state.last_success,
             )
             if trigger.at is not None
             else None
         )
         if not arrivals and not quiet_matched and deadline is None:
             continue
+        # A fresh clock read per firing trigger, not one per call: triggers fire
+        # in name order, and the distinct run_after values make their jobs claim
+        # in that order instead of tying and claiming in random id order.
         now = await _db_now(conn)
-        due = await _cooldown_due(
-            conn, workspace=workspace, entity=entity, trigger=trigger, now=now
-        )
+        due = _cooldown_until(now, trigger.cooldown_s, state.last_success)
         for condition in arrivals:
             run_after = due
             coalesce: Literal["earliest", "extend"] = "earliest"
@@ -979,8 +1021,13 @@ async def evaluate_ready_triggers_tx(
     workspace: str,
     entities: Sequence[str],
     catalog: DefinitionCatalog,
+    collections: Mapping[str, Collection[str]] | None = None,
 ) -> int:
-    """Evaluate all ready-transition trigger conditions for changed entities."""
+    """Evaluate ready-transition trigger conditions for changed entities.
+
+    ``collections`` maps an entity to the collections that changed for it;
+    see ``evaluate_entity_triggers_tx``.
+    """
 
     total = 0
     for entity in sorted(set(entities)):
@@ -989,6 +1036,7 @@ async def evaluate_ready_triggers_tx(
             workspace=workspace,
             entity=entity,
             catalog=catalog,
+            collections=None if collections is None else collections.get(entity, ()),
         )
     return total
 
