@@ -43,6 +43,7 @@ class DerivationRecord:
     status: str
     content: Mapping[str, Any]
     scores: Mapping[str, Any]
+    annotations: Mapping[str, Any]
     occurred_at: datetime
     depth: int
 
@@ -121,7 +122,7 @@ class BasisAdapter(Protocol):
 
 ROW_COLUMNS = """
 id, seq, collection, collection_version, entity, key, type, status,
-content, scores, occurred_at, depth
+content, scores, annotations, occurred_at, depth
 """
 
 
@@ -137,6 +138,7 @@ def derivation_record(row: Mapping[str, Any]) -> DerivationRecord:
         status=str(row["status"]),
         content=cast(Mapping[str, Any], row["content"]),
         scores=cast(Mapping[str, Any], row["scores"]),
+        annotations=cast(Mapping[str, Any], row["annotations"]),
         occurred_at=cast(datetime, row["occurred_at"]),
         depth=int(row["depth"]),
     )

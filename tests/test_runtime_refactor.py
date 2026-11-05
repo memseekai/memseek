@@ -31,6 +31,7 @@ def _row(number: int, text: str) -> DerivationRecord:
         status="active",
         content={"text": text},
         scores={},
+        annotations={},
         occurred_at=datetime(2026, 1, 1, tzinfo=UTC),
         depth=0,
     )

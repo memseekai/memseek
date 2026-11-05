@@ -550,6 +550,7 @@ def _snapshot_row(seq: int) -> dict[str, object]:
         "status": "active",
         "content": {"text": f"event {seq}"},
         "scores": {},
+        "annotations": {},
         "occurred_at": datetime(2026, 7, 20, tzinfo=UTC),
         "depth": 0,
         "enriched_at": datetime(2026, 7, 20, tzinfo=UTC),
