@@ -304,13 +304,16 @@ async def enqueue_derive_tx(
     reason: str,
     run_after: datetime | None = None,
     coalesce: Literal["earliest", "extend"] = "earliest",
+    max_wait_s: int | None = None,
 ) -> tuple[UUID, bool, datetime]:
     """Insert/coalesce one derive mailbox entry in the caller's transaction.
 
     ``coalesce`` decides how this reason's own deadline merges with an
     earlier stimulus of the same reason: ``earliest`` keeps the sooner time,
     while ``extend`` pushes it later, the settle semantics used by quiet and
-    debounced stimuli. Other reasons' deadlines are untouched.
+    debounced stimuli. Other reasons' deadlines are untouched. ``max_wait_s``
+    stops an ``extend`` reason from moving past its first sighting plus that
+    many seconds, so a stream that never pauses still runs.
     """
 
     parts = reason.split(":")
@@ -332,6 +335,7 @@ async def enqueue_derive_tx(
         reason=reason,
         due=when,
         coalesce=coalesce,
+        max_wait_s=max_wait_s,
     )
 
 
@@ -344,12 +348,14 @@ async def coalesce_derive_stimulus_tx(
     reason: str,
     due: datetime,
     coalesce: Literal["earliest", "extend"],
+    max_wait_s: int | None = None,
 ) -> tuple[UUID, bool, datetime]:
     """Merge one reason into the entity's active derive job (spec 11.4).
 
     ``job.stimuli`` holds each reason's own ``due`` and first-seen ``since``.
     An ``earliest`` reason keeps its sooner due; an ``extend`` reason pushes
-    only its own. ``run_after`` follows the earliest due, so a settle window
+    only its own, never past ``since + max_wait_s`` and never earlier than it
+    already was. ``run_after`` follows the earliest due, so a settle window
     never delays a reason that is already allowed to run. Extending an
     existing reason keeps a later ``run_after`` the queue set itself (retry
     backoff, a not-ready release). A job written before ``stimuli`` existed is
@@ -402,7 +408,14 @@ async def coalesce_derive_stimulus_tx(
                   'due',
                   case
                     when prior.due is null then excluded.run_after
-                    when %(extend)s then greatest(prior.due, excluded.run_after)
+                    when %(extend)s then greatest(
+                      prior.due,
+                      least(
+                        excluded.run_after,
+                        (prior.since #>> '{}')::timestamptz
+                          + make_interval(secs => %(max_wait_s)s::int)
+                      )
+                    )
                     else least(prior.due, excluded.run_after)
                   end,
                   'since',
@@ -420,6 +433,7 @@ async def coalesce_derive_stimulus_tx(
             "due": due,
             "reason": reason,
             "extend": coalesce == "extend",
+            "max_wait_s": max_wait_s,
         },
     )
     row = await result.fetchone()
@@ -928,6 +942,7 @@ async def evaluate_entity_triggers_tx(
                 reason=f"trigger:{name}:{condition}",
                 run_after=run_after,
                 coalesce=coalesce,
+                max_wait_s=trigger.max_wait_s,
             )
             fired += 1
         if quiet_matched:
@@ -940,6 +955,7 @@ async def evaluate_entity_triggers_tx(
                 reason=f"trigger:{name}:quiet",
                 run_after=max(due, now + timedelta(seconds=trigger.quiet.after_s)),
                 coalesce="extend",
+                max_wait_s=trigger.max_wait_s,
             )
             fired += 1
         if deadline is not None:

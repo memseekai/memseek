@@ -68,7 +68,7 @@ condition by intent instead, see [Choosing a condition](#choosing-a-condition).
 - [The readiness gate](#the-readiness-gate) — why triggers only ever see ready rows
 - [`where` predicates](#where-predicates) — filtering any scoped condition
 - [One coalescing mailbox per entity](#one-coalescing-mailbox-per-entity) — how stimuli merge
-- [Pacing: cooldown and debounce](#pacing-cooldown-and-debounce) — rate-limit and settle
+- [Pacing: cooldown and debounce](#pacing-cooldown-debounce-and-max-wait) — rate-limit and settle
 - [Compile-time validation](#compile-time-validation) — what the catalog rejects
 - [Observing triggers](#observing-triggers) — the surfaces that report trigger activity
 
@@ -123,7 +123,7 @@ one trigger, and a processor may have many triggers.
 
 Conditions absent from YAML are disabled. A declared trigger must enable at
 least one condition. Manual execution requires no trigger at all. Two pacing
-modifiers, [`cooldown_s` and `debounce_s`](#pacing-cooldown-and-debounce),
+modifiers, [`cooldown_s` and `debounce_s`](#pacing-cooldown-debounce-and-max-wait),
 apply per trigger.
 
 ## The readiness gate
@@ -597,7 +597,7 @@ enqueue a successor, and the next pending `at` deadline re-arms. The
 guarantee is one current-state refresh, not one LLM call per stimulus — and
 no stimulus is ever dropped.
 
-## Pacing: cooldown and debounce
+## Pacing: cooldown, debounce, and max wait
 
 ```yaml
 trigger:
@@ -606,17 +606,33 @@ trigger:
   debounce_s: 30    # and let arrivals settle for 30 s before running
 ```
 
-The two modifiers pace a trigger from opposite ends:
+`cooldown_s` and `debounce_s` pace a trigger from opposite ends, and `max_wait_s`
+bounds the debounce:
 
 | Modifier | Question it answers | Mechanics |
 | --- | --- | --- |
 | `cooldown_s` | "Not again *so soon after the last run*." | Pushes `run_after` to `last success + cooldown_s`. Trailing-edge rate limit. |
 | `debounce_s` | "Not yet — *the burst may not be over*." | Pushes `run_after` to `now + debounce_s` and extends it while stimuli keep arriving. Leading-edge settle window, up to 7 days. |
+| `max_wait_s` | "But not *forever*." | Stops a `debounce_s` or `quiet` deadline from moving past the first stimulus plus `max_wait_s`. |
 
 Both delay work; neither drops data. A stimulus that fires early coalesces
 with its `run_after` pushed to the due time; reasons still cooling remain
 discoverable from the records and are re-evaluated after the run. Manual runs
 bypass cooldown.
+
+A settle window that keeps extending can starve a stream that never pauses.
+`max_wait_s` caps it: once a reason has waited that long since its first
+stimulus on the pending job, further arrivals stop pushing it out.
+
+```yaml
+trigger:
+  quiet: {collections: [main], types: [chat], statuses: [active], after_s: 900}
+  max_wait_s: 3600  # summarize at least hourly during a nonstop conversation
+```
+
+`max_wait_s` accepts 1 second through 7 days and applies to `debounce_s` and
+`quiet` alike. It requires one of them and must be at least the window it
+caps. Unset, a window extends until the burst ends.
 
 `debounce_s` applies to the data conditions (`write`, `accumulator`,
 `changed`, `retraction`, `census`, `lifecycle`). It never delays `read` (a
@@ -631,6 +647,8 @@ chatty window.
 Catalog compilation rejects, before anything runs:
 
 - a declared trigger with no enabled conditions;
+- a `max_wait_s` without `debounce_s` or `quiet`, or shorter than the window
+  it caps;
 - an invalid cron expression;
 - a consuming scope (`write`, `quiet`, `changed`, `retraction`) that is not a
   subset of the target's driving source, including non-consumable collection

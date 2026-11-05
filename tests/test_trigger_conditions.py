@@ -66,6 +66,15 @@ census:
   statuses: [active]
   threshold: 3
 """,
+    "capped_quiet.yaml": """name: skill.capped_quiet
+processor: skill
+quiet:
+  collections: [main]
+  types: [observation]
+  statuses: [active]
+  after_s: 120
+max_wait_s: 120
+""",
     "first_seen.yaml": """name: reflection.first_seen
 processor: reflection
 lifecycle:
@@ -314,6 +323,45 @@ async def test_quiet_trigger_waits_for_arrivals_to_settle(
         job = await _active_job(conn, workspace="ws", derivation="profile", entity=entity)
         assert job is not None
         assert job["run_after"] >= first_deadline
+
+
+async def test_max_wait_stops_a_quiet_window_from_extending(
+    db_pool: DatabasePool, trigger_catalog: DefinitionCatalog
+) -> None:
+    async with db_pool.connection() as conn, conn.transaction():
+        await _create_workspace(conn, "ws")
+        entity = "user:capped"
+        await _insert_record(
+            conn,
+            workspace="ws",
+            entity=entity,
+            collection="main",
+            type_="observation",
+            content={"text": "first"},
+        )
+        await evaluate_entity_triggers_tx(
+            conn, workspace="ws", entity=entity, catalog=trigger_catalog
+        )
+        job = await _active_job(conn, workspace="ws", derivation="skill", entity=entity)
+        assert job is not None
+        first_deadline = job["run_after"]
+
+        for text in ("second", "third"):
+            await _insert_record(
+                conn,
+                workspace="ws",
+                entity=entity,
+                collection="main",
+                type_="observation",
+                content={"text": text},
+            )
+            await evaluate_entity_triggers_tx(
+                conn, workspace="ws", entity=entity, catalog=trigger_catalog
+            )
+        job = await _active_job(conn, workspace="ws", derivation="skill", entity=entity)
+        assert job is not None
+        assert job["payload"].get("trigger:skill.capped_quiet:quiet") is True
+        assert job["run_after"] == first_deadline
 
 
 async def test_at_trigger_schedules_and_retires_record_deadlines(
