@@ -17,7 +17,8 @@ from memseek.auth import create_workspace
 from memseek.config import Settings
 from memseek.db import DatabasePool
 from memseek.definitions import DefinitionCatalog, load_definition_catalog
-from memseek.derive.runner import process_derivation_job
+from memseek.derive.errors import DerivationError
+from memseek.derive.runner import enqueue_derivation_job, process_derivation_job
 from memseek.jobs import claim_job
 from memseek.llm.fake import fake
 from memseek.llm.registry import Completion
@@ -259,3 +260,53 @@ async def test_concurrent_keyed_write_while_a_run_commits_does_not_deadlock(
             )
         ).fetchall()
     assert [row["done"] for row in rows] == [True, False]
+
+
+async def test_failed_run_receipt_does_not_fold_trigger_reasons_into_the_retry(
+    digest_settings: Settings,
+    db_pool: DatabasePool,
+    tmp_path: Path,
+) -> None:
+    """A note written before the trigger existed is run manually; the retry stays manual."""
+
+    assert digest_settings.catalog_file is not None
+    untriggered_root = tmp_path / "untriggered_catalog"
+    _write_catalog(
+        untriggered_root,
+        digest_settings.catalog_file.parent,
+        _digest(trigger=None),
+    )
+    untriggered = load_definition_catalog(
+        digest_settings.model_copy(update={"catalog_file": untriggered_root / "catalog.yaml"})
+    )
+    catalog = load_definition_catalog(digest_settings)
+    credential = await create_workspace(db_pool, "derive-failed-receipt")
+    await _write_note(
+        db_pool,
+        untriggered,
+        digest_settings,
+        workspace=credential.workspace,
+        key="a",
+        text="Maya likes tea.",
+    )
+    job_id, _, _ = await enqueue_derivation_job(
+        db_pool, workspace=credential.workspace, derivation="note_digest", entity="maya"
+    )
+    claimed = await _claim(db_pool, digest_settings)
+    fake.reset()
+    fake.enqueue("not json", "still not json")
+
+    with pytest.raises(DerivationError) as failure:
+        await process_derivation_job(
+            db_pool, claimed=claimed, settings=digest_settings, catalog=catalog
+        )
+
+    assert failure.value.kind == "parse"
+    async with db_pool.connection() as conn:
+        row = await (
+            await conn.execute(
+                "select payload, dead_at is null as retrying from job where id = %s", (job_id,)
+            )
+        ).fetchone()
+    assert row is not None
+    assert (row["payload"], row["retrying"]) == ({"manual": True}, True)

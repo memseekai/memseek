@@ -1590,11 +1590,13 @@ async def _commit_execution(
         )
         from memseek.projections import on_records_ready_tx
 
+        # The run record is control state, not a trigger stimulus: evaluating
+        # here would coalesce into the still-claimed job. Triggers are
+        # re-evaluated once, after the job is marked done.
         await on_records_ready_tx(
             conn,
             workspace=claimed.workspace,
             records=({"id": run_id},),
-            catalog=catalog,
         )
         for draft in execution.outputs:
             continuity_depths: list[int] = []
@@ -1717,7 +1719,6 @@ async def _persist_failed_run(
             conn,
             workspace=claimed.workspace,
             records=({"id": run_id},),
-            catalog=catalog,
         )
         non_retryable = error.kind in {"config", "budget", "erased"}
         result = await conn.execute(
