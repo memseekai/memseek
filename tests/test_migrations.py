@@ -2,11 +2,16 @@
 
 from __future__ import annotations
 
+import asyncio
+import sys
 from pathlib import Path
+from urllib.parse import urlsplit, urlunsplit
+from uuid import uuid4
 
+import psycopg
 import pytest
 from alembic.script import ScriptDirectory
-from psycopg import errors
+from psycopg import errors, sql
 
 from memseek.config import Settings
 from memseek.db import DatabasePool
@@ -17,6 +22,8 @@ from memseek.migrations import (
     normalize_database_url,
     verify_normative_migration,
 )
+
+_REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 
 
 async def test_migration_is_idempotent_and_schema_is_present(
@@ -163,3 +170,46 @@ async def test_normative_record_json_and_embedding_pair_constraints(
                 """,
                 ("0" * 64,),
             )
+
+
+async def test_concurrent_migrators_on_a_fresh_database_all_reach_head(
+    settings: Settings,
+) -> None:
+    # Deploys start several replicas that each migrate, one process apiece.  A
+    # migrator blocked inside a transaction would deadlock a concurrent index
+    # build.
+    name = f"memseek_test_concurrent_{uuid4().hex[:8]}"
+    admin = await psycopg.AsyncConnection.connect(settings.database_url, autocommit=True)
+    try:
+        await admin.execute(sql.SQL("create database {}").format(sql.Identifier(name)))
+        url = urlunsplit(urlsplit(settings.database_url)._replace(path=f"/{name}"))
+        script = (
+            "import asyncio, sys\n"
+            "from memseek.migrations import apply_migrations\n"
+            "print(asyncio.run(apply_migrations(sys.argv[1])))\n"
+        )
+        processes = [
+            await asyncio.create_subprocess_exec(
+                sys.executable,
+                "-c",
+                script,
+                url,
+                cwd=_REPOSITORY_ROOT,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            for _ in range(3)
+        ]
+        outputs = await asyncio.wait_for(
+            asyncio.gather(*(process.communicate() for process in processes)), 120
+        )
+        heads = [stdout.decode().strip().splitlines()[-1] for stdout, _stderr in outputs]
+        assert [process.returncode for process in processes] == [0, 0, 0], [
+            stderr.decode()[-500:] for _stdout, stderr in outputs
+        ]
+        assert heads == ["0013_scheduling_state"] * 3
+    finally:
+        await admin.execute(
+            sql.SQL("drop database if exists {} with (force)").format(sql.Identifier(name))
+        )
+        await admin.close()
