@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from typing import TYPE_CHECKING, Any
@@ -14,10 +15,12 @@ from psycopg_pool import AsyncConnectionPool
 
 from memseek.config import Settings
 from memseek.definitions.errors import CollectionDefinitionMismatch
+from memseek.logging import log_event
 
 if TYPE_CHECKING:
     from memseek.definitions import DefinitionCatalog
 
+LOGGER = logging.getLogger(__name__)
 
 EMBEDDING_METADATA_KEY = "embedding"
 RESOLVED_MODEL_METADATA_KEY = "resolved"
@@ -35,16 +38,49 @@ type DatabasePool = AsyncConnectionPool[DatabaseConnection]
 
 
 def create_pool(settings: Settings) -> DatabasePool:
-    """Build a closed pool whose sessions are fixed to UTC."""
+    """Build a closed pool whose sessions are fixed to UTC and bounded by the guardrails."""
+
+    session = {
+        "timezone": "UTC",
+        "statement_timeout": settings.database_statement_timeout_ms,
+        "lock_timeout": settings.database_lock_timeout_ms,
+        "idle_in_transaction_session_timeout": (
+            settings.database_idle_in_transaction_session_timeout_ms
+        ),
+    }
+    temp_file_limit_kb = settings.database_temp_file_limit_kb
+
+    async def limit_temp_files(conn: DatabaseConnection) -> None:
+        # Not a startup option like the rest: Postgres refuses the whole
+        # connection when a role without SET privilege on it names it there.
+        result = await conn.execute(
+            """
+            select set_config('temp_file_limit', %s, false) as applied
+            where has_parameter_privilege('temp_file_limit', 'SET')
+            """,
+            (str(temp_file_limit_kb),),
+        )
+        applied = await result.fetchone() is not None
+        await conn.commit()
+        if not applied:
+            log_event(
+                LOGGER,
+                "warning",
+                "database.temp_file_limit_not_applied",
+                reason="role lacks SET privilege on temp_file_limit",
+            )
 
     return AsyncConnectionPool[DatabaseConnection](
         conninfo=settings.database_url,
         min_size=1,
         max_size=max(4, settings.worker_concurrency + settings.index_concurrency),
         open=False,
+        configure=None if temp_file_limit_kb is None else limit_temp_files,
         kwargs={
             "application_name": "memseek",
-            "options": "-c timezone=UTC",
+            "options": " ".join(
+                f"-c {name}={value}" for name, value in session.items() if value is not None
+            ),
             "row_factory": dict_row,
         },
     )

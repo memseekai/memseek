@@ -12,7 +12,7 @@ from typing import Annotated, Any
 from urllib.parse import urlsplit
 
 from dotenv import dotenv_values
-from pydantic import Field, field_validator, model_validator
+from pydantic import Field, ValidationInfo, field_validator, model_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 _REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
@@ -42,6 +42,12 @@ class Settings(BaseSettings):
     )
 
     database_url: str = "postgresql://postgres:postgres@localhost:5432/memseek"
+    # Every tenant shares one database, so each pooled session is bounded; the
+    # defaults are justified in docs/operations.md under "Database guardrails".
+    database_statement_timeout_ms: int | None = 60_000
+    database_lock_timeout_ms: int | None = 10_000
+    database_idle_in_transaction_session_timeout_ms: int | None = 120_000
+    database_temp_file_limit_kb: int | None = None
     memseek_build_sha: str = "dev"
 
     # Which endpoints exist, what they can do, and which model is used for what
@@ -199,6 +205,20 @@ class Settings(BaseSettings):
     # naming no value and no reason. Parsing here means the process either
     # starts or explains itself.
     api_cors_origins: Annotated[tuple[str, ...], NoDecode] = ()
+
+    @field_validator(
+        "database_statement_timeout_ms",
+        "database_lock_timeout_ms",
+        "database_idle_in_transaction_session_timeout_ms",
+        "database_temp_file_limit_kb",
+    )
+    @classmethod
+    def unset_database_guardrail(cls, value: int | None, info: ValidationInfo) -> int | None:
+        """Read 0 as unset, the only spelling of "off" an environment variable has."""
+
+        if value is not None and value < 0:
+            raise ValueError(f"{str(info.field_name).upper()} must be 0 (unset) or positive")
+        return value or None
 
     @field_validator("api_cors_origins", mode="before")
     @classmethod

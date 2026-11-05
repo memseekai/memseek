@@ -1859,6 +1859,8 @@ a large cross-field invariant validator.
 | Variable | Default | Notes |
 |---|---|---|
 | `DATABASE_URL` | `postgresql://postgres:postgres@localhost:5432/memseek` | |
+| `DATABASE_STATEMENT_TIMEOUT_MS` / `_LOCK_TIMEOUT_MS` / `_IDLE_IN_TRANSACTION_SESSION_TIMEOUT_MS` | `60000` / `10000` / `120000` | Set on every pooled session; `0` leaves the server or role default |
+| `DATABASE_TEMP_FILE_LIMIT_KB` | unset | Applied only when the role may set it; see Operations › Database guardrails |
 | `MEMSEEK_BUILD_SHA` | `dev` | Recorded in run `engine_version` |
 | `API_HOST` / `API_PORT` | `127.0.0.1` / `8000` | |
 | `API_KEY_CACHE_TTL_S` / `_SIZE` | `60` / `1024` | TTL **cannot exceed 60** |
