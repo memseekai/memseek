@@ -199,7 +199,6 @@ async def test_direct_computer_task_runs_inside_derivation_boundary(
         ),
         wm_before=0,
         predecessor=None,
-        predecessor_hash=None,
         visible_ids=set(),
         final_source_ids=frozenset(),
         final_visible_ids=frozenset(),

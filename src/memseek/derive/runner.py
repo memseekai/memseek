@@ -46,7 +46,6 @@ from memseek.derive.candidates import (
     CandidateRecord,
     CandidateSet,
     compile_candidate_set,
-    validate_collection_content,
 )
 from memseek.derive.emission import emission_effect, emission_status
 from memseek.derive.errors import DerivationError, RecordedDerivationFailure
@@ -120,7 +119,6 @@ class _Execution:
     basis: EvaluationBasis
     wm_before: int
     predecessor: UUID | None
-    predecessor_hash: str | None
     visible_ids: set[UUID]
     final_source_ids: frozenset[UUID]
     final_visible_ids: frozenset[UUID]
@@ -1323,9 +1321,6 @@ async def _execute_tasks(
     execution.final_visible_ids = citations[root]
 
 
-_validate_collection_content = validate_collection_content
-
-
 async def _claim_owned_tx(
     conn: DatabaseConnection,
     claimed: ClaimedJob,
@@ -1846,7 +1841,6 @@ async def process_derivation_job(
         basis=empty_basis,
         wm_before=0,
         predecessor=None,
-        predecessor_hash=None,
         visible_ids=set(),
         final_source_ids=frozenset(),
         final_visible_ids=frozenset(),
@@ -1900,7 +1894,6 @@ async def process_derivation_job(
     execution.basis = basis
     execution.wm_before = basis.watermark
     execution.predecessor = basis.predecessor_run_id
-    execution.predecessor_hash = basis.predecessor_source_hash
     execution.high_seq = basis.through_seq
     wm = basis.watermark
     input_rows = basis.input_rows

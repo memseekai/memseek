@@ -62,7 +62,6 @@ def _execution(definition: PipelineDefinition, settings: Settings) -> _Execution
         ),
         wm_before=0,
         predecessor=None,
-        predecessor_hash=None,
         visible_ids=set(),
         final_source_ids=frozenset(),
         final_visible_ids=frozenset(),

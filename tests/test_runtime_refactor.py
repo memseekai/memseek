@@ -228,7 +228,6 @@ async def test_retrieved_hits_are_the_longest_prefix_whose_render_fits(
         ),
         wm_before=0,
         predecessor=None,
-        predecessor_hash=None,
         visible_ids=set(),
         final_source_ids=frozenset(),
         final_visible_ids=frozenset(),
