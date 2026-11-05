@@ -190,6 +190,7 @@ async def _insert_profile_fact(
     key: str,
     derived_from: tuple[UUID, ...] = (),
     tombstone: bool = False,
+    ready: bool = True,
 ) -> UUID:
     collection = catalog.resolve_collection("profiles")
     async with pool.connection() as conn:
@@ -198,7 +199,8 @@ async def _insert_profile_fact(
             insert into record (
               workspace, collection, collection_version, collection_hash,
               entity, key, type, content, derived_from, enriched_at
-            ) values (%s, %s, %s, %s, %s, %s, 'fact', %s, %s::uuid[], now())
+            ) values (%s, %s, %s, %s, %s, %s, 'fact', %s, %s::uuid[],
+                      case when %s then now() else null end)
             returning id
             """,
             (
@@ -210,6 +212,7 @@ async def _insert_profile_fact(
                 key,
                 Jsonb({"text": "", "tombstone": True} if tombstone else {"text": f"{key} value"}),
                 list(derived_from),
+                ready,
             ),
         )
         row = await result.fetchone()
@@ -547,3 +550,55 @@ async def test_dynamic_heads_skip_retired_keys_and_stop_at_the_reachable_bound(
     assert within == [("live", live)]
     with pytest.raises(DerivationError, match="max_active_keys"):
         await heads()
+
+
+_STALE_CITATIONS = {
+    "kind": "stale_citations",
+    "collections": ["profiles"],
+    "types": ["fact"],
+    "statuses": ["active"],
+    "keyed": True,
+    "max_records": 50,
+    "max_tokens": 24000,
+    "allow_empty": False,
+}
+
+
+async def test_stale_citation_membership_follows_each_cited_slot(
+    settings: Settings, db_pool: DatabasePool
+) -> None:
+    credential = await create_workspace(db_pool, "stale-membership")
+    workspace = credential.workspace
+    catalog = _profile_catalog(settings, _STALE_CITATIONS)
+
+    async def fact(key: str, *cites: UUID, **flags: bool) -> UUID:
+        return await _insert_profile_fact(
+            db_pool, catalog, workspace=workspace, key=key, derived_from=cites, **flags
+        )
+
+    event = await _insert_event(
+        db_pool,
+        catalog,
+        workspace=workspace,
+        text="unkeyed evidence",
+        occurred_at=datetime(2026, 1, 15, tzinfo=UTC),
+    )
+    moved = await fact("role")
+    pending = await fact("pending_slot")
+    steady = await fact("commitments")
+    first = await fact("timeline", moved, steady)
+    await fact("open_threads", steady)
+    await fact("goals", event)
+    await fact("plans", pending)
+    await fact("retired", moved, tombstone=True)
+    second = await fact("summary", moved)
+    await fact("role")
+    await fact("pending_slot", ready=False)
+
+    async with db_pool.connection() as conn:
+        basis = await adapter_for("stale_citations").resolve(
+            conn, workspace=workspace, entity=ENTITY, definition=catalog.derivations["profile"]
+        )
+
+    assert basis is not None
+    assert [row.id for row in basis.input_rows] == [first, second]

@@ -664,31 +664,37 @@ def _stale_citation_sql(
           where {" and ".join(clauses)}
           order by record.collection, record.collection_version, record.key,
                    record.status, record.seq desc
+        ),
+        candidates as (
+          select *
+          from current_records
+          where enriched_at is not null
+            and content->>'tombstone' is distinct from 'true'
+            and cardinality(derived_from) > 0
+        ),
+        stale_parents as (
+          -- Probe each distinct cited parent once, however many records cite it.
+          select parent.id
+          from (select distinct unnest(derived_from) as id from candidates) cited
+          join record parent on parent.id = cited.id and parent.workspace = %s
+          where parent.collection <> '_system'
+            and parent.key is not null
+            and exists (
+              select 1
+              from record newer
+              where newer.workspace = parent.workspace
+                and newer.entity = parent.entity
+                and newer.collection = parent.collection
+                and newer.collection_version = parent.collection_version
+                and newer.key = parent.key
+                and newer.status = parent.status
+                and newer.seq > parent.seq
+                and newer.enriched_at is not null
+            )
         )
         select {ROW_COLUMNS}, enriched_at
-        from current_records
-        where enriched_at is not null
-          and content->>'tombstone' is distinct from 'true'
-          and exists (
-            select 1
-            from unnest(derived_from) as cited(id)
-            join record parent
-              on parent.id = cited.id and parent.workspace = %s
-            where parent.collection <> '_system'
-              and parent.key is not null
-              and exists (
-                select 1
-                from record newer
-                where newer.workspace = parent.workspace
-                  and newer.entity = parent.entity
-                  and newer.collection = parent.collection
-                  and newer.collection_version = parent.collection_version
-                  and newer.key = parent.key
-                  and newer.status = parent.status
-                  and newer.seq > parent.seq
-                  and newer.enriched_at is not null
-              )
-          )
+        from candidates
+        where derived_from && array(select id from stale_parents)
         """
     return query, [*params, workspace]
 
@@ -1113,12 +1119,13 @@ class StaleCitationBasisAdapter:
     ) -> None:
         if not basis.input_rows and not definition.driver.allow_empty:
             return
-        current = await _stale_citation_input(
-            conn, workspace=workspace, entity=entity, source=definition.driver
+        query, params = _stale_citation_sql(definition.driver, workspace=workspace, entity=entity)
+        result = await conn.execute(
+            cast(LiteralString, f"select id from ({query}) stale order by seq limit %s"),
+            [*params, definition.driver.max_records + 1],
         )
-        if current is None:
-            raise DerivationError("stale", "a stale_citations source became unready")
-        if tuple(item.id for item in current) != tuple(item.id for item in basis.input_rows):
+        current = tuple(cast(UUID, row["id"]) for row in await result.fetchall())
+        if current != tuple(item.id for item in basis.input_rows):
             raise DerivationError(
                 "stale", "stale citation membership changed during Task execution"
             )
