@@ -22,15 +22,15 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import Any, Literal
+from uuid import UUID
 
-from psycopg.types.json import Jsonb
-
+from memseek.canonical_records import CanonicalRecordWrite, insert_canonical_record_tx
 from memseek.config import Settings
 from memseek.db import DatabaseConnection, DatabasePool
 from memseek.definitions import DefinitionCatalog
 from memseek.definitions.compat import StoredGroup, plan_stored_groups
-from memseek.derive.basis import source_contract_hash
-from memseek.locks import acquire_workspace_lock
+from memseek.derive.basis import _watermark, source_contract_hash
+from memseek.locks import acquire_entity_locks, acquire_workspace_lock
 
 _REWRITE_BATCH = 5_000
 
@@ -258,10 +258,11 @@ async def prune_definitions(
         derivation_counts: dict[str, int] = {}
         result = await conn.execute(
             """
-            select content ->> 'derivation' as derivation, count(*) as runs
+            select content ->> 'processor' as derivation, count(*) as runs
             from record
-            where workspace = %s and type = 'run' and content ? 'derivation'
-            group by content ->> 'derivation'
+            where workspace = %s and collection = '_system' and type = 'run'
+              and content ->> 'operation' = 'derive'
+            group by content ->> 'processor'
             """,
             (workspace,),
         )
@@ -432,63 +433,42 @@ async def rebind_cursor(
 
     async with pool.connection() as conn, conn.transaction():
         await acquire_workspace_lock(conn, workspace)
-        result = await conn.execute(
-            """
-            select id, seq, content ->> 'source_hash' as source_hash
-            from record
-            where workspace = %s and collection = '_system' and type = 'run'
-              and entity = %s and content ->> 'derivation' = %s
-              and content ->> 'status' in ('ok', 'noop')
-            order by seq desc
-            limit 1
-            """,
-            (workspace, entity, derivation),
+        await acquire_entity_locks(conn, workspace, (entity,))
+        previous_watermark, predecessor, previous_hash = await _watermark(
+            conn, workspace=workspace, entity=entity, derivation=derivation
         )
-        row = await result.fetchone()
-        if row is None:
+        if predecessor is None:
             raise EvolutionError(
                 "no_cursor",
                 f"{derivation!r} has no established cursor for entity {entity!r}",
             )
-        watermark_result = await conn.execute(
-            """
-            select coalesce(max((content ->> 'through_seq')::bigint), 0) as watermark
-            from record
-            where workspace = %s and collection = '_system' and type = 'run'
-              and entity = %s and content ->> 'derivation' = %s
-              and content ->> 'status' in ('ok', 'noop')
-            """,
-            (workspace, entity, derivation),
-        )
-        watermark_row = await watermark_result.fetchone()
-        previous_watermark = int(watermark_row["watermark"]) if watermark_row else 0
-        previous_hash = row["source_hash"]
         watermark = 0 if policy == "reset" else previous_watermark
 
         from memseek.enrichment import SYSTEM_COLLECTION_HASH, SYSTEM_COLLECTION_VERSION
 
-        await conn.execute(
-            """
-            insert into record (
-              workspace, collection, collection_version, collection_hash,
-              entity, type, status, content, enriched_at
-            ) values (%s, '_system', %s, %s, %s, 'run', 'active', %s, now())
-            """,
-            (
-                workspace,
-                SYSTEM_COLLECTION_VERSION,
-                SYSTEM_COLLECTION_HASH,
-                entity,
-                _rebind_audit(
+        await insert_canonical_record_tx(
+            conn,
+            CanonicalRecordWrite(
+                workspace=workspace,
+                collection="_system",
+                collection_version=SYSTEM_COLLECTION_VERSION,
+                collection_hash=SYSTEM_COLLECTION_HASH,
+                entity=entity,
+                type="run",
+                content=_rebind_audit(
                     derivation=derivation,
                     policy=policy,
                     previous_watermark=previous_watermark,
                     watermark=watermark,
+                    predecessor=predecessor,
                     previous_hash=previous_hash,
                     source_hash=target_hash,
                     build_sha=settings.memseek_build_sha,
                 ),
+                ready=True,
+                derived_from=(predecessor,),
             ),
+            settings,
         )
     return RebindResult(
         workspace=workspace,
@@ -508,28 +488,29 @@ def _rebind_audit(
     policy: str,
     previous_watermark: int,
     watermark: int,
+    predecessor: UUID,
     previous_hash: str | None,
     source_hash: str,
     build_sha: str,
-) -> Jsonb:
-    return Jsonb(
-        {
-            "text": (
-                f"cursor rebind: {derivation} {policy} "
-                f"from seq {previous_watermark} to seq {watermark}"
-            ),
-            "derivation": derivation,
-            "status": "ok",
-            "kind": "cursor_rebind",
-            "policy": policy,
-            "through_seq": watermark,
-            "from_seq": watermark,
-            "previous_watermark": previous_watermark,
-            "previous_source_hash": previous_hash,
-            "source_hash": source_hash,
-            "build_sha": build_sha,
-        }
-    )
+) -> dict[str, Any]:
+    # The audit is itself the newest successful derive run, so the runner's
+    # cursor read adopts its high_seq and source_hash.
+    return {
+        "text": (
+            f"cursor rebind: {derivation} {policy} from seq {previous_watermark} to seq {watermark}"
+        ),
+        "operation": "derive",
+        "processor": derivation,
+        "status": "ok",
+        "kind": "cursor_rebind",
+        "policy": policy,
+        "wm_before": previous_watermark,
+        "high_seq": watermark,
+        "predecessor_run_id": str(predecessor),
+        "previous_source_hash": previous_hash,
+        "source_hash": source_hash,
+        "build_sha": build_sha,
+    }
 
 
 __all__ = [

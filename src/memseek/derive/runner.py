@@ -1490,6 +1490,20 @@ def _run_content(
     }
 
 
+def _next_high_seq(
+    basis: EvaluationBasis, packed_input: Sequence[DerivationRecord], *, watermark: int
+) -> int:
+    """Where this run leaves the cursor.
+
+    The cursor is the newest successful run's high_seq, so an empty snapshot
+    (through_seq 0) carries the watermark instead of rewinding it to zero.
+    """
+
+    if basis.mode in {"corpus", "citation_repair"}:
+        return basis.through_seq or watermark
+    return packed_input[-1].seq if packed_input else watermark
+
+
 async def _commit_execution(
     pool: DatabasePool,
     settings: Settings,
@@ -1888,13 +1902,7 @@ async def process_derivation_job(
         visible_ids.update(item.id for item in packed_input)
         if len(visible_ids) > definition.limits.max_visible_records:
             raise DerivationError("budget", "sources exceed max_visible_records", wm=wm)
-        high_seq = (
-            basis.through_seq
-            if basis.mode in {"corpus", "citation_repair"}
-            else packed_input[-1].seq
-            if packed_input
-            else wm
-        )
+        high_seq = _next_high_seq(basis, packed_input, watermark=wm)
         execution.basis = replace(
             basis,
             input_rows=packed_input,
