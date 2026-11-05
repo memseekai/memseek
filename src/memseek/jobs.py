@@ -7,7 +7,7 @@ from datetime import UTC, datetime
 from typing import Any, cast
 from uuid import UUID, uuid4
 
-from psycopg import AsyncConnection, errors
+from psycopg import errors
 from psycopg_pool import AsyncConnectionPool
 
 from memseek.logging import log_event
@@ -45,33 +45,41 @@ def _claimed_job(row: dict[str, Any]) -> ClaimedJob:
     )
 
 
-async def _reap_expired_final_attempts_tx(conn: AsyncConnection[Any], max_attempts: int) -> int:
-    result = await conn.execute(
-        """
-        update job
-        set dead_at = clock_timestamp(),
-            lease_until = null,
-            locked_by = null,
-            last_error_kind = 'lease_expired',
-            last_error = 'lease expired after final attempt'
-        where done_at is null
-          and dead_at is null
-          and attempts >= %s
-          and lease_until is not null
-          and lease_until < clock_timestamp()
-        """,
-        (max_attempts,),
-    )
-    return result.rowcount
-
-
 async def reap_expired_final_attempts(pool: AsyncConnectionPool[Any], max_attempts: int) -> int:
-    """Dead-letter final attempts whose owner let the lease expire."""
+    """Dead-letter final attempts whose owner let the lease expire.
+
+    The claim never selects a row at the attempt cap, so this is the only path
+    that retires one.  Rows another transaction holds are skipped and left for
+    the next sweep rather than waited on.
+    """
 
     if max_attempts <= 0:
         raise ValueError("max_attempts must be positive")
-    async with pool.connection() as conn, conn.transaction():
-        count = await _reap_expired_final_attempts_tx(conn, max_attempts)
+    async with pool.connection() as conn:
+        result = await conn.execute(
+            """
+            with expired as (
+              select id
+              from job
+              where done_at is null
+                and dead_at is null
+                and attempts >= %s
+                and lease_until is not null
+                and lease_until < clock_timestamp()
+              for update skip locked
+            )
+            update job j
+            set dead_at = clock_timestamp(),
+                lease_until = null,
+                locked_by = null,
+                last_error_kind = 'lease_expired',
+                last_error = 'lease expired after final attempt'
+            from expired e
+            where j.id = e.id
+            """,
+            (max_attempts,),
+        )
+        count = result.rowcount
     if count:
         log_event(LOGGER, "warning", "jobs.lease_expired_reaped", count=count)
     return count
@@ -99,7 +107,6 @@ async def claim_job(
     claim_token = f"{worker_id}:{uuid4()}"
     derive_filter = list(derivations) if derivations is not None else None
     async with pool.connection() as conn, conn.transaction():
-        reaped = await _reap_expired_final_attempts_tx(conn, max_attempts)
         result = await conn.execute(
             """
             with candidate as (
@@ -138,8 +145,6 @@ async def claim_job(
             ),
         )
         row = await result.fetchone()
-    if reaped:
-        log_event(LOGGER, "warning", "jobs.lease_expired_reaped", count=reaped)
     if row is None:
         return None
     claimed = _claimed_job(row)

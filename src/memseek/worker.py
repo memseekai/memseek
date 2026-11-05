@@ -1221,6 +1221,14 @@ async def run_worker_once(
 
     identity = worker_id or _worker_id()
     lanes = _LaneTally()
+    if runtime.cadence.due("reap_expired", runtime.settings.job_lease_s / 2):
+        from memseek.jobs import reap_expired_final_attempts
+
+        await lanes.run(
+            "reap_expired",
+            reap_expired_final_attempts(runtime.pool, runtime.settings.job_max_attempts),
+            0,
+        )
     # Cron ticks are minute-granular, so asking the scheduler more than once per
     # minute only repeats the sweep of every workspace.
     if (

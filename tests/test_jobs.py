@@ -155,6 +155,46 @@ async def test_expired_final_attempt_is_reaped_instead_of_reclaimed(
     assert row["locked_by"] is None
 
 
+async def _expire_final_attempt(pool: DatabasePool) -> UUID:
+    job_id = await _insert_job(pool, attempts=3)
+    async with pool.connection() as conn:
+        await conn.execute(
+            """
+            update job
+            set lease_until = now() - interval '1 second', locked_by = 'gone:token'
+            where id = %s
+            """,
+            (job_id,),
+        )
+    return job_id
+
+
+async def test_reaper_skips_a_row_another_transaction_holds(
+    db_pool: DatabasePool,
+) -> None:
+    await _setup(db_pool)
+    await _expire_final_attempt(db_pool)
+    async with db_pool.connection() as holder, holder.transaction():
+        await holder.execute("select id from job for update")
+        assert await asyncio.wait_for(reap_expired_final_attempts(db_pool, 3), timeout=2) == 0
+    assert await reap_expired_final_attempts(db_pool, 3) == 1
+
+
+async def test_claim_leaves_expired_final_attempts_to_the_reaper(
+    db_pool: DatabasePool,
+) -> None:
+    await _setup(db_pool)
+    job_id = await _expire_final_attempt(db_pool)
+    assert (
+        await claim_job(db_pool, worker_id="worker", kinds=("derive",), lease_s=30, max_attempts=3)
+        is None
+    )
+    async with db_pool.connection() as conn:
+        result = await conn.execute("select dead_at from job where id = %s", (job_id,))
+        row = await result.fetchone()
+    assert row == {"dead_at": None}
+
+
 async def test_retry_backoff_then_dead_letters_at_attempt_cap(
     db_pool: DatabasePool,
 ) -> None:

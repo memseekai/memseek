@@ -258,3 +258,37 @@ async def test_worker_schedules_cron_at_most_once_per_minute(
     clock.now += 1
     await worker_module.run_worker_once(runtime, worker_id="w")
     assert schedule.await_count == 2
+
+
+async def test_worker_reaps_expired_final_attempts_every_half_lease(
+    settings: Settings,
+    db_pool: DatabasePool,
+    cron_catalog: DefinitionCatalog,
+) -> None:
+    async with db_pool.connection() as conn:
+        await conn.execute(
+            "insert into workspace (id, api_key_hash) values ('reaper', %s)", ("0" * 64,)
+        )
+    clock = _Clock(1_800_000_000.0)
+    runtime = WorkerRuntime(
+        settings=settings,
+        catalog=cron_catalog,
+        pool=db_pool,
+        cadence=worker_module.Cadence(clock),
+    )
+    insert_expired = """
+        insert into job (workspace, kind, derivation, entity, attempts, lease_until, locked_by)
+        values ('reaper', 'derive', 'profile', %s, %s, now() - interval '1 second', 'gone:t')
+    """
+    dead = "select entity from job where workspace = 'reaper' and dead_at is not null"
+
+    await worker_module.run_worker_once(runtime, worker_id="w")
+    async with db_pool.connection() as conn:
+        await conn.execute(insert_expired, ("a", settings.job_max_attempts))
+    clock.now += settings.job_lease_s / 2 - 1
+    await worker_module.run_worker_once(runtime, worker_id="w")
+    assert await _rows(db_pool, dead, ()) == []
+
+    clock.now += 1
+    await worker_module.run_worker_once(runtime, worker_id="w")
+    assert await _rows(db_pool, dead, ()) == [{"entity": "a"}]
