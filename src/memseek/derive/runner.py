@@ -25,7 +25,11 @@ from jsonschema import Draft202012Validator, FormatChecker
 from psycopg.types.json import Jsonb
 
 from memseek import __version__
-from memseek.canonical_records import CanonicalRecordWrite, insert_canonical_record_tx
+from memseek.canonical_records import (
+    CanonicalRecordWrite,
+    insert_canonical_record_tx,
+    insert_canonical_records_tx,
+)
 from memseek.computers import ComputerExecutionError, execute_agent, execute_program
 from memseek.config import Settings
 from memseek.db import DatabaseConnection, DatabasePool
@@ -1605,6 +1609,7 @@ async def _commit_execution(
             workspace=claimed.workspace,
             records=({"id": run_id},),
         )
+        output_writes: list[CanonicalRecordWrite] = []
         for draft in execution.outputs:
             continuity_depths: list[int] = []
             derived_depths: list[int] = []
@@ -1633,8 +1638,7 @@ async def _commit_execution(
                 raise DerivationError(
                     "budget", "derived output exceeds MAX_DERIVATION_DEPTH", wm=execution.wm_before
                 )
-            await insert_canonical_record_tx(
-                conn,
+            output_writes.append(
                 CanonicalRecordWrite(
                     id=draft.id,
                     workspace=claimed.workspace,
@@ -1650,9 +1654,9 @@ async def _commit_execution(
                     run_id=run_id,
                     depth=depth,
                     derived_from=(run_id, *draft.citations),
-                ),
-                settings,
+                )
             )
+        await insert_canonical_records_tx(conn, output_writes, settings)
         await _complete_claim_tx(conn, claimed)
         if execution.basis.mode == "changes":
             await _enqueue_successor_tx(
