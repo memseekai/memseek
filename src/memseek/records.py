@@ -157,7 +157,6 @@ class _PreparedRecord:
 class _Parent:
     id: UUID
     workspace: str
-    seq: int
     depth: int
 
 
@@ -501,7 +500,7 @@ async def _load_parents(
         return {}
     result = await conn.execute(
         """
-        select id, workspace, seq, depth
+        select id, workspace, depth
         from record
         where id = any(%s::uuid[])
         """,
@@ -512,7 +511,6 @@ async def _load_parents(
         row["id"]: _Parent(
             id=row["id"],
             workspace=str(row["workspace"]),
-            seq=int(row["seq"]),
             depth=int(row["depth"]),
         )
         for row in rows
@@ -529,107 +527,6 @@ async def _load_parents(
             "parent_workspace", f"parent belongs to another workspace: {foreign[0]}"
         )
     return parents
-
-
-async def _validate_parent_ancestry(
-    conn: DatabaseConnection,
-    *,
-    workspace: str,
-    parent_ids: set[UUID],
-) -> None:
-    """Reject a corrupt reachable lineage rather than extending it.
-
-    A newly generated public ID cannot itself be an ancestor.  The recursive
-    check additionally proves that reachable existing edges preserve both
-    workspace ownership and strict sequence order, which implies acyclicity.
-
-    The walk visits each reachable ancestor once (``union``, keyed by id)
-    rather than enumerating every root-to-leaf path.  A lineage whose records
-    share ancestors is a lattice, and the number of distinct paths through a
-    lattice grows exponentially with its depth: enumerating them spilled
-    gigabytes of temporary files and filled the database volume.  Every
-    cycle must contain an edge that fails strict sequence order, so a cycle
-    search is only needed when such an edge is reachable, and it only has to
-    start from those edges.
-    """
-
-    if not parent_ids:
-        return
-    result = await conn.execute(
-        """
-        with recursive reachable(id) as (
-          select unnest(%s::uuid[])
-          union
-          select edge.id
-          from reachable
-          join record child on child.id = reachable.id
-          cross join lateral unnest(child.derived_from) edge(id)
-        ), node as (
-          select record.id, record.workspace, record.seq, record.derived_from
-          from record
-          join reachable on reachable.id = record.id
-        ), bad_edge as (
-          select child.id as child_id
-          from node child
-          cross join lateral unnest(child.derived_from) edge(id)
-          join record parent on parent.id = edge.id
-          where parent.seq >= child.seq
-        )
-        select
-          coalesce((select bool_or(workspace <> %s) from node), false)
-            as has_foreign_workspace,
-          coalesce((select array_agg(distinct child_id) from bad_edge), '{}'::uuid[])
-            as bad_children
-        """,
-        (list(parent_ids), workspace),
-    )
-    row = await result.fetchone()
-    if row is None:
-        return
-    if row["has_foreign_workspace"]:
-        raise RecordValidationError(
-            "parent_workspace", "reachable parent lineage crosses workspaces"
-        )
-    bad_children: list[UUID] = list(row["bad_children"])
-    if not bad_children:
-        return
-    if await _ancestry_has_cycle(conn, bad_children=bad_children):
-        raise RecordValidationError("parent_cycle", "parent lineage contains a cycle")
-    raise RecordValidationError(
-        "parent_order", "parent lineage does not preserve strict sequence order"
-    )
-
-
-async def _ancestry_has_cycle(conn: DatabaseConnection, *, bad_children: list[UUID]) -> bool:
-    """Whether a record whose parent fails strict sequence order reaches itself.
-
-    Every cycle contains such an edge, so walking upward from the parent side
-    of each one and looking for the child again finds every cycle.  The walk
-    is keyed by (origin, node) so a cycle terminates it rather than looping.
-    """
-
-    result = await conn.execute(
-        """
-        with recursive walk(origin, node) as (
-          select child.id, parent.id
-          from record child
-          cross join lateral unnest(child.derived_from) edge(id)
-          join record parent on parent.id = edge.id
-          where child.id = any(%s::uuid[])
-            and parent.seq >= child.seq
-          union
-          select walk.origin, edge.id
-          from walk
-          join record current on current.id = walk.node
-          cross join lateral unnest(current.derived_from) edge(id)
-        )
-        select coalesce(bool_or(origin = node), false) as has_cycle
-        from walk
-        """,
-        (bad_children,),
-    )
-    row = await result.fetchone()
-    return bool(row is not None and row["has_cycle"])
 
 
 async def _current_keyed_id(
@@ -968,13 +865,6 @@ async def _insert_one(
         code = "content_json" if exc.code == "finite_json" else exc.code
         raise RecordValidationError(code, exc.detail, index=item.index) from exc
     if inserted is not None:
-        child_seq = inserted.seq
-        if any(parents[parent_id].seq >= child_seq for parent_id in item.parents):
-            raise RecordValidationError(
-                "parent_order",
-                "every public parent must be older than its child",
-                index=item.index,
-            )
         write = RecordWrite(
             index=item.index,
             id=inserted.id,
@@ -1113,7 +1003,6 @@ async def insert_records_tx(
     )
     parent_ids = {parent_id for item in prepared for parent_id in item.parents}
     parents = await _load_parents(conn, workspace=workspace, parent_ids=parent_ids)
-    await _validate_parent_ancestry(conn, workspace=workspace, parent_ids=parent_ids)
     time_result = await conn.execute("select now() as completed_at")
     time_row = await time_result.fetchone()
     if time_row is None:

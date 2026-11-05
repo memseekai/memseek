@@ -222,6 +222,34 @@ def _validate_write(record: CanonicalRecordWrite, settings: Settings) -> dict[st
     }
 
 
+async def _newest_parent_seq(conn: DatabaseConnection, record: CanonicalRecordWrite) -> int:
+    """Prove every parent exists in the record's workspace; return the newest seq.
+
+    Checking direct parents is enough to keep the whole lineage valid: a
+    migration makes lineage columns immutable, so every reachable edge was
+    proven by this check when its own child was inserted.
+    """
+
+    if not record.derived_from:
+        return 0
+    result = await conn.execute(
+        """
+        select count(*) as found,
+               count(*) filter (where workspace = %s) as same_workspace,
+               coalesce(max(seq), 0) as newest_seq
+        from record
+        where id = any(%s::uuid[])
+        """,
+        (record.workspace, list(record.derived_from)),
+    )
+    row = await result.fetchone()
+    if row is None or row["found"] != len(record.derived_from):
+        _fail("parent_not_found", "every parent must exist")
+    if row["same_workspace"] != row["found"]:
+        _fail("parent_workspace", "every parent must belong to the record's workspace")
+    return int(row["newest_seq"])
+
+
 async def insert_canonical_record_tx(
     conn: DatabaseConnection,
     record: CanonicalRecordWrite,
@@ -239,6 +267,7 @@ async def insert_canonical_record_tx(
     if dedupe_conflict not in {"error", "return_none"}:
         _fail("dedupe_mode", "unsupported dedupe conflict mode")
     normalized = _validate_write(record, settings)
+    newest_parent_seq = await _newest_parent_seq(conn, record)
     result = await conn.execute(
         """
         insert into record (
@@ -291,6 +320,8 @@ async def insert_canonical_record_tx(
         _fail("insert_return", "canonical record insert returned an unexpected id")
     if isinstance(seq, bool) or not isinstance(seq, int) or seq < 1:
         _fail("insert_return", "canonical record insert returned an invalid sequence")
+    if newest_parent_seq >= seq:
+        _fail("parent_order", "every parent must be older than its child")
     ready = row.get("enriched_at") is not None
     if ready is not record.ready:
         _fail("insert_return", "canonical record insert returned an unexpected ready state")

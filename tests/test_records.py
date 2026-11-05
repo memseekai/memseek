@@ -6,6 +6,7 @@ import time
 from dataclasses import replace
 from typing import Any
 
+import psycopg
 import pytest
 
 from memseek.auth import create_workspace
@@ -437,43 +438,6 @@ async def test_parents_are_same_workspace_canonical_and_depth_bounded(
     assert too_deep.value.code == "depth_limit"
 
 
-async def test_existing_cyclic_lineage_is_not_extended(
-    db_pool: DatabasePool,
-    settings: Settings,
-    catalog: DefinitionCatalog,
-) -> None:
-    await create_workspace(db_pool, "cycles")
-    parent = await _insert(
-        db_pool,
-        settings,
-        catalog,
-        "cycles",
-        [{"entity": "maria", "type": "event", "text": "Parent"}],
-    )
-    parent_id = parent.inserted[0].id
-    async with db_pool.connection() as conn:
-        await conn.execute(
-            "update record set derived_from = %s where id = %s",
-            ([parent_id], parent_id),
-        )
-    with pytest.raises(RecordValidationError) as raised:
-        await _insert(
-            db_pool,
-            settings,
-            catalog,
-            "cycles",
-            [
-                {
-                    "entity": "maria",
-                    "type": "event",
-                    "text": "Must not extend corruption",
-                    "derived_from": [str(parent_id)],
-                }
-            ],
-        )
-    assert raised.value.code == "parent_cycle"
-
-
 async def test_lattice_lineage_validates_without_enumerating_paths(
     db_pool: DatabasePool,
     settings: Settings,
@@ -527,88 +491,39 @@ async def test_lattice_lineage_validates_without_enumerating_paths(
     assert row["depth"] == 12
 
 
-async def test_existing_misordered_lineage_is_not_extended(
+async def test_record_lineage_cannot_be_rewritten(
     db_pool: DatabasePool,
     settings: Settings,
     catalog: DefinitionCatalog,
 ) -> None:
-    await create_workspace(db_pool, "misordered")
-    parents = await _insert(
+    await create_workspace(db_pool, "lineage")
+    await create_workspace(db_pool, "elsewhere")
+    batch = await _insert(
         db_pool,
         settings,
         catalog,
-        "misordered",
-        [
-            {"entity": "maria", "type": "event", "text": "Older"},
-            {"entity": "maria", "type": "event", "text": "Newer"},
-        ],
-    )
-    older_id, newer_id = (record.id for record in parents.inserted)
-    async with db_pool.connection() as conn:
-        await conn.execute(
-            "update record set derived_from = %s where id = %s",
-            ([newer_id], older_id),
-        )
-    with pytest.raises(RecordValidationError) as raised:
-        await _insert(
-            db_pool,
-            settings,
-            catalog,
-            "misordered",
-            [
-                {
-                    "entity": "maria",
-                    "type": "event",
-                    "text": "Must not extend corruption",
-                    "derived_from": [str(older_id)],
-                }
-            ],
-        )
-    assert raised.value.code == "parent_order"
-
-
-async def test_existing_two_record_cycle_is_not_extended(
-    db_pool: DatabasePool,
-    settings: Settings,
-    catalog: DefinitionCatalog,
-) -> None:
-    await create_workspace(db_pool, "loop")
-    parents = await _insert(
-        db_pool,
-        settings,
-        catalog,
-        "loop",
+        "lineage",
         [
             {"entity": "maria", "type": "event", "text": "One"},
             {"entity": "maria", "type": "event", "text": "Two"},
         ],
     )
-    one_id, two_id = (record.id for record in parents.inserted)
+    one_id, two_id = (record.id for record in batch.inserted)
+    rewrites = (
+        ("update record set derived_from = %s where id = %s", ([two_id], one_id)),
+        ("update record set workspace = %s where id = %s", ("elsewhere", one_id)),
+    )
+    for statement, params in rewrites:
+        async with db_pool.connection() as conn:
+            with pytest.raises(psycopg.errors.IntegrityConstraintViolation):
+                await conn.execute(statement, params)
     async with db_pool.connection() as conn:
-        await conn.execute(
-            "update record set derived_from = %s where id = %s",
-            ([two_id], one_id),
+        await conn.execute("update record set last_accessed = now() where id = %s", (one_id,))
+        result = await conn.execute(
+            "select workspace, derived_from from record where id = %s", (one_id,)
         )
-        await conn.execute(
-            "update record set derived_from = %s where id = %s",
-            ([one_id], two_id),
-        )
-    with pytest.raises(RecordValidationError) as raised:
-        await _insert(
-            db_pool,
-            settings,
-            catalog,
-            "loop",
-            [
-                {
-                    "entity": "maria",
-                    "type": "event",
-                    "text": "Must not extend corruption",
-                    "derived_from": [str(two_id)],
-                }
-            ],
-        )
-    assert raised.value.code == "parent_cycle"
+        row = await result.fetchone()
+    assert row == {"workspace": "lineage", "derived_from": []}
 
 
 def _catalog_with_clients(catalog: DefinitionCatalog) -> DefinitionCatalog:

@@ -10,13 +10,14 @@ from uuid import UUID, uuid4
 
 import pytest
 
+from memseek.auth import create_workspace
 from memseek.canonical_records import (
     CanonicalRecordInvariantError,
     CanonicalRecordWrite,
     insert_canonical_record_tx,
 )
 from memseek.config import Settings
-from memseek.db import DatabaseConnection
+from memseek.db import DatabaseConnection, DatabasePool
 
 
 class _Result:
@@ -170,3 +171,40 @@ async def test_canonical_writer_rejects_an_unexpected_returning_row() -> None:
             _settings(),
         )
     assert raised.value.code == "insert_return"
+
+
+async def test_canonical_writer_rejects_missing_and_foreign_parents(
+    db_pool: DatabasePool, settings: Settings
+) -> None:
+    await create_workspace(db_pool, "home")
+    await create_workspace(db_pool, "away")
+    async with db_pool.connection() as conn, conn.transaction():
+        foreign = await insert_canonical_record_tx(
+            conn, replace(_write(), workspace="away"), settings
+        )
+        local = await insert_canonical_record_tx(
+            conn, replace(_write(), workspace="home"), settings
+        )
+    assert foreign is not None
+    assert local is not None
+
+    cases = (
+        ((local.id, uuid4()), "parent_not_found"),
+        ((local.id, foreign.id), "parent_workspace"),
+    )
+    for parents, code in cases:
+        async with db_pool.connection() as conn, conn.transaction():
+            with pytest.raises(CanonicalRecordInvariantError) as raised:
+                await insert_canonical_record_tx(
+                    conn,
+                    replace(_write(), workspace="home", derived_from=parents),
+                    settings,
+                )
+        assert raised.value.code == code
+
+    async with db_pool.connection() as conn, conn.transaction():
+        child = await insert_canonical_record_tx(
+            conn, replace(_write(), workspace="home", derived_from=(local.id,)), settings
+        )
+    assert child is not None
+    assert child.seq > local.seq
