@@ -192,7 +192,7 @@ Every record source — `changes`, `snapshot`, `stale_citations`, `current`, and
 
 Each object in `.records` contains canonical identity and public data such as
 `id`, `seq`, `collection`, `collection_version`, `entity`, `key`, `type`,
-`status`, `content`, `scores`, and `occurred_at`.
+`status`, `content`, `scores`, `annotations`, and `occurred_at`.
 
 A `view` source also provides `.records` and `.rendered`, using the bounded
 hits returned by the named view.

@@ -220,6 +220,7 @@ def _record_value(item: DerivationRecord) -> dict[str, Any]:
         "status": item.status,
         "content": dict(item.content),
         "scores": dict(item.scores),
+        "annotations": dict(item.annotations),
         "occurred_at": item.occurred_at.isoformat().replace("+00:00", "Z"),
     }
 

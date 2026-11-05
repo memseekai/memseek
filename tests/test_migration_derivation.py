@@ -7,12 +7,14 @@ ordinary derivation is what gives it provenance, bounds, and review for free.
 
 from __future__ import annotations
 
+import copy
 from typing import Any
 from uuid import uuid4
 
 import httpx
 import pytest
-from evolution_catalog import build_app, catalog_files, enrich, ingest, publish
+import yaml
+from evolution_catalog import MIGRATION, build_app, catalog_files, enrich, ingest, publish
 
 from memseek.auth import create_workspace
 from memseek.config import Settings
@@ -360,3 +362,42 @@ async def test_a_cursor_driven_migration_walks_a_whole_corpus_exactly_once(
         row = await again.fetchone()
     assert row is not None
     assert int(row["rows"]) == 7
+
+
+async def test_a_migration_derivation_reads_processor_annotations_from_its_source(
+    settings: Settings, db_pool: DatabasePool, workspace: WorkspaceCredential
+) -> None:
+    """A real run hands map_records the stored annotations, not an empty map."""
+
+    files = catalog_files()
+    migration = copy.deepcopy(MIGRATION)
+    migration["tasks"][0]["with"]["set"] = {"origin": {"from": "annotations.embedding_v1.space"}}
+    files["derivations/archive_notes.yaml"] = yaml.safe_dump(migration)
+    headers = {"Authorization": f"Bearer {workspace.api_key}"}
+    app = build_app(settings)
+    async with app.router.lifespan_context(app):
+        transport = httpx.ASGITransport(app=app)
+        async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+            assert (await publish(client, headers, files)).status_code == 200
+            assert (await ingest(client, headers, text="note", channel="email")).status_code == 200
+            await enrich(settings, db_pool, workspace.workspace)
+            queued = await client.post(
+                "/processors/archive_notes/run", headers=headers, json={"entity": "user:ana"}
+            )
+            assert queued.status_code == 200, queued.text
+    await enrich(settings, db_pool, workspace.workspace)
+
+    async with db_pool.connection() as conn:
+        result = await conn.execute(
+            """
+            select archive.content->>'origin' as origin,
+                   note.annotations->'embedding_v1'->>'space' as space
+            from record archive
+            join record note on note.id = any(archive.derived_from)
+              and note.collection = 'notes'
+            where archive.workspace = %s and archive.collection = 'archive'
+            """,
+            (workspace.workspace,),
+        )
+        rows = await result.fetchall()
+    assert [(row["origin"], row["space"]) for row in rows] == [("default-v1", "default-v1")]
