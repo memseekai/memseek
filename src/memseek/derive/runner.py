@@ -139,6 +139,7 @@ class _Execution:
     output: Any = None
     outputs: tuple[CandidateRecord, ...] = ()
     candidate_set: CandidateSet | None = None
+    skipped: tuple[dict[str, Any], ...] = ()
     warning: str | None = None
 
     @property
@@ -183,9 +184,10 @@ def _pack_rows(
     *,
     catalog: DefinitionCatalog,
     max_tokens: int,
-    label: str,
     max_records: int | None = None,
 ) -> tuple[tuple[DerivationRecord, ...], str]:
+    """Pack the longest prefix that fits; empty when even the first row does not."""
+
     selected: list[DerivationRecord] = []
     rendered: list[str] = []
     used_bytes = 0
@@ -195,10 +197,6 @@ def _pack_rows(
         row = render_record(_renderable(item), profile="derivation_input", catalog=catalog)
         candidate_bytes = used_bytes + len(row.encode("utf-8")) + bool(selected)
         if max(1, (candidate_bytes + 3) // 4) > max_tokens:
-            if not selected:
-                raise DerivationError(
-                    "budget", f"first {label} record does not fit its token budget"
-                )
             break
         selected.append(item)
         rendered.append(row)
@@ -1453,6 +1451,7 @@ def _run_content(
         "final_source_ids": [str(item) for item in sorted(execution.final_source_ids, key=str)],
         "final_citation_ids": [str(item) for item in sorted(execution.final_visible_ids, key=str)],
         "output_ids": output_ids,
+        "skipped": list(execution.skipped),
         "config_hash": execution.config_hash,
         "contract_hash": execution.definition.definition_hash,
         "source_hash": source_contract_hash(execution.definition),
@@ -1881,7 +1880,6 @@ async def process_derivation_job(
                 rows,
                 catalog=catalog,
                 max_tokens=source.max_tokens,
-                label=f"source {name}",
             )
             if len(packed) != len(rows):
                 raise DerivationError("budget", f"source {name!r} exceeds its token budget", wm=wm)
@@ -1890,17 +1888,23 @@ async def process_derivation_job(
             visible_ids.update(item.id for item in packed)
         if len(visible_ids) > definition.limits.max_visible_records:
             raise DerivationError("budget", "current sources exceed max_visible_records", wm=wm)
+        room = max(0, definition.limits.max_visible_records - len(visible_ids))
         packed_input, source_rendered = _pack_rows(
             input_rows,
             catalog=catalog,
             max_tokens=definition.driver.max_tokens,
-            label=f"source {definition.driver_name}",
-            max_records=max(0, definition.limits.max_visible_records - len(visible_ids)),
+            max_records=room,
         )
+        oversized: DerivationRecord | None = None
         if input_rows and not packed_input:
-            raise DerivationError(
-                "budget", "no source record fits the visible-record budget", wm=wm
-            )
+            if room == 0:
+                raise DerivationError(
+                    "budget", "no source record fits the visible-record budget", wm=wm
+                )
+            if basis.mode == "changes":
+                # A record that alone exceeds the driver's token budget would
+                # fail every attempt and pin the cursor; step past it instead.
+                oversized = input_rows[0]
         if basis.mode in {"corpus", "citation_repair"} and len(packed_input) != len(input_rows):
             raise DerivationError(
                 "budget",
@@ -1910,7 +1914,11 @@ async def process_derivation_job(
         visible_ids.update(item.id for item in packed_input)
         if len(visible_ids) > definition.limits.max_visible_records:
             raise DerivationError("budget", "sources exceed max_visible_records", wm=wm)
-        high_seq = _next_high_seq(basis, packed_input, watermark=wm)
+        high_seq = (
+            oversized.seq
+            if oversized is not None
+            else _next_high_seq(basis, packed_input, watermark=wm)
+        )
         execution.basis = replace(
             basis,
             input_rows=packed_input,
@@ -1929,7 +1937,7 @@ async def process_derivation_job(
             read_values=read_values,
         )
         async with asyncio.timeout(definition.limits.max_wall_s):
-            if input_rows or definition.driver.allow_empty:
+            if oversized is None and (input_rows or definition.driver.allow_empty):
                 await _resolve_view_sources(
                     execution,
                     pool,
@@ -1964,6 +1972,19 @@ async def process_derivation_job(
                 # so it must not acquire model-visible provenance parents.
                 execution.visible_ids = set()
                 execution.final_visible_ids = frozenset()
+                if oversized is not None:
+                    execution.skipped = (
+                        {"seq": oversized.seq, "id": str(oversized.id), "reason": "budget"},
+                    )
+                    log_event(
+                        LOGGER,
+                        "warning",
+                        "derive.input_skipped",
+                        workspace=claimed.workspace,
+                        derivation=definition.name,
+                        seq=oversized.seq,
+                        reason="budget",
+                    )
             execution.completed_at = datetime.now(UTC)
         run_id = await _commit_execution(pool, settings, catalog, claimed, execution)
     except TimeoutError as exc:

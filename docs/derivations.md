@@ -262,7 +262,11 @@ matching rows remain, commit queues a successor run.
 
 `max_records` is the per-run batch bound. `max_tokens` is the rendered source
 bound. A token-limited changes run may consume the maximal fitting prefix; it
-never skips a matching row to reach later evidence.
+never skips a matching row to reach later evidence, with one exception. When
+the first pending row alone exceeds `max_tokens`, no run could ever consume
+it, so the run commits as a `noop` that moves the cursor past that row and
+lists it in the run's `skipped` entries (`seq`, `id`, `reason: budget`). The
+rows after it are processed by the successor run.
 
 With `allow_empty: false`, an empty batch becomes a cheap audited no-op. With
 `allow_empty: true`, tasks may run even when no driving rows match.

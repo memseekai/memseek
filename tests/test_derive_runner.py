@@ -353,3 +353,64 @@ async def test_run_over_its_wall_clock_is_retried_not_dead_lettered(
 
     assert failure.value.kind == "timeout"
     assert await _job_state(db_pool, claimed.id) == (False, "timeout")
+
+
+async def _run_content(pool: DatabasePool, run_id: UUID) -> dict[str, Any]:
+    async with pool.connection() as conn:
+        row = await (
+            await conn.execute("select content from record where id = %s", (run_id,))
+        ).fetchone()
+    assert row is not None
+    return row["content"]
+
+
+async def test_input_record_too_large_for_its_budget_is_skipped_and_audited(
+    digest_settings: Settings,
+    db_pool: DatabasePool,
+) -> None:
+    settings = digest_settings
+    catalog = load_definition_catalog(settings)
+    credential = await create_workspace(db_pool, "derive-poison-input")
+    poison = await _write_note(
+        db_pool,
+        catalog,
+        settings,
+        workspace=credential.workspace,
+        key="a",
+        text="tea " * 4000,
+    )
+    claimed = await _claim(db_pool, settings)
+    later = await _write_note(
+        db_pool,
+        catalog,
+        settings,
+        workspace=credential.workspace,
+        key="b",
+        text="Maya is in Lisbon.",
+    )
+    fake.reset()
+
+    skipped = await process_derivation_job(
+        db_pool, claimed=claimed, settings=settings, catalog=catalog
+    )
+
+    assert (skipped.disposition, skipped.output_count) == ("done", 0)
+    assert skipped.run_id is not None
+    content = await _run_content(db_pool, skipped.run_id)
+    async with db_pool.connection() as conn:
+        seq_row = await (
+            await conn.execute("select seq from record where id = %s", (poison,))
+        ).fetchone()
+    assert seq_row is not None
+    assert (content["status"], content["high_seq"], content["skipped"]) == (
+        "noop",
+        seq_row["seq"],
+        [{"seq": seq_row["seq"], "id": str(poison), "reason": "budget"}],
+    )
+    assert fake.completion_calls == []
+
+    fake.enqueue(_atom("Maya is in Lisbon.", later))
+    resumed = await process_derivation_job(
+        db_pool, claimed=await _claim(db_pool, settings), settings=settings, catalog=catalog
+    )
+    assert (resumed.disposition, resumed.output_count) == ("done", 1)

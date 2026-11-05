@@ -14,7 +14,6 @@ from memseek.config import Settings
 from memseek.definitions import load_definition_catalog
 from memseek.derive import runner
 from memseek.derive.basis import DerivationRecord
-from memseek.derive.errors import DerivationError
 from memseek.render import estimate_tokens, render_rows
 from memseek.search import engine
 from memseek.search.spec import SearchSpec
@@ -47,16 +46,6 @@ def test_pipeline_packing_matches_complete_prefixes_at_every_budget(settings: Se
     for max_records in (0, 1, 3, None):
         bounded_rows = rows if max_records is None else rows[:max_records]
         for budget in range(estimate_tokens("\n".join(rendered)) + 2):
-            if bounded_rows and estimate_tokens(rendered[0]) > budget:
-                with pytest.raises(DerivationError, match="first input record"):
-                    runner._pack_rows(
-                        rows,
-                        catalog=catalog,
-                        max_tokens=budget,
-                        label="input",
-                        max_records=max_records,
-                    )
-                continue
             count = 0
             while (
                 count < len(bounded_rows)
@@ -67,15 +56,14 @@ def test_pipeline_packing_matches_complete_prefixes_at_every_budget(settings: Se
                 rows,
                 catalog=catalog,
                 max_tokens=budget,
-                label="input",
                 max_records=max_records,
             )
             assert selected == tuple(rows[:count])
             assert text == "\n".join(rendered[:count])
     with patch.object(runner, "render_record", wraps=runner.render_record) as render:
-        runner._pack_rows(rows, catalog=catalog, max_tokens=10000, label="input")
+        runner._pack_rows(rows, catalog=catalog, max_tokens=10000)
         assert render.call_count == len(rows)
-    assert runner._pack_rows([], catalog=catalog, max_tokens=0, label="input") == ((), "")
+    assert runner._pack_rows([], catalog=catalog, max_tokens=0) == ((), "")
 
 
 def test_enrichment_batches_match_full_prompt_budgets() -> None:
