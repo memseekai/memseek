@@ -4,22 +4,28 @@ from __future__ import annotations
 
 import asyncio
 import re
-from uuid import UUID
+from uuid import UUID, uuid4
 
 import pytest
+from psycopg.types.json import Jsonb
 
 from memseek.auth import create_workspace
+from memseek.config import Settings
 from memseek.db import DatabasePool
+from memseek.definitions import load_definition_catalog
 from memseek.jobs import (
     claim_job,
     complete_job,
     dead_letter_job,
     heartbeat_job,
+    purge_finished_jobs,
     reap_expired_final_attempts,
     release_not_ready_job,
     retry_or_dead_letter_job,
 )
+from memseek.locks import advisory_lock_key
 from memseek.models import ClaimedJob, JobKind, LeaseLost
+from memseek.triggers import schedule_cron_jobs
 
 
 async def _insert_job(
@@ -370,3 +376,96 @@ async def test_claim_can_restrict_derive_processors(db_pool: DatabasePool) -> No
         result = await conn.execute("select attempts from job where id = %s", (unrelated,))
         row = await result.fetchone()
     assert row == {"attempts": 0}
+
+
+async def _finished_job(
+    pool: DatabasePool,
+    *,
+    kind: JobKind,
+    finished_days_ago: int,
+    dead: bool = False,
+    payload: dict[str, str] | None = None,
+) -> str:
+    derivation, entity = ("profile_v1", f"e-{uuid4()}") if kind == "derive" else (None, None)
+    async with pool.connection() as conn:
+        result = await conn.execute(
+            f"""
+            insert into job (workspace, kind, derivation, entity, payload, created_at,
+                             {"dead_at" if dead else "done_at"})
+            values ('jobs', %s, %s, %s, %s,
+                    now() - make_interval(days => %s + 1), now() - make_interval(days => %s))
+            returning entity, payload
+            """,
+            (kind, derivation, entity, Jsonb(payload or {}), finished_days_ago, finished_days_ago),
+        )
+        row = await result.fetchone()
+    assert row is not None
+    return f"{kind}:{finished_days_ago}:{'dead' if dead else 'done'}"
+
+
+async def _remaining(pool: DatabasePool) -> list[tuple[str, int]]:
+    async with pool.connection() as conn:
+        result = await conn.execute(
+            """
+            select kind, extract(day from now() - coalesce(done_at, dead_at, now()))::int as age
+            from job order by kind, age
+            """
+        )
+        return [(row["kind"], row["age"]) for row in await result.fetchall()]
+
+
+async def test_finished_jobs_past_retention_are_purged(db_pool: DatabasePool) -> None:
+    await _setup(db_pool)
+    await _finished_job(db_pool, kind="derive", finished_days_ago=15)
+    await _finished_job(db_pool, kind="derive", finished_days_ago=16, dead=True)
+    await _finished_job(db_pool, kind="derive", finished_days_ago=13)
+    await _finished_job(db_pool, kind="index_upsert", finished_days_ago=30)
+    await _insert_job(db_pool, kind="cron_scan")
+
+    assert await purge_finished_jobs(db_pool, retention_days=0) == 0
+    assert await purge_finished_jobs(db_pool, retention_days=14, batch=1) == 3
+    assert await _remaining(db_pool) == [("cron_scan", 0), ("derive", 13)]
+
+
+async def test_job_purge_keeps_the_latest_tick_of_each_retention_policy(
+    gbrain_settings: Settings,
+    db_pool: DatabasePool,
+) -> None:
+    """The scheduler re-derives a retention key from the latest tick, so that row stays."""
+
+    catalog = load_definition_catalog(gbrain_settings)
+    await _setup(db_pool)
+    await schedule_cron_jobs(db_pool, catalog=catalog)
+    async with db_pool.connection() as conn:
+        await conn.execute(
+            """
+            insert into job (workspace, kind, dedupe_key, payload, created_at)
+            select workspace, kind, 'retention:older', payload || '{"scheduled_at": "older"}',
+                   created_at - interval '1 day'
+            from job where kind = 'retention_purge'
+            """
+        )
+        await conn.execute(
+            "update job set done_at = now() - interval '20 days' where kind = 'retention_purge'"
+        )
+    retention_jobs = (
+        "select id, dedupe_key from job where kind = 'retention_purge' order by created_at"
+    )
+    async with db_pool.connection() as conn:
+        latest = (await (await conn.execute(retention_jobs)).fetchall())[-1]
+
+    assert await purge_finished_jobs(db_pool, retention_days=14) == 1
+    await schedule_cron_jobs(db_pool, catalog=catalog)
+    async with db_pool.connection() as conn:
+        assert await (await conn.execute(retention_jobs)).fetchall() == [latest]
+
+
+async def test_job_purge_runs_on_one_worker_at_a_time(db_pool: DatabasePool) -> None:
+    await _setup(db_pool)
+    await _finished_job(db_pool, kind="derive", finished_days_ago=15)
+    async with db_pool.connection() as leader, leader.transaction():
+        await leader.execute(
+            "select pg_advisory_xact_lock(%s)", (advisory_lock_key("job-retention"),)
+        )
+        assert await purge_finished_jobs(db_pool, retention_days=14) == 0
+    assert await purge_finished_jobs(db_pool, retention_days=14) == 1

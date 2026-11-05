@@ -292,3 +292,29 @@ async def test_worker_reaps_expired_final_attempts_every_half_lease(
     clock.now += 1
     await worker_module.run_worker_once(runtime, worker_id="w")
     assert await _rows(db_pool, dead, ()) == [{"entity": "a"}]
+
+
+async def test_worker_purges_finished_jobs_past_retention(
+    settings: Settings,
+    db_pool: DatabasePool,
+    cron_catalog: DefinitionCatalog,
+) -> None:
+    async with db_pool.connection() as conn:
+        await conn.execute(
+            "insert into workspace (id, api_key_hash) values ('old-jobs', %s)", ("0" * 64,)
+        )
+        await conn.execute(
+            """
+            insert into job (workspace, kind, derivation, entity, created_at, done_at)
+            values ('old-jobs', 'derive', 'profile', 'stale', now() - interval '16 days',
+                    now() - interval '15 days'),
+                   ('old-jobs', 'derive', 'profile', 'recent', now() - interval '2 days',
+                    now() - interval '1 day')
+            """
+        )
+    runtime = WorkerRuntime(settings=settings, catalog=cron_catalog, pool=db_pool)
+
+    await worker_module.run_worker_once(runtime, worker_id="w")
+
+    remaining = "select entity from job where workspace = 'old-jobs' and kind = 'derive'"
+    assert await _rows(db_pool, remaining, ()) == [{"entity": "recent"}]

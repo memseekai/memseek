@@ -10,6 +10,7 @@ from uuid import UUID, uuid4
 from psycopg import errors
 from psycopg_pool import AsyncConnectionPool
 
+from memseek.locks import advisory_lock_key
 from memseek.logging import log_event
 from memseek.models import ClaimedJob, JobKind, JobTransition, LeaseLost
 
@@ -83,6 +84,70 @@ async def reap_expired_final_attempts(pool: AsyncConnectionPool[Any], max_attemp
     if count:
         log_event(LOGGER, "warning", "jobs.lease_expired_reaped", count=count)
     return count
+
+
+async def purge_finished_jobs(
+    pool: AsyncConnectionPool[Any],
+    *,
+    retention_days: int,
+    batch: int = 1_000,
+    max_batches: int = 50,
+) -> int:
+    """Delete done and dead jobs older than ``retention_days`` in bounded batches.
+
+    Only one worker on a deployment purges at a time; the others return 0.
+    Run records keep their own history, so a purged job only stops answering
+    ``GET /jobs/{id}``.  The newest job of each retention policy is kept: the
+    scheduler re-derives that job's dedupe key from the latest tick, and
+    deleting it would schedule the same purge again.
+    """
+
+    if retention_days <= 0:
+        return 0
+    deleted = 0
+    for _ in range(max_batches):
+        async with pool.connection() as conn, conn.transaction():
+            leader = await conn.execute(
+                "select pg_try_advisory_xact_lock(%s) as leader",
+                (advisory_lock_key("job-retention"),),
+            )
+            row = await leader.fetchone()
+            if row is None or not row["leader"]:
+                break
+            result = await conn.execute(
+                """
+                with doomed as (
+                  select id
+                  from job j
+                  where (done_at is not null or dead_at is not null)
+                    and coalesce(done_at, dead_at)
+                        < clock_timestamp() - make_interval(days => %s)
+                    and (
+                      kind <> 'retention_purge'
+                      or exists (
+                        select 1 from job newer
+                        where newer.workspace = j.workspace
+                          and newer.kind = 'retention_purge'
+                          and newer.payload->>'package_name' = j.payload->>'package_name'
+                          and newer.payload->>'package_version' = j.payload->>'package_version'
+                          and newer.payload->>'retention' = j.payload->>'retention'
+                          and newer.created_at > j.created_at
+                      )
+                    )
+                  order by coalesce(done_at, dead_at)
+                  limit %s
+                  for update skip locked
+                )
+                delete from job using doomed where job.id = doomed.id
+                """,
+                (retention_days, batch),
+            )
+        deleted += result.rowcount
+        if result.rowcount < batch:
+            break
+    if deleted:
+        log_event(LOGGER, "info", "jobs.finished_purged", count=deleted)
+    return deleted
 
 
 async def claim_job(
@@ -489,6 +554,7 @@ __all__ = [
     "dead_letter_job",
     "get_job_status",
     "heartbeat_job",
+    "purge_finished_jobs",
     "reap_expired_final_attempts",
     "release_not_ready_job",
     "retry_dead_job",

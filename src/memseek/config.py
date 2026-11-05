@@ -166,6 +166,8 @@ class Settings(BaseSettings):
     job_lease_s: int = 300
     job_heartbeat_s: int = 60
     job_max_attempts: int = 3
+    # Done and dead jobs older than this are deleted; 0 keeps them forever.
+    job_retention_days: int = Field(default=14, ge=0)
     unready_retry_s: int = 2
     cron_tick_s: int = 30
 

@@ -334,6 +334,7 @@ async def test_worker_pass_logs_only_bounded_counters(
         AsyncMock(return_value=(0, 0)),
     )
     monkeypatch.setattr(jobs_module, "reap_expired_final_attempts", AsyncMock(return_value=0))
+    monkeypatch.setattr(jobs_module, "purge_finished_jobs", AsyncMock(return_value=0))
 
     result = await run_worker_once(_worker_runtime(settings), worker_id="test-worker")
 
@@ -532,6 +533,7 @@ async def test_run_worker_once_contains_one_failing_lane(
         artifact_uses_module, "purge_expired_artifact_uses", AsyncMock(return_value=0)
     )
     monkeypatch.setattr(jobs_module, "reap_expired_final_attempts", AsyncMock(return_value=0))
+    monkeypatch.setattr(jobs_module, "purge_finished_jobs", AsyncMock(return_value=0))
 
     result = await run_worker_once(_worker_runtime(settings), worker_id="test-worker")
 

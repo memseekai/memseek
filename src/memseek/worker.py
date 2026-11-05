@@ -1229,6 +1229,14 @@ async def run_worker_once(
             reap_expired_final_attempts(runtime.pool, runtime.settings.job_max_attempts),
             0,
         )
+    if runtime.settings.job_retention_days and runtime.cadence.due("job_retention", 600):
+        from memseek.jobs import purge_finished_jobs
+
+        await lanes.run(
+            "job_retention",
+            purge_finished_jobs(runtime.pool, retention_days=runtime.settings.job_retention_days),
+            0,
+        )
     # Cron ticks are minute-granular, so asking the scheduler more than once per
     # minute only repeats the sweep of every workspace.
     if (
