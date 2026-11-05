@@ -359,6 +359,21 @@ it excluded — it is a declared narrower scope, not a silent truncation.
 Read freshness applies the same range: a new row outside `since`/`until` does
 not mark the derivation dirty, because the next run would read the same corpus.
 
+#### Unchanged corpus, no rerun
+
+A `snapshot` or `stale_citations` run records a digest in its receipt
+(`basis.digest`): the input rows, current reads, expected target heads, the
+pipeline definition, and its Task implementations, plus, for a repair, the
+newest version of every cited parent. When the next run would read the same
+digest as the last successful one, it commits a cheap noop instead of running
+its Tasks again. A new input row, a changed score, an edited definition, or a
+parent that moves again all change the digest.
+
+Pipelines whose Tasks read state the digest cannot see always run: any `view`
+source, any Task other than `llm`, `judge`, `template`, `map_records`,
+`extract_facts`, or `extract_relations`, any Task config that uses
+`{{run.now}}`, and any source with `allow_empty: true`.
+
 ### `stale_citations`: repair records whose evidence moved
 
 ```yaml

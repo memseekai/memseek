@@ -323,3 +323,124 @@ async def test_snapshot_with_only_unready_rows_waits(
     disposition = await _run_profile(db_pool, settings, catalog, workspace=credential.workspace)
 
     assert disposition == "not_ready"
+
+
+async def _profile_calls(
+    pool: DatabasePool, settings: Settings, catalog: DefinitionCatalog, *, workspace: str
+) -> int:
+    """Run ``profile`` once and return how many model calls the run made."""
+
+    fake.reset()
+    assert await _run_profile(pool, settings, catalog, workspace=workspace) == "done"
+    return len(fake.completion_calls)
+
+
+async def test_unchanged_snapshot_basis_skips_the_tasks_until_an_input_changes(
+    settings: Settings, db_pool: DatabasePool
+) -> None:
+    credential = await create_workspace(db_pool, "digest-snapshot")
+    catalog = _profile_catalog(settings, _snapshot())
+    occurred = datetime(2026, 1, 15, tzinfo=UTC)
+    first = await _insert_event(
+        db_pool, catalog, workspace=credential.workspace, text="first", occurred_at=occurred
+    )
+
+    initial = await _profile_calls(db_pool, settings, catalog, workspace=credential.workspace)
+    initial_run = await _latest_run(db_pool, workspace=credential.workspace)
+    repeat = await _profile_calls(db_pool, settings, catalog, workspace=credential.workspace)
+    repeat_run = await _latest_run(db_pool, workspace=credential.workspace)
+    second = await _insert_event(
+        db_pool, catalog, workspace=credential.workspace, text="second", occurred_at=occurred
+    )
+    changed = await _profile_calls(db_pool, settings, catalog, workspace=credential.workspace)
+    changed_run = await _latest_run(db_pool, workspace=credential.workspace)
+
+    assert (initial, repeat, changed) == (1, 0, 1)
+    assert initial_run["basis"]["input_ids"] == [str(first)]
+    assert repeat_run["basis"]["input_ids"] == []
+    assert repeat_run["basis"]["digest"] == initial_run["basis"]["digest"]
+    assert repeat_run["high_seq"] == initial_run["high_seq"]
+    assert changed_run["basis"]["input_ids"] == [str(first), str(second)]
+    assert changed_run["basis"]["digest"] != initial_run["basis"]["digest"]
+
+
+async def test_a_definition_change_reruns_an_unchanged_snapshot(
+    settings: Settings, db_pool: DatabasePool
+) -> None:
+    credential = await create_workspace(db_pool, "digest-definition")
+    catalog = _profile_catalog(settings, _snapshot())
+    await _insert_event(
+        db_pool,
+        catalog,
+        workspace=credential.workspace,
+        text="first",
+        occurred_at=datetime(2026, 1, 15, tzinfo=UTC),
+    )
+    initial = await _profile_calls(db_pool, settings, catalog, workspace=credential.workspace)
+    profile = catalog.derivations["profile"]
+    edited = replace(
+        catalog,
+        derivations=MappingProxyType(
+            {
+                **catalog.derivations,
+                "profile": profile.model_copy(update={"definition_hash": "edited"}),
+            }
+        ),
+    )
+
+    rerun = await _profile_calls(db_pool, settings, edited, workspace=credential.workspace)
+
+    assert (initial, rerun) == (1, 1)
+
+
+async def test_an_allow_empty_snapshot_never_skips(
+    settings: Settings, db_pool: DatabasePool
+) -> None:
+    credential = await create_workspace(db_pool, "digest-allow-empty")
+    catalog = _profile_catalog(settings, _snapshot(allow_empty=True))
+    await _insert_event(
+        db_pool,
+        catalog,
+        workspace=credential.workspace,
+        text="first",
+        occurred_at=datetime(2026, 1, 15, tzinfo=UTC),
+    )
+
+    calls = [
+        await _profile_calls(db_pool, settings, catalog, workspace=credential.workspace)
+        for _ in range(2)
+    ]
+
+    assert calls == [1, 1]
+
+
+async def test_stale_citation_repair_reruns_when_a_cited_parent_moves_again(
+    settings: Settings, db_pool: DatabasePool
+) -> None:
+    credential = await create_workspace(db_pool, "digest-citations")
+    catalog = _profile_catalog(
+        settings,
+        {
+            "kind": "stale_citations",
+            "collections": ["profiles"],
+            "types": ["fact"],
+            "statuses": ["active"],
+            "keyed": True,
+            "max_records": 50,
+            "max_tokens": 24000,
+            "allow_empty": False,
+        },
+    )
+    workspace = credential.workspace
+    role = await _insert_profile_fact(db_pool, catalog, workspace=workspace, key="role")
+    await _insert_profile_fact(
+        db_pool, catalog, workspace=workspace, key="timeline", derived_from=(role,)
+    )
+    await _insert_profile_fact(db_pool, catalog, workspace=workspace, key="role")
+
+    stale = await _profile_calls(db_pool, settings, catalog, workspace=workspace)
+    unchanged = await _profile_calls(db_pool, settings, catalog, workspace=workspace)
+    await _insert_profile_fact(db_pool, catalog, workspace=workspace, key="role")
+    moved = await _profile_calls(db_pool, settings, catalog, workspace=workspace)
+
+    assert (stale, unchanged, moved) == (1, 0, 1)

@@ -11,7 +11,7 @@ from __future__ import annotations
 import hashlib
 import json
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, fields, replace
 from datetime import datetime
 from types import MappingProxyType
 from typing import Any, Literal, LiteralString, Protocol, cast
@@ -24,7 +24,9 @@ from memseek.derive.schema import (
     PipelineDefinition,
     RecordSource,
     StreamSource,
+    ViewSource,
 )
+from memseek.derive.tasks import task_implementation_hashes
 
 type BasisMode = Literal["changes", "corpus", "citation_repair"]
 
@@ -79,6 +81,7 @@ class EvaluationBasis:
     input_rows: tuple[DerivationRecord, ...]
     read_rows: Mapping[str, tuple[DerivationRecord, ...]]
     expected_heads: tuple[ExpectedHead, ...]
+    digest: str | None = None
 
     @property
     def watermark(self) -> int:
@@ -96,6 +99,7 @@ class EvaluationBasis:
                 str(self.predecessor_run_id) if self.predecessor_run_id is not None else None
             ),
             "predecessor_source_hash": self.predecessor_source_hash,
+            "digest": self.digest,
         }
 
 
@@ -107,6 +111,7 @@ class BasisAdapter(Protocol):
         workspace: str,
         entity: str,
         definition: PipelineDefinition,
+        config_hash: str | None = None,
     ) -> EvaluationBasis | None: ...
 
     async def verify(
@@ -194,6 +199,118 @@ async def _watermark(
     if row is None:
         return 0, None, None
     return int(row["high_seq"] or 0), cast(UUID, row["id"]), cast(str | None, row["source_hash"])
+
+
+# Tasks whose result is a function of the rendered basis and the definition.
+# Anything that searches, traverses, answers, or drives a computer reads state
+# the digest cannot see, so those pipelines always run.
+_BASIS_DETERMINED_TASKS = frozenset(
+    {"llm", "judge", "template", "map_records", "extract_facts", "extract_relations"}
+)
+
+
+def _digest_skips(definition: PipelineDefinition) -> bool:
+    """Whether an unchanged digest proves a rerun would see the same inputs."""
+
+    if definition.driver.allow_empty:
+        # An empty basis would still run the Tasks over nothing.
+        return False
+    if any(isinstance(source, ViewSource) for source in definition.sources.values()):
+        return False
+    if any(task.use not in _BASIS_DETERMINED_TASKS for task in definition.tasks):
+        return False
+    tasks = json.dumps([task.model_dump(mode="json") for task in definition.tasks])
+    return "run.now" not in tasks
+
+
+def _row_identity(row: DerivationRecord) -> dict[str, Any]:
+    # Content is immutable per id, but scores and enrichment are not.
+    return {field.name: getattr(row, field.name) for field in fields(row)}
+
+
+def basis_digest(
+    definition: PipelineDefinition,
+    *,
+    config_hash: str | None,
+    input_rows: tuple[DerivationRecord, ...],
+    read_rows: Mapping[str, tuple[DerivationRecord, ...]],
+    expected_heads: tuple[ExpectedHead, ...],
+    cited_heads: tuple[UUID, ...] = (),
+) -> str:
+    """Hash everything a basis-determined pipeline renders into its Tasks."""
+
+    payload = {
+        "definition": config_hash or definition.definition_hash,
+        "tasks": task_implementation_hashes([task.use for task in definition.tasks]),
+        "inputs": [_row_identity(row) for row in input_rows],
+        "reads": {
+            name: [_row_identity(row) for row in rows] for name, rows in sorted(read_rows.items())
+        },
+        "heads": [head.manifest() for head in expected_heads],
+        "cited_heads": sorted(str(item) for item in cited_heads),
+    }
+    encoded = json.dumps(payload, sort_keys=True, default=str, separators=(",", ":"))
+    return hashlib.sha256(encoded.encode()).hexdigest()
+
+
+async def _last_digest(
+    conn: DatabaseConnection,
+    *,
+    workspace: str,
+    entity: str,
+    derivation: str,
+) -> str | None:
+    result = await conn.execute(
+        """
+        select content->'basis'->>'digest' as digest
+        from record
+        where workspace = %s and entity = %s
+          and collection = '_system' and type = 'run'
+          and content->>'operation' = 'derive'
+          and content->>'processor' = %s
+          and content->>'status' in ('ok', 'noop')
+        order by seq desc
+        limit 1
+        """,
+        (workspace, entity, derivation),
+    )
+    row = await result.fetchone()
+    return cast(str | None, row["digest"]) if row is not None else None
+
+
+async def _cited_heads(
+    conn: DatabaseConnection, *, workspace: str, records: tuple[DerivationRecord, ...]
+) -> tuple[UUID, ...]:
+    """The newest ready version of every keyed slot these records cite."""
+
+    if not records:
+        return ()
+    result = await conn.execute(
+        """
+        select distinct latest.id
+        from record child
+        cross join unnest(child.derived_from) as cited(id)
+        join record parent on parent.id = cited.id and parent.workspace = child.workspace
+        cross join lateral (
+          select newer.id
+          from record newer
+          where newer.workspace = parent.workspace
+            and newer.entity = parent.entity
+            and newer.collection = parent.collection
+            and newer.collection_version = parent.collection_version
+            and newer.key = parent.key
+            and newer.status = parent.status
+            and newer.enriched_at is not null
+          order by newer.seq desc
+          limit 1
+        ) latest
+        where child.workspace = %s and child.id = any(%s::uuid[])
+          and parent.key is not null
+        order by latest.id
+        """,
+        (workspace, [row.id for row in records]),
+    )
+    return tuple(cast(UUID, row["id"]) for row in await result.fetchall())
 
 
 def source_contract_hash(definition: PipelineDefinition) -> str:
@@ -680,7 +797,9 @@ class ChangesBasisAdapter:
         workspace: str,
         entity: str,
         definition: PipelineDefinition,
+        config_hash: str | None = None,
     ) -> EvaluationBasis | None:
+        del config_hash
         wm, predecessor, predecessor_hash = await _watermark(
             conn, workspace=workspace, entity=entity, derivation=definition.name
         )
@@ -773,6 +892,48 @@ class ChangesBasisAdapter:
         )
 
 
+async def _with_digest(
+    conn: DatabaseConnection,
+    basis: EvaluationBasis,
+    *,
+    workspace: str,
+    entity: str,
+    definition: PipelineDefinition,
+    config_hash: str | None,
+) -> EvaluationBasis:
+    """Stamp the basis digest, emptying the basis when the last run saw the same one.
+
+    An empty basis takes the runner's cheap noop path, so a corpus or repair
+    set that has not moved since the last successful run costs no Task work.
+    """
+
+    cited = (
+        await _cited_heads(conn, workspace=workspace, records=basis.input_rows)
+        if basis.mode == "citation_repair"
+        else ()
+    )
+    digest = basis_digest(
+        definition,
+        config_hash=config_hash,
+        input_rows=basis.input_rows,
+        read_rows=basis.read_rows,
+        expected_heads=basis.expected_heads,
+        cited_heads=cited,
+    )
+    if _digest_skips(definition) and digest == await _last_digest(
+        conn, workspace=workspace, entity=entity, derivation=definition.name
+    ):
+        return replace(
+            basis,
+            from_seq=None,
+            input_rows=(),
+            read_rows=MappingProxyType({}),
+            expected_heads=(),
+            digest=digest,
+        )
+    return replace(basis, digest=digest)
+
+
 class CorpusBasisAdapter:
     async def resolve(
         self,
@@ -781,6 +942,7 @@ class CorpusBasisAdapter:
         workspace: str,
         entity: str,
         definition: PipelineDefinition,
+        config_hash: str | None = None,
     ) -> EvaluationBasis | None:
         through_seq, from_seq, inputs = await _snapshot_input(
             conn, workspace=workspace, entity=entity, source=definition.driver
@@ -808,15 +970,22 @@ class CorpusBasisAdapter:
             definition=definition,
             input_rows=inputs,
         )
-        return EvaluationBasis(
-            mode="corpus",
-            from_seq=from_seq,
-            through_seq=through_seq,
-            predecessor_run_id=None,
-            predecessor_source_hash=None,
-            input_rows=inputs,
-            read_rows=reads,
-            expected_heads=heads,
+        return await _with_digest(
+            conn,
+            EvaluationBasis(
+                mode="corpus",
+                from_seq=from_seq,
+                through_seq=through_seq,
+                predecessor_run_id=None,
+                predecessor_source_hash=None,
+                input_rows=inputs,
+                read_rows=reads,
+                expected_heads=heads,
+            ),
+            workspace=workspace,
+            entity=entity,
+            definition=definition,
+            config_hash=config_hash,
         )
 
     async def verify(
@@ -859,6 +1028,7 @@ class StaleCitationBasisAdapter:
         workspace: str,
         entity: str,
         definition: PipelineDefinition,
+        config_hash: str | None = None,
     ) -> EvaluationBasis | None:
         inputs = await _stale_citation_input(
             conn, workspace=workspace, entity=entity, source=definition.driver
@@ -887,15 +1057,22 @@ class StaleCitationBasisAdapter:
             definition=definition,
             input_rows=inputs,
         )
-        return EvaluationBasis(
-            mode="citation_repair",
-            from_seq=inputs[0].seq if inputs else None,
-            through_seq=through_seq,
-            predecessor_run_id=None,
-            predecessor_source_hash=None,
-            input_rows=inputs,
-            read_rows=reads,
-            expected_heads=heads,
+        return await _with_digest(
+            conn,
+            EvaluationBasis(
+                mode="citation_repair",
+                from_seq=inputs[0].seq if inputs else None,
+                through_seq=through_seq,
+                predecessor_run_id=None,
+                predecessor_source_hash=None,
+                input_rows=inputs,
+                read_rows=reads,
+                expected_heads=heads,
+            ),
+            workspace=workspace,
+            entity=entity,
+            definition=definition,
+            config_hash=config_hash,
         )
 
     async def verify(
@@ -965,6 +1142,7 @@ __all__ = [
     "ExpectedHead",
     "StaleCitationBasisAdapter",
     "adapter_for",
+    "basis_digest",
     "derivation_record",
     "pending_input",
     "scope_sql",
