@@ -16,7 +16,7 @@ The main settings groups are:
 
 | Area | Important settings |
 | --- | --- |
-| Database | `DATABASE_URL`, pool sizes, migration settings |
+| Database | `DATABASE_URL`, pool sizes, migration settings, [session guardrails](#database-guardrails) |
 | LLM | provider API keys, `LLM_FAKE`, concurrency, context/prompt/output limits |
 | Catalog | `CATALOG_FILE` points to the root `catalog.yaml`; its source map selects every definition and configuration file |
 | Search | `SEARCH_BACKEND`, profile overrides, Turbopuffer credentials/layout/consistency, candidate and concurrency limits |
@@ -27,6 +27,43 @@ The main settings groups are:
 | Safety | workspace auth, `API_CORS_ORIGINS`, MCP Origin validation, workspace locks, erasure and projection settings |
 
 Use `.env.example` and `src/memseek/config.py` as the authoritative environment-name reference for the current release. Secrets belong in process configuration, not catalog YAML.
+
+### Database guardrails
+
+Every tenant shares one database, so the API and worker bound each pooled
+session. A setting of `0` sends nothing and leaves the server or role default
+in place.
+
+| Setting | Default | What it bounds |
+| --- | --- | --- |
+| `DATABASE_STATEMENT_TIMEOUT_MS` | `60000` | One statement. Request and job statements are batched or scoped to one workspace and finish in well under a second. |
+| `DATABASE_LOCK_TIMEOUT_MS` | `10000` | One wait for a row, table, or workspace/entity advisory lock. Transactions hold these locks without external I/O, so a long wait means the holder is stuck. |
+| `DATABASE_IDLE_IN_TRANSACTION_SESSION_TIMEOUT_MS` | `120000` | A transaction left open with no statement running. Postgres ends the session. |
+| `DATABASE_TEMP_FILE_LIMIT_KB` | unset | Temporary files one session can write. See below. |
+
+Catalog publish rewrites every stored record of a changed collection in one
+atomic statement, so that statement alone runs with a 10-minute limit.
+Migrations (`memseek migrate`) open their own connection and do not use these
+settings. For a one-off maintenance command that needs longer, set the variable
+on that command only, for example
+`DATABASE_STATEMENT_TIMEOUT_MS=0 memseek reindex --workspace acme --reset --yes`.
+
+`temp_file_limit` stops a runaway sort or recursive query before it fills the
+database volume. Postgres lets only a superuser, or a role granted
+`SET` on the parameter, change it. Memseek applies `DATABASE_TEMP_FILE_LIMIT_KB`
+only when its role may, and logs `database.temp_file_limit_not_applied`
+otherwise. The more robust option is to set it on the role, which also covers
+migrations and ad-hoc `psql` sessions. On Railway, open `psql` against the
+database with `railway connect Postgres` and run:
+
+```sql
+ALTER ROLE CURRENT_USER SET temp_file_limit = '512MB';
+```
+
+The limit is per session, so size it so that the limit times the number of
+concurrent sessions (both pools plus migrations) fits in the free volume space.
+It applies to new sessions, so restart the API and worker afterwards. Check it
+from a new session with `SHOW temp_file_limit;`.
 
 ### Remote MCP endpoint
 

@@ -1,4 +1,4 @@
-"""Offline Turbopuffer adapter contract tests."""
+"""Turbopuffer adapter contract tests."""
 
 from __future__ import annotations
 
@@ -6,8 +6,11 @@ from uuid import uuid4
 
 import httpx
 import pytest
+from psycopg.pq import TransactionStatus
 
+from memseek.auth import create_workspace
 from memseek.config import Settings
+from memseek.db import DatabasePool
 from memseek.search.registry import CandidateQuery
 from memseek.search.spec import SearchSource
 from memseek.search.turbopuffer import TurbopufferError, TurbopufferSearchBackend, namespace_name
@@ -93,3 +96,34 @@ async def test_turbopuffer_per_collection_fanout_is_bounded() -> None:
         await backend.candidates(settings, object(), "maria", CandidateQuery(source=source), None)
     assert caught.value.code == "search_fanout"
     await backend.aclose()
+
+
+async def test_per_collection_queries_wait_outside_a_transaction(db_pool: DatabasePool) -> None:
+    """A slow namespace query must not leave the session idle in transaction."""
+
+    await create_workspace(db_pool, "maria")
+    async with db_pool.connection() as conn:
+        await conn.execute(
+            """
+            insert into record (workspace, collection, collection_version, collection_hash,
+                                entity, type, content)
+            values ('maria', 'profiles', 1, %s, 'maria', 'event', '{"text": "hi"}')
+            """,
+            ("0" * 64,),
+        )
+    observed: list[TransactionStatus] = []
+    async with db_pool.connection() as conn:
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            observed.append(conn.info.transaction_status)
+            return httpx.Response(200, json={"rows": []})
+
+        backend = TurbopufferSearchBackend(
+            httpx.AsyncClient(transport=httpx.MockTransport(handler))
+        )
+        settings = Settings(turbopuffer_api_key="test-key", turbopuffer_layout="per_collection")
+        source = SearchSource.model_validate({"name": "memory", "mode": "recent"})
+        await backend.candidates(settings, conn, "maria", CandidateQuery(source=source), None)
+        await backend.aclose()
+
+    assert observed == [TransactionStatus.IDLE]

@@ -288,6 +288,11 @@ async def _apply_rewrites(
 ) -> int:
     """Move stored records onto their new contract hash. Returns rows rewritten."""
 
+    if rewrites:
+        # Each rewritten row is re-inserted into every record index, the HNSW
+        # one included (about 2 ms a row), and the publish must stay atomic, so
+        # a large collection cannot be batched under DATABASE_STATEMENT_TIMEOUT_MS.
+        await conn.execute("set local statement_timeout = '10min'")
     total = 0
     for rewrite in rewrites:
         result = await conn.execute(

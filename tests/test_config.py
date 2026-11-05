@@ -59,6 +59,20 @@ def test_settings_reject_incompatible_values() -> None:
         Settings(task_modules=("bad-module",))
 
 
+def test_database_guardrails_read_zero_as_unset(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("DATABASE_STATEMENT_TIMEOUT_MS", "0")
+    monkeypatch.setenv("DATABASE_TEMP_FILE_LIMIT_KB", "1048576")
+
+    settings = Settings()
+
+    assert settings.database_statement_timeout_ms is None
+    assert settings.database_lock_timeout_ms == 10_000
+    assert settings.database_idle_in_transaction_session_timeout_ms == 120_000
+    assert settings.database_temp_file_limit_kb == 1_048_576
+    with pytest.raises(ValidationError, match="DATABASE_LOCK_TIMEOUT_MS must be 0"):
+        Settings(database_lock_timeout_ms=-1)
+
+
 def test_cors_origins_are_exact_and_normalized(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv(
         "API_CORS_ORIGINS",

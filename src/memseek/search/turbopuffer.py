@@ -320,6 +320,10 @@ class TurbopufferSearchBackend:
                 (workspace,),
             )
             collections = [str(row["collection"]) for row in await result.fetchall()]
+            # End the implicit transaction: the namespace queries that follow
+            # can retry for minutes, which idle_in_transaction_session_timeout
+            # would otherwise end by terminating this session.
+            await conn.commit()
         if len(collections) > settings.max_collection_fanout:
             raise TurbopufferError(
                 "search_fanout",

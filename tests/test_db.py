@@ -2,9 +2,14 @@
 
 from __future__ import annotations
 
+import logging
 from typing import cast
+from urllib.parse import urlsplit, urlunsplit
+from uuid import uuid4
 
 import pytest
+from psycopg import AsyncConnection, sql
+from psycopg.errors import QueryCanceled
 from psycopg.types.json import Jsonb
 
 from memseek.auth import create_workspace
@@ -13,6 +18,7 @@ from memseek.db import (
     DatabaseCompatibilityError,
     DatabasePool,
     check_database,
+    close_pool,
     create_pool,
     expected_embedding_model,
     open_pool,
@@ -34,6 +40,103 @@ async def test_pool_starts_closed_and_sessions_use_utc(settings: Settings) -> No
     finally:
         await pool.close()
     assert pool.closed
+
+
+_GUARDRAILS = (
+    "statement_timeout",
+    "lock_timeout",
+    "idle_in_transaction_session_timeout",
+    "temp_file_limit",
+)
+
+
+async def _session_guardrails(settings: Settings) -> dict[str, str]:
+    pool = create_pool(settings)
+    await open_pool(pool)
+    try:
+        async with pool.connection() as conn:
+            shown = {}
+            for name in _GUARDRAILS:
+                row = await (await conn.execute(f"show {name}")).fetchone()
+                assert row is not None
+                shown[name] = row[name]
+            return shown
+    finally:
+        await close_pool(pool)
+
+
+async def test_pooled_sessions_carry_the_configured_guardrails(settings: Settings) -> None:
+    configured = settings.model_copy(
+        update={
+            "database_statement_timeout_ms": 1_234,
+            "database_lock_timeout_ms": 2_345,
+            "database_idle_in_transaction_session_timeout_ms": 3_456,
+            "database_temp_file_limit_kb": 4_096,
+        }
+    )
+
+    assert await _session_guardrails(configured) == {
+        "statement_timeout": "1234ms",
+        "lock_timeout": "2345ms",
+        "idle_in_transaction_session_timeout": "3456ms",
+        "temp_file_limit": "4MB",
+    }
+
+
+async def test_unset_guardrails_leave_the_server_defaults(settings: Settings) -> None:
+    unset = Settings(
+        database_url=settings.database_url,
+        database_statement_timeout_ms=0,
+        database_lock_timeout_ms=0,
+        database_idle_in_transaction_session_timeout_ms=0,
+        database_temp_file_limit_kb=0,
+    )
+
+    assert await _session_guardrails(unset) == {
+        "statement_timeout": "0",
+        "lock_timeout": "0",
+        "idle_in_transaction_session_timeout": "0",
+        "temp_file_limit": "-1",
+    }
+
+
+async def test_statement_timeout_cancels_a_runaway_query(settings: Settings) -> None:
+    pool = create_pool(settings.model_copy(update={"database_statement_timeout_ms": 50}))
+    await open_pool(pool)
+    try:
+        async with pool.connection() as conn:
+            with pytest.raises(QueryCanceled, match="statement timeout"):
+                await conn.execute("select pg_sleep(5)")
+    finally:
+        await close_pool(pool)
+
+
+async def test_temp_file_limit_is_skipped_for_a_role_that_cannot_set_it(
+    settings: Settings, caplog: pytest.LogCaptureFixture
+) -> None:
+    role = f"memseek_guard_{uuid4().hex[:12]}"
+    url = urlsplit(settings.database_url)
+    role_url = urlunsplit(url._replace(netloc=f"{role}:{role}@{url.hostname}:{url.port}"))
+    async with await AsyncConnection.connect(settings.database_url, autocommit=True) as admin:
+        await admin.execute(
+            sql.SQL("create role {} login password {}").format(
+                sql.Identifier(role), sql.Literal(role)
+            )
+        )
+    caplog.set_level(logging.WARNING, logger="memseek.db")
+    try:
+        shown = await _session_guardrails(
+            settings.model_copy(
+                update={"database_url": role_url, "database_temp_file_limit_kb": 4_096}
+            )
+        )
+    finally:
+        async with await AsyncConnection.connect(settings.database_url, autocommit=True) as admin:
+            await admin.execute(sql.SQL("drop role {}").format(sql.Identifier(role)))
+
+    assert shown["temp_file_limit"] == "-1"
+    assert shown["statement_timeout"] == "1min"
+    assert [record.msg for record in caplog.records] == ["database.temp_file_limit_not_applied"]
 
 
 async def test_database_health_and_storage_compatibility(
