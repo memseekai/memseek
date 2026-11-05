@@ -152,6 +152,7 @@ nav:
       - Collections: collections.md
       - Providers & model aliases: models.md
       - Embeddings: embeddings.md
+      - Judgment models: judgment-models.md
       - Processors: processors.md
       - Derivations: derivations.md
       - Triggers: triggers.md
@@ -184,6 +185,7 @@ nav:
       - Real-LLM skill maintenance: skill-maintenance.md
       - Build an agent that remembers: generative-agents-example.md
       - Run an agent inside a Computer: computer-renewal-example.md
+      - Triage a support inbox with Jev: support-triage-example.md
       - Make a skill learn from its runs: skill-learning.md
       - The gbrain showcase: gbrain-showcase.md
       - The gbrain catalog, parameter by parameter: gbrain-catalog.md

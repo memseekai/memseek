@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+import re
 from collections import deque
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
@@ -30,6 +31,7 @@ from memseek.derive.schema import (
     ViewSource,
 )
 from memseek.derive.tasks import (
+    JudgeTaskConfig,
     LLMTaskConfig,
     SearchTaskConfig,
     TemplateTaskConfig,
@@ -38,7 +40,11 @@ from memseek.derive.tasks import (
     task_implementation_hashes,
 )
 from memseek.derive.tasks_computer import AgentTaskConfig, ComputerTaskConfig
-from memseek.llm.registry import provider_descriptor, validate_generation_params
+from memseek.llm.registry import (
+    ModelCapability,
+    provider_descriptor,
+    validate_generation_params,
+)
 from memseek.search.rank import RankValidationError, validate_rank_expression
 from memseek.search.registry import backend_descriptor, required_capabilities
 from memseek.search.scope import field_annotation_names
@@ -586,6 +592,7 @@ class _CatalogBuilder:
         self.settings = settings
         self.documents = documents
         self.models: ModelCatalog | None = None
+        self.alias_capabilities: dict[str, frozenset[ModelCapability]] = {}
         self.processors: dict[str, ProcessorDefinition] = {}
         self.score_owners: dict[str, str] = {}
         self.rank_defaults: RankDefaults | None = None
@@ -680,9 +687,31 @@ class _CatalogBuilder:
                     path=f"providers.{provider_name}.json_capability",
                 )
         for alias_name, alias in self.models.aliases.items():
-            for target in alias.targets:
-                provider_name = target.split(":", 1)[0]
-                adapter = self.models.providers[provider_name].adapter
+            adapters = [
+                self.models.providers[target.split(":", 1)[0]].adapter for target in alias.targets
+            ]
+            supported = [provider_descriptor(adapter).alias_capabilities for adapter in adapters]
+            capabilities = supported[0].intersection(*supported[1:])
+            if not capabilities:
+                raise DefinitionError(
+                    "model_kind",
+                    "alias targets must all support completion or all support judgment",
+                    file=path,
+                    path=f"aliases.{alias_name}.targets",
+                )
+            self.alias_capabilities[alias_name] = capabilities
+            if "completion" not in capabilities:
+                # Judgment models take no generation parameters and bound
+                # their own context, so neither check applies.
+                if alias.params or alias.context_tokens is not None:
+                    raise DefinitionError(
+                        "model_kind",
+                        "a judgment alias forbids params and context_tokens",
+                        file=path,
+                        path=f"aliases.{alias_name}",
+                    )
+                continue
+            for adapter in adapters:
                 try:
                     validate_generation_params(adapter, alias.params)
                 except ValueError as exc:
@@ -696,6 +725,11 @@ class _CatalogBuilder:
                     file=path,
                     path=f"aliases.{alias_name}.context_tokens",
                 )
+        for role, alias_name in (
+            ("defaults.derivation", self.models.defaults.derivation),
+            ("defaults.fold", self.models.defaults.fold),
+        ):
+            self._alias(alias_name, path, role)
         embedding_adapter = self.models.providers[self.models.embedding.provider].adapter
         if not provider_descriptor(embedding_adapter).supports_embedding:
             raise DefinitionError(
@@ -719,11 +753,9 @@ class _CatalogBuilder:
                 if definition.kind == "score":
                     self._claim_score_name(definition.name, definition.name, path, index)
                 if definition.kind == "json":
-                    assert definition.output_schema is not None
-                    _check_json_schema(
-                        definition.output_schema, path, f"processors[{index}].output_schema"
-                    )
-                    if definition.output_schema.get("type") != "object":
+                    output_schema = definition.effective_output_schema
+                    _check_json_schema(output_schema, path, f"processors[{index}].output_schema")
+                    if output_schema.get("type") != "object":
                         raise DefinitionError(
                             "output_schema",
                             "processor output_schema must have type object",
@@ -731,7 +763,7 @@ class _CatalogBuilder:
                             path=f"processors[{index}].output_schema.type",
                         )
                     for score_name, score_path in definition.score_fields.items():
-                        leaf = self._schema_at_path(definition.output_schema, score_path)
+                        leaf = self._schema_at_path(output_schema, score_path)
                         if leaf is None or leaf.get("type") not in {"number", "integer"}:
                             raise DefinitionError(
                                 "score_field",
@@ -743,7 +775,7 @@ class _CatalogBuilder:
                     if definition.default_output is not None:
                         try:
                             Draft202012Validator(
-                                definition.output_schema, format_checker=FormatChecker()
+                                output_schema, format_checker=FormatChecker()
                             ).validate(definition.default_output)
                         except JsonSchemaValidationError as exc:
                             raise DefinitionError(
@@ -1353,6 +1385,7 @@ class _CatalogBuilder:
         retrieval_bound = 0
         llm_calls = 0
         computer_runs = 0
+        judge_tasks = 0
         for index, task in enumerate(definition.tasks):
             try:
                 adapter = task_adapter(task.use)
@@ -1393,6 +1426,32 @@ class _CatalogBuilder:
                             file=path,
                             path=f"tasks[{index}].with.max_steps",
                         )
+            if isinstance(config, JudgeTaskConfig):
+                judge_tasks += 1
+                if not isinstance(task.input, str) or not re.fullmatch(
+                    r"{{\s*[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*\s*}}", task.input
+                ):
+                    raise DefinitionError(
+                        "task_input",
+                        "judge Task input must be one exact list reference, "
+                        "such as {{source.records}}",
+                        file=path,
+                        path=f"tasks[{index}].input",
+                    )
+                alias_name = config.model or definition.model
+                if alias_name is None:
+                    raise DefinitionError(
+                        "model_kind",
+                        "judge Task requires with.model or a judgment pipeline model",
+                        file=path,
+                        path=f"tasks[{index}].with.model",
+                    )
+                self._alias(
+                    alias_name,
+                    path,
+                    f"tasks[{index}].with.model" if config.model else "model",
+                    use="judgment",
+                )
             if isinstance(config, LLMTaskConfig):
                 _check_json_schema(
                     config.output_schema,
@@ -1491,6 +1550,13 @@ class _CatalogBuilder:
             )
         if llm_calls > limits.max_llm_calls:
             raise DefinitionError("budget", "pipeline exceeds max_llm_calls", file=path)
+        if judge_tasks and limits.max_judgments == 0:
+            raise DefinitionError(
+                "budget",
+                "judge Tasks need limits.max_judgments; opt in explicitly",
+                file=path,
+                path="limits.max_judgments",
+            )
         if computer_runs > limits.max_computer_runs:
             raise DefinitionError(
                 "budget",
@@ -1499,7 +1565,9 @@ class _CatalogBuilder:
                 path="limits.max_computer_runs",
             )
 
-    def _alias(self, name: str, path: Path, field: str) -> ModelAlias:
+    def _alias(
+        self, name: str, path: Path, field: str, *, use: ModelCapability = "completion"
+    ) -> ModelAlias:
         assert self.models is not None
         try:
             alias = self.models.aliases[name]
@@ -1507,6 +1575,13 @@ class _CatalogBuilder:
             raise DefinitionError(
                 "reference", f"unknown model alias {name!r}", file=path, path=field
             ) from exc
+        if use not in self.alias_capabilities[name]:
+            raise DefinitionError(
+                "model_kind",
+                f"model alias {name!r} cannot be used for {use}",
+                file=path,
+                path=field,
+            )
         return alias
 
     def _validate_step_params(
@@ -1650,6 +1725,28 @@ class _CatalogBuilder:
                         config.template,
                         available,
                         context=f"tasks[{index}].with.template",
+                    )
+                elif isinstance(config, JudgeTaskConfig):
+                    refs = (
+                        input_refs
+                        | require_known_references(
+                            config.context, available, context=f"tasks[{index}].with.context"
+                        )
+                        | require_known_references(
+                            config.records.model_dump() if config.records else None,
+                            available | {"item"},
+                            context=f"tasks[{index}].with.records",
+                        )
+                    )
+                    # Instructions are static: anything dynamic belongs in the state.
+                    require_known_references(
+                        {
+                            "model": config.model,
+                            "questions": task.config.get("questions"),
+                            "keep": config.keep,
+                        },
+                        set(),
+                        context=f"tasks[{index}].with",
                     )
                 else:
                     require_known_references(
@@ -3070,6 +3167,7 @@ class _CatalogBuilder:
                         file=path,
                         path=f"agents[{index}].model",
                     )
+                self._alias(definition.model, path, f"agents[{index}].model")
                 artifact_refs = (definition.instructions, *definition.skills)
                 for field_index, reference in enumerate(artifact_refs):
                     name, version = split_exact_reference(reference)
@@ -4043,7 +4141,14 @@ class _CatalogBuilder:
                     file=self.paths[("processor", processor.name)],
                     path="input.collections",
                 )
-            if processor.model is not None:
+            if processor.model is not None and processor.source == "judgment":
+                self._alias(
+                    processor.model,
+                    self.paths[("processor", processor.name)],
+                    f"processors.{processor.name}.model",
+                    use="judgment",
+                )
+            elif processor.model is not None:
                 alias = self._alias(
                     processor.model,
                     self.paths[("processor", processor.name)],
@@ -4283,6 +4388,8 @@ class _CatalogBuilder:
                         alias_names.add(
                             config.model or definition.model or self.models.defaults.derivation
                         )
+                    elif isinstance(config, JudgeTaskConfig):
+                        alias_names.add(config.model or str(definition.model))
             aliases = {
                 alias: self.models.aliases[alias].model_dump(mode="json")
                 for alias in sorted(alias_names)

@@ -33,7 +33,7 @@ RENEWAL_ROOT = REPOSITORY_ROOT / "examples" / "computer_renewal_catalog"
 # that never opted into the new feature. These constants are the cheap proof
 # that a change is hash-neutral. Update one only alongside a deliberate edit to
 # the catalog it covers, and say so in the commit.
-REFERENCE_CATALOG_HASH = "4ec6b07315a41cb57624e36b3554a2bc6e571741719ee541c6fd200f8bbe34f2"
+REFERENCE_CATALOG_HASH = "296a21c3c10200ab08b83cd02e890ddb0a2768b7bf4d9c7615865ff615f79086"
 # Updated for explicit catalog membership: all declared definitions now ship.
 # Previously changed when the renewal catalog adopted a toolset. The
 # reference constant above did not move, which is the actual proof: a catalog

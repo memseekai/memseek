@@ -1,0 +1,80 @@
+# yaml-language-server: $schema=../../../schemas/processors.schema.json
+processors:
+  - name: embedding_v1
+    kind: embedding
+    input: {collections: [accounts, tickets, routes, escalations]}
+
+  # The server orders context documents (keyed records, here the account
+  # profile) by the score its CONTEXT_DOC_ORDER_SCORE setting names, which is
+  # `importance` by default, and refuses a catalog that defines no such score.
+  # With one profile per customer there is nothing to order, so a constant
+  # satisfies the setting without a model call.
+  - name: importance
+    kind: score
+    source: constant
+    input: {collections: [accounts]}
+    scale: [1, 10]
+    value: 5
+
+  # One score question, mapped linearly onto `scale`: level 0 becomes 1 and
+  # level 3 becomes 10. The annotation keeps Jev's raw answer, probabilities
+  # included, beside the mapped value; `render: true` shows the value to LLMs
+  # that read the ticket. A failed judgment falls back to `default`.
+  - name: urgency
+    kind: score
+    source: judgment
+    model: jev
+    input: {collections: [tickets]}
+    scale: [1, 10]
+    default: 5
+    render: true
+    questions:
+      urgency:
+        type: score
+        # Backtick paths point into the state Jev sees: {record: {text, content, ...}}.
+        instructions: "How urgently does the customer who wrote `record.text` need a response?"
+        criteria:
+          - "Whenever convenient: a question or feedback"
+          - "Within a few days: an inconvenience with a workaround"
+          - "Today: blocked, or money is at stake"
+          - "Now: an outage or data loss affecting their business"
+
+  # Several judgments about one ticket in a single call. The annotation is the
+  # answer map ({needs_reply: {noul}, topic: {choice, probabilities,
+  # confidence}, frustration: {score, probabilities, confidence}}), and
+  # score_fields copies numeric leaves into the record's rankable scores.
+  - name: signals
+    kind: json
+    source: judgment
+    model: jev
+    input: {collections: [tickets]}
+    questions:
+      needs_reply:
+        type: noul
+        instructions: "Does `record.text` need a reply from support?"
+        criteria:
+          true: "It asks a question, reports a problem, or requests something"
+          false: "A thank-you, an FYI, or an automated notice"
+      topic:
+        type: choice
+        instructions: "What is `record.text` mainly about?"
+        criteria:
+          billing: "Charges, invoices, refunds, payment methods"
+          technical: "Errors, outages, bugs, how the product works"
+          account: "Logins, users, permissions, plan changes"
+          other: null
+      frustration:
+        type: score
+        instructions: "How frustrated is the customer who wrote `record.text`?"
+        criteria: ["Calm", "Annoyed", "Angry"]
+    # Required json processors need a terminal default so a failed judgment
+    # still leaves the ticket ready. This one reads as "calm, no reply
+    # needed", so a failure never pushes escalate towards firing.
+    default_output:
+      needs_reply: {noul: 0}
+      topic: {choice: other, probabilities: {}, confidence: 0}
+      frustration: {score: 0, probabilities: [1, 0, 0], confidence: 0}
+    score_fields:
+      needs_reply_p: needs_reply.noul
+      frustration: frustration.score
+      topic_confidence: topic.confidence

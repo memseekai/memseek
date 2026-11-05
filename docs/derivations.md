@@ -544,8 +544,10 @@ shape while an embedded reference renders it safely as text.
 - `with` configures the task itself and is validated when your definitions load,
   so a misconfigured task fails at deploy time rather than mid-run.
 
-The built-in tasks require `input` to be omitted and reference named values in
-their configured prompt, search specification, or template. Installed
+The built-in `llm`, `search`, and `template` tasks require `input` to be
+omitted and reference named values in their configured prompt, search
+specification, or template. The built-in `judge` task requires one exact list
+`input` reference. Installed
 deterministic tasks should prefer an exact typed `input` reference.
 
 There is no special final task and no requirement that it be an LLM. Any
@@ -605,6 +607,144 @@ hits. Selected canonical hit IDs become provenance and citation authority.
 deterministic composition or as a small stand-in in tests. The emitted value
 must still resolve to a JSON record list, so custom code is normally more
 useful for deterministic structured output.
+
+### Built-in `judge`
+
+`judge` asks a [judgment model](judgment-models.md) the same questions about
+every item in a list, with one call per item. A judgment model cannot write
+text, so `judge` does one or more of three jobs in a derivation:
+
+- **Filter.** Keep only the items that pass a threshold, and pass those to a
+  later `llm` task.
+- **Label.** Turn each kept item into a new record that holds the answers.
+- **Inform.** Give a later `llm` prompt the answers for every item.
+
+This task, from the support triage example's `route_tickets` derivation, labels new tickets with the team
+that should handle them. It uses the customer's account record as shared
+context:
+
+```yaml
+- id: route
+  use: judge
+  input: "{{new_tickets.records}}"
+  with:
+    model: jev
+    context:
+      account: "{{account.records}}"
+    questions:
+      team:
+        type: choice
+        instructions: "Which team should handle the request in `item.content.text`?"
+        criteria:
+          billing: "Charges, invoices, refunds, payment methods"
+          technical: "Errors, outages, bugs, integrations"
+          sales: "Upgrades, pricing, new seats or features"
+      covered:
+        type: noul
+        instructions: >-
+          Is the request in `item.content.text` covered by the plan and
+          notes in `context.account`?
+    keep: {team: {confidence_gte: 0.6}}
+    records:
+      text: "{{item.content.text}}"
+      content: {kind: route}
+```
+
+#### Fields
+
+- `input` (required): one exact reference to a list. Use a source's
+  `.records`, such as `"{{new_tickets.records}}"`, or a list that an earlier
+  task returned. A single record counts as a list of one. `judge` reads the
+  typed records, not `.rendered`.
+- `with.model`: a judgment alias. If you leave it out, the derivation's
+  `model:` is used when that is a judgment alias. There is no catalog-wide
+  default, so a `judge` task with neither fails to load.
+- `with.context` (optional): data that every item is judged against, such as
+  a profile or a policy. It can use templates. Memseek renders it once,
+  before it judges the first item.
+- `with.questions` (required): the same question format as
+  [judgment processors](processors.md#questions). Questions cannot contain
+  templates.
+- `with.keep` (optional): the thresholds an item must pass to be kept.
+- `with.records` (optional): how to turn each kept item into a record draft
+  that `emit` can write.
+
+#### What the model reads
+
+Each call sends one item and the context:
+
+```json
+{"item": {"id": "5f0c...", "type": "ticket", "content": {"text": "..."}},
+ "context": {"account": [{"key": "profile", "content": {"plan": "basic"}}]}}
+```
+
+Questions refer to this data with backtick paths, such as
+`` `item.content.text` `` and `` `context.account` ``. `context` is left out
+when you do not declare it.
+
+#### `keep`: decide which items pass
+
+`keep` maps a question name to one or more tests. An item is kept only when
+every test passes.
+
+| Test | Question types | Passes when |
+| --- | --- | --- |
+| `noul_gte: x` | `noul` | the `noul` is at least `x` |
+| `noul_lte: x` | `noul` | the `noul` is at most `x` |
+| `choice_in: [a, b]` | `choice` | the chosen option is in the list |
+| `prob_gte: {a: x}` | `choice` | option `a` has a probability of at least `x` |
+| `score_gte: x` | `score` | the `score` is at least `x` |
+| `score_lte: x` | `score` | the `score` is at most `x` |
+| `confidence_gte: x` | `choice`, `score` | the `confidence` is at least `x` |
+
+The catalog fails to load if a test names a question that does not exist, an
+option that the question does not declare, or a question of the wrong type.
+
+#### `records`: write the answers as new records
+
+For each kept item, `records` builds one record draft:
+
+- `text` and `key` are templates that can use `{{item...}}`. An event
+  collection needs `text` and forbids `key`.
+- `content` is copied into the draft. Memseek adds the answers under
+  `content.judgment`, so you cannot declare a `judgment` field yourself.
+- The draft cites the item it was built from.
+
+Point `emit.from` at the drafts, for example `"{{route.records}}"`.
+
+#### Result
+
+The task returns this value to later tasks:
+
+```json
+{"items":   [{"id": "5f0c...", "answers": {"team": {...}, "covered": {...}}, "kept": true}],
+ "kept":    [{"id": "5f0c...", "type": "ticket", "content": {"text": "..."}}],
+ "records": [{"text": "...", "content": {"kind": "route", "judgment": {...}}, "citations": ["5f0c..."]}]}
+```
+
+- `items` lists every judged item with its answers, in input order.
+- `kept` holds the original items that passed `keep`. It appears only when you
+  declare `keep`.
+- `records` holds the drafts. It appears only when you declare `records`.
+
+A later `llm` task can read `{{screen.kept}}` and cite those items, and the
+records from `context`. It cannot cite an item that `keep` rejected.
+
+#### Budgets and failures
+
+Judgment calls have their own [run-wide limits](#run-wide-limits),
+`max_judgments` and `max_judgment_tokens`. They do not count against
+`max_llm_calls` or `max_total_tokens`. `max_judgments` defaults to 0, so you
+must raise it in every derivation that uses `judge`. The catalog fails to load
+if you forget.
+
+Memseek retries a failed call once. If the retry fails too, the run fails and
+its error names the judgment. `judge` never asks the model to correct an
+answer, because a typed answer is either valid or rejected.
+
+[Triage a support inbox with Jev](support-triage-example.md) walks through two
+complete derivations: one that labels tickets, and one that screens tickets
+before an `llm` task writes escalation notes.
 
 ### Built-in `computer` and `agent`
 
@@ -1057,6 +1197,15 @@ Three more limits apply only to [sandboxed tasks](computers.md):
 - `max_agent_steps` bounds an agent's tool loop, up to 128; the agent's own
   limit and the task's `max_steps` can only lower it further.
 - `max_computer_output_bytes` bounds the size of a returned result.
+
+Two limits apply only to [`judge`](#built-in-judge) tasks:
+
+- `max_judgments` is the most judgment calls one run can make. Each judged item
+  is one call. It **defaults to `0`**, so a derivation with a `judge` task must
+  raise it.
+- `max_judgment_tokens` (default 400,000) is the most input tokens that all of
+  a run's judgment calls can send. Memseek estimates a task's tokens before it
+  sends them, and adds the usage TypeSafe reports afterwards.
 
 Catalog compilation also verifies task-specific static bounds where possible.
 Installed tasks are trusted async deployment code; they remain unable to

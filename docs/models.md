@@ -75,8 +75,10 @@ providers:
 Provider fields:
 
 - **`adapter`** (required) — which protocol implementation to speak.
-  `openai_compat` handles any endpoint that speaks the OpenAI API; `fake` is a
-  deterministic stand-in for local development and tests.
+  `openai_compat` handles any endpoint that speaks the OpenAI API; `typesafe`
+  speaks TypeSafe's System One judgment API (see
+  [Judgment models](#judgment-models)); `fake` is a deterministic stand-in for
+  local development and tests.
 - **`base_url`** (required) — the endpoint's absolute URL. HTTPS is required
   except on `localhost`.
 - **`api_key_env`** (optional) — the **name** of the environment variable
@@ -109,6 +111,44 @@ process-wide setting that would also, wrongly, describe every other endpoint.
   at build time rather than being truncated by the provider. Must be at least
   4096; the deployment default is 60,000.
 
+## Judgment models
+
+A judgment model answers questions you wrote in advance with typed answers
+instead of text. TypeSafe's Jev models are supported through the `typesafe`
+adapter. [Judgment models](judgment-models.md) explains what they are for and
+how to write questions. This section lists what `conf/models.yaml` needs.
+
+```yaml
+providers:
+  typesafe:
+    adapter: typesafe
+    base_url: https://api.typesafe.ai
+    api_key_env: TYPESAFE_API_KEY
+    json_capability: none        # required: Jev answers are typed by the questions
+
+aliases:
+  jev:
+    targets: ["typesafe:jev-1.13.0"]
+```
+
+An alias is either an **LLM alias** or a **judgment alias**. Memseek decides
+which from the adapters of its targets:
+
+- Every target of one alias must use the same kind of adapter. An alias that
+  mixes `typesafe` and `openai_compat` targets fails to load.
+- A judgment alias forbids `params` and `context_tokens`.
+- LLM processors, the `llm` task, agents, `defaults.derivation`, and
+  `defaults.fold` need an LLM alias.
+- Judgment processors and the `judge` task need a judgment alias.
+
+A use of the wrong kind fails to load with the message
+`model alias '<name>' cannot be used for judgment`, or `for completion` when a
+judgment alias is used where an LLM alias belongs.
+
+Pin a version such as `jev-1.13.0` rather than `jev-latest`, because
+`jev-latest` moves to each new release. The run audit records the version
+TypeSafe reports, for example `typesafe:jev-1.13.0`.
+
 ## Rules the file must satisfy
 
 - You need **at least one provider** and **at least one alias**.
@@ -130,8 +170,10 @@ process-wide setting that would also, wrongly, describe every other endpoint.
 | The thing calling a model | How it chooses |
 | --- | --- |
 | An LLM-backed [processor](processors.md) | Its own `model:` field. |
+| A judgment processor | Its own `model:` field, which must be a judgment alias. |
 | An embedding processor | The `embedding:` block; it has no choice to make. |
 | A model step inside a [derivation](derivations.md) | The step's `model:`, else the derivation's `model:`, else `defaults.derivation`. |
+| A `judge` task inside a derivation | The task's `with.model`, else the derivation's `model:` if that is a judgment alias. There is no catalog-wide default. |
 
 Changing an alias's target or params shows up in the record of every run that
 used it, so an unexplained change in output can always be traced to a model

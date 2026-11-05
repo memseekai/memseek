@@ -7,6 +7,14 @@ providers:
     adapter: openai_compat
     base_url: https://api.openai.com/v1
     api_key_env: OPENAI_API_KEY
+  # A System One judgment endpoint. It answers typed questions about a state
+  # and writes no text, so it serves `source: judgment` processors and the
+  # `judge` derivation Task only.
+  typesafe:
+    adapter: typesafe
+    base_url: https://api.typesafe.ai
+    api_key_env: TYPESAFE_API_KEY
+    json_capability: none
 
 aliases:
   cheap:
@@ -24,6 +32,11 @@ aliases:
     targets: ["openai:gpt-5.4-2026-03-05"]
     params: {temperature: 0, max_output_tokens: 800}
     context_tokens: 60000
+
+  # A judgment alias: every target must be judgment-capable. Pin the version,
+  # because keep thresholds are calibrated against one and jev-latest moves.
+  jev:
+    targets: ["typesafe:jev-1.13.0"]
 
 # The one embedding model, declared in full. Every field here is part of what a
 # stored vector means, so changing any of them means changing `space` too and

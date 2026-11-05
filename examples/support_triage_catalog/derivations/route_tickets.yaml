@@ -1,0 +1,59 @@
+# yaml-language-server: $schema=../../../schemas/derivations.schema.json
+# Routes new tickets to a team with no LLM at all: Jev's answers become the
+# route records. There is no trigger, so it runs when you ask:
+#   client.run_processor("route_tickets", entity="customer:northwind")
+name: route_tickets
+sources:
+  new_tickets:
+    kind: changes
+    collections: [tickets]
+    max_records: 50
+  # The customer's current profile slot. A `record` source reads one keyed
+  # slot, and the run waits until that record is enriched.
+  account:
+    kind: record
+    collection: accounts
+    key: profile
+# Judgment calls have their own budget. They never count against
+# max_llm_calls, and max_judgments defaults to 0, so a judge Task must opt in.
+limits: {max_llm_calls: 0, max_judgments: 50, max_judgment_tokens: 100000}
+tasks:
+  - id: route
+    use: judge
+    # One judgment call per ticket. Each call sees
+    # {item: <the ticket record>, context: {account: [<the profile record>]}}.
+    input: "{{new_tickets.records}}"
+    with:
+      model: jev
+      # Rendered once and shared by every call. Instructions stay static;
+      # anything that varies per run belongs here.
+      context:
+        account: "{{account.records}}"
+      questions:
+        team:
+          type: choice
+          instructions: "Which team should handle the request in `item.content.text`?"
+          criteria:
+            billing: "Charges, invoices, refunds, payment methods"
+            technical: "Errors, outages, bugs, integrations"
+            sales: "Upgrades, pricing, new seats or features"
+        covered:
+          type: noul
+          instructions: >-
+            Is the request in `item.content.text` covered by the plan and
+            notes in `context.account`?
+          criteria:
+            true: "The plan includes what the customer is asking for"
+            false: "It needs a higher plan or a paid add-on"
+      # Tickets whose team answer is below 0.6 confidence get no route: they
+      # stay in the queue for a person to read.
+      keep: {team: {confidence_gte: 0.6}}
+      # One record per kept ticket, citing that ticket. The answers are
+      # stored under content.judgment.
+      records:
+        text: "{{item.content.text}}"
+        content: {kind: route}
+emit:
+  from: "{{route.records}}"
+  collection: routes
+  type: route

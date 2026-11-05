@@ -13,23 +13,29 @@ from types import MappingProxyType
 
 from memseek.config import Settings
 from memseek.definitions import DefinitionCatalog
+from memseek.definitions.judgment import Questions, answers_json, questions_json
 from memseek.logging import log_llm_debug
 from memseek.render import estimate_tokens
 
 from .fake import fake
 from .openai_compat import openai_compat
 from .registry import (
+    JUDGMENT_PROVIDERS,
     PROVIDERS,
     TEXT_OUTPUT,
     Completion,
     CompletionOutput,
     EmbeddingResult,
+    Judgment,
+    JudgmentRequest,
     LLMProvider,
     LLMTransportError,
     ProviderEndpoint,
+    RateLimited,
     materialize_json_schema,
     validate_generation_params,
 )
+from .typesafe import typesafe
 
 type Sleep = Callable[[float], Awaitable[object]]
 
@@ -129,29 +135,23 @@ def _semaphore(limit: int) -> asyncio.Semaphore:
     return semaphore
 
 
-def _endpoint(
-    settings: Settings,
-    catalog: DefinitionCatalog,
-    provider_name: str,
-    model: str,
-) -> tuple[LLMProvider, ProviderEndpoint, str]:
-    """Resolve one declared connection into an executable adapter and endpoint.
+def _declared_endpoint(
+    settings: Settings, catalog: DefinitionCatalog, provider_name: str
+) -> ProviderEndpoint:
+    """Resolve one declared connection into the endpoint an adapter is handed.
 
     ``LLM_FAKE`` substitutes the adapter but keeps the declared connection, so
     offline runs exercise the same resolution path a deployment uses.  The
-    returned identity string is what gets persisted, and it names the *provider*
-    rather than the adapter: two endpoints serving the same model name are not
-    interchangeable, and the stored identity has to be able to say so.
+    endpoint's identity names the *provider* rather than the adapter: two
+    endpoints serving the same model name are not interchangeable, and the
+    stored identity has to be able to say so.
     """
 
     connection = catalog.models.providers.get(provider_name)
     if connection is None:
         raise LLMTransportError(f"undeclared provider {provider_name!r}")
     adapter_name = "fake" if settings.llm_fake else connection.adapter
-    provider = PROVIDERS.get(adapter_name)
-    if provider is None:
-        raise LLMTransportError(f"adapter {adapter_name!r} has no runtime adapter")
-    endpoint = ProviderEndpoint(
+    return ProviderEndpoint(
         provider=adapter_name if settings.llm_fake else provider_name,
         adapter=adapter_name,
         base_url=connection.base_url,
@@ -161,6 +161,18 @@ def _endpoint(
         token_limit_field=connection.token_limit_field,
         max_concurrency=settings.llm_max_concurrency,
     )
+
+
+def _endpoint(
+    settings: Settings,
+    catalog: DefinitionCatalog,
+    provider_name: str,
+    model: str,
+) -> tuple[LLMProvider, ProviderEndpoint, str]:
+    endpoint = _declared_endpoint(settings, catalog, provider_name)
+    provider = PROVIDERS.get(endpoint.adapter)
+    if provider is None:
+        raise LLMTransportError(f"adapter {endpoint.adapter!r} has no runtime adapter")
     return provider, endpoint, endpoint.identity(model)
 
 
@@ -334,6 +346,132 @@ async def complete(
     )
 
 
+@dataclass(frozen=True, slots=True)
+class ResolvedJudgment:
+    judgment: Judgment
+    resolved: str
+    attempts: tuple[ModelAttempt, ...]
+
+
+# A provider may ask for a long back-off; one bounded retry never waits longer.
+_MAX_RETRY_AFTER_S = 30.0
+
+
+def _canonical_sha256(value: object) -> str:
+    encoded = json.dumps(
+        value, ensure_ascii=False, allow_nan=False, sort_keys=True, separators=(",", ":")
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+async def judge(
+    settings: Settings,
+    catalog: DefinitionCatalog,
+    alias: str,
+    state: object,
+    questions: Questions,
+    *,
+    context: str | None = None,
+    _sleep: Sleep = asyncio.sleep,
+    _retry_delay_s: float = 2.0,
+) -> ResolvedJudgment:
+    """Judge one state through a judgment alias, one retry per ordered target.
+
+    ``resolved`` names the model version the provider reports having used,
+    not the configured target, because thresholds are calibrated per version
+    and an alias such as ``jev-latest`` moves underneath its name.
+    """
+
+    try:
+        definition = catalog.models.aliases[alias]
+    except KeyError as exc:
+        raise ValueError(f"unknown model alias {alias!r}") from exc
+    request = JudgmentRequest(state=state, questions=questions)
+    request_hash = _canonical_sha256({"state": state, "questions": questions_json(questions)})
+    no_params: Mapping[str, object] = MappingProxyType({})
+    attempts: list[ModelAttempt] = []
+    for configured_target in definition.targets:
+        provider_name, model = _split_target(str(configured_target))
+        endpoint = _declared_endpoint(settings, catalog, provider_name)
+        provider = JUDGMENT_PROVIDERS.get(endpoint.adapter)
+        if provider is None:
+            raise LLMTransportError(f"adapter {endpoint.adapter!r} cannot judge")
+        configured = endpoint.identity(model)
+        for candidate_attempt in (1, 2):
+            if settings.llm_debug:
+                log_llm_debug(
+                    LOGGER,
+                    "llm.judge_request",
+                    context=context,
+                    alias=alias,
+                    provider=endpoint.provider,
+                    adapter=endpoint.adapter,
+                    model=model,
+                    attempt=candidate_attempt,
+                    state=state,
+                    questions=questions_json(questions),
+                )
+            try:
+                async with _semaphore(settings.llm_max_concurrency):
+                    result = await provider.judge(endpoint, model, request)
+            except LLMTransportError as exc:
+                attempts.append(
+                    ModelAttempt(
+                        alias=alias,
+                        attempt=candidate_attempt,
+                        resolved=configured,
+                        effective_params=no_params,
+                        outcome="error",
+                        usage=None,
+                        prompt_sha256=request_hash,
+                        error_kind=getattr(exc, "kind", "transport"),
+                    )
+                )
+                if candidate_attempt == 1:
+                    retry_after = exc.retry_after_s if isinstance(exc, RateLimited) else None
+                    delay = _retry_delay_s if retry_after is None else retry_after
+                    await _sleep(min(delay, _MAX_RETRY_AFTER_S))
+                continue
+            answers = answers_json(result.answers)
+            if settings.llm_debug:
+                log_llm_debug(
+                    LOGGER,
+                    "llm.judge_response",
+                    context=context,
+                    alias=alias,
+                    model=result.model,
+                    attempt=candidate_attempt,
+                    answers=answers,
+                )
+            resolved = endpoint.identity(result.model)
+            estimated = result.input_tokens is None
+            attempts.append(
+                ModelAttempt(
+                    alias=alias,
+                    attempt=candidate_attempt,
+                    resolved=resolved,
+                    effective_params=no_params,
+                    outcome="ok",
+                    usage=Usage(
+                        prompt_tokens=(
+                            estimate_tokens(json.dumps(state, sort_keys=True, default=str))
+                            if result.input_tokens is None
+                            else result.input_tokens
+                        ),
+                        completion_tokens=result.output_tokens or 0,
+                        estimated=estimated,
+                    ),
+                    prompt_sha256=request_hash,
+                    response_sha256=_canonical_sha256(answers),
+                )
+            )
+            return ResolvedJudgment(result, resolved, tuple(attempts))
+    detail = attempts[-1].error_kind if attempts else "configuration"
+    raise ModelAttemptsExhausted(
+        f"all candidates for alias {alias!r} failed ({detail})", tuple(attempts)
+    )
+
+
 async def embed(
     settings: Settings,
     catalog: DefinitionCatalog,
@@ -457,3 +595,5 @@ def _validate_embedding_result(
 
 PROVIDERS.setdefault("fake", fake)
 PROVIDERS.setdefault("openai_compat", openai_compat)
+JUDGMENT_PROVIDERS.setdefault("fake", fake)
+JUDGMENT_PROVIDERS.setdefault("typesafe", typesafe)

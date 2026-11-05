@@ -39,3 +39,54 @@ processors:
     default_output: {label: neutral, confidence: 0}
     score_fields:
       sentiment_confidence: confidence
+
+  # Judgment-model processors. They need the `jev` alias in conf/models.yaml
+  # and TYPESAFE_API_KEY. Enable one by uncommenting it and listing it under
+  # `processors:` in catalog.yaml and in a collection's processor bindings.
+  #
+  # A fast importance scorer: one score question mapped onto the scale. The
+  # annotation keeps the raw answer, probabilities included, beside the value.
+  # - name: importance_jev
+  #   kind: score
+  #   source: judgment
+  #   model: jev
+  #   input: {collections: [main, outcomes, calendar_events]}
+  #   scale: [1, 10]
+  #   default: 5
+  #   render: true
+  #   questions:
+  #     importance:
+  #       type: score
+  #       instructions: "How significant is `record.text` for future decisions, plans, relationships, or identity?"
+  #       criteria:
+  #         - "Routine and disposable"
+  #         - "Mildly useful context"
+  #         - "Worth remembering"
+  #         - "Likely to change future decisions"
+  #
+  # Several judgments about one message in one call. The annotation is the
+  # answer map; score_fields promote numeric leaves into scores.*.
+  # - name: intent_v1
+  #   kind: json
+  #   source: judgment
+  #   model: jev
+  #   input: {collections: [main], types: [chat, message]}
+  #   questions:
+  #     actionable:
+  #       type: noul
+  #       instructions: "Does `record.text` ask someone to do something?"
+  #       criteria:
+  #         true: "An explicit request, task, or commitment"
+  #         false: "Information or chatter only"
+  #     topic:
+  #       type: choice
+  #       instructions: "What is `record.text` mainly about?"
+  #       criteria: {bug: "Something is broken", feature: "A new capability", question: null, other: null}
+  #     urgency:
+  #       type: score
+  #       instructions: "How time-sensitive is `record.text`?"
+  #       criteria: ["Can wait", "This week", "Today"]
+  #   score_fields:
+  #     actionable_p: actionable.noul
+  #     urgency: urgency.score
+  #     topic_confidence: topic.confidence

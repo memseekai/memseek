@@ -5,7 +5,10 @@ from __future__ import annotations
 import re
 from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Any, ClassVar, Literal, Protocol
+from typing import TYPE_CHECKING, Any, ClassVar, Literal, Protocol
+
+if TYPE_CHECKING:
+    from memseek.definitions.judgment import Answer, Questions
 
 type CompletionOutputMode = Literal["text", "json_object", "json_schema"]
 type JSONCapability = Literal["json_object", "json_schema"]
@@ -66,6 +69,24 @@ class EmbeddingResult:
 
 
 @dataclass(frozen=True, slots=True)
+class JudgmentRequest:
+    """One state judged against a batch of independent questions."""
+
+    state: Any
+    questions: Questions
+
+
+@dataclass(frozen=True, slots=True)
+class Judgment:
+    """Parsed answers plus the model version that actually produced them."""
+
+    answers: Mapping[str, Answer]
+    model: str
+    input_tokens: int | None = None
+    output_tokens: int | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class ProviderEndpoint:
     """One catalog-declared connection, resolved and ready to execute.
 
@@ -117,6 +138,17 @@ class LLMProvider(Protocol):
     ) -> EmbeddingResult: ...
 
 
+class JudgmentProvider(Protocol):
+    NAME: ClassVar[str]
+
+    async def judge(
+        self, endpoint: ProviderEndpoint, model: str, request: JudgmentRequest
+    ) -> Judgment: ...
+
+
+type ModelCapability = Literal["completion", "judgment"]
+
+
 @dataclass(frozen=True, slots=True)
 class ProviderDescriptor:
     """Static maximum capabilities implemented by one provider Adapter."""
@@ -125,7 +157,19 @@ class ProviderDescriptor:
     completion_params: frozenset[str]
     supports_completion: bool = True
     supports_embedding: bool = True
+    supports_judgment: bool = False
     json_capabilities: frozenset[JSONCapability] = frozenset()
+
+    @property
+    def alias_capabilities(self) -> frozenset[ModelCapability]:
+        """What an alias whose targets use this adapter can be used for."""
+
+        capabilities: set[ModelCapability] = set()
+        if self.supports_completion:
+            capabilities.add("completion")
+        if self.supports_judgment:
+            capabilities.add("judgment")
+        return frozenset(capabilities)
 
 
 _GENERATION_PARAMS = frozenset(
@@ -146,12 +190,22 @@ PROVIDER_DESCRIPTORS: dict[str, ProviderDescriptor] = {
     "openai_compat": ProviderDescriptor(
         "openai_compat", _GENERATION_PARAMS, json_capabilities=_JSON_CAPABILITIES
     ),
-    "fake": ProviderDescriptor("fake", _GENERATION_PARAMS, json_capabilities=_JSON_CAPABILITIES),
+    "fake": ProviderDescriptor(
+        "fake", _GENERATION_PARAMS, supports_judgment=True, json_capabilities=_JSON_CAPABILITIES
+    ),
+    "typesafe": ProviderDescriptor(
+        "typesafe",
+        frozenset(),
+        supports_completion=False,
+        supports_embedding=False,
+        supports_judgment=True,
+    ),
 }
 
 # Runtime adapters register themselves here. Keeping descriptors separate lets
 # definition loading validate aliases without importing network clients.
 PROVIDERS: dict[str, LLMProvider] = {}
+JUDGMENT_PROVIDERS: dict[str, JudgmentProvider] = {}
 
 
 def provider_descriptor(name: str) -> ProviderDescriptor:
@@ -170,3 +224,13 @@ def validate_generation_params(provider: str, params: dict[str, object]) -> None
 
 class LLMTransportError(RuntimeError):
     """All bounded attempts for an LLM call were exhausted."""
+
+
+class RateLimited(LLMTransportError):
+    """A retryable refusal that names how long the provider wants us to wait."""
+
+    kind = "rate_limited"
+
+    def __init__(self, message: str, retry_after_s: float | None) -> None:
+        self.retry_after_s = retry_after_s
+        super().__init__(message)

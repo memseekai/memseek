@@ -29,6 +29,7 @@ from memseek.computers import ComputerExecutionError, execute_agent, execute_pro
 from memseek.config import Settings
 from memseek.db import DatabaseConnection, DatabasePool
 from memseek.definitions import DefinitionCatalog
+from memseek.definitions.judgment import Answer, answers_json, kept, questions_json
 from memseek.derive.basis import (
     DerivationRecord,
     EvaluationBasis,
@@ -53,6 +54,8 @@ from memseek.derive.provenance import (
 )
 from memseek.derive.schema import PipelineDefinition, PipelineLimits, ViewSource
 from memseek.derive.tasks import (
+    JudgeRecordsConfig,
+    JudgeTaskConfig,
     LLMTaskConfig,
     SearchTaskConfig,
     TaskContext,
@@ -63,7 +66,7 @@ from memseek.derive.tasks_computer import AgentTaskConfig, ComputerTaskConfig
 from memseek.enrichment import SYSTEM_COLLECTION_HASH, SYSTEM_COLLECTION_VERSION
 from memseek.graph import GraphTraversalError, GraphTraversalRequest, traverse_graph
 from memseek.llm.registry import CompletionOutput, LLMTransportError
-from memseek.llm.runtime import ModelAttempt, ModelAttemptsExhausted, complete
+from memseek.llm.runtime import ModelAttempt, ModelAttemptsExhausted, complete, judge
 from memseek.locks import acquire_entity_locks, acquire_workspace_lock
 from memseek.logging import log_event
 from memseek.materialization import MaterializationError, build_agent_materialization
@@ -131,6 +134,8 @@ class _Execution:
     task_trace: list[dict[str, Any]] | None = None
     computer_trace: list[dict[str, Any]] | None = None
     computer_runs: int = 0
+    judgments: int = 0
+    judgment_tokens: int = 0
     output: Any = None
     outputs: tuple[CandidateRecord, ...] = ()
     candidate_set: CandidateSet | None = None
@@ -814,6 +819,140 @@ class _RuntimeTaskContext(TaskContext):
             citation_ids=rendered.citation_visible_ids & self._config_citation_ids,
         )
 
+    async def judge(self, value: Any, config: JudgeTaskConfig) -> TaskResult[dict[str, Any]]:
+        items = value if isinstance(value, list) else [value]
+        context = (
+            _plain(_render_config(config.context, self._variables)) if config.context else None
+        )
+        states = [
+            {"item": item, **({"context": context} if context is not None else {})}
+            for item in items
+        ]
+        judged = await self._judge_states(states, config)
+        clauses = config.keep_clauses
+        results: list[dict[str, Any]] = []
+        kept_items: list[Any] = []
+        drafts: list[dict[str, Any]] = []
+        rejected: set[UUID] = set()
+        for item, answers in zip(items, judged, strict=True):
+            item_id = self._citable_id(item)
+            passed = kept(clauses, answers)
+            answer_map = answers_json(answers)
+            results.append(
+                {
+                    "id": None if item_id is None else str(item_id),
+                    "answers": answer_map,
+                    "kept": passed,
+                }
+            )
+            if not passed:
+                if item_id is not None:
+                    rejected.add(item_id)
+                continue
+            kept_items.append(item)
+            if config.records is not None:
+                drafts.append(self._judgment_draft(config.records, item, item_id, answer_map))
+        output: dict[str, Any] = {"items": results}
+        if config.keep is not None:
+            output["kept"] = kept_items
+        if config.records is not None:
+            output["records"] = drafts
+        return TaskResult(
+            output,
+            source_ids=self._config_source_ids,
+            citation_ids=self._config_citation_ids - rejected,
+        )
+
+    async def _judge_states(
+        self, states: list[dict[str, Any]], config: JudgeTaskConfig
+    ) -> list[Mapping[str, Answer]]:
+        """Judge every state concurrently under the run's separate judgment budget."""
+
+        execution = self._execution
+        limits = execution.limits
+        alias = config.model or execution.definition.model
+        assert alias is not None
+        if execution.judgments + len(states) > limits.max_judgments:
+            raise DerivationError("budget", "run exceeds max_judgments", wm=execution.wm_before)
+        questions_tokens = _tokens(json.dumps(questions_json(config.questions)))
+        estimate = sum(
+            _tokens(json.dumps(state, default=str)) + questions_tokens for state in states
+        )
+        if execution.judgment_tokens + estimate > limits.max_judgment_tokens:
+            raise DerivationError(
+                "budget", "judgments cannot fit max_judgment_tokens", wm=execution.wm_before
+            )
+        execution.judgments += len(states)
+        outcomes = await asyncio.gather(
+            *(
+                judge(
+                    self._settings,
+                    self._catalog,
+                    alias,
+                    state,
+                    config.questions,
+                    context=f"derivation:{execution.definition.name}/{self._task_id}",
+                )
+                for state in states
+            ),
+            return_exceptions=True,
+        )
+        failure: BaseException | None = None
+        judged: list[Mapping[str, Answer]] = []
+        for outcome in outcomes:
+            if isinstance(outcome, BaseException):
+                attempts = outcome.attempts if isinstance(outcome, ModelAttemptsExhausted) else ()
+                failure = failure or outcome
+            else:
+                attempts = outcome.attempts
+                judged.append(outcome.judgment.answers)
+            execution.model_calls.extend(_attempt_audit(attempts))
+            execution.judgment_tokens += _usage(attempts)[0]
+        if failure is not None:
+            if not isinstance(failure, LLMTransportError | ValueError):
+                raise failure
+            raise DerivationError(
+                "transport", f"judgment failed: {failure}", wm=execution.wm_before
+            ) from failure
+        if execution.judgment_tokens > limits.max_judgment_tokens:
+            raise DerivationError(
+                "budget", "judgment usage exceeds max_judgment_tokens", wm=execution.wm_before
+            )
+        return judged
+
+    def _judgment_draft(
+        self,
+        records: JudgeRecordsConfig,
+        item: Any,
+        item_id: UUID | None,
+        answers: dict[str, Any],
+    ) -> dict[str, Any]:
+        if item_id is None:
+            raise DerivationError(
+                "validation",
+                f"Task {self._task_id!r} records require items with a citable id",
+                wm=self._execution.wm_before,
+            )
+        variables = {**self._variables, "item": ProvenanceValue(item, frozenset({item_id}))}
+        draft: dict[str, Any] = {
+            "content": {**_plain(_render_config(records.content, variables)), "judgment": answers},
+            "citations": [str(item_id)],
+        }
+        key = None if records.key is None else _plain(_render_config(records.key, variables))
+        if key is not None:
+            draft["key"] = key
+        if records.text is not None:
+            draft["text"] = _plain(_render_config(records.text, variables))
+        return draft
+
+    def _citable_id(self, item: Any) -> UUID | None:
+        raw = item.get("id") if isinstance(item, Mapping) else None
+        try:
+            item_id = UUID(str(raw)) if raw is not None else None
+        except ValueError:
+            return None
+        return item_id if item_id in self._config_citation_ids else None
+
     async def search(self, config: SearchTaskConfig) -> TaskResult[Any]:
         value = await _retrieve(
             self._execution,
@@ -1046,6 +1185,12 @@ async def _execute_tasks(
                     deferred_roots=frozenset({"item", "index"}),
                 )
                 config_citations = frozenset()
+            elif isinstance(static_config, JudgeTaskConfig):
+                # Only `context` is rendered up front; `records` templates are
+                # per item and name `item`, which exists only inside the Task.
+                _, config_sources, config_citations = _render_task_config(
+                    static_config.context or {}, variables=variables, citations=citations
+                )
             else:
                 _, config_sources, config_citations = _render_task_config(
                     task.config, variables=variables, citations=citations
@@ -1330,6 +1475,11 @@ def _run_content(
             "estimated": any(
                 bool(cast(Mapping[str, Any], call.get("usage", {})).get("estimated"))
                 for call in execution.model_calls
+            ),
+            **(
+                {"judgments": execution.judgments, "judgment_tokens": execution.judgment_tokens}
+                if execution.judgments
+                else {}
             ),
         },
         "started_at": execution.started_at.isoformat().replace("+00:00", "Z"),

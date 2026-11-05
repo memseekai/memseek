@@ -13,7 +13,7 @@ import re
 from datetime import datetime
 from typing import Any, Literal
 
-from pydantic import Field, field_validator, model_validator
+from pydantic import Field, field_validator, model_serializer, model_validator
 
 from memseek.definitions.base import (
     DefinitionModel,
@@ -334,6 +334,20 @@ class PipelineLimits(StrictModel):
     max_agent_steps: int = Field(default=32, ge=1, le=128)
     max_computer_output_bytes: int = Field(default=10_485_760, ge=1, le=67_108_864)
     max_preserved_bytes: int = Field(default=52_428_800, ge=0, le=536_870_912)
+    # Judgment calls are budgeted apart from LLM calls: a per-record fan-out
+    # would exhaust the LLM budgets at once, at a small fraction of the cost.
+    max_judgments: int = Field(default=0, ge=0, le=10_000)
+    max_judgment_tokens: int = Field(default=400_000, ge=1)
+
+    @model_serializer(mode="wrap")
+    def _serialize(self, handler: Any) -> dict[str, Any]:
+        dumped = dict(handler(self))
+        # Default judgment budgets stay out of the dump, so pipelines that do
+        # not judge keep the hash they had before these limits existed.
+        for name in ("max_judgments", "max_judgment_tokens"):
+            if getattr(self, name) == type(self).model_fields[name].default:
+                dumped.pop(name, None)
+        return dumped
 
 
 class TaskCall(StrictModel):

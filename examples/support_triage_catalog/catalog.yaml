@@ -1,0 +1,23 @@
+# yaml-language-server: $schema=../../schemas/catalog.schema.json
+name: support_triage
+version: 1.0.0
+description: >-
+  A support inbox for one customer, triaged by a System One judgment model:
+  per-ticket urgency and signals, on-demand routing, and escalation notes.
+config:
+  models: conf/models.yaml
+  ranking: conf/rank_default.yaml
+  search_profiles: conf/search_profiles.yaml
+collections:
+  accounts@1: collections/support.yaml
+  tickets@1: collections/support.yaml
+  routes@1: collections/support.yaml
+  escalations@1: collections/support.yaml
+processors:
+  embedding_v1: conf/processors.yaml
+  importance: conf/processors.yaml
+  urgency: conf/processors.yaml
+  signals: conf/processors.yaml
+derivations:
+  route_tickets: derivations/route_tickets.yaml
+  escalate: derivations/escalate.yaml
