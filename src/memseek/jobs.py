@@ -476,14 +476,6 @@ async def retry_dead_job(
     return await get_job_status(pool, workspace=workspace, job_id=job_id)
 
 
-async def retry_job(
-    pool: AsyncConnectionPool[Any], *, workspace: str, job_id: UUID
-) -> dict[str, Any]:
-    """Compatibility alias for the dead-job retry operation."""
-
-    return await retry_dead_job(pool, workspace=workspace, job_id=job_id)
-
-
 __all__ = [
     "JobNotFound",
     "JobRetryConflict",
@@ -495,6 +487,5 @@ __all__ = [
     "reap_expired_final_attempts",
     "release_not_ready_job",
     "retry_dead_job",
-    "retry_job",
     "retry_or_dead_letter_job",
 ]
