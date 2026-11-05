@@ -341,7 +341,6 @@ async def _call_json(
     if execution.prompt_tokens + execution.completion_tokens >= total_limit:
         raise DerivationError("budget", "run token budget is exhausted", wm=execution.wm_before)
 
-    attempts: list[ModelAttempt] = []
     raw = ""
     last_error = ""
     last_kind = "validation"
@@ -378,7 +377,6 @@ async def _call_json(
                 max_output_tokens=max_output_tokens,
                 context=context,
             )
-            attempts.extend(call.attempts)
             execution.model_calls.extend(_attempt_audit(call.attempts))
             raw = call.completion.text
             prompt_tokens, completion_tokens = _usage(call.attempts)
@@ -402,18 +400,17 @@ async def _call_json(
                 raise ValueError(f"model output schema{where}: {schema_error.message}")
             return ProvenanceValue(value, prompt.transitive_source_ids)
         except ModelAttemptsExhausted as exc:
-            attempts.extend(exc.attempts)
             execution.model_calls.extend(_attempt_audit(exc.attempts))
             execution.prompt_tokens += _usage(exc.attempts)[0]
             execution.completion_tokens += _usage(exc.attempts)[1]
-            last_error = "provider attempts exhausted"
-            last_kind = "transport"
+            raise DerivationError(
+                "transport", "provider attempts exhausted", wm=execution.wm_before
+            ) from exc
+        except LLMTransportError as exc:
+            raise DerivationError("transport", str(exc), wm=execution.wm_before) from exc
         except json.JSONDecodeError as exc:
             last_error = str(exc)
             last_kind = "parse"
-        except LLMTransportError as exc:
-            last_error = str(exc)
-            last_kind = "transport"
         except (TypeError, ValueError) as exc:
             last_error = str(exc)
             last_kind = "validation"

@@ -26,6 +26,7 @@ from memseek.derive.tasks import TaskConfigModel, TaskContext, register_task, ta
 from memseek.jobs import claim_job
 from memseek.llm.fake import fake
 from memseek.llm.registry import Completion
+from memseek.llm.runtime import ModelAttemptsExhausted
 from memseek.logging import configure_logging
 from memseek.models import ClaimedJob
 from memseek.records import PublicRecordInput, RecordBatchRequest, insert_public_records
@@ -529,3 +530,30 @@ async def test_worker_leaves_a_recorded_derive_failure_to_the_runner(
         "job.claimed",
         "job.retry_scheduled",
     ]
+
+
+async def test_exhausted_provider_fails_the_run_without_a_correction_call(
+    digest_settings: Settings,
+    db_pool: DatabasePool,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    settings = digest_settings
+    catalog = load_definition_catalog(settings)
+    credential = await create_workspace(db_pool, "derive-transport")
+    await _write_note(
+        db_pool, catalog, settings, workspace=credential.workspace, key="a", text="Maya likes tea."
+    )
+    claimed = await _claim(db_pool, settings)
+    prompts: list[str] = []
+
+    async def exhausted(*args: Any, **kwargs: Any) -> Any:
+        prompts.append(args[4])
+        raise ModelAttemptsExhausted("provider attempts exhausted", ())
+
+    monkeypatch.setattr(runner_module, "complete", exhausted)
+
+    with pytest.raises(DerivationError) as failure:
+        await process_derivation_job(db_pool, claimed=claimed, settings=settings, catalog=catalog)
+
+    assert (failure.value.kind, len(prompts)) == ("transport", 1)
+    assert await _job_state(db_pool, claimed.id) == (False, "transport")
