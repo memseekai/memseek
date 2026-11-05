@@ -557,3 +557,48 @@ async def test_exhausted_provider_fails_the_run_without_a_correction_call(
 
     assert (failure.value.kind, len(prompts)) == ("transport", 1)
     assert await _job_state(db_pool, claimed.id) == (False, "transport")
+
+
+async def test_idle_trigger_wakeup_still_writes_its_noop_receipt(
+    digest_settings: Settings,
+    db_pool: DatabasePool,
+) -> None:
+    # An `at` deadline is retired, and read freshness measures max_staleness,
+    # from the newest ok/noop run; an idle wakeup without a receipt would
+    # re-arm a past deadline after every run and leave the entity stale.
+    from memseek.triggers import enqueue_derive_tx
+
+    settings = digest_settings
+    catalog = load_definition_catalog(settings)
+    credential = await create_workspace(db_pool, "derive-idle-wakeup")
+    note = await _write_note(
+        db_pool, catalog, settings, workspace=credential.workspace, key="a", text="Maya likes tea."
+    )
+    fake.reset()
+    fake.enqueue(_atom("Maya likes tea.", note))
+    await process_derivation_job(
+        db_pool, claimed=await _claim(db_pool, settings), settings=settings, catalog=catalog
+    )
+    async with db_pool.connection() as conn, conn.transaction():
+        await enqueue_derive_tx(
+            conn,
+            workspace=credential.workspace,
+            derivation="note_digest",
+            entity="maya",
+            reason="trigger:note_digest.default:cron",
+        )
+
+    wakeup = await process_derivation_job(
+        db_pool, claimed=await _claim(db_pool, settings), settings=settings, catalog=catalog
+    )
+
+    async with db_pool.connection() as conn:
+        rows = await (
+            await conn.execute(
+                "select content->>'status' as status from record"
+                " where workspace = %s and type = 'run' order by seq",
+                (credential.workspace,),
+            )
+        ).fetchall()
+    assert wakeup.run_id is not None
+    assert [row["status"] for row in rows] == ["ok", "noop"]

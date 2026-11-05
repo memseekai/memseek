@@ -243,7 +243,7 @@ class _Clock:
         return self.now
 
 
-async def test_worker_schedules_cron_at_most_once_per_minute(
+async def test_worker_schedules_cron_at_most_once_per_tick(
     settings: Settings,
     db_pool: DatabasePool,
     cron_catalog: DefinitionCatalog,
@@ -253,14 +253,14 @@ async def test_worker_schedules_cron_at_most_once_per_minute(
     monkeypatch.setattr(triggers_module, "schedule_cron_jobs", schedule)
     clock = _Clock(1_800_000_000.0)
     runtime = WorkerRuntime(
-        settings=settings,
+        settings=settings.model_copy(update={"cron_tick_s": 15}),
         catalog=cron_catalog,
         pool=db_pool,
         cadence=worker_module.Cadence(clock),
     )
 
     await worker_module.run_worker_once(runtime, worker_id="w")
-    clock.now += 59
+    clock.now += 14
     await worker_module.run_worker_once(runtime, worker_id="w")
     assert schedule.await_count == 1
 

@@ -512,7 +512,7 @@ Two independent signals warrant revalidation:
 
 | Signal | Meaning |
 | --- | --- |
-| dirty | Matching driving-source records exist above the watermark: the output is behind its inputs. |
+| dirty | The next run would read a different basis: driving-source records above the watermark (inside a snapshot window, when one is set), or, for a `stale_citations` driver, at least one stale citation. |
 | stale | The last successful run is older than the request's `max_staleness` seconds, or the derivation never ran — even with no new inputs. |
 
 Staleness tolerance belongs to the caller, not the catalog: each request

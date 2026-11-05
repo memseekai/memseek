@@ -39,6 +39,7 @@ from memseek.derive.basis import (
     DerivationRecord,
     EvaluationBasis,
     adapter_for,
+    basis_mode,
     scope_sql,
     source_contract_hash,
 )
@@ -1815,16 +1816,10 @@ async def process_derivation_job(
     if definition is None:
         raise DerivationError("config", f"unknown derivation {claimed.derivation!r}")
     now = datetime.now(UTC)
-    basis_mode = (
-        "corpus"
-        if definition.driver.kind == "snapshot"
-        else "citation_repair"
-        if definition.driver.kind == "stale_citations"
-        else "changes"
-    )
+    mode = basis_mode(definition.driver.kind)
     empty_basis = EvaluationBasis(
-        mode=basis_mode,
-        from_seq=0 if basis_mode == "changes" else None,
+        mode=mode,
+        from_seq=0 if mode == "changes" else None,
         through_seq=0,
         predecessor_run_id=None,
         predecessor_source_hash=None,
@@ -1884,6 +1879,7 @@ async def process_derivation_job(
                 workspace=claimed.workspace,
                 entity=claimed.entity,
                 definition=definition,
+                config_hash=execution.config_hash,
             )
         except DerivationError as exc:
             setup_error = exc
