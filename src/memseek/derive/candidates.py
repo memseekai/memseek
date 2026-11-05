@@ -9,6 +9,7 @@ from typing import Any, Literal
 from uuid import UUID, uuid4
 
 from jsonschema import Draft202012Validator, FormatChecker
+from jsonschema.protocols import Validator
 from pydantic import ValidationError
 
 from memseek.config import Settings
@@ -99,28 +100,47 @@ def _validate_finite_json(value: Any) -> None:
             _validate_finite_json(item)
 
 
+@dataclass(frozen=True, slots=True)
+class _ContentValidator:
+    name: str
+    version: int
+    validator: Validator
+
+    @classmethod
+    def for_emit(cls, emit: EmitDefinition, catalog: DefinitionCatalog) -> _ContentValidator:
+        collection = catalog.resolve_collection(emit.collection, emit.collection_version)
+        return cls(
+            name=collection.name,
+            version=collection.version,
+            validator=Draft202012Validator(
+                collection.content_schema, format_checker=FormatChecker()
+            ),
+        )
+
+    def check(self, content: dict[str, Any]) -> None:
+        errors = sorted(
+            self.validator.iter_errors(content),
+            key=lambda error: tuple(str(part) for part in error.absolute_path),
+        )
+        if not errors:
+            return
+        error = errors[0]
+        path = ".".join(str(part) for part in error.absolute_path)
+        location = f"content.{path}" if path else "content"
+        raise DerivationError(
+            "validation",
+            f"emitted record does not match {self.name}@{self.version}: "
+            f"{location}: {error.message}",
+        )
+
+
 def validate_collection_content(
     content: dict[str, Any],
     *,
     emit: EmitDefinition,
     catalog: DefinitionCatalog,
 ) -> None:
-    collection = catalog.resolve_collection(emit.collection, emit.collection_version)
-    validator = Draft202012Validator(collection.content_schema, format_checker=FormatChecker())
-    errors = sorted(
-        validator.iter_errors(content),
-        key=lambda error: tuple(str(part) for part in error.absolute_path),
-    )
-    if not errors:
-        return
-    error = errors[0]
-    path = ".".join(str(part) for part in error.absolute_path)
-    location = f"content.{path}" if path else "content"
-    raise DerivationError(
-        "validation",
-        f"emitted record does not match {collection.name}@{collection.version}: "
-        f"{location}: {error.message}",
-    )
+    _ContentValidator.for_emit(emit, catalog).check(content)
 
 
 def _citations(
@@ -297,6 +317,7 @@ def compile_candidate_set(
     if emit.driver_key and len(driver_keys) != 1:
         raise DerivationError("validation", "driver_key emission requires one captured target key")
     allowed_keys = None if emit.dynamic_keys else emit.keys or driver_keys
+    content_validator = _ContentValidator.for_emit(emit, catalog)
     records: list[CandidateRecord] = []
     seen: set[str] = set()
     for item in value:
@@ -339,7 +360,7 @@ def compile_candidate_set(
                 raise DerivationError("validation", "an emitted record requires content or text")
             if effect == "append" and not isinstance(content.get("text"), str):
                 raise DerivationError("validation", "event emissions require text")
-        validate_collection_content(content, emit=emit, catalog=catalog)
+        content_validator.check(content)
         records.append(
             CandidateRecord(
                 id=uuid4(),
@@ -367,7 +388,7 @@ def compile_candidate_set(
     if status == "active":
         # Drafts stay whole: promotion checks every draft row against
         # covered_keys, and a reviewer promotes the set, not single keys.
-        version = catalog.resolve_collection(emit.collection, emit.collection_version).version
+        version = content_validator.version
         heads = {
             head.key: head for head in basis.expected_heads if head.collection == emit.collection
         }

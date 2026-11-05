@@ -166,20 +166,21 @@ def _lookup(path: str, variables: Mapping[str, Any]) -> Any:
 def _resolved_source_ids(node: Any) -> frozenset[UUID]:
     """Collect provenance from a value and every nested :class:`ProvenanceValue`."""
 
+    found: set[UUID] = set()
+    _collect_source_ids(node, found)
+    return frozenset(found)
+
+
+def _collect_source_ids(node: Any, found: set[UUID]) -> None:
     if isinstance(node, ProvenanceValue):
-        inner = _resolved_source_ids(node.value)
-        return node.source_ids | inner
-    if isinstance(node, Mapping):
-        combined: frozenset[UUID] = frozenset()
+        found.update(node.source_ids)
+        _collect_source_ids(node.value, found)
+    elif isinstance(node, Mapping):
         for item in node.values():
-            combined = combined | _resolved_source_ids(item)
-        return combined
-    if isinstance(node, (list, tuple)):
-        combined = frozenset()
+            _collect_source_ids(item, found)
+    elif isinstance(node, (list, tuple)):
         for item in node:
-            combined = combined | _resolved_source_ids(item)
-        return combined
-    return frozenset()
+            _collect_source_ids(item, found)
 
 
 def _strip_provenance(node: Any) -> Any:
