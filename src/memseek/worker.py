@@ -7,9 +7,10 @@ import hashlib
 import logging
 import os
 import signal
-from collections.abc import AsyncIterator, Awaitable
+import time
+from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager, suppress
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 from uuid import UUID, uuid4
@@ -37,6 +38,25 @@ if TYPE_CHECKING:
 LOGGER = logging.getLogger(__name__)
 
 
+class Cadence:
+    """Gate periodic worker tasks to once per wall-clock period per process.
+
+    Periods are aligned to the epoch, so a 60 s period opens once per minute
+    boundary however often the pass loop asks.
+    """
+
+    def __init__(self, clock: Callable[[], float] = time.time) -> None:
+        self._clock = clock
+        self._last: dict[str, int] = {}
+
+    def due(self, task: str, period_s: float) -> bool:
+        period = int(self._clock() // period_s)
+        if self._last.get(task) == period:
+            return False
+        self._last[task] = period
+        return True
+
+
 @dataclass(frozen=True, slots=True)
 class WorkerRuntime:
     """Resources shared by the M1 dispatch lanes."""
@@ -45,6 +65,7 @@ class WorkerRuntime:
     catalog: DefinitionCatalog
     pool: DatabasePool
     catalog_registry: WorkspaceCatalogRegistry | None = None
+    cadence: Cadence = field(default_factory=Cadence)
 
 
 @dataclass(frozen=True, slots=True)
@@ -234,29 +255,69 @@ async def _heartbeat_loop(
     claimed: object,
     stop: asyncio.Event,
 ) -> None:
+    """Renew the lease until ``stop``, riding out transient database faults.
+
+    A failed renewal is retried every ``retry_s`` while the lease last granted
+    is still comfortably live.  Lease expiry is tracked on the local monotonic
+    clock from the moment each renewal returned, so clock skew against the
+    database cannot make the loop optimistic.
+    """
+
+    from psycopg import OperationalError
+    from psycopg_pool import PoolTimeout
+
     from memseek.jobs import heartbeat_job
     from memseek.models import ClaimedJob, LeaseLost
 
     assert isinstance(claimed, ClaimedJob)
+    lease_s = runtime.settings.job_lease_s
+    retry_s = min(1.0, runtime.settings.job_heartbeat_s / 2)
+    loop = asyncio.get_running_loop()
+    lease_deadline = loop.time() + lease_s
+    delay: float = runtime.settings.job_heartbeat_s
     while not stop.is_set():
         try:
-            await asyncio.wait_for(stop.wait(), timeout=runtime.settings.job_heartbeat_s)
+            await asyncio.wait_for(stop.wait(), timeout=delay)
         except TimeoutError:
             try:
-                await heartbeat_job(runtime.pool, claimed, runtime.settings.job_lease_s)
+                await heartbeat_job(runtime.pool, claimed, lease_s)
             except LeaseLost:
                 if stop.is_set():
                     return
                 raise
+            except (OperationalError, PoolTimeout) as exc:
+                if lease_deadline - loop.time() <= 2 * retry_s:
+                    raise LeaseLost(f"job lease unrenewable: {claimed.id}") from exc
+                log_event(
+                    LOGGER,
+                    "warning",
+                    "job.heartbeat_retry",
+                    job_id=str(claimed.id),
+                    exception_type=type(exc).__name__,
+                )
+                delay = retry_s
+            else:
+                lease_deadline = loop.time() + lease_s
+                delay = runtime.settings.job_heartbeat_s
 
 
 async def _with_heartbeat[T](
     runtime: WorkerRuntime,
     claimed: object,
     operation: Awaitable[T],
+    *,
+    max_runtime_s: float | None = None,
 ) -> T:
+    """Run ``operation`` under a renewed lease, optionally capped in wall time.
+
+    A capped operation that overruns is cancelled and raises ``TimeoutError``,
+    which the lanes treat as a retryable failure.
+    """
+
     stop = asyncio.Event()
-    operation_task = asyncio.ensure_future(operation)
+    operation_task = asyncio.ensure_future(
+        operation if max_runtime_s is None else asyncio.wait_for(operation, max_runtime_s)
+    )
     heartbeat_task = asyncio.create_task(_heartbeat_loop(runtime, claimed, stop))
     try:
         done, _pending = await asyncio.wait(
@@ -365,6 +426,7 @@ async def _drain_projection_jobs(
                     claimed,
                     backends=backends,
                 ),
+                max_runtime_s=runtime.settings.job_max_runtime_s,
             )
             stage = "completion"
             await complete_job(runtime.pool, claimed)
@@ -442,6 +504,7 @@ async def _drain_derivation_jobs(
                     runtime.pool,
                     claimed,
                     runtime.settings.unready_retry_s,
+                    timeout_s=runtime.settings.unready_timeout_s,
                 )
                 not_ready += 1
                 continue
@@ -460,6 +523,7 @@ async def _drain_derivation_jobs(
                     runtime.pool,
                     claimed,
                     runtime.settings.unready_retry_s,
+                    timeout_s=runtime.settings.unready_timeout_s,
                 )
                 not_ready += 1
                 log_event(
@@ -555,6 +619,7 @@ async def _drain_invocation_jobs(runtime: WorkerRuntime, *, worker_id: str) -> i
                     settings=runtime.settings,
                     final_attempt=claimed.attempts >= runtime.settings.job_max_attempts,
                 ),
+                max_runtime_s=runtime.settings.job_max_runtime_s,
             )
             await complete_job(runtime.pool, claimed)
             completed += 1
@@ -578,6 +643,10 @@ async def _drain_invocation_jobs(runtime: WorkerRuntime, *, worker_id: str) -> i
                 await _retry_claim(runtime, claimed, exc)
             except LeaseLost:
                 continue
+
+
+_CRON_PAGE_SIZE = 500
+_CRON_ENQUEUE_BATCH = 50
 
 
 async def _cron_entities(
@@ -605,13 +674,14 @@ async def _cron_entities(
         from record
         where {" and ".join(clauses)}
         order by entity
-        limit 501
+        limit %s
         """,
-        params,
+        [*params, _CRON_PAGE_SIZE + 1],
     )
     candidates = [str(row["entity"]) for row in await result.fetchall()]
-    has_more = len(candidates) > 500
-    page_cursor = candidates[499] if has_more else None
+    has_more = len(candidates) > _CRON_PAGE_SIZE
+    candidates = candidates[:_CRON_PAGE_SIZE]
+    page_cursor = candidates[-1] if has_more else None
     if mode == "any":
         # A provenance-repair driver is already a bounded, per-entity selector.
         # Reuse that selector before queueing cron work so an hourly repair does
@@ -666,7 +736,7 @@ async def _process_cron_scan(runtime: WorkerRuntime, claimed: object) -> bool:
 
     from memseek.locks import acquire_workspace_lock
     from memseek.models import ClaimedJob, LeaseLost
-    from memseek.triggers import _cooldown_due, claim_owned_tx, enqueue_derive_tx
+    from memseek.triggers import _cooldown_due, enqueue_derive_tx
 
     assert isinstance(claimed, ClaimedJob)
     if claimed.kind != "cron_scan" or claimed.derivation is None:
@@ -685,7 +755,6 @@ async def _process_cron_scan(runtime: WorkerRuntime, claimed: object) -> bool:
         raise ValueError("cron trigger or derivation is not configured")
     async with runtime.pool.connection() as conn, conn.transaction():
         await acquire_workspace_lock(conn, claimed.workspace)
-        await claim_owned_tx(conn, claimed)
         entities, has_more, page_cursor = await _cron_entities(
             conn,
             workspace=claimed.workspace,
@@ -693,28 +762,35 @@ async def _process_cron_scan(runtime: WorkerRuntime, claimed: object) -> bool:
             mode=mode,
             cursor=cursor,
         )
-        for entity in entities[:500]:
-            due = await _cooldown_due(
-                conn,
-                workspace=claimed.workspace,
-                entity=entity,
-                trigger=trigger,
-            )
-            await enqueue_derive_tx(
-                conn,
-                workspace=claimed.workspace,
-                derivation=definition.name,
-                entity=entity,
-                reason=f"trigger:{trigger.name}:cron",
-                run_after=due,
-            )
-        if has_more and page_cursor is not None:
-            scheduled_at = claimed.payload.get("scheduled_at")
-            if not isinstance(scheduled_at, str):
-                raise ValueError("cron scheduled_at is malformed")
-            dedupe = (
-                f"{claimed.dedupe_key or f'cron:{definition.name}:{scheduled_at}'}:{page_cursor}"
-            )
+    scheduled_at = claimed.payload.get("scheduled_at")
+    if page_cursor is not None and not isinstance(scheduled_at, str):
+        raise ValueError("cron scheduled_at is malformed")
+    # Short transactions keep the shared workspace lock from starving erasure
+    # for a whole page.  Enqueue coalesces into the active mailbox, so a retry
+    # that repeats an already committed batch converges on the same jobs.
+    for start in range(0, len(entities), _CRON_ENQUEUE_BATCH):
+        async with runtime.pool.connection() as conn, conn.transaction():
+            await acquire_workspace_lock(conn, claimed.workspace)
+            for entity in entities[start : start + _CRON_ENQUEUE_BATCH]:
+                due = await _cooldown_due(
+                    conn,
+                    workspace=claimed.workspace,
+                    entity=entity,
+                    trigger=trigger,
+                )
+                await enqueue_derive_tx(
+                    conn,
+                    workspace=claimed.workspace,
+                    derivation=definition.name,
+                    entity=entity,
+                    reason=f"trigger:{trigger.name}:cron",
+                    run_after=due,
+                )
+    async with runtime.pool.connection() as conn, conn.transaction():
+        if page_cursor is not None:
+            # Every page keys off the root tick, so a page's key stays bounded
+            # and a re-run predecessor maps onto the same successor.
+            dedupe = f"cron:{trigger.name}:{definition.name}:{scheduled_at}:{page_cursor}"
             await conn.execute(
                 """
                 insert into job (workspace, kind, derivation, dedupe_key, payload)
@@ -755,7 +831,7 @@ async def _process_cron_scan(runtime: WorkerRuntime, claimed: object) -> bool:
         job_id=str(claimed.id),
         workspace=claimed.workspace,
         derivation=claimed.derivation,
-        entity_count=min(len(entities), 500),
+        entity_count=len(entities),
         chained=has_more,
     )
     return True
@@ -779,7 +855,12 @@ async def _drain_cron_jobs(runtime: WorkerRuntime, *, worker_id: str) -> int:
         if claimed is None:
             return completed
         try:
-            await _with_heartbeat(runtime, claimed, _process_cron_scan(runtime, claimed))
+            await _with_heartbeat(
+                runtime,
+                claimed,
+                _process_cron_scan(runtime, claimed),
+                max_runtime_s=runtime.settings.job_max_runtime_s,
+            )
             completed += 1
         except LeaseLost:
             continue
@@ -812,7 +893,6 @@ async def _process_retention_purge(runtime: WorkerRuntime, claimed: object) -> i
     from memseek.definitions.base import split_exact_reference
     from memseek.erase import purge_tombstoned_pages_tx
     from memseek.models import ClaimedJob, LeaseLost
-    from memseek.triggers import claim_owned_tx
 
     assert isinstance(claimed, ClaimedJob)
     if (
@@ -843,8 +923,9 @@ async def _process_retention_purge(runtime: WorkerRuntime, claimed: object) -> i
         raise ValueError("retention policy is not configured")
     collection, version = split_exact_reference(retention.collection)
 
+    # The job row is not locked across the purge so the heartbeat can renew the
+    # lease; the completing update below fences on the token and lease instead.
     async with runtime.pool.connection() as conn, conn.transaction():
-        await claim_owned_tx(conn, claimed)
         erasure = await purge_tombstoned_pages_tx(
             conn,
             workspace=claimed.workspace,
@@ -904,7 +985,12 @@ async def _drain_retention_jobs(runtime: WorkerRuntime, *, worker_id: str) -> in
         if claimed is None:
             return completed
         try:
-            await _with_heartbeat(runtime, claimed, _process_retention_purge(runtime, claimed))
+            await _with_heartbeat(
+                runtime,
+                claimed,
+                _process_retention_purge(runtime, claimed),
+                max_runtime_s=runtime.settings.job_max_runtime_s,
+            )
             completed += 1
         except LeaseLost:
             continue
@@ -1111,7 +1197,10 @@ async def _drain_backfill_jobs(runtime: WorkerRuntime, *, worker_id: str) -> tup
         return 0, 0
     try:
         return 1, await _with_heartbeat(
-            runtime, claimed, _process_annotation_backfill(runtime, claimed)
+            runtime,
+            claimed,
+            _process_annotation_backfill(runtime, claimed),
+            max_runtime_s=runtime.settings.job_max_runtime_s,
         )
     except LeaseLost:
         # Another worker owns it now; the next pass picks up whatever is queued.
@@ -1189,11 +1278,29 @@ async def run_worker_once(
 
     identity = worker_id or _worker_id()
     lanes = _LaneTally()
+    if runtime.cadence.due("reap_expired", runtime.settings.job_lease_s / 2):
+        from memseek.jobs import reap_expired_final_attempts
+
+        await lanes.run(
+            "reap_expired",
+            reap_expired_final_attempts(runtime.pool, runtime.settings.job_max_attempts),
+            0,
+        )
+    if runtime.settings.job_retention_days and runtime.cadence.due("job_retention", 600):
+        from memseek.jobs import purge_finished_jobs
+
+        await lanes.run(
+            "job_retention",
+            purge_finished_jobs(runtime.pool, retention_days=runtime.settings.job_retention_days),
+            0,
+        )
+    # Cron ticks are minute-granular, so asking the scheduler more than once per
+    # minute only repeats the sweep of every workspace.
     if (
         runtime.catalog_registry is not None
         or getattr(runtime.catalog, "triggers", None)
         or any(package.retentions for package in getattr(runtime.catalog, "packages", {}).values())
-    ):
+    ) and runtime.cadence.due("cron_schedule", 60):
         from memseek.triggers import schedule_cron_jobs
 
         cron_jobs = await lanes.run(

@@ -166,7 +166,14 @@ class Settings(BaseSettings):
     job_lease_s: int = 300
     job_heartbeat_s: int = 60
     job_max_attempts: int = 3
+    # Wall-time cap on one non-derive job attempt; derivations use MAX_RUN_WALL_S.
+    job_max_runtime_s: int = 900
+    # Done and dead jobs older than this are deleted; 0 keeps them forever.
+    job_retention_days: int = Field(default=14, ge=0)
     unready_retry_s: int = 2
+    # A derive job still not ready this long after its first release is
+    # dead-lettered as not_ready_timeout instead of holding its mailbox.
+    unready_timeout_s: int = 3600
     cron_tick_s: int = 30
 
     context_doc_order_score: str = "importance"
@@ -339,7 +346,9 @@ class Settings(BaseSettings):
             "JOB_LEASE_S": self.job_lease_s,
             "JOB_HEARTBEAT_S": self.job_heartbeat_s,
             "JOB_MAX_ATTEMPTS": self.job_max_attempts,
+            "JOB_MAX_RUNTIME_S": self.job_max_runtime_s,
             "UNREADY_RETRY_S": self.unready_retry_s,
+            "UNREADY_TIMEOUT_S": self.unready_timeout_s,
             "CRON_TICK_S": self.cron_tick_s,
             "ARTIFACT_USE_RETENTION_DAYS": self.artifact_use_retention_days,
             "ARTIFACT_USE_PURGE_BATCH": self.artifact_use_purge_batch,

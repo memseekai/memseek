@@ -7,9 +7,10 @@ from datetime import UTC, datetime
 from typing import Any, cast
 from uuid import UUID, uuid4
 
-from psycopg import AsyncConnection, errors
+from psycopg import errors
 from psycopg_pool import AsyncConnectionPool
 
+from memseek.locks import advisory_lock_key
 from memseek.logging import log_event
 from memseek.models import ClaimedJob, JobKind, JobTransition, LeaseLost
 
@@ -45,36 +46,108 @@ def _claimed_job(row: dict[str, Any]) -> ClaimedJob:
     )
 
 
-async def _reap_expired_final_attempts_tx(conn: AsyncConnection[Any], max_attempts: int) -> int:
-    result = await conn.execute(
-        """
-        update job
-        set dead_at = clock_timestamp(),
-            lease_until = null,
-            locked_by = null,
-            last_error_kind = 'lease_expired',
-            last_error = 'lease expired after final attempt'
-        where done_at is null
-          and dead_at is null
-          and attempts >= %s
-          and lease_until is not null
-          and lease_until < clock_timestamp()
-        """,
-        (max_attempts,),
-    )
-    return result.rowcount
-
-
 async def reap_expired_final_attempts(pool: AsyncConnectionPool[Any], max_attempts: int) -> int:
-    """Dead-letter final attempts whose owner let the lease expire."""
+    """Dead-letter final attempts whose owner let the lease expire.
+
+    The claim never selects a row at the attempt cap, so this is the only path
+    that retires one.  Rows another transaction holds are skipped and left for
+    the next sweep rather than waited on.
+    """
 
     if max_attempts <= 0:
         raise ValueError("max_attempts must be positive")
-    async with pool.connection() as conn, conn.transaction():
-        count = await _reap_expired_final_attempts_tx(conn, max_attempts)
+    async with pool.connection() as conn:
+        result = await conn.execute(
+            """
+            with expired as (
+              select id
+              from job
+              where done_at is null
+                and dead_at is null
+                and attempts >= %s
+                and lease_until is not null
+                and lease_until < clock_timestamp()
+              for update skip locked
+            )
+            update job j
+            set dead_at = clock_timestamp(),
+                lease_until = null,
+                locked_by = null,
+                last_error_kind = 'lease_expired',
+                last_error = 'lease expired after final attempt'
+            from expired e
+            where j.id = e.id
+            """,
+            (max_attempts,),
+        )
+        count = result.rowcount
     if count:
         log_event(LOGGER, "warning", "jobs.lease_expired_reaped", count=count)
     return count
+
+
+async def purge_finished_jobs(
+    pool: AsyncConnectionPool[Any],
+    *,
+    retention_days: int,
+    batch: int = 1_000,
+    max_batches: int = 50,
+) -> int:
+    """Delete done and dead jobs older than ``retention_days`` in bounded batches.
+
+    Only one worker on a deployment purges at a time; the others return 0.
+    Run records keep their own history, so a purged job only stops answering
+    ``GET /jobs/{id}``.  The newest job of each retention policy is kept: the
+    scheduler re-derives that job's dedupe key from the latest tick, and
+    deleting it would schedule the same purge again.
+    """
+
+    if retention_days <= 0:
+        return 0
+    deleted = 0
+    for _ in range(max_batches):
+        async with pool.connection() as conn, conn.transaction():
+            leader = await conn.execute(
+                "select pg_try_advisory_xact_lock(%s) as leader",
+                (advisory_lock_key("job-retention"),),
+            )
+            row = await leader.fetchone()
+            if row is None or not row["leader"]:
+                break
+            result = await conn.execute(
+                """
+                with doomed as (
+                  select id
+                  from job j
+                  where (done_at is not null or dead_at is not null)
+                    and coalesce(done_at, dead_at)
+                        < clock_timestamp() - make_interval(days => %s)
+                    and (
+                      kind <> 'retention_purge'
+                      or exists (
+                        select 1 from job newer
+                        where newer.workspace = j.workspace
+                          and newer.kind = 'retention_purge'
+                          and newer.payload->>'package_name' = j.payload->>'package_name'
+                          and newer.payload->>'package_version' = j.payload->>'package_version'
+                          and newer.payload->>'retention' = j.payload->>'retention'
+                          and newer.created_at > j.created_at
+                      )
+                    )
+                  order by coalesce(done_at, dead_at)
+                  limit %s
+                  for update skip locked
+                )
+                delete from job using doomed where job.id = doomed.id
+                """,
+                (retention_days, batch),
+            )
+        deleted += result.rowcount
+        if result.rowcount < batch:
+            break
+    if deleted:
+        log_event(LOGGER, "info", "jobs.finished_purged", count=deleted)
+    return deleted
 
 
 async def claim_job(
@@ -99,7 +172,6 @@ async def claim_job(
     claim_token = f"{worker_id}:{uuid4()}"
     derive_filter = list(derivations) if derivations is not None else None
     async with pool.connection() as conn, conn.transaction():
-        reaped = await _reap_expired_final_attempts_tx(conn, max_attempts)
         result = await conn.execute(
             """
             with candidate as (
@@ -138,8 +210,6 @@ async def claim_job(
             ),
         )
         row = await result.fetchone()
-    if reaped:
-        log_event(LOGGER, "warning", "jobs.lease_expired_reaped", count=reaped)
     if row is None:
         return None
     claimed = _claimed_job(row)
@@ -192,7 +262,7 @@ async def complete_job(pool: AsyncConnectionPool[Any], claimed: ClaimedJob) -> d
             """
             update job
             set done_at = clock_timestamp(), lease_until = null, locked_by = null,
-                last_error_kind = null, last_error = null
+                last_error_kind = null, last_error = null, unready_since = null
             where id = %s
               and locked_by = %s
               and done_at is null
@@ -235,6 +305,7 @@ async def retry_or_dead_letter_job(
                 end,
                 lease_until = null,
                 locked_by = null,
+                unready_since = null,
                 last_error_kind = %s,
                 last_error = %s
             where id = %s
@@ -291,7 +362,7 @@ async def dead_letter_job(
             """
             update job
             set dead_at = clock_timestamp(), lease_until = null, locked_by = null,
-                last_error_kind = %s, last_error = %s
+                last_error_kind = %s, last_error = %s, unready_since = null
             where id = %s
               and locked_by = %s
               and done_at is null
@@ -318,37 +389,79 @@ async def dead_letter_job(
 
 
 async def release_not_ready_job(
-    pool: AsyncConnectionPool[Any], claimed: ClaimedJob, retry_s: int
-) -> datetime:
-    """Release an enrichment barrier without charging an execution attempt."""
+    pool: AsyncConnectionPool[Any],
+    claimed: ClaimedJob,
+    retry_s: int,
+    *,
+    timeout_s: int | None = None,
+) -> JobTransition:
+    """Release an enrichment barrier without charging an execution attempt.
+
+    The first release stamps ``unready_since``; a job still not ready
+    ``timeout_s`` later is dead-lettered as ``not_ready_timeout`` so a barrier
+    that never clears cannot hold its derive mailbox forever.
+    """
 
     if retry_s <= 0:
         raise ValueError("retry_s must be positive")
+    if timeout_s is not None and timeout_s <= 0:
+        raise ValueError("timeout_s must be positive")
     async with pool.connection() as conn:
         result = await conn.execute(
             """
-            update job
-            set run_after = clock_timestamp() + make_interval(secs => %s),
-                attempts = greatest(attempts - 1, 0),
+            update job j
+            set dead_at = case when t.timed_out then clock_timestamp() end,
+                run_after = case
+                  when t.timed_out then j.run_after
+                  else clock_timestamp() + make_interval(secs => %s)
+                end,
+                attempts = greatest(j.attempts - 1, 0),
+                unready_since = coalesce(j.unready_since, clock_timestamp()),
                 lease_until = null,
                 locked_by = null,
-                last_error_kind = null,
-                last_error = null
-            where id = %s
-              and locked_by = %s
-              and done_at is null
-              and dead_at is null
-              and lease_until > clock_timestamp()
-            returning run_after
+                last_error_kind = case when t.timed_out then 'not_ready_timeout' end,
+                last_error = case when t.timed_out then 'not ready past the unready timeout' end
+            from (
+              select id,
+                     coalesce(
+                       unready_since <= clock_timestamp() - make_interval(secs => %s::int),
+                       false
+                     ) as timed_out
+              from job
+              where id = %s
+            ) t
+            where j.id = t.id
+              and j.locked_by = %s
+              and j.done_at is null
+              and j.dead_at is null
+              and j.lease_until > clock_timestamp()
+            returning j.attempts, j.run_after, j.dead_at
             """,
-            (retry_s, claimed.id, claimed.claim_token),
+            (retry_s, timeout_s, claimed.id, claimed.claim_token),
         )
         row = await result.fetchone()
     if row is None:
         log_event(LOGGER, "warning", "job.lease_lost", job_id=str(claimed.id))
         raise LeaseLost(f"job lease lost: {claimed.id}")
-    log_event(LOGGER, "info", "job.not_ready_released", job_id=str(claimed.id))
-    return cast(datetime, row["run_after"])
+    transition = JobTransition(
+        dead=row["dead_at"] is not None,
+        attempts=int(row["attempts"]),
+        run_after=cast(datetime | None, row["run_after"]),
+        dead_at=cast(datetime | None, row["dead_at"]),
+    )
+    if transition.dead:
+        log_event(
+            LOGGER,
+            "error",
+            "job.dead_lettered",
+            job_id=str(claimed.id),
+            kind=claimed.kind,
+            attempts=transition.attempts,
+            error_kind="not_ready_timeout",
+        )
+    else:
+        log_event(LOGGER, "info", "job.not_ready_released", job_id=str(claimed.id))
+    return transition
 
 
 def _json_time(value: object) -> str | None:
@@ -460,7 +573,7 @@ async def retry_dead_job(
             updated = await conn.execute(
                 """
             update job
-            set dead_at = null, lease_until = null, locked_by = null,
+            set dead_at = null, lease_until = null, locked_by = null, unready_since = null,
                 attempts = 0, run_after = clock_timestamp(),
                 last_error_kind = null, last_error = null
             where workspace = %s and id = %s and dead_at is not null
@@ -476,14 +589,6 @@ async def retry_dead_job(
     return await get_job_status(pool, workspace=workspace, job_id=job_id)
 
 
-async def retry_job(
-    pool: AsyncConnectionPool[Any], *, workspace: str, job_id: UUID
-) -> dict[str, Any]:
-    """Compatibility alias for the dead-job retry operation."""
-
-    return await retry_dead_job(pool, workspace=workspace, job_id=job_id)
-
-
 __all__ = [
     "JobNotFound",
     "JobRetryConflict",
@@ -492,9 +597,9 @@ __all__ = [
     "dead_letter_job",
     "get_job_status",
     "heartbeat_job",
+    "purge_finished_jobs",
     "reap_expired_final_attempts",
     "release_not_ready_job",
     "retry_dead_job",
-    "retry_job",
     "retry_or_dead_letter_job",
 ]
