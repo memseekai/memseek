@@ -212,7 +212,7 @@ async def test_saved_answer_replays_when_a_direct_citation_is_superseded(
             entity="answer",
             source=catalog.derivations["repair_synthesis"].driver,
         )
-    assert [str(item.id) for item in stale or ()] == [saved_id]
+    assert [str(item.id) for item in stale] == [saved_id]
     await enqueue_derivation_job(
         db_pool,
         workspace=credential.workspace,

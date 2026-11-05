@@ -303,7 +303,8 @@ starts over.
 **How "complete" is pinned.** Records keep arriving while a run is computing, so
 "all matching records" needs a cutoff, or two runs could disagree about what
 "all" meant. At run start Memseek reads the highest sequence number (`seq`) among
-matching rows and freezes it as `{{run.checkpoint}}`. The source is then exactly
+matching rows below the oldest unready match and freezes it as
+`{{run.checkpoint}}`. The source is then exactly
 every matching record with `seq` at or below that checkpoint — no more, no less.
 Anything that arrives afterward has a higher `seq` and belongs to the *next*
 run, not this one. That is all "captured at one canonical sequence checkpoint"
@@ -318,7 +319,9 @@ Completeness is strict:
 
 - exceeding `max_records` fails the run;
 - not fitting `max_tokens` or `max_visible_records` fails the run; and
-- an unready matching row makes the run wait rather than silently excluding it.
+- an unready matching row moves the checkpoint below it rather than silently
+  excluding it, so the run covers the ready prefix and the unready row belongs
+  to a later run. When no ready row precedes it, the run waits.
 
 Narrow the source, raise a safe bound, or introduce a compacted upstream
 collection when the complete history no longer fits one run.
@@ -353,6 +356,23 @@ sources:
 bounds are timezone-aware. The window's lower bound is recorded in the run
 receipt as `from_seq`, so a windowed run stays reproducible and honest about what
 it excluded — it is a declared narrower scope, not a silent truncation.
+Read freshness applies the same range: a new row outside `since`/`until` does
+not mark the derivation dirty, because the next run would read the same corpus.
+
+#### Unchanged corpus, no rerun
+
+A `snapshot` or `stale_citations` run records a digest in its receipt
+(`basis.digest`): the input rows, current reads, expected target heads, the
+pipeline definition, and its Task implementations, plus, for a repair, the
+newest version of every cited parent. When the next run would read the same
+digest as the last successful one, it commits a cheap noop instead of running
+its Tasks again. A new input row, a changed score, an edited definition, or a
+parent that moves again all change the digest.
+
+Pipelines whose Tasks read state the digest cannot see always run: any `view`
+source, any Task other than `llm`, `judge`, `template`, `map_records`,
+`extract_facts`, or `extract_relations`, any Task config that uses
+`{{run.now}}`, and any source with `allow_empty: true`.
 
 ### `stale_citations`: repair records whose evidence moved
 
@@ -381,6 +401,8 @@ This is a *repair* driver, so it behaves differently from the other two:
 - It has no cursor. Membership is recomputed each run, and the same record
   reappears until its citations are current again — the run's own output is what
   removes it from the set.
+- Read freshness reports it dirty exactly while the stale set is non-empty,
+  not whenever a newer row lands in its scope.
 - It is guarded like a `current` source: if the stale set changes while tasks are
   running, the commit is rejected as stale rather than writing a repair based on
   a set that no longer holds.
@@ -1109,6 +1131,12 @@ The runtime infers the transition:
 | no `review` | Validated output | Commit active records after guard verification. |
 | `review: required` | Bounded keyed output | Write drafts that a human must approve before they go live. |
 
+A live keyed record whose type, version, content, and citations all equal the
+slot's active head is not written again: the head already says it. The run's
+`candidate_set` still lists the key as covered and reports it `unchanged`, and a
+run whose every record is unchanged commits as a noop. Reviewed drafts are
+always written, because promotion approves the whole set.
+
 `driver_key` exists for repair and rewrite derivations, where the key is not known
 when the catalog is authored — it is whichever slot the driving record happens to
 occupy. It requires `max_records: 1`, forbids static `keys`, and forbids
@@ -1117,9 +1145,13 @@ occupy. It requires `max_records: 1`, forbids static `keys`, and forbids
 `dynamic_keys: true` is for a bounded collection of independent named blocks,
 such as scene documents. It requires `max_active_keys`; it cannot combine with
 static `keys`, `driver_key`, `complete`, or `review`. Before the task runs, the
-engine captures every current head in that output collection. At commit it checks
-that none changed and that the proposed live set remains within the declared
-bound. A new name receives an explicit empty-head precondition in the receipt.
+engine captures every live head in that output collection; retracted keys are not
+preconditions, so they never grow the capture. At commit it checks that none
+changed and that the proposed live set remains within the declared bound. A new
+name, including a retracted one brought back, receives an explicit empty-head
+precondition in the receipt. A live set larger than `max_active_keys` plus
+`max_records` fails before the task runs, because no single run could retract
+enough keys to commit.
 
 `collection_version` may pin a version; otherwise catalog compilation resolves
 the active one. A keyed emission requires a keyed or mixed collection. An

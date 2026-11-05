@@ -119,11 +119,12 @@ async def test_current_source_waits_for_latest_matching_record_to_be_ready() -> 
         }
     )
 
-    selected = await basis_module._current_source_rows(
+    selected = await basis_module._source_rows(
         conn,
         workspace="test",
         entity="person:1",
         source=source,
+        columns=basis_module.ROW_COLUMNS,
     )
 
     assert selected is None
@@ -576,6 +577,18 @@ def test_snapshot_window_requires_exactly_one_mode() -> None:
         SnapshotWindow.model_validate(
             {"since": "2026-07-01T00:00:00Z", "until": "2026-01-01T00:00:00Z"}
         )
+
+
+def test_snapshot_window_bounds_must_be_timezone_aware() -> None:
+    with pytest.raises(ValidationError, match="timezone"):
+        SnapshotWindow.model_validate({"since": "2026-01-01T00:00:00"})
+    with pytest.raises(ValidationError, match="timezone"):
+        SnapshotWindow.model_validate({"until": "2026-01-01T00:00:00"})
+
+    window = SnapshotWindow.model_validate({"since": "2026-01-01T00:00:00+02:00"})
+
+    assert window.since is not None
+    assert window.since.utcoffset() is not None
 
 
 def test_window_only_allowed_on_snapshot_source() -> None:

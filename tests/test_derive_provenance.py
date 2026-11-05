@@ -14,7 +14,6 @@ from memseek.derive.provenance import (
     foreach_items,
     render_prompt,
     resolve_typed_reference,
-    union_source_ids,
 )
 from memseek.templates import TemplateError
 
@@ -216,7 +215,7 @@ def test_dotted_path_traverses_provenance_wrapped_mapping() -> None:
     assert rendered.transitive_source_ids == frozenset({UUID_A})
 
 
-def test_union_source_ids_covers_wrapped_and_nested_values() -> None:
+def test_typed_reference_unions_wrapped_and_nested_provenance() -> None:
     values = [
         ProvenanceValue(
             value=[ProvenanceValue(value=1, source_ids=frozenset({UUID_C}))],
@@ -225,7 +224,7 @@ def test_union_source_ids_covers_wrapped_and_nested_values() -> None:
         {"nested": ProvenanceValue(value=2, source_ids=frozenset({UUID_B}))},
     ]
 
-    combined = union_source_ids(values)
+    _, combined = resolve_typed_reference("{{batch}}", {"batch": values})
 
     assert combined == frozenset({UUID_A, UUID_B, UUID_C})
 

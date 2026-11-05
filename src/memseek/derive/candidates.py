@@ -9,6 +9,7 @@ from typing import Any, Literal
 from uuid import UUID, uuid4
 
 from jsonschema import Draft202012Validator, FormatChecker
+from jsonschema.protocols import Validator
 from pydantic import ValidationError
 
 from memseek.config import Settings
@@ -39,6 +40,8 @@ class CandidateSet:
     status: Literal["active", "draft"]
     records: tuple[CandidateRecord, ...]
     divergence: tuple[dict[str, Any], ...]
+    # Keyed records equal to their active head: covered, but not written again.
+    unchanged: tuple[CandidateRecord, ...] = ()
 
     @property
     def coverage(self) -> Literal["partial", "complete"]:
@@ -49,7 +52,9 @@ class CandidateSet:
             "effect": self.effect,
             "coverage": self.coverage,
             "status": self.status,
-            "covered_keys": [record.key for record in self.records if record.key is not None],
+            "covered_keys": [
+                record.key for record in (*self.records, *self.unchanged) if record.key is not None
+            ],
             "divergence": list(self.divergence),
         }
 
@@ -95,28 +100,47 @@ def _validate_finite_json(value: Any) -> None:
             _validate_finite_json(item)
 
 
+@dataclass(frozen=True, slots=True)
+class _ContentValidator:
+    name: str
+    version: int
+    validator: Validator
+
+    @classmethod
+    def for_emit(cls, emit: EmitDefinition, catalog: DefinitionCatalog) -> _ContentValidator:
+        collection = catalog.resolve_collection(emit.collection, emit.collection_version)
+        return cls(
+            name=collection.name,
+            version=collection.version,
+            validator=Draft202012Validator(
+                collection.content_schema, format_checker=FormatChecker()
+            ),
+        )
+
+    def check(self, content: dict[str, Any]) -> None:
+        errors = sorted(
+            self.validator.iter_errors(content),
+            key=lambda error: tuple(str(part) for part in error.absolute_path),
+        )
+        if not errors:
+            return
+        error = errors[0]
+        path = ".".join(str(part) for part in error.absolute_path)
+        location = f"content.{path}" if path else "content"
+        raise DerivationError(
+            "validation",
+            f"emitted record does not match {self.name}@{self.version}: "
+            f"{location}: {error.message}",
+        )
+
+
 def validate_collection_content(
     content: dict[str, Any],
     *,
     emit: EmitDefinition,
     catalog: DefinitionCatalog,
 ) -> None:
-    collection = catalog.resolve_collection(emit.collection, emit.collection_version)
-    validator = Draft202012Validator(collection.content_schema, format_checker=FormatChecker())
-    errors = sorted(
-        validator.iter_errors(content),
-        key=lambda error: tuple(str(part) for part in error.absolute_path),
-    )
-    if not errors:
-        return
-    error = errors[0]
-    path = ".".join(str(part) for part in error.absolute_path)
-    location = f"content.{path}" if path else "content"
-    raise DerivationError(
-        "validation",
-        f"emitted record does not match {collection.name}@{collection.version}: "
-        f"{location}: {error.message}",
-    )
+    _ContentValidator.for_emit(emit, catalog).check(content)
 
 
 def _citations(
@@ -167,11 +191,25 @@ def _content(item: Mapping[str, Any], *, settings: Settings) -> dict[str, Any]:
     return content
 
 
+def _equals_head(
+    record: CandidateRecord, head: ExpectedHead | None, *, emit: EmitDefinition, version: int
+) -> bool:
+    return (
+        head is not None
+        and head.record_id is not None
+        and head.type == emit.type
+        and head.collection_version == version
+        and head.content == record.content
+        and head.citations == frozenset(record.citations)
+    )
+
+
 def _divergence(
     records: tuple[CandidateRecord, ...],
     *,
     emit: EmitDefinition,
     basis: EvaluationBasis,
+    unchanged: frozenset[UUID],
 ) -> tuple[dict[str, Any], ...]:
     heads = {(head.collection, head.key): head for head in basis.expected_heads}
     report: list[dict[str, Any]] = []
@@ -196,7 +234,7 @@ def _divergence(
                 "key": record.key,
                 "change": change,
                 "active_record_id": str(active_id) if active_id is not None else None,
-                "candidate_record_id": str(record.id),
+                "candidate_record_id": str(active_id if record.id in unchanged else record.id),
             }
         )
     return tuple(report)
@@ -279,6 +317,7 @@ def compile_candidate_set(
     if emit.driver_key and len(driver_keys) != 1:
         raise DerivationError("validation", "driver_key emission requires one captured target key")
     allowed_keys = None if emit.dynamic_keys else emit.keys or driver_keys
+    content_validator = _ContentValidator.for_emit(emit, catalog)
     records: list[CandidateRecord] = []
     seen: set[str] = set()
     for item in value:
@@ -321,7 +360,7 @@ def compile_candidate_set(
                 raise DerivationError("validation", "an emitted record requires content or text")
             if effect == "append" and not isinstance(content.get("text"), str):
                 raise DerivationError("validation", "event emissions require text")
-        validate_collection_content(content, emit=emit, catalog=catalog)
+        content_validator.check(content)
         records.append(
             CandidateRecord(
                 id=uuid4(),
@@ -344,12 +383,29 @@ def compile_candidate_set(
     if emit.dynamic_keys:
         basis = _dynamic_candidate_basis(basis, emit=emit, records=result)
         _validate_dynamic_capacity(basis=basis, emit=emit, records=result)
+    status = emission_status(emit)
+    unchanged: tuple[CandidateRecord, ...] = ()
+    if status == "active":
+        # Drafts stay whole: promotion checks every draft row against
+        # covered_keys, and a reviewer promotes the set, not single keys.
+        version = content_validator.version
+        heads = {
+            head.key: head for head in basis.expected_heads if head.collection == emit.collection
+        }
+        unchanged = tuple(
+            record
+            for record in result
+            if record.key is not None
+            and _equals_head(record, heads.get(record.key), emit=emit, version=version)
+        )
+    unchanged_ids = frozenset(record.id for record in unchanged)
     return CandidateSet(
         basis=basis,
         effect=effect,
-        status=emission_status(emit),
-        records=result,
-        divergence=_divergence(result, emit=emit, basis=basis),
+        status=status,
+        records=tuple(record for record in result if record.id not in unchanged_ids),
+        divergence=_divergence(result, emit=emit, basis=basis, unchanged=unchanged_ids),
+        unchanged=unchanged,
     )
 
 

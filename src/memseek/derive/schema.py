@@ -10,10 +10,9 @@ from __future__ import annotations
 
 import math
 import re
-from datetime import datetime
 from typing import Any, Literal
 
-from pydantic import Field, field_validator, model_serializer, model_validator
+from pydantic import AwareDatetime, Field, field_validator, model_serializer, model_validator
 
 from memseek.definitions.base import (
     DefinitionModel,
@@ -63,8 +62,8 @@ class SnapshotWindow(StrictModel):
     """
 
     recent: int | None = Field(default=None, ge=1, le=500)
-    since: datetime | None = None
-    until: datetime | None = None
+    since: AwareDatetime | None = None
+    until: AwareDatetime | None = None
 
     @model_validator(mode="after")
     def validate_window(self) -> SnapshotWindow:

@@ -4,10 +4,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
-from typing import Any, Literal, LiteralString
+from typing import Any, Literal
 
 from memseek.db import DatabaseConnection
 from memseek.definitions import DefinitionCatalog
+from memseek.derive.basis import pending_input
 from memseek.derive.schema import PipelineDefinition
 
 type JobState = Literal["enqueued", "queued", "running", "dead"]
@@ -59,95 +60,73 @@ def _parse_run_time(value: Any) -> datetime | None:
     return parsed
 
 
-async def _watermark(
+async def _watermarks(
     conn: DatabaseConnection,
     *,
     workspace: str,
     entity: str,
-    derivation: str,
-) -> tuple[int, str | None]:
+    derivations: list[str],
+) -> dict[str, tuple[int, str | None]]:
     result = await conn.execute(
         """
-        select (content->>'high_seq')::bigint as watermark,
-               content->>'completed_at' as completed_at
-        from record
-        where workspace = %s
-          and entity = %s
-          and collection = '_system'
-          and type = 'run'
-          and content->>'operation' = 'derive'
-          and content->>'processor' = %s
-          and content->>'status' in ('ok', 'noop')
-        order by seq desc
-        limit 1
+        select processor.name,
+               (latest.content->>'high_seq')::bigint as watermark,
+               latest.content->>'completed_at' as completed_at
+        from unnest(%s::text[]) as processor(name)
+        cross join lateral (
+          select content
+          from record
+          where workspace = %s
+            and entity = %s
+            and collection = '_system'
+            and type = 'run'
+            and content->>'operation' = 'derive'
+            and content->>'processor' = processor.name
+            and content->>'status' in ('ok', 'noop')
+          order by seq desc
+          limit 1
+        ) latest
         """,
-        (workspace, entity, derivation),
+        (derivations, workspace, entity),
     )
-    row = await result.fetchone()
-    if row is None:
-        return 0, None
-    completed_at = row["completed_at"]
-    return int(row["watermark"]), completed_at if isinstance(completed_at, str) else None
+    return {
+        str(row["name"]): (
+            int(row["watermark"]),
+            row["completed_at"] if isinstance(row["completed_at"], str) else None,
+        )
+        for row in await result.fetchall()
+    }
 
 
-async def _first_pending_input(
+async def _job_rows(
     conn: DatabaseConnection,
     *,
     workspace: str,
     entity: str,
-    definition: PipelineDefinition,
-    watermark: int,
-) -> tuple[bool, bool]:
-    """Probe the oldest input-scope row above the watermark.
-
-    Readiness deliberately does not filter the probe: an unready first match
-    is exactly the spec's ``pending_unready`` barrier signal.
-    """
-
-    scope = definition.driver
-    clauses: list[LiteralString] = ["workspace = %s", "entity = %s", "seq > %s"]
-    params: list[Any] = [workspace, entity, watermark]
-    unpinned = [name for name in scope.collections if name not in scope.collection_versions]
-    collection_terms: list[LiteralString] = []
-    if unpinned:
-        collection_terms.append("collection = any(%s::text[])")
-        params.append(unpinned)
-    for name, versions in scope.collection_versions.items():
-        collection_terms.append("(collection = %s and collection_version = any(%s::int[]))")
-        params.extend([name, list(versions)])
-    clauses.append("(" + " or ".join(collection_terms) + ")")
-    if scope.types:
-        clauses.append("type = any(%s::text[])")
-        params.append(list(scope.types))
-    clauses.append("status = any(%s::text[])")
-    params.append(list(scope.statuses))
-    if scope.keyed is False:
-        clauses.append("key is null")
-    elif scope.keyed is True:
-        clauses.append("key is not null")
+    derivations: list[str],
+) -> dict[str, list[dict[str, Any]]]:
     result = await conn.execute(
-        f"""
-        select enriched_at is not null as ready
-        from record
-        where {" and ".join(clauses)}
-        order by seq
-        limit 1
+        """
+        select derivation,
+               dead_at,
+               last_error_kind,
+               (locked_by is not null and lease_until > now()) as leased,
+               run_after <= now() as due
+        from job
+        where workspace = %s and kind = 'derive' and derivation = any(%s::text[])
+          and entity = %s and done_at is null
+        order by created_at desc, id
         """,
-        params,
+        (workspace, derivations, entity),
     )
-    row = await result.fetchone()
-    if row is None:
-        return False, False
-    return True, not row["ready"]
+    rows: dict[str, list[dict[str, Any]]] = {}
+    for row in await result.fetchall():
+        rows.setdefault(str(row["derivation"]), []).append(row)
+    return rows
 
 
-async def _job_state(
-    conn: DatabaseConnection,
-    *,
-    workspace: str,
-    entity: str,
-    derivation: str,
-    last_run_at: str | None,
+def _job_state(
+    rows: list[dict[str, Any]], *, last_run_at: str | None
 ) -> tuple[JobState | None, str | None]:
     """Map job rows onto the freshness ``job`` states.
 
@@ -155,20 +134,6 @@ async def _job_state(
     noop run supersedes it, even when a newer active job already exists.
     """
 
-    result = await conn.execute(
-        """
-        select dead_at,
-               last_error_kind,
-               (locked_by is not null and lease_until > now()) as leased,
-               run_after <= now() as due
-        from job
-        where workspace = %s and kind = 'derive' and derivation = %s and entity = %s
-          and done_at is null
-        order by created_at desc, id
-        """,
-        (workspace, derivation, entity),
-    )
-    rows = await result.fetchall()
     last_run = _parse_run_time(last_run_at)
     for row in rows:
         if row["dead_at"] is not None:
@@ -193,28 +158,23 @@ async def compute_freshness(
 ) -> tuple[DerivationFreshness, ...]:
     """Compute one freshness entry per read-triggered derivation."""
 
+    definitions = read_triggered_derivations(catalog)
+    if not definitions:
+        return ()
+    names = [definition.name for definition in definitions]
+    watermarks = await _watermarks(conn, workspace=workspace, entity=entity, derivations=names)
+    jobs = await _job_rows(conn, workspace=workspace, entity=entity, derivations=names)
     entries: list[DerivationFreshness] = []
-    for definition in read_triggered_derivations(catalog):
-        watermark, last_run_at = await _watermark(
-            conn,
-            workspace=workspace,
-            entity=entity,
-            derivation=definition.name,
-        )
-        dirty, pending_unready = await _first_pending_input(
+    for definition in definitions:
+        watermark, last_run_at = watermarks.get(definition.name, (0, None))
+        dirty, pending_unready = await pending_input(
             conn,
             workspace=workspace,
             entity=entity,
             definition=definition,
             watermark=watermark,
         )
-        job, error_kind = await _job_state(
-            conn,
-            workspace=workspace,
-            entity=entity,
-            derivation=definition.name,
-            last_run_at=last_run_at,
-        )
+        job, error_kind = _job_state(jobs.get(definition.name, []), last_run_at=last_run_at)
         entries.append(
             DerivationFreshness(
                 derivation=definition.name,
