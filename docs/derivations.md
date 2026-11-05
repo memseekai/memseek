@@ -192,7 +192,7 @@ Every record source — `changes`, `snapshot`, `stale_citations`, `current`, and
 
 Each object in `.records` contains canonical identity and public data such as
 `id`, `seq`, `collection`, `collection_version`, `entity`, `key`, `type`,
-`status`, `content`, `scores`, and `occurred_at`.
+`status`, `content`, `scores`, `annotations`, and `occurred_at`.
 
 A `view` source also provides `.records` and `.rendered`, using the bounded
 hits returned by the named view.
@@ -262,7 +262,11 @@ matching rows remain, commit queues a successor run.
 
 `max_records` is the per-run batch bound. `max_tokens` is the rendered source
 bound. A token-limited changes run may consume the maximal fitting prefix; it
-never skips a matching row to reach later evidence.
+never skips a matching row to reach later evidence, with one exception. When
+the first pending row alone exceeds `max_tokens`, no run could ever consume
+it, so the run commits as a `noop` that moves the cursor past that row and
+lists it in the run's `skipped` entries (`seq`, `id`, `reason: budget`). The
+rows after it are processed by the successor run.
 
 With `allow_empty: false`, an empty batch becomes a cheap audited no-op. With
 `allow_empty: true`, tasks may run even when no driving rows match.
@@ -925,6 +929,13 @@ argument after `name` is keyword-only:
 Registering the same `name` twice raises — each task is registered exactly once,
 at import time.
 
+A handler that raises `DerivationError` fails the run with that error's kind.
+Any other exception is classified for the retry policy: `psycopg.Error`,
+`OSError`, `TimeoutError`, and model transport errors fail as `transport` and
+are retried with backoff; every other exception fails as `task` and
+dead-letters the job at once, because rerunning the same input would raise it
+again.
+
 ### Deploying the module
 
 Put the registration in a module that ships with your deployment, then name that
@@ -1188,7 +1199,9 @@ limits:
 - `max_visible_records` bounds the union of driving, current, record, view,
   and searched canonical records.
 - `max_total_tokens` bounds prompt plus completion usage for the run.
-- `max_wall_s` bounds task execution wall time.
+- `max_wall_s` bounds task execution wall time. A run that exceeds it fails
+  with `timeout` and is retried with backoff, since a slow provider or search
+  is usually transient; it dead-letters only after the job's attempts run out.
 
 Three more limits apply only to [sandboxed tasks](computers.md):
 

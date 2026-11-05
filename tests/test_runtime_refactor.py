@@ -1,7 +1,7 @@
 """Exact output and operation-count regressions for runtime hot paths."""
 
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, cast
 from unittest.mock import patch
 from uuid import UUID
 
@@ -14,7 +14,6 @@ from memseek.config import Settings
 from memseek.definitions import load_definition_catalog
 from memseek.derive import runner
 from memseek.derive.basis import DerivationRecord
-from memseek.derive.errors import DerivationError
 from memseek.render import estimate_tokens, render_rows
 from memseek.search import engine
 from memseek.search.spec import SearchSpec
@@ -32,6 +31,7 @@ def _row(number: int, text: str) -> DerivationRecord:
         status="active",
         content={"text": text},
         scores={},
+        annotations={},
         occurred_at=datetime(2026, 1, 1, tzinfo=UTC),
         depth=0,
     )
@@ -47,16 +47,6 @@ def test_pipeline_packing_matches_complete_prefixes_at_every_budget(settings: Se
     for max_records in (0, 1, 3, None):
         bounded_rows = rows if max_records is None else rows[:max_records]
         for budget in range(estimate_tokens("\n".join(rendered)) + 2):
-            if bounded_rows and estimate_tokens(rendered[0]) > budget:
-                with pytest.raises(DerivationError, match="first input record"):
-                    runner._pack_rows(
-                        rows,
-                        catalog=catalog,
-                        max_tokens=budget,
-                        label="input",
-                        max_records=max_records,
-                    )
-                continue
             count = 0
             while (
                 count < len(bounded_rows)
@@ -67,15 +57,14 @@ def test_pipeline_packing_matches_complete_prefixes_at_every_budget(settings: Se
                 rows,
                 catalog=catalog,
                 max_tokens=budget,
-                label="input",
                 max_records=max_records,
             )
             assert selected == tuple(rows[:count])
             assert text == "\n".join(rendered[:count])
     with patch.object(runner, "render_record", wraps=runner.render_record) as render:
-        runner._pack_rows(rows, catalog=catalog, max_tokens=10000, label="input")
+        runner._pack_rows(rows, catalog=catalog, max_tokens=10000)
         assert render.call_count == len(rows)
-    assert runner._pack_rows([], catalog=catalog, max_tokens=0, label="input") == ((), "")
+    assert runner._pack_rows([], catalog=catalog, max_tokens=0) == ((), "")
 
 
 def test_enrichment_batches_match_full_prompt_budgets() -> None:
@@ -180,3 +169,104 @@ def test_bounded_response_serializes_once_and_uses_exact_utf8_size(settings: Set
         assert render.call_count == 1
     rejected = _bounded_json(content, settings.model_copy(update={"max_response_bytes": size - 1}))
     assert rejected.status_code == 409
+
+
+async def test_retrieved_hits_are_the_longest_prefix_whose_render_fits(
+    settings: Settings, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from dataclasses import replace
+
+    from memseek.derive.basis import EvaluationBasis
+    from memseek.derive.schema import PipelineDefinition
+    from memseek.derive.tasks import SearchTaskConfig
+
+    hits = [
+        {
+            "id": str(UUID(int=number)),
+            "collection": "main",
+            "type": "event",
+            "occurred_at": "2026-01-01T00:00:00Z",
+            "text": text,
+        }
+        for number, text in enumerate(("", "é漢🙂<&>", "x" * 200, "short"), start=1)
+    ]
+
+    async def search(*_: Any, **__: Any) -> dict[str, Any]:
+        return {"hits": hits}
+
+    monkeypatch.setattr(runner, "execute_search", search)
+    definition = PipelineDefinition.model_validate(
+        {
+            "name": "packing",
+            "sources": {"evidence": {"kind": "changes", "collections": ["main"]}},
+            "tasks": [
+                {
+                    "id": "found",
+                    "use": "search",
+                    "with": {"q": "x", "spec": {"q": "x"}},
+                    "input": "{{evidence.records}}",
+                }
+            ],
+            "emit": {"from": "{{found}}", "collection": "main", "type": "event"},
+        }
+    )
+    now = datetime(2026, 1, 1, tzinfo=UTC)
+    base = runner._Execution(
+        workspace="packing",
+        build_sha="test",
+        definition=definition,
+        config_hash=definition.definition_hash,
+        basis=EvaluationBasis(
+            mode="changes",
+            from_seq=0,
+            through_seq=0,
+            predecessor_run_id=None,
+            predecessor_source_hash=None,
+            input_rows=(),
+            read_rows={},
+            expected_heads=(),
+        ),
+        wm_before=0,
+        predecessor=None,
+        visible_ids=set(),
+        final_source_ids=frozenset(),
+        final_visible_ids=frozenset(),
+        high_seq=0,
+        started_at=now,
+        completed_at=now,
+        model_calls=[],
+    )
+    catalog = load_definition_catalog(settings)
+    rendered = [runner._hit_row(hit) for hit in hits]
+    for budget in range(1, estimate_tokens("\n".join(rendered)) + 2):
+        expected = 0
+        while expected < len(hits) and estimate_tokens("\n".join(rendered[: expected + 1])) <= (
+            budget
+        ):
+            expected += 1
+        execution = replace(base, visible_ids=set())
+        value = await runner._retrieve(
+            execution,
+            cast(Any, None),
+            settings,
+            catalog,
+            step=SearchTaskConfig.model_validate(
+                {"q": "x", "spec": {"mode": "text"}, "max_tokens": budget}
+            ),
+            variables={},
+        )
+        (result,) = value.value
+        assert [hit["id"] for hit in result["hits"]] == [hit["id"] for hit in hits[:expected]]
+        assert result["rendered"].value == "\n".join(rendered[:expected])
+    with patch.object(runner, "escape_untrusted", wraps=runner.escape_untrusted) as escape:
+        await runner._retrieve(
+            replace(base, visible_ids=set()),
+            cast(Any, None),
+            settings,
+            catalog,
+            step=SearchTaskConfig.model_validate(
+                {"q": "x", "spec": {"mode": "text"}, "max_tokens": 10_000}
+            ),
+            variables={},
+        )
+    assert escape.call_count == len(hits)

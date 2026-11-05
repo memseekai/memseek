@@ -70,7 +70,6 @@ def _execution(
         ),
         wm_before=0,
         predecessor=None,
-        predecessor_hash=None,
         visible_ids=visible_ids,
         final_source_ids=frozenset(),
         final_visible_ids=frozenset(),

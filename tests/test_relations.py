@@ -9,8 +9,9 @@ from memseek.catalog_views import processors_payload
 from memseek.config import Settings
 from memseek.db import DatabasePool
 from memseek.definitions import DefinitionCatalog, load_definition_catalog
+from memseek.derive.candidates import validate_collection_content
 from memseek.derive.emission import emission_effect
-from memseek.derive.runner import DerivationError, _validate_collection_content
+from memseek.derive.runner import DerivationError
 from memseek.llm.fake import fake
 from memseek.records import PublicRecordInput, RecordBatchRequest, insert_public_records
 from memseek.worker import WorkerRuntime, run_worker_once
@@ -59,9 +60,9 @@ def test_generic_event_output_is_checked_against_its_collection_schema(
         "confidence": 0.9,
     }
 
-    _validate_collection_content(valid, emit=emit, catalog=catalog)
+    validate_collection_content(valid, emit=emit, catalog=catalog)
     with pytest.raises(DerivationError, match="confidence"):
-        _validate_collection_content(
+        validate_collection_content(
             {**valid, "confidence": 2.0},
             emit=emit,
             catalog=catalog,
