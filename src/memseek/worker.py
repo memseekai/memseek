@@ -670,7 +670,7 @@ async def _process_cron_scan(runtime: WorkerRuntime, claimed: object) -> bool:
 
     from memseek.locks import acquire_workspace_lock
     from memseek.models import ClaimedJob, LeaseLost
-    from memseek.triggers import _cooldown_due, claim_owned_tx, enqueue_derive_tx
+    from memseek.triggers import _cooldown_due, enqueue_derive_tx
 
     assert isinstance(claimed, ClaimedJob)
     if claimed.kind != "cron_scan" or claimed.derivation is None:
@@ -689,7 +689,6 @@ async def _process_cron_scan(runtime: WorkerRuntime, claimed: object) -> bool:
         raise ValueError("cron trigger or derivation is not configured")
     async with runtime.pool.connection() as conn, conn.transaction():
         await acquire_workspace_lock(conn, claimed.workspace)
-        await claim_owned_tx(conn, claimed)
         entities, has_more, page_cursor = await _cron_entities(
             conn,
             workspace=claimed.workspace,
@@ -816,7 +815,6 @@ async def _process_retention_purge(runtime: WorkerRuntime, claimed: object) -> i
     from memseek.definitions.base import split_exact_reference
     from memseek.erase import purge_tombstoned_pages_tx
     from memseek.models import ClaimedJob, LeaseLost
-    from memseek.triggers import claim_owned_tx
 
     assert isinstance(claimed, ClaimedJob)
     if (
@@ -847,8 +845,9 @@ async def _process_retention_purge(runtime: WorkerRuntime, claimed: object) -> i
         raise ValueError("retention policy is not configured")
     collection, version = split_exact_reference(retention.collection)
 
+    # The job row is not locked across the purge so the heartbeat can renew the
+    # lease; the completing update below fences on the token and lease instead.
     async with runtime.pool.connection() as conn, conn.transaction():
-        await claim_owned_tx(conn, claimed)
         erasure = await purge_tombstoned_pages_tx(
             conn,
             workspace=claimed.workspace,

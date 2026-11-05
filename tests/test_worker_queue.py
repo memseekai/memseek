@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import asyncio
 from typing import Any, LiteralString
 
 import pytest
 from psycopg.types.json import Jsonb
 from reference_catalog import declare_test_sources, materialize_reference_catalog
 
+import memseek.erase as erase_module
 import memseek.worker as worker_module
 from memseek.config import Settings
 from memseek.db import DatabasePool
@@ -108,3 +110,74 @@ async def test_chained_cron_pages_key_off_the_root_not_the_previous_page(
         ("cron-pages",),
     )
     assert [row["entity"] for row in derives] == ["e0001", "e0002", "e0003", "e0004", "e0005"]
+
+
+def _short_lease(settings: Settings) -> Settings:
+    return settings.model_copy(update={"job_lease_s": 3, "job_heartbeat_s": 1})
+
+
+async def _job_state(pool: DatabasePool, workspace: str, kind: str) -> list[tuple[bool, int]]:
+    rows = await _rows(
+        pool,
+        "select done_at is not null as done, attempts from job"
+        " where workspace = %s and kind = %s order by created_at",
+        (workspace, kind),
+    )
+    return [(row["done"], row["attempts"]) for row in rows]
+
+
+async def test_cron_scan_slower_than_its_lease_completes_under_heartbeat(
+    settings: Settings,
+    db_pool: DatabasePool,
+    cron_catalog: DefinitionCatalog,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    await _workspace_with_entities(db_pool, "cron-slow", 1)
+    await _insert_root_scan(db_pool, "cron-slow")
+    select_page = worker_module._cron_entities
+
+    async def slow_page(*args: Any, **kwargs: Any) -> Any:
+        await asyncio.sleep(4)
+        return await select_page(*args, **kwargs)
+
+    monkeypatch.setattr(worker_module, "_cron_entities", slow_page)
+    runtime = WorkerRuntime(settings=_short_lease(settings), catalog=cron_catalog, pool=db_pool)
+
+    assert await worker_module._drain_cron_jobs(runtime, worker_id="w") == 1
+    assert await _job_state(db_pool, "cron-slow", "cron_scan") == [(True, 1)]
+
+
+async def test_retention_purge_slower_than_its_lease_completes_under_heartbeat(
+    gbrain_settings: Settings,
+    db_pool: DatabasePool,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    catalog = load_definition_catalog(gbrain_settings)
+    package = next(item for item in catalog.packages.values() if item.retentions)
+    async with db_pool.connection() as conn:
+        await conn.execute(
+            "insert into workspace (id, api_key_hash) values ('purge-slow', %s)", ("0" * 64,)
+        )
+        await conn.execute(
+            "insert into job (workspace, kind, dedupe_key, payload)"
+            " values ('purge-slow', 'retention_purge', 'retention:slow', %s)",
+            (
+                Jsonb(
+                    {
+                        "package_name": package.name,
+                        "package_version": package.version,
+                        "retention": package.retentions[0].name,
+                        "scheduled_at": _STAMP,
+                    }
+                ),
+            ),
+        )
+
+    async def slow_purge(*_args: Any, **_kwargs: Any) -> None:
+        await asyncio.sleep(4)
+
+    monkeypatch.setattr(erase_module, "purge_tombstoned_pages_tx", slow_purge)
+    runtime = WorkerRuntime(settings=_short_lease(gbrain_settings), catalog=catalog, pool=db_pool)
+
+    assert await worker_module._drain_retention_jobs(runtime, worker_id="w") == 1
+    assert await _job_state(db_pool, "purge-slow", "retention_purge") == [(True, 1)]
