@@ -7,9 +7,10 @@ import hashlib
 import logging
 import os
 import signal
-from collections.abc import AsyncIterator, Awaitable
+import time
+from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager, suppress
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 from uuid import UUID, uuid4
@@ -37,6 +38,25 @@ if TYPE_CHECKING:
 LOGGER = logging.getLogger(__name__)
 
 
+class Cadence:
+    """Gate periodic worker tasks to once per wall-clock period per process.
+
+    Periods are aligned to the epoch, so a 60 s period opens once per minute
+    boundary however often the pass loop asks.
+    """
+
+    def __init__(self, clock: Callable[[], float] = time.time) -> None:
+        self._clock = clock
+        self._last: dict[str, int] = {}
+
+    def due(self, task: str, period_s: float) -> bool:
+        period = int(self._clock() // period_s)
+        if self._last.get(task) == period:
+            return False
+        self._last[task] = period
+        return True
+
+
 @dataclass(frozen=True, slots=True)
 class WorkerRuntime:
     """Resources shared by the M1 dispatch lanes."""
@@ -45,6 +65,7 @@ class WorkerRuntime:
     catalog: DefinitionCatalog
     pool: DatabasePool
     catalog_registry: WorkspaceCatalogRegistry | None = None
+    cadence: Cadence = field(default_factory=Cadence)
 
 
 @dataclass(frozen=True, slots=True)
@@ -1200,11 +1221,13 @@ async def run_worker_once(
 
     identity = worker_id or _worker_id()
     lanes = _LaneTally()
+    # Cron ticks are minute-granular, so asking the scheduler more than once per
+    # minute only repeats the sweep of every workspace.
     if (
         runtime.catalog_registry is not None
         or getattr(runtime.catalog, "triggers", None)
         or any(package.retentions for package in getattr(runtime.catalog, "packages", {}).values())
-    ):
+    ) and runtime.cadence.due("cron_schedule", 60):
         from memseek.triggers import schedule_cron_jobs
 
         cron_jobs = await lanes.run(

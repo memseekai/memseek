@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from typing import Any, LiteralString
+from unittest.mock import AsyncMock
 
 import pytest
 from psycopg.types.json import Jsonb
@@ -223,3 +224,37 @@ async def test_cron_page_commits_each_enqueue_batch_and_a_retry_converges(
         "e0005",
     ]
     assert await _job_state(db_pool, "cron-batches", "cron_scan") == [(True, 2)]
+
+
+class _Clock:
+    def __init__(self, now: float) -> None:
+        self.now = now
+
+    def __call__(self) -> float:
+        return self.now
+
+
+async def test_worker_schedules_cron_at_most_once_per_minute(
+    settings: Settings,
+    db_pool: DatabasePool,
+    cron_catalog: DefinitionCatalog,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    schedule = AsyncMock(return_value=0)
+    monkeypatch.setattr(triggers_module, "schedule_cron_jobs", schedule)
+    clock = _Clock(1_800_000_000.0)
+    runtime = WorkerRuntime(
+        settings=settings,
+        catalog=cron_catalog,
+        pool=db_pool,
+        cadence=worker_module.Cadence(clock),
+    )
+
+    await worker_module.run_worker_once(runtime, worker_id="w")
+    clock.now += 59
+    await worker_module.run_worker_once(runtime, worker_id="w")
+    assert schedule.await_count == 1
+
+    clock.now += 1
+    await worker_module.run_worker_once(runtime, worker_id="w")
+    assert schedule.await_count == 2
