@@ -1305,6 +1305,13 @@ async def _claim_owned_tx(
     conn: DatabaseConnection,
     claimed: ClaimedJob,
 ) -> None:
+    """Lock the claimed job row; callers must already hold the entity lock.
+
+    Ingest and promotion take the workspace lock, the entity lock, and then the
+    derive job row their triggers coalesce into, so taking the row first here
+    would deadlock against them.
+    """
+
     result = await conn.execute(
         """
         select 1 as owned from job
@@ -1518,8 +1525,8 @@ async def _commit_execution(
     )
     async with pool.connection() as conn, conn.transaction():
         await acquire_workspace_lock(conn, claimed.workspace)
-        await _claim_owned_tx(conn, claimed)
         await acquire_entity_locks(conn, claimed.workspace, (claimed.entity or "",))
+        await _claim_owned_tx(conn, claimed)
         await adapter_for(execution.definition.driver.kind).verify(
             conn,
             workspace=claimed.workspace,
@@ -1671,8 +1678,8 @@ async def _persist_failed_run(
     run_id = uuid4()
     async with pool.connection() as conn, conn.transaction():
         await acquire_workspace_lock(conn, claimed.workspace)
-        await _claim_owned_tx(conn, claimed)
         await acquire_entity_locks(conn, claimed.workspace, (claimed.entity or "",))
+        await _claim_owned_tx(conn, claimed)
         result = await conn.execute(
             "select id, depth from record where workspace = %s and id = any(%s::uuid[]) for share",
             (claimed.workspace, list(execution.visible_ids)),
