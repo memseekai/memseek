@@ -929,6 +929,13 @@ argument after `name` is keyword-only:
 Registering the same `name` twice raises — each task is registered exactly once,
 at import time.
 
+A handler that raises `DerivationError` fails the run with that error's kind.
+Any other exception is classified for the retry policy: `psycopg.Error`,
+`OSError`, `TimeoutError`, and model transport errors fail as `transport` and
+are retried with backoff; every other exception fails as `task` and
+dead-letters the job at once, because rerunning the same input would raise it
+again.
+
 ### Deploying the module
 
 Put the registration in a module that ships with your deployment, then name that

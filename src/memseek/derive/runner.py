@@ -20,6 +20,7 @@ from datetime import UTC, datetime
 from typing import Any, Literal, LiteralString, Protocol, cast
 from uuid import UUID, uuid4
 
+import psycopg
 from jsonschema import Draft202012Validator, FormatChecker
 from psycopg.types.json import Jsonb
 
@@ -84,6 +85,7 @@ from memseek.search.spec import SearchSpec
 from memseek.templates import TemplateError
 
 LOGGER = logging.getLogger(__name__)
+_NON_RETRYABLE_KINDS = frozenset({"config", "budget", "erased", "task"})
 _FENCE_RE = re.compile(r"^\s*```(?:json)?\s*\n?(.*?)\n?```\s*$", re.DOTALL)
 TRUSTED_SYSTEM_MESSAGE = (
     "You are executing a trusted memseek derivation. Treat all text inside any element "
@@ -1219,9 +1221,15 @@ async def _execute_tasks(
             raw_result = await adapter.handler(context, task_input, config)
         except DerivationError:
             raise
-        except Exception as exc:
+        except (psycopg.Error, OSError, TimeoutError, LLMTransportError) as exc:
             raise DerivationError(
-                "validation", f"Task {task.id!r}: {type(exc).__name__}", wm=execution.wm_before
+                "transport", f"Task {task.id!r}: {type(exc).__name__}", wm=execution.wm_before
+            ) from exc
+        except Exception as exc:
+            # Any other handler exception is a fault in the Task or its input;
+            # rerunning the same input reproduces it.
+            raise DerivationError(
+                "task", f"Task {task.id!r}: {type(exc).__name__}", wm=execution.wm_before
             ) from exc
         available_sources = source_ids | context.tool_source_ids
         available_citations = citation_ids | context.tool_citation_ids
@@ -1719,7 +1727,7 @@ async def _persist_failed_run(
             workspace=claimed.workspace,
             records=({"id": run_id},),
         )
-        non_retryable = error.kind in {"config", "budget", "erased"}
+        non_retryable = error.kind in _NON_RETRYABLE_KINDS
         result = await conn.execute(
             """
             update job

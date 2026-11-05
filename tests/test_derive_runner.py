@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 from uuid import UUID
 
+import psycopg
 import pytest
 import yaml
 
@@ -19,6 +20,7 @@ from memseek.db import DatabasePool
 from memseek.definitions import DefinitionCatalog, load_definition_catalog
 from memseek.derive.errors import DerivationError
 from memseek.derive.runner import enqueue_derivation_job, process_derivation_job
+from memseek.derive.tasks import TaskConfigModel, TaskContext, register_task, task_adapter
 from memseek.jobs import claim_job
 from memseek.llm.fake import fake
 from memseek.llm.registry import Completion
@@ -414,3 +416,82 @@ async def test_input_record_too_large_for_its_budget_is_skipped_and_audited(
         db_pool, claimed=await _claim(db_pool, settings), settings=settings, catalog=catalog
     )
     assert (resumed.disposition, resumed.output_count) == ("done", 1)
+
+
+class _RaiseConfig(TaskConfigModel):
+    error: str
+
+
+_RAISED: dict[str, BaseException] = {
+    "bug": KeyError("missing"),
+    "disk": OSError("disk unavailable"),
+    "database": psycopg.OperationalError("server closed the connection"),
+    "slow": TimeoutError(),
+}
+
+
+async def _raise(context: TaskContext, value: Any, config: TaskConfigModel) -> Any:
+    assert isinstance(config, _RaiseConfig)
+    raise _RAISED[config.error]
+
+
+def _register_raise() -> None:
+    try:
+        task_adapter("test_raise")
+    except KeyError:
+        register_task(
+            "test_raise",
+            implementation_hash="2" * 64,
+            config_model=_RaiseConfig,
+            handler=_raise,
+        )
+
+
+@pytest.mark.parametrize(
+    ("error", "kind", "dead"),
+    [
+        ("bug", "task", True),
+        ("disk", "transport", False),
+        ("database", "transport", False),
+        ("slow", "transport", False),
+    ],
+)
+async def test_task_handler_faults_are_classified_by_whether_a_retry_can_help(
+    gbrain_settings: Settings,
+    db_pool: DatabasePool,
+    tmp_path: Path,
+    error: str,
+    kind: str,
+    dead: bool,
+) -> None:
+    _register_raise()
+    assert gbrain_settings.catalog_file is not None
+    root = tmp_path / "raise_catalog"
+    _write_catalog(
+        root,
+        gbrain_settings.catalog_file.parent,
+        _digest(
+            tasks=[
+                {
+                    "id": "digest",
+                    "use": "test_raise",
+                    "input": "{{new_notes.records}}",
+                    "with": {"error": error},
+                }
+            ],
+            limits={"max_llm_calls": 0, "max_retrieved_records": 0, "max_visible_records": 5},
+        ),
+    )
+    settings = gbrain_settings.model_copy(update={"catalog_file": root / "catalog.yaml"})
+    catalog = load_definition_catalog(settings)
+    credential = await create_workspace(db_pool, f"derive-task-{error}")
+    await _write_note(
+        db_pool, catalog, settings, workspace=credential.workspace, key="a", text="Maya likes tea."
+    )
+    claimed = await _claim(db_pool, settings)
+
+    with pytest.raises(DerivationError) as failure:
+        await process_derivation_job(db_pool, claimed=claimed, settings=settings, catalog=catalog)
+
+    assert failure.value.kind == kind
+    assert await _job_state(db_pool, claimed.id) == (dead, kind)
