@@ -473,7 +473,11 @@ async def _drain_derivation_jobs(
 ) -> tuple[int, int]:
     """Run configured derivations through one shared job lane."""
 
-    from memseek.derive.runner import DerivationError, process_derivation_job
+    from memseek.derive.runner import (
+        DerivationError,
+        RecordedDerivationFailure,
+        process_derivation_job,
+    )
     from memseek.jobs import claim_job, dead_letter_job, release_not_ready_job
     from memseek.models import LeaseLost
 
@@ -554,6 +558,8 @@ async def _drain_derivation_jobs(
         except LeaseLost:
             continue
         except DerivationError as exc:
+            if isinstance(exc, RecordedDerivationFailure):
+                continue
             try:
                 if exc.kind in {"config", "budget", "erased"}:
                     await dead_letter_job(

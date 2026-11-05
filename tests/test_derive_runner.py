@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import io
 import json
 import shutil
 from pathlib import Path
@@ -14,6 +15,7 @@ import pytest
 import yaml
 
 import memseek.derive.runner as runner_module
+import memseek.worker as worker_module
 from memseek.auth import create_workspace
 from memseek.config import Settings
 from memseek.db import DatabasePool
@@ -24,8 +26,10 @@ from memseek.derive.tasks import TaskConfigModel, TaskContext, register_task, ta
 from memseek.jobs import claim_job
 from memseek.llm.fake import fake
 from memseek.llm.registry import Completion
+from memseek.logging import configure_logging
 from memseek.models import ClaimedJob
 from memseek.records import PublicRecordInput, RecordBatchRequest, insert_public_records
+from memseek.worker import WorkerRuntime
 
 _NOTES = """collections:
   - name: notes
@@ -495,3 +499,33 @@ async def test_task_handler_faults_are_classified_by_whether_a_retry_can_help(
 
     assert failure.value.kind == kind
     assert await _job_state(db_pool, claimed.id) == (dead, kind)
+
+
+async def test_worker_leaves_a_recorded_derive_failure_to_the_runner(
+    digest_settings: Settings,
+    db_pool: DatabasePool,
+) -> None:
+    """The runner already moved the job; the worker must not try to move it again."""
+
+    settings = digest_settings
+    catalog = load_definition_catalog(settings)
+    credential = await create_workspace(db_pool, "derive-worker-failure")
+    await _write_note(
+        db_pool, catalog, settings, workspace=credential.workspace, key="a", text="Maya likes tea."
+    )
+    stream = io.StringIO()
+    configure_logging(stream=stream)
+    fake.reset()
+    fake.enqueue("not json", "still not json")
+
+    completed, not_ready = await worker_module._drain_derivation_jobs(
+        WorkerRuntime(settings=settings, catalog=catalog, pool=db_pool),
+        worker_id="digest-worker",
+    )
+
+    events = [json.loads(line)["event"] for line in stream.getvalue().splitlines()]
+    assert (completed, not_ready) == (0, 0)
+    assert [event for event in events if event.startswith("job.")] == [
+        "job.claimed",
+        "job.retry_scheduled",
+    ]
