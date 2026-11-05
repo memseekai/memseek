@@ -70,7 +70,7 @@ class RunOutputsQuery(FrozenQueryModel):
 def _run_name(content: dict[str, Any]) -> str | None:
     """The public processor/derivation or artifact identity of one run."""
 
-    for field in ("processor", "derivation", "artifact"):
+    for field in ("processor", "artifact"):
         value = content.get(field)
         if isinstance(value, str):
             return value
@@ -115,9 +115,7 @@ async def fetch_runs(
         clauses.append("entity = %s")
         params.append(query.entity)
     if query.processor is not None:
-        clauses.append(
-            "coalesce(content->>'processor', content->>'derivation', content->>'artifact') = %s"
-        )
+        clauses.append("coalesce(content->>'processor', content->>'artifact') = %s")
         params.append(query.processor)
     if query.operation is not None:
         clauses.append("content->>'operation' = %s")

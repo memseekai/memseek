@@ -8,9 +8,11 @@ publish anything.
 from __future__ import annotations
 
 import copy
+from typing import Literal
 
 import httpx
 import pytest
+import yaml
 from evolution_catalog import (
     COLLECTION,
     MIGRATION,
@@ -487,97 +489,123 @@ async def test_cursor_rebinding_is_refused_without_an_established_cursor(
     assert wrong_mode.value.code == "not_a_changes_source"
 
 
-async def test_cursor_rebinding_records_an_audited_decision(
+async def test_cursor_rebinding_moves_the_cursor_the_runner_reads(
     settings: Settings, db_pool: DatabasePool, workspace: WorkspaceCredential
 ) -> None:
-    """Both policies write an audit naming the old and new source hashes."""
+    """A widened changes source refuses until rebound; the policy sets where the next run starts."""
 
-    from memseek.derive.basis import source_contract_hash
-    from memseek.enrichment import SYSTEM_COLLECTION_HASH, SYSTEM_COLLECTION_VERSION
+    from memseek.derive.runner import enqueue_derivation_job
     from memseek.evolution import rebind_cursor
+    from memseek.workspace_catalog import WorkspaceCatalogRegistry
 
-    changes = copy.deepcopy(MIGRATION)
-    changes["name"] = "rolling_archive"
-    changes["sources"]["legacy"]["kind"] = "changes"
-    files = catalog_files()
-    files["derivations/archive_notes.yaml"] = __import__("yaml").safe_dump(changes)
-    files["catalog.yaml"] = files["catalog.yaml"].replace("archive_notes:", "rolling_archive:")
+    def rolling_files(statuses: list[str], version: str) -> dict[str, str]:
+        changes = copy.deepcopy(MIGRATION)
+        changes["name"] = "rolling_archive"
+        changes["sources"]["legacy"]["kind"] = "changes"
+        changes["sources"]["legacy"]["statuses"] = statuses
+        files = catalog_files(version=version)
+        files["derivations/archive_notes.yaml"] = yaml.safe_dump(changes)
+        files["catalog.yaml"] = files["catalog.yaml"].replace("archive_notes:", "rolling_archive:")
+        return files
+
+    async def note(client: httpx.AsyncClient, text: str) -> int:
+        response = await ingest(client, headers, text=text)
+        assert response.status_code == 200, response.text
+        async with db_pool.connection() as conn:
+            result = await conn.execute(
+                "select seq from record where id = %s", (response.json()["inserted"][0]["id"],)
+            )
+            row = await result.fetchone()
+        assert row is not None
+        return int(row["seq"])
+
+    async def derive() -> tuple[str, int, int, str | None]:
+        await enrich(settings, db_pool, workspace.workspace)
+        await enqueue_derivation_job(
+            db_pool, workspace=workspace.workspace, derivation="rolling_archive", entity="user:ana"
+        )
+        await enrich(settings, db_pool, workspace.workspace)
+        async with db_pool.connection() as conn:
+            result = await conn.execute(
+                """
+                select content->>'status' as status,
+                       (content->>'wm_before')::bigint as wm_before,
+                       (content->>'high_seq')::bigint as high_seq,
+                       content->>'error_kind' as error_kind
+                from record
+                where workspace = %s and collection = '_system' and type = 'run'
+                  and content->>'processor' = 'rolling_archive'
+                  and content->>'kind' is null
+                order by seq desc
+                limit 1
+                """,
+                (workspace.workspace,),
+            )
+            row = await result.fetchone()
+        assert row is not None
+        return row["status"], row["wm_before"], row["high_seq"], row["error_kind"]
+
+    async def rebind(policy: Literal["reset", "carry"]) -> tuple[int, int]:
+        catalog = await WorkspaceCatalogRegistry(
+            db_pool, settings, load_definition_catalog(settings)
+        ).get(workspace.workspace)
+        rebound = await rebind_cursor(
+            db_pool,
+            workspace=workspace.workspace,
+            derivation="rolling_archive",
+            entity="user:ana",
+            policy=policy,
+            catalog=catalog,
+            settings=settings,
+        )
+        return rebound.previous_watermark, rebound.watermark
 
     headers = {"Authorization": f"Bearer {workspace.api_key}"}
     app = build_app(settings)
     async with app.router.lifespan_context(app):
         transport = httpx.ASGITransport(app=app)
         async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
-            published = await publish(client, headers, files)
+            published = await publish(client, headers, rolling_files(["active"], "1.0.0"))
             assert published.status_code == 200, published.text
+            await note(client, "first")
+            second = await note(client, "second")
+            assert await derive() == ("ok", 0, second, None)
 
-    registry_catalog = (
-        await __import__("memseek.workspace_catalog", fromlist=["WorkspaceCatalogRegistry"])
-        .WorkspaceCatalogRegistry(db_pool, settings, load_definition_catalog(settings))
-        .get(workspace.workspace)
-    )
-    definition = registry_catalog.derivations["rolling_archive"]
+            widened = await publish(
+                client,
+                headers,
+                rolling_files(["active", "draft"], "2.0.0"),
+                package="evolving@2.0.0",
+            )
+            assert widened.status_code == 200, widened.text
+            third = await note(client, "third")
+            assert await derive() == ("failed", 0, 0, "config")
 
-    # Stand in for a completed incremental run: the cursor is the run history.
-    async with db_pool.connection() as conn:
-        await conn.execute(
-            """
-            insert into record (
-              workspace, collection, collection_version, collection_hash,
-              entity, type, status, content, enriched_at
-            ) values (%s, '_system', %s, %s, 'user:ana', 'run', 'active', %s, now())
-            """,
-            (
-                workspace.workspace,
-                SYSTEM_COLLECTION_VERSION,
-                SYSTEM_COLLECTION_HASH,
-                __import__("psycopg.types.json", fromlist=["Jsonb"]).Jsonb(
-                    {
-                        "text": "run",
-                        "derivation": "rolling_archive",
-                        "status": "ok",
-                        "through_seq": 42,
-                        "source_hash": "0" * 64,
-                    }
-                ),
-            ),
-        )
+            assert await rebind("carry") == (second, second)
+            assert await derive() == ("ok", second, third, None)
 
-    carried = await rebind_cursor(
-        db_pool,
-        workspace=workspace.workspace,
-        derivation="rolling_archive",
-        entity="user:ana",
-        policy="carry",
-        catalog=registry_catalog,
-        settings=settings,
-    )
-    assert carried.previous_watermark == 42
-    assert carried.watermark == 42
-    assert carried.previous_source_hash == "0" * 64
-    assert carried.source_hash == source_contract_hash(definition)
-
-    reset = await rebind_cursor(
-        db_pool,
-        workspace=workspace.workspace,
-        derivation="rolling_archive",
-        entity="user:ana",
-        policy="reset",
-        catalog=registry_catalog,
-        settings=settings,
-    )
-    assert reset.watermark == 0
+            assert await rebind("reset") == (third, 0)
+            assert await derive() == ("ok", 0, third, None)
 
     async with db_pool.connection() as conn:
         result = await conn.execute(
             """
-            select content ->> 'policy' as policy, content ->> 'kind' as kind
+            select content->>'policy' as policy,
+                   (content->>'high_seq')::bigint as high_seq
             from record
             where workspace = %s and collection = '_system'
-              and content ->> 'kind' = 'cursor_rebind'
+              and content->>'kind' = 'cursor_rebind'
             order by seq
             """,
             (workspace.workspace,),
         )
-        audits = [(row["policy"], row["kind"]) for row in await result.fetchall()]
-    assert audits == [("carry", "cursor_rebind"), ("reset", "cursor_rebind")]
+        audits = [(row["policy"], row["high_seq"]) for row in await result.fetchall()]
+    assert audits == [("carry", second), ("reset", 0)]
+
+    catalog = await WorkspaceCatalogRegistry(
+        db_pool, settings, load_definition_catalog(settings)
+    ).get(workspace.workspace)
+    report = await prune_definitions(db_pool, workspace=workspace.workspace, catalog=catalog)
+    held = [item for item in report.as_json()["candidates"] if item["family"] == "derivation"]
+    # Four runs (ok, failed, ok, ok) plus the two rebind audits.
+    assert [(item["name"], item["references"]) for item in held] == [("rolling_archive", 6)]

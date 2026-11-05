@@ -110,13 +110,15 @@ async def _watermark(
 ) -> int:
     result = await conn.execute(
         """
-        select coalesce(max((content->>'high_seq')::bigint), 0) as watermark
+        select (content->>'high_seq')::bigint as watermark
         from record
         where workspace = %s and entity = %s
           and collection = '_system' and type = 'run'
           and content->>'operation' = 'derive'
-          and coalesce(content->>'processor', content->>'derivation') = %s
+          and content->>'processor' = %s
           and content->>'status' in ('ok', 'noop')
+        order by seq desc
+        limit 1
         """,
         (workspace, entity, derivation),
     )
@@ -138,9 +140,9 @@ async def _last_success(
         where workspace = %s and entity = %s
           and collection = '_system' and type = 'run'
           and content->>'operation' = 'derive'
-          and coalesce(content->>'processor', content->>'derivation') = %s
+          and content->>'processor' = %s
           and content->>'status' in ('ok', 'noop')
-        order by (content->>'high_seq')::bigint desc, seq desc
+        order by seq desc
         limit 1
         """,
         (workspace, entity, derivation),
