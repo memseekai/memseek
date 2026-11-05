@@ -20,6 +20,7 @@ from memseek.derive.basis import adapter_for
 from memseek.derive.errors import DerivationError
 from memseek.derive.runner import enqueue_derivation_job, process_derivation_job
 from memseek.derive.schema import PipelineDefinition
+from memseek.enrichment import SYSTEM_COLLECTION_HASH, SYSTEM_COLLECTION_VERSION
 from memseek.freshness import compute_freshness
 from memseek.jobs import claim_job
 from memseek.llm.fake import fake
@@ -636,3 +637,78 @@ async def test_commit_verification_rejects_a_current_read_that_moved(
             await adapter.verify(
                 conn, workspace=workspace, entity=ENTITY, definition=definition, basis=basis
             )
+
+
+async def test_freshness_keeps_each_read_derivation_separate(
+    settings: Settings, db_pool: DatabasePool
+) -> None:
+    credential = await create_workspace(db_pool, "freshness-batch")
+    workspace = credential.workspace
+    loaded = load_definition_catalog(settings)
+    catalog = replace(
+        loaded,
+        triggers=MappingProxyType(
+            {
+                **loaded.triggers,
+                "harvest.default": loaded.triggers["harvest.default"].model_copy(
+                    update={"read": True}
+                ),
+            }
+        ),
+    )
+    completed_at = "2026-07-19T09:00:00+00:00"
+    async with db_pool.connection() as conn:
+        await conn.execute(
+            """
+            insert into record (
+              workspace, collection, collection_version, collection_hash,
+              entity, type, content, enriched_at
+            ) values (%s, '_system', %s, %s, %s, 'run', %s, now())
+            """,
+            (
+                workspace,
+                SYSTEM_COLLECTION_VERSION,
+                SYSTEM_COLLECTION_HASH,
+                ENTITY,
+                Jsonb(
+                    {
+                        "text": "profile ok",
+                        "operation": "derive",
+                        "processor": "profile",
+                        "status": "ok",
+                        "high_seq": 5,
+                        "completed_at": completed_at,
+                    }
+                ),
+            ),
+        )
+        await conn.execute(
+            """
+            insert into job (workspace, kind, derivation, entity, dead_at, last_error_kind)
+            values (%s, 'derive', 'harvest', %s, now(), 'provider'),
+                   (%s, 'derive', 'profile', %s, null, null)
+            """,
+            (workspace, ENTITY, workspace, ENTITY),
+        )
+        entries = await compute_freshness(conn, workspace=workspace, entity=ENTITY, catalog=catalog)
+
+    assert [entry.as_json() for entry in entries] == [
+        {
+            "derivation": "harvest",
+            "last_run_at": None,
+            "watermark": 0,
+            "dirty": False,
+            "pending_unready": False,
+            "job": "dead",
+            "error_kind": "provider",
+        },
+        {
+            "derivation": "profile",
+            "last_run_at": completed_at,
+            "watermark": 5,
+            "dirty": False,
+            "pending_unready": False,
+            "job": "enqueued",
+            "error_kind": None,
+        },
+    ]
