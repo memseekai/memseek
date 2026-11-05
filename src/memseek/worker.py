@@ -581,6 +581,7 @@ async def _drain_invocation_jobs(runtime: WorkerRuntime, *, worker_id: str) -> i
 
 
 _CRON_PAGE_SIZE = 500
+_CRON_ENQUEUE_BATCH = 50
 
 
 async def _cron_entities(
@@ -696,25 +697,32 @@ async def _process_cron_scan(runtime: WorkerRuntime, claimed: object) -> bool:
             mode=mode,
             cursor=cursor,
         )
-        for entity in entities:
-            due = await _cooldown_due(
-                conn,
-                workspace=claimed.workspace,
-                entity=entity,
-                trigger=trigger,
-            )
-            await enqueue_derive_tx(
-                conn,
-                workspace=claimed.workspace,
-                derivation=definition.name,
-                entity=entity,
-                reason=f"trigger:{trigger.name}:cron",
-                run_after=due,
-            )
-        if has_more and page_cursor is not None:
-            scheduled_at = claimed.payload.get("scheduled_at")
-            if not isinstance(scheduled_at, str):
-                raise ValueError("cron scheduled_at is malformed")
+    scheduled_at = claimed.payload.get("scheduled_at")
+    if page_cursor is not None and not isinstance(scheduled_at, str):
+        raise ValueError("cron scheduled_at is malformed")
+    # Short transactions keep the shared workspace lock from starving erasure
+    # for a whole page.  Enqueue coalesces into the active mailbox, so a retry
+    # that repeats an already committed batch converges on the same jobs.
+    for start in range(0, len(entities), _CRON_ENQUEUE_BATCH):
+        async with runtime.pool.connection() as conn, conn.transaction():
+            await acquire_workspace_lock(conn, claimed.workspace)
+            for entity in entities[start : start + _CRON_ENQUEUE_BATCH]:
+                due = await _cooldown_due(
+                    conn,
+                    workspace=claimed.workspace,
+                    entity=entity,
+                    trigger=trigger,
+                )
+                await enqueue_derive_tx(
+                    conn,
+                    workspace=claimed.workspace,
+                    derivation=definition.name,
+                    entity=entity,
+                    reason=f"trigger:{trigger.name}:cron",
+                    run_after=due,
+                )
+    async with runtime.pool.connection() as conn, conn.transaction():
+        if page_cursor is not None:
             # Every page keys off the root tick, so a page's key stays bounded
             # and a re-run predecessor maps onto the same successor.
             dedupe = f"cron:{trigger.name}:{definition.name}:{scheduled_at}:{page_cursor}"

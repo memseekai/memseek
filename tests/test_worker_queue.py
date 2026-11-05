@@ -10,6 +10,7 @@ from psycopg.types.json import Jsonb
 from reference_catalog import declare_test_sources, materialize_reference_catalog
 
 import memseek.erase as erase_module
+import memseek.triggers as triggers_module
 import memseek.worker as worker_module
 from memseek.config import Settings
 from memseek.db import DatabasePool
@@ -181,3 +182,44 @@ async def test_retention_purge_slower_than_its_lease_completes_under_heartbeat(
 
     assert await worker_module._drain_retention_jobs(runtime, worker_id="w") == 1
     assert await _job_state(db_pool, "purge-slow", "retention_purge") == [(True, 1)]
+
+
+async def test_cron_page_commits_each_enqueue_batch_and_a_retry_converges(
+    settings: Settings,
+    db_pool: DatabasePool,
+    cron_catalog: DefinitionCatalog,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(worker_module, "_CRON_ENQUEUE_BATCH", 2)
+    await _workspace_with_entities(db_pool, "cron-batches", 5)
+    await _insert_root_scan(db_pool, "cron-batches")
+    enqueue = triggers_module.enqueue_derive_tx
+    failed: list[str] = []
+
+    async def flaky_enqueue(conn: Any, **kwargs: Any) -> Any:
+        if kwargs["entity"] == "e0003" and not failed:
+            failed.append(kwargs["entity"])
+            raise OSError("connection reset")
+        return await enqueue(conn, **kwargs)
+
+    monkeypatch.setattr(triggers_module, "enqueue_derive_tx", flaky_enqueue)
+    runtime = WorkerRuntime(settings=settings, catalog=cron_catalog, pool=db_pool)
+    derives = "select entity from job where workspace = %s and kind = 'derive' order by entity"
+
+    assert await worker_module._drain_cron_jobs(runtime, worker_id="w") == 0
+    assert [row["entity"] for row in await _rows(db_pool, derives, ("cron-batches",))] == [
+        "e0001",
+        "e0002",
+    ]
+
+    async with db_pool.connection() as conn:
+        await conn.execute("update job set run_after = now() where kind = 'cron_scan'")
+    assert await worker_module._drain_cron_jobs(runtime, worker_id="w") == 1
+    assert [row["entity"] for row in await _rows(db_pool, derives, ("cron-batches",))] == [
+        "e0001",
+        "e0002",
+        "e0003",
+        "e0004",
+        "e0005",
+    ]
+    assert await _job_state(db_pool, "cron-batches", "cron_scan") == [(True, 2)]
