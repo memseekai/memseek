@@ -22,8 +22,8 @@ from memseek.migrations import (
 async def test_migration_is_idempotent_and_schema_is_present(
     settings: Settings, db_pool: DatabasePool
 ) -> None:
-    assert await apply_migrations(settings.database_url) == "0010_computer_invocations"
-    assert await apply_migrations(settings.database_url) == "0010_computer_invocations"
+    assert await apply_migrations(settings.database_url) == "0011_record_lineage_immutable"
+    assert await apply_migrations(settings.database_url) == "0011_record_lineage_immutable"
     async with db_pool.connection() as conn:
         result = await conn.execute(
             """
@@ -48,7 +48,7 @@ async def test_migration_is_idempotent_and_schema_is_present(
         "artifact_use": "artifact_use",
         "computer_session": "computer_session",
         "invocation": "invocation",
-        "revision": "0010_computer_invocations",
+        "revision": "0011_record_lineage_immutable",
         "vector": True,
     }
 
@@ -64,7 +64,7 @@ def test_normative_migration_checksum_drift_is_rejected(tmp_path: Path) -> None:
 def test_alembic_revision_graph_has_one_head(settings: Settings) -> None:
     config = build_alembic_config(settings.database_url)
     scripts = ScriptDirectory.from_config(config)
-    assert scripts.get_heads() == ["0010_computer_invocations"]
+    assert scripts.get_heads() == ["0011_record_lineage_immutable"]
 
 
 def test_plain_postgresql_url_selects_installed_psycopg_driver() -> None:
