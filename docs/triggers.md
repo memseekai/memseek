@@ -411,10 +411,10 @@ boundary instead of one per message or a polling cron.
 
 Two properties worth knowing:
 
-- The settle deadline extends the shared mailbox. A later non-quiet stimulus
-  with an earlier permitted time (a manual run, a plain write trigger) can
-  still pull the job earlier; quiet then simply re-arms for whatever arrives
-  next.
+- The settle deadline belongs to the quiet reason alone. Another stimulus on
+  the same job (a manual run, a plain write trigger) keeps its own earlier
+  deadline, and the job runs at that one; quiet then simply re-arms for
+  whatever arrives next.
 - `after_s` accepts 1 second through 7 days.
 
 ### `at`: run at a record's datetime
@@ -576,12 +576,19 @@ monotonic boolean key — `trigger:profile.default:threshold`,
 counters. The committed run stores the sorted reason strings as
 `trigger_reasons`.
 
-When stimuli disagree about timing, the merge rule depends on the stimulus:
+Each reason also keeps its own deadline in the job's `stimuli` column, and
+the job's `run_after` is the earliest of them: the job runs as soon as any
+pending stimulus allows it. When the same reason arrives again, the merge
+rule depends on the stimulus:
 
-- most stimuli keep the **earliest** permitted `run_after`;
+- most stimuli keep their **earliest** permitted time;
 - settle-style stimuli — `quiet`, and any condition under `debounce_s` —
-  **extend** the shared deadline instead, so an ongoing burst keeps pushing
-  the run out until it ends.
+  **extend** their own deadline instead, so an ongoing burst keeps pushing
+  that reason out until it ends.
+
+A settle window never delays another reason. A manual request, or a plain
+write trigger that is already due, runs the job on time even while a `quiet`
+reason on the same job is still settling.
 
 Coalescing is a mailbox, not proof that every stimulus was consumed. After
 every successful run the runtime re-evaluates every trigger targeting that

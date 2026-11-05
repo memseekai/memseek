@@ -3,8 +3,8 @@
 PostgreSQL remains the source of trigger truth.  Ready-transition evaluation is
 performed inside the caller's mutation transaction, so a trigger can never see
 an unready row or enqueue work for a record whose readiness transaction rolls
-back.  Jobs are coalescing mailboxes: reason keys are monotonic booleans and
-the earliest permitted ``run_after`` wins.
+back.  Jobs are coalescing mailboxes: reason keys are monotonic booleans, each
+reason keeps its own deadline, and the earliest one is the job's ``run_after``.
 """
 
 from __future__ import annotations
@@ -307,17 +307,10 @@ async def enqueue_derive_tx(
 ) -> tuple[UUID, bool, datetime]:
     """Insert/coalesce one derive mailbox entry in the caller's transaction.
 
-    ``coalesce`` decides how a conflicting active job's ``run_after`` merges
-    with this stimulus: ``earliest`` keeps the sooner time, while ``extend``
-    pushes the shared deadline later — the settle semantics used by quiet and
-    debounced stimuli.
-
-    An ``extend`` stimulus never pushes a job that already carries a manual
-    request. Section 11.3 puts the shared deadline at the earliest time some
-    pending stimulus allows, and a manual request allows now; letting a
-    debounce or quiet window walk that job forward turns an explicit
-    ``POST /processors/{name}/run`` into a scheduled one, which is what a
-    caller asking for a run right now is entitled not to get.
+    ``coalesce`` decides how this reason's own deadline merges with an
+    earlier stimulus of the same reason: ``earliest`` keeps the sooner time,
+    while ``extend`` pushes it later, the settle semantics used by quiet and
+    debounced stimuli. Other reasons' deadlines are untouched.
     """
 
     parts = reason.split(":")
@@ -331,26 +324,107 @@ async def enqueue_derive_tx(
     when = run_after if run_after is not None else await _db_now(conn)
     if when.tzinfo is None or when.utcoffset() is None:
         raise ValueError("run_after must include a timezone")
-    payload = {reason: True}
+    return await coalesce_derive_stimulus_tx(
+        conn,
+        workspace=workspace,
+        derivation=derivation,
+        entity=entity,
+        reason=reason,
+        due=when,
+        coalesce=coalesce,
+    )
+
+
+async def coalesce_derive_stimulus_tx(
+    conn: DatabaseConnection,
+    *,
+    workspace: str,
+    derivation: str,
+    entity: str,
+    reason: str,
+    due: datetime,
+    coalesce: Literal["earliest", "extend"],
+) -> tuple[UUID, bool, datetime]:
+    """Merge one reason into the entity's active derive job (spec 11.4).
+
+    ``job.stimuli`` holds each reason's own ``due`` and first-seen ``since``.
+    An ``earliest`` reason keeps its sooner due; an ``extend`` reason pushes
+    only its own. ``run_after`` follows the earliest due, so a settle window
+    never delays a reason that is already allowed to run. Extending an
+    existing reason keeps a later ``run_after`` the queue set itself (retry
+    backoff, a not-ready release). A job written before ``stimuli`` existed is
+    read as if each payload reason were due at its ``run_after``.
+    """
+
     result = await conn.execute(
         """
-        insert into job (workspace, kind, derivation, entity, run_after, payload)
-        values (%s, 'derive', %s, %s, %s, %s)
+        insert into job as job (workspace, kind, derivation, entity, run_after, payload, stimuli)
+        values (
+          %(workspace)s, 'derive', %(derivation)s, %(entity)s, %(due)s,
+          jsonb_build_object(%(reason)s::text, true),
+          jsonb_build_object(
+            %(reason)s::text,
+            jsonb_build_object('due', %(due)s::timestamptz, 'since', clock_timestamp())
+          )
+        )
         on conflict (workspace, derivation, entity)
           where kind = 'derive' and done_at is null and dead_at is null
-        do update set payload = job.payload || excluded.payload,
-                      run_after = case
-                        when %s and not jsonb_exists(job.payload, 'manual')
-                          then greatest(job.run_after, excluded.run_after)
-                        else least(job.run_after, excluded.run_after)
-                      end
+        do update set
+          payload = job.payload || excluded.payload,
+          (stimuli, run_after) = (
+            select merged.stimuli,
+                   case
+                     when %(extend)s and prior.due is not null
+                       then greatest(
+                         job.run_after,
+                         (select min((value->>'due')::timestamptz)
+                          from jsonb_each(merged.stimuli))
+                       )
+                     else least(job.run_after, excluded.run_after)
+                   end
+            from (
+              select case when job.stimuli = '{}'::jsonb then (
+                       select coalesce(jsonb_object_agg(
+                         reason_key,
+                         jsonb_build_object('due', job.run_after, 'since', job.created_at)
+                       ), '{}'::jsonb)
+                       from jsonb_object_keys(job.payload) as reason_key
+                     ) else job.stimuli end as stimuli
+            ) existing
+            cross join lateral (
+              select (existing.stimuli #>> array[%(reason)s::text, 'due'])::timestamptz as due,
+                     existing.stimuli #> array[%(reason)s::text, 'since'] as since
+            ) prior
+            cross join lateral (
+              select existing.stimuli || jsonb_build_object(
+                %(reason)s::text,
+                jsonb_build_object(
+                  'due',
+                  case
+                    when prior.due is null then excluded.run_after
+                    when %(extend)s then greatest(prior.due, excluded.run_after)
+                    else least(prior.due, excluded.run_after)
+                  end,
+                  'since',
+                  coalesce(prior.since, excluded.stimuli #> array[%(reason)s::text, 'since'])
+                )
+              ) as stimuli
+            ) merged
+          )
         returning id, run_after, (xmax = 0) as inserted
         """,
-        (workspace, derivation, entity, when, Jsonb(payload), coalesce == "extend"),
+        {
+            "workspace": workspace,
+            "derivation": derivation,
+            "entity": entity,
+            "due": due,
+            "reason": reason,
+            "extend": coalesce == "extend",
+        },
     )
     row = await result.fetchone()
     if row is None:
-        raise RuntimeError("derive trigger enqueue returned no row")
+        raise RuntimeError("derive enqueue returned no row")
     return cast(UUID, row["id"]), not bool(row["inserted"]), cast(datetime, row["run_after"])
 
 
