@@ -867,7 +867,7 @@ class _RuntimeTaskContext(TaskContext):
     async def _judge_states(
         self, states: list[dict[str, Any]], config: JudgeTaskConfig
     ) -> list[Mapping[str, Answer]]:
-        """Judge every state concurrently under the run's separate judgment budget."""
+        """Judge every state concurrently; the first failure cancels the rest."""
 
         execution = self._execution
         limits = execution.limits
@@ -884,9 +884,15 @@ class _RuntimeTaskContext(TaskContext):
                 "budget", "judgments cannot fit max_judgment_tokens", wm=execution.wm_before
             )
         execution.judgments += len(states)
-        outcomes = await asyncio.gather(
-            *(
-                judge(
+        judged: list[Mapping[str, Answer]] = [{} for _ in states]
+
+        def audit(attempts: Sequence[ModelAttempt]) -> None:
+            execution.model_calls.extend(_attempt_audit(attempts))
+            execution.judgment_tokens += _usage(attempts)[0]
+
+        async def one(index: int, state: dict[str, Any]) -> None:
+            try:
+                outcome = await judge(
                     self._settings,
                     self._catalog,
                     alias,
@@ -894,24 +900,20 @@ class _RuntimeTaskContext(TaskContext):
                     config.questions,
                     context=f"derivation:{execution.definition.name}/{self._task_id}",
                 )
-                for state in states
-            ),
-            return_exceptions=True,
-        )
-        failure: BaseException | None = None
-        judged: list[Mapping[str, Answer]] = []
-        for outcome in outcomes:
-            if isinstance(outcome, BaseException):
-                attempts = outcome.attempts if isinstance(outcome, ModelAttemptsExhausted) else ()
-                failure = failure or outcome
-            else:
-                attempts = outcome.attempts
-                judged.append(outcome.judgment.answers)
-            execution.model_calls.extend(_attempt_audit(attempts))
-            execution.judgment_tokens += _usage(attempts)[0]
-        if failure is not None:
+            except ModelAttemptsExhausted as exc:
+                audit(exc.attempts)
+                raise
+            audit(outcome.attempts)
+            judged[index] = outcome.judgment.answers
+
+        try:
+            async with asyncio.TaskGroup() as group:
+                for index, state in enumerate(states):
+                    group.create_task(one(index, state))
+        except ExceptionGroup as failures:
+            failure = failures.exceptions[0]
             if not isinstance(failure, LLMTransportError | ValueError):
-                raise failure
+                raise failure from None
             raise DerivationError(
                 "transport", f"judgment failed: {failure}", wm=execution.wm_before
             ) from failure

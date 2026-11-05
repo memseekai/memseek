@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import shutil
 from datetime import UTC, datetime
 from pathlib import Path
@@ -9,6 +10,7 @@ from uuid import UUID, uuid4
 import pytest
 from support_inbox import CATALOG, TEAMS, choice, noul, script_inbox
 
+import memseek.derive.runner as runner_module
 from memseek.auth import create_workspace
 from memseek.config import Settings
 from memseek.db import DatabasePool
@@ -27,7 +29,7 @@ from memseek.derive.schema import PipelineDefinition
 from memseek.enrichment import enrich_once
 from memseek.jobs import claim_job
 from memseek.llm.fake import fake
-from memseek.llm.registry import Completion
+from memseek.llm.registry import Completion, LLMTransportError
 from memseek.records import PublicRecordInput, RecordBatchRequest, insert_public_records
 
 
@@ -295,6 +297,44 @@ async def test_judge_refuses_to_exceed_max_judgment_tokens(
         )
 
     assert fake.judgment_calls == []
+
+
+async def test_first_failed_judgment_cancels_the_ones_still_running(
+    judgment_settings: Settings,
+    catalog: DefinitionCatalog,
+    db_pool: DatabasePool,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    execution = _execution(catalog.derivations["route_tickets"], judgment_settings)
+    variables, ids = _tickets(["fails", "stalls"])
+    cancelled: list[str] = []
+
+    async def judge(*args: Any, **kwargs: Any) -> Any:
+        text = args[3]["item"]["content"]["text"]
+        if text == "fails":
+            raise LLMTransportError("provider unavailable")
+        try:
+            await asyncio.Event().wait()
+        except asyncio.CancelledError:
+            cancelled.append(text)
+            raise
+
+    monkeypatch.setattr(runner_module, "judge", judge)
+
+    with pytest.raises(DerivationError, match="judgment failed") as caught:
+        await asyncio.wait_for(
+            _execute_tasks(
+                execution,
+                db_pool,
+                judgment_settings,
+                catalog,
+                variables=variables,
+                citations=_citations(ids),
+            ),
+            timeout=5,
+        )
+
+    assert (caught.value.kind, cancelled) == ("transport", ["stalls"])
 
 
 def _catalog_error(tmp_path: Path, old: str, new: str) -> DefinitionError:
