@@ -21,6 +21,7 @@ if config.config_file_name is not None:
 
 target_metadata = None
 _MIGRATION_LOCK_KEY = advisory_lock_key("schema-migrations")
+_LOCK_POLL_S = 0.5
 
 
 def _database_url() -> str:
@@ -45,17 +46,40 @@ def run_migrations_offline() -> None:
 
 
 def _run_online_migrations(connection: Connection) -> None:
-    context.configure(connection=connection, target_metadata=target_metadata)
-    with context.begin_transaction():
+    # A session lock, not a transaction lock: each revision commits on its own
+    # so a revision can build indexes concurrently, and the lock must outlive
+    # those commits.  A waiter polls instead of blocking, because a migrator
+    # blocked inside its own transaction is one more transaction a concurrent
+    # index build waits for, which deadlocks the two.
+    while True:
+        acquired = connection.execute(
+            text("select pg_try_advisory_lock(:lock_key)"),
+            {"lock_key": _MIGRATION_LOCK_KEY},
+        ).scalar_one()
+        connection.commit()
+        if acquired:
+            break
+        connection.execute(text("select pg_sleep(:wait_s)"), {"wait_s": _LOCK_POLL_S})
+        connection.commit()
+    try:
+        context.configure(
+            connection=connection,
+            target_metadata=target_metadata,
+            transaction_per_migration=True,
+        )
+        with context.begin_transaction():
+            context.run_migrations()
+    finally:
+        connection.rollback()
         connection.execute(
-            text("select pg_advisory_xact_lock(:lock_key)"),
+            text("select pg_advisory_unlock(:lock_key)"),
             {"lock_key": _MIGRATION_LOCK_KEY},
         )
-        context.run_migrations()
+        connection.commit()
 
 
 def run_migrations_online() -> None:
-    """Apply migrations transactionally under a PostgreSQL advisory lock."""
+    """Apply migrations one revision per transaction under an advisory lock."""
 
     injected_connection = config.attributes.get("connection")
     if isinstance(injected_connection, Connection):

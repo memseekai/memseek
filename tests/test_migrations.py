@@ -2,11 +2,16 @@
 
 from __future__ import annotations
 
+import asyncio
+import sys
 from pathlib import Path
+from urllib.parse import urlsplit, urlunsplit
+from uuid import uuid4
 
+import psycopg
 import pytest
 from alembic.script import ScriptDirectory
-from psycopg import errors
+from psycopg import errors, sql
 
 from memseek.config import Settings
 from memseek.db import DatabasePool
@@ -18,12 +23,14 @@ from memseek.migrations import (
     verify_normative_migration,
 )
 
+_REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
+
 
 async def test_migration_is_idempotent_and_schema_is_present(
     settings: Settings, db_pool: DatabasePool
 ) -> None:
-    assert await apply_migrations(settings.database_url) == "0012_history_lookup_indexes"
-    assert await apply_migrations(settings.database_url) == "0012_history_lookup_indexes"
+    assert await apply_migrations(settings.database_url) == "0013_scheduling_state"
+    assert await apply_migrations(settings.database_url) == "0013_scheduling_state"
     async with db_pool.connection() as conn:
         result = await conn.execute(
             """
@@ -35,6 +42,7 @@ async def test_migration_is_idempotent_and_schema_is_present(
               to_regclass('public.artifact_use')::text as artifact_use,
               to_regclass('public.computer_session')::text as computer_session,
               to_regclass('public.invocation')::text as invocation,
+              to_regclass('public.cron_checkpoint')::text as cron_checkpoint,
               (select version_num from alembic_version) as revision,
               exists (select 1 from pg_extension where extname = 'vector') as vector
             """
@@ -48,7 +56,8 @@ async def test_migration_is_idempotent_and_schema_is_present(
         "artifact_use": "artifact_use",
         "computer_session": "computer_session",
         "invocation": "invocation",
-        "revision": "0012_history_lookup_indexes",
+        "cron_checkpoint": "cron_checkpoint",
+        "revision": "0013_scheduling_state",
         "vector": True,
     }
 
@@ -64,7 +73,7 @@ def test_normative_migration_checksum_drift_is_rejected(tmp_path: Path) -> None:
 def test_alembic_revision_graph_has_one_head(settings: Settings) -> None:
     config = build_alembic_config(settings.database_url)
     scripts = ScriptDirectory.from_config(config)
-    assert scripts.get_heads() == ["0012_history_lookup_indexes"]
+    assert scripts.get_heads() == ["0013_scheduling_state"]
 
 
 def test_plain_postgresql_url_selects_installed_psycopg_driver() -> None:
@@ -88,15 +97,25 @@ async def test_expected_job_and_record_indexes_exist(
         )
         definitions = {row["indexname"]: row["indexdef"] for row in await result.fetchall()}
         indexes = set(definitions)
+        invalid = await conn.execute(
+            "select indexrelid::regclass::text as name from pg_index where not indisvalid"
+        )
+        invalid_indexes = await invalid.fetchall()
+    assert invalid_indexes == []
     assert {
         "record_keyed_current",
         "record_vec",
         "record_fts",
         "record_graph_edges_out",
         "record_graph_edges_in",
-        "job_ready",
+        "record_derive_cursor",
+        "job_claim",
+        "job_lease_expiry",
+        "job_finished_at",
+        "job_derive_unfinished",
         "job_active_derive",
     } <= indexes
+    assert not {"record_run_lookup", "job_ready", "job_cron_checkpoint"} & indexes
     for name in ("record_graph_edges_out", "record_graph_edges_in"):
         assert "workspace, collection" in definitions[name]
         assert "collection = 'edges'" not in definitions[name]
@@ -151,3 +170,46 @@ async def test_normative_record_json_and_embedding_pair_constraints(
                 """,
                 ("0" * 64,),
             )
+
+
+async def test_concurrent_migrators_on_a_fresh_database_all_reach_head(
+    settings: Settings,
+) -> None:
+    # Deploys start several replicas that each migrate, one process apiece.  A
+    # migrator blocked inside a transaction would deadlock a concurrent index
+    # build.
+    name = f"memseek_test_concurrent_{uuid4().hex[:8]}"
+    admin = await psycopg.AsyncConnection.connect(settings.database_url, autocommit=True)
+    try:
+        await admin.execute(sql.SQL("create database {}").format(sql.Identifier(name)))
+        url = urlunsplit(urlsplit(settings.database_url)._replace(path=f"/{name}"))
+        script = (
+            "import asyncio, sys\n"
+            "from memseek.migrations import apply_migrations\n"
+            "print(asyncio.run(apply_migrations(sys.argv[1])))\n"
+        )
+        processes = [
+            await asyncio.create_subprocess_exec(
+                sys.executable,
+                "-c",
+                script,
+                url,
+                cwd=_REPOSITORY_ROOT,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            for _ in range(3)
+        ]
+        outputs = await asyncio.wait_for(
+            asyncio.gather(*(process.communicate() for process in processes)), 120
+        )
+        heads = [stdout.decode().strip().splitlines()[-1] for stdout, _stderr in outputs]
+        assert [process.returncode for process in processes] == [0, 0, 0], [
+            stderr.decode()[-500:] for _stdout, stderr in outputs
+        ]
+        assert heads == ["0013_scheduling_state"] * 3
+    finally:
+        await admin.execute(
+            sql.SQL("drop database if exists {} with (force)").format(sql.Identifier(name))
+        )
+        await admin.close()
