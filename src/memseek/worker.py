@@ -255,20 +255,50 @@ async def _heartbeat_loop(
     claimed: object,
     stop: asyncio.Event,
 ) -> None:
+    """Renew the lease until ``stop``, riding out transient database faults.
+
+    A failed renewal is retried every ``retry_s`` while the lease last granted
+    is still comfortably live.  Lease expiry is tracked on the local monotonic
+    clock from the moment each renewal returned, so clock skew against the
+    database cannot make the loop optimistic.
+    """
+
+    from psycopg import OperationalError
+    from psycopg_pool import PoolTimeout
+
     from memseek.jobs import heartbeat_job
     from memseek.models import ClaimedJob, LeaseLost
 
     assert isinstance(claimed, ClaimedJob)
+    lease_s = runtime.settings.job_lease_s
+    retry_s = min(1.0, runtime.settings.job_heartbeat_s / 2)
+    loop = asyncio.get_running_loop()
+    lease_deadline = loop.time() + lease_s
+    delay: float = runtime.settings.job_heartbeat_s
     while not stop.is_set():
         try:
-            await asyncio.wait_for(stop.wait(), timeout=runtime.settings.job_heartbeat_s)
+            await asyncio.wait_for(stop.wait(), timeout=delay)
         except TimeoutError:
             try:
-                await heartbeat_job(runtime.pool, claimed, runtime.settings.job_lease_s)
+                await heartbeat_job(runtime.pool, claimed, lease_s)
             except LeaseLost:
                 if stop.is_set():
                     return
                 raise
+            except (OperationalError, PoolTimeout) as exc:
+                if lease_deadline - loop.time() <= 2 * retry_s:
+                    raise LeaseLost(f"job lease unrenewable: {claimed.id}") from exc
+                log_event(
+                    LOGGER,
+                    "warning",
+                    "job.heartbeat_retry",
+                    job_id=str(claimed.id),
+                    exception_type=type(exc).__name__,
+                )
+                delay = retry_s
+            else:
+                lease_deadline = loop.time() + lease_s
+                delay = runtime.settings.job_heartbeat_s
 
 
 async def _with_heartbeat[T](

@@ -3,21 +3,27 @@
 from __future__ import annotations
 
 import asyncio
-from typing import Any, LiteralString
+from datetime import UTC, datetime, timedelta
+from typing import Any, LiteralString, cast
 from unittest.mock import AsyncMock
+from uuid import uuid4
 
+import psycopg
 import pytest
 from psycopg.types.json import Jsonb
+from psycopg_pool import PoolTimeout
 from reference_catalog import declare_test_sources, materialize_reference_catalog
 
 import memseek.derive.runner as derive_runner_module
 import memseek.erase as erase_module
+import memseek.jobs as jobs_module
 import memseek.triggers as triggers_module
 import memseek.worker as worker_module
 from memseek.config import Settings
 from memseek.db import DatabasePool
 from memseek.definitions import DefinitionCatalog, load_definition_catalog
 from memseek.derive.runner import DerivationJobResult
+from memseek.models import ClaimedJob, LeaseLost
 from memseek.worker import WorkerRuntime
 
 _NIGHTLY = """name: profile.nightly
@@ -352,3 +358,77 @@ async def test_worker_dead_letters_a_derive_job_unready_past_the_timeout(
     assert await worker_module._drain_derivation_jobs(runtime, worker_id="w") == (0, 1)
     dead = "select last_error_kind from job where workspace = 'unready' and dead_at is not null"
     assert await _rows(db_pool, dead, ()) == [{"last_error_kind": "not_ready_timeout"}]
+
+
+def _claimed_derive() -> ClaimedJob:
+    now = datetime.now(UTC)
+    return ClaimedJob(
+        id=uuid4(),
+        workspace="w",
+        kind="derive",
+        derivation="profile",
+        entity="e",
+        payload={},
+        dedupe_key=None,
+        run_after=now,
+        attempts=1,
+        lease_until=now + timedelta(seconds=3),
+        claim_token=f"w:{uuid4()}",
+        created_at=now,
+    )
+
+
+async def test_heartbeat_rides_out_transient_database_errors(
+    settings: Settings,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    beats: list[str] = []
+
+    async def flaky_heartbeat(_pool: Any, _claimed: Any, lease_s: int) -> datetime:
+        beats.append("beat")
+        if len(beats) == 1:
+            raise psycopg.OperationalError("server closed the connection")
+        if len(beats) == 2:
+            raise PoolTimeout("couldn't get a connection")
+        return datetime.now(UTC) + timedelta(seconds=lease_s)
+
+    monkeypatch.setattr(jobs_module, "heartbeat_job", flaky_heartbeat)
+    runtime = WorkerRuntime(
+        settings=_short_lease(settings), catalog=cast(Any, object()), pool=cast(Any, object())
+    )
+
+    async def slow_operation() -> str:
+        await asyncio.sleep(4)
+        return "finished"
+
+    assert await worker_module._with_heartbeat(runtime, _claimed_derive(), slow_operation()) == (
+        "finished"
+    )
+    assert len(beats) >= 3
+
+
+async def test_heartbeat_gives_up_before_the_known_lease_expires(
+    settings: Settings,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def down(*_args: Any) -> datetime:
+        raise psycopg.OperationalError("connection refused")
+
+    monkeypatch.setattr(jobs_module, "heartbeat_job", down)
+    runtime = WorkerRuntime(
+        settings=_short_lease(settings), catalog=cast(Any, object()), pool=cast(Any, object())
+    )
+    cancelled: list[bool] = []
+
+    async def long_operation() -> None:
+        try:
+            await asyncio.sleep(30)
+        except asyncio.CancelledError:
+            cancelled.append(True)
+            raise
+
+    started = asyncio.get_running_loop().time()
+    with pytest.raises(LeaseLost):
+        await worker_module._with_heartbeat(runtime, _claimed_derive(), long_operation())
+    assert asyncio.get_running_loop().time() - started < 3
+    assert cancelled == [True]
