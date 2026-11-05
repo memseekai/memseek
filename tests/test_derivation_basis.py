@@ -579,6 +579,18 @@ def test_snapshot_window_requires_exactly_one_mode() -> None:
         )
 
 
+def test_snapshot_window_bounds_must_be_timezone_aware() -> None:
+    with pytest.raises(ValidationError, match="timezone"):
+        SnapshotWindow.model_validate({"since": "2026-01-01T00:00:00"})
+    with pytest.raises(ValidationError, match="timezone"):
+        SnapshotWindow.model_validate({"until": "2026-01-01T00:00:00"})
+
+    window = SnapshotWindow.model_validate({"since": "2026-01-01T00:00:00+02:00"})
+
+    assert window.since is not None
+    assert window.since.utcoffset() is not None
+
+
 def test_window_only_allowed_on_snapshot_source() -> None:
     with pytest.raises(ValidationError, match="window is only valid on a snapshot source"):
         _snapshot_source(kind="changes", window={"recent": 10})
