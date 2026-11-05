@@ -414,13 +414,9 @@ async def _changes_input(
     return tuple(prefix)
 
 
-async def _snapshot_input(
-    conn: DatabaseConnection,
-    *,
-    workspace: str,
-    entity: str,
-    source: StreamSource,
-) -> tuple[int, int | None, tuple[DerivationRecord, ...] | None]:
+def _snapshot_scope_sql(
+    source: StreamSource, *, workspace: str, entity: str
+) -> tuple[list[str], list[Any]]:
     clauses, params = scope_sql(source, workspace=workspace)
     clauses.append("record.entity = %s")
     params.append(entity)
@@ -433,6 +429,18 @@ async def _snapshot_input(
     if window is not None and window.until is not None:
         clauses.append("record.occurred_at <= %s")
         params.append(window.until)
+    return clauses, params
+
+
+async def _snapshot_input(
+    conn: DatabaseConnection,
+    *,
+    workspace: str,
+    entity: str,
+    source: StreamSource,
+) -> tuple[int, int | None, tuple[DerivationRecord, ...] | None]:
+    clauses, params = _snapshot_scope_sql(source, workspace=workspace, entity=entity)
+    window = source.window
     where = " and ".join(clauses)
     checkpoint_query = cast(
         LiteralString,
@@ -477,17 +485,11 @@ async def _snapshot_input(
     return through_seq, from_seq, records
 
 
-async def _stale_citation_input(
-    conn: DatabaseConnection,
-    *,
-    workspace: str,
-    entity: str,
-    source: StreamSource,
-) -> tuple[DerivationRecord, ...] | None:
-    """Return ready current keyed records with a directly stale citation.
+def _stale_citation_sql(
+    source: StreamSource, *, workspace: str, entity: str
+) -> tuple[str, list[Any]]:
+    """Select ready current keyed records with a directly stale citation.
 
-    This is deliberately a narrow provenance join, not a general YAML-accessible
-    record lookup: the source itself remains a normal scoped collection read.
     A cited keyed parent is stale when a newer ready version with the same
     canonical slot exists, including a ready tombstone.
     """
@@ -495,9 +497,7 @@ async def _stale_citation_input(
     clauses, params = scope_sql(source, workspace=workspace)
     clauses.extend(["record.entity = %s", "record.key is not null"])
     params.append(entity)
-    query = cast(
-        LiteralString,
-        f"""
+    query = f"""
         with current_records as (
           select distinct on (
             record.collection, record.collection_version, record.key, record.status
@@ -532,15 +532,80 @@ async def _stale_citation_input(
                   and newer.enriched_at is not null
               )
           )
-        order by seq
-        limit %s
-        """,
+        """
+    return query, [*params, workspace]
+
+
+async def _stale_citation_input(
+    conn: DatabaseConnection,
+    *,
+    workspace: str,
+    entity: str,
+    source: StreamSource,
+) -> tuple[DerivationRecord, ...] | None:
+    """Return ready current keyed records with a directly stale citation.
+
+    This is deliberately a narrow provenance join, not a general YAML-accessible
+    record lookup: the source itself remains a normal scoped collection read.
+    """
+
+    query, params = _stale_citation_sql(source, workspace=workspace, entity=entity)
+    result = await conn.execute(
+        cast(LiteralString, f"{query} order by seq limit %s"),
+        [*params, source.max_records + 1],
     )
-    result = await conn.execute(query, [*params, workspace, source.max_records + 1])
     rows = await result.fetchall()
     if len(rows) > source.max_records:
         raise DerivationError("budget", "stale_citations source exceeds max_records")
     return tuple(derivation_record(item) for item in rows)
+
+
+async def pending_input(
+    conn: DatabaseConnection,
+    *,
+    workspace: str,
+    entity: str,
+    definition: PipelineDefinition,
+    watermark: int,
+) -> tuple[bool, bool]:
+    """Return ``(dirty, pending_unready)`` for the driver against its watermark.
+
+    Dirty means the next run would read a different basis: a changes or
+    snapshot row past the watermark inside the driver's scope and window, or
+    any stale citation.  Readiness does not filter the probe, because an unready
+    first match is the ``pending_unready`` barrier.  Stale citation membership
+    only counts ready rows, so it never reports that barrier.
+    """
+
+    source = definition.driver
+    if source.kind == "stale_citations":
+        query, params = _stale_citation_sql(source, workspace=workspace, entity=entity)
+        result = await conn.execute(cast(LiteralString, f"select exists({query}) as dirty"), params)
+        row = await result.fetchone()
+        return bool(row is not None and row["dirty"]), False
+    if source.kind == "snapshot":
+        clauses, params = _snapshot_scope_sql(source, workspace=workspace, entity=entity)
+    else:
+        clauses, params = scope_sql(source, workspace=workspace)
+        clauses.append("record.entity = %s")
+        params.append(entity)
+    clauses.append("record.seq > %s")
+    params.append(watermark)
+    query = cast(
+        LiteralString,
+        f"""
+        select record.enriched_at is not null as ready
+        from record
+        where {" and ".join(clauses)}
+        order by record.seq
+        limit 1
+        """,
+    )
+    result = await conn.execute(query, params)
+    row = await result.fetchone()
+    if row is None:
+        return False, False
+    return True, not row["ready"]
 
 
 async def _verify_reads(
@@ -887,6 +952,7 @@ __all__ = [
     "StaleCitationBasisAdapter",
     "adapter_for",
     "derivation_record",
+    "pending_input",
     "scope_sql",
     "source_contract_hash",
 ]

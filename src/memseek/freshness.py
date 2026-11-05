@@ -4,10 +4,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
-from typing import Any, Literal, LiteralString
+from typing import Any, Literal
 
 from memseek.db import DatabaseConnection
 from memseek.definitions import DefinitionCatalog
+from memseek.derive.basis import pending_input
 from memseek.derive.schema import PipelineDefinition
 
 type JobState = Literal["enqueued", "queued", "running", "dead"]
@@ -90,57 +91,6 @@ async def _watermark(
     return int(row["watermark"]), completed_at if isinstance(completed_at, str) else None
 
 
-async def _first_pending_input(
-    conn: DatabaseConnection,
-    *,
-    workspace: str,
-    entity: str,
-    definition: PipelineDefinition,
-    watermark: int,
-) -> tuple[bool, bool]:
-    """Probe the oldest input-scope row above the watermark.
-
-    Readiness deliberately does not filter the probe: an unready first match
-    is exactly the spec's ``pending_unready`` barrier signal.
-    """
-
-    scope = definition.driver
-    clauses: list[LiteralString] = ["workspace = %s", "entity = %s", "seq > %s"]
-    params: list[Any] = [workspace, entity, watermark]
-    unpinned = [name for name in scope.collections if name not in scope.collection_versions]
-    collection_terms: list[LiteralString] = []
-    if unpinned:
-        collection_terms.append("collection = any(%s::text[])")
-        params.append(unpinned)
-    for name, versions in scope.collection_versions.items():
-        collection_terms.append("(collection = %s and collection_version = any(%s::int[]))")
-        params.extend([name, list(versions)])
-    clauses.append("(" + " or ".join(collection_terms) + ")")
-    if scope.types:
-        clauses.append("type = any(%s::text[])")
-        params.append(list(scope.types))
-    clauses.append("status = any(%s::text[])")
-    params.append(list(scope.statuses))
-    if scope.keyed is False:
-        clauses.append("key is null")
-    elif scope.keyed is True:
-        clauses.append("key is not null")
-    result = await conn.execute(
-        f"""
-        select enriched_at is not null as ready
-        from record
-        where {" and ".join(clauses)}
-        order by seq
-        limit 1
-        """,
-        params,
-    )
-    row = await result.fetchone()
-    if row is None:
-        return False, False
-    return True, not row["ready"]
-
-
 async def _job_state(
     conn: DatabaseConnection,
     *,
@@ -201,7 +151,7 @@ async def compute_freshness(
             entity=entity,
             derivation=definition.name,
         )
-        dirty, pending_unready = await _first_pending_input(
+        dirty, pending_unready = await pending_input(
             conn,
             workspace=workspace,
             entity=entity,

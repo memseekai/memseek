@@ -353,6 +353,8 @@ sources:
 bounds are timezone-aware. The window's lower bound is recorded in the run
 receipt as `from_seq`, so a windowed run stays reproducible and honest about what
 it excluded — it is a declared narrower scope, not a silent truncation.
+Read freshness applies the same range: a new row outside `since`/`until` does
+not mark the derivation dirty, because the next run would read the same corpus.
 
 ### `stale_citations`: repair records whose evidence moved
 
@@ -381,6 +383,8 @@ This is a *repair* driver, so it behaves differently from the other two:
 - It has no cursor. Membership is recomputed each run, and the same record
   reappears until its citations are current again — the run's own output is what
   removes it from the set.
+- Read freshness reports it dirty exactly while the stale set is non-empty,
+  not whenever a newer row lands in its scope.
 - It is guarded like a `current` source: if the stale set changes while tasks are
   running, the commit is rejected as stale rather than writing a repair based on
   a set that no longer holds.
