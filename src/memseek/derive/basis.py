@@ -17,7 +17,7 @@ from types import MappingProxyType
 from typing import Any, Literal, LiteralString, Protocol, cast
 from uuid import UUID
 
-from memseek.db import DatabaseConnection
+from memseek.db import DatabaseConnection, DatabaseRow
 from memseek.derive.errors import DerivationError
 from memseek.derive.schema import (
     CurrentSource,
@@ -339,77 +339,83 @@ def source_contract_hash(definition: PipelineDefinition) -> str:
     return hashlib.sha256(encoded).hexdigest()
 
 
-async def _current_source_rows(
+async def _source_rows(
     conn: DatabaseConnection,
     *,
     workspace: str,
     entity: str,
-    source: CurrentSource,
-) -> tuple[DerivationRecord, ...] | None:
-    clauses, params = scope_sql(source, workspace=workspace)
-    clauses.extend(["record.entity = %s", "record.key is not null"])
-    params.append(entity)
-    if source.keys:
-        clauses.append("record.key = any(%s::text[])")
-        params.append(list(source.keys))
-    query = cast(
-        LiteralString,
-        f"""
-        select distinct on (record.collection, record.key, record.status)
-               {ROW_COLUMNS}, record.enriched_at
-        from record
-        where {" and ".join(clauses)}
-        order by record.collection, record.key, record.status, record.seq desc
-        limit %s
-        """,
-    )
-    result = await conn.execute(query, [*params, source.max_records + 1])
+    source: CurrentSource | RecordSource,
+    columns: str,
+) -> list[DatabaseRow] | None:
+    """Select one read source's rows, or None while any selected row is unready."""
+
+    if isinstance(source, CurrentSource):
+        clauses, params = scope_sql(source, workspace=workspace)
+        clauses.extend(["record.entity = %s", "record.key is not null"])
+        params.append(entity)
+        if source.keys:
+            clauses.append("record.key = any(%s::text[])")
+            params.append(list(source.keys))
+        query = f"""
+            select distinct on (record.collection, record.key, record.status)
+                   {columns}, record.enriched_at
+            from record
+            where {" and ".join(clauses)}
+            order by record.collection, record.key, record.status, record.seq desc
+            limit %s
+            """
+        params.append(source.max_records + 1)
+    else:
+        clauses = [
+            "record.workspace = %s",
+            "record.entity = %s",
+            "record.collection = %s",
+            "record.collection_version = %s",
+            "record.key = %s",
+            "record.status = %s",
+        ]
+        params = [
+            workspace,
+            entity,
+            source.collection,
+            source.collection_version,
+            source.key,
+            source.status,
+        ]
+        if source.type is not None:
+            clauses.append("record.type = %s")
+            params.append(source.type)
+        query = (
+            f"select {columns}, record.enriched_at from record "
+            f"where {' and '.join(clauses)} order by seq desc limit 1"
+        )
+    result = await conn.execute(cast(LiteralString, query), params)
     rows = await result.fetchall()
-    if len(rows) > source.max_records:
+    if isinstance(source, CurrentSource) and len(rows) > source.max_records:
         raise DerivationError("budget", "current source exceeds max_records")
     if any(item["enriched_at"] is None for item in rows):
         return None
-    return tuple(derivation_record(item) for item in rows)
+    return rows
 
 
-async def _record_source_rows(
+async def _read_source_rows(
     conn: DatabaseConnection,
     *,
     workspace: str,
     entity: str,
-    source: RecordSource,
-) -> tuple[DerivationRecord, ...] | None:
-    clauses = [
-        "record.workspace = %s",
-        "record.entity = %s",
-        "record.collection = %s",
-        "record.collection_version = %s",
-        "record.key = %s",
-        "record.status = %s",
-    ]
-    params: list[Any] = [
-        workspace,
-        entity,
-        source.collection,
-        source.collection_version,
-        source.key,
-        source.status,
-    ]
-    if source.type is not None:
-        clauses.append("record.type = %s")
-        params.append(source.type)
-    query = cast(
-        LiteralString,
-        f"select {ROW_COLUMNS}, record.enriched_at from record "
-        f"where {' and '.join(clauses)} order by seq desc limit 1",
-    )
-    result = await conn.execute(query, params)
-    row = await result.fetchone()
-    if row is None:
-        return ()
-    if row["enriched_at"] is None:
-        return None
-    return (derivation_record(row),)
+    definition: PipelineDefinition,
+    columns: str,
+) -> dict[str, list[DatabaseRow]] | None:
+    rows: dict[str, list[DatabaseRow]] = {}
+    for name, source in definition.sources.items():
+        if isinstance(source, CurrentSource | RecordSource):
+            selected = await _source_rows(
+                conn, workspace=workspace, entity=entity, source=source, columns=columns
+            )
+            if selected is None:
+                return None
+            rows[name] = selected
+    return rows
 
 
 async def _read_rows(
@@ -419,23 +425,14 @@ async def _read_rows(
     entity: str,
     definition: PipelineDefinition,
 ) -> Mapping[str, tuple[DerivationRecord, ...]] | None:
-    rows: dict[str, tuple[DerivationRecord, ...]] = {}
-    for name, source in definition.sources.items():
-        if isinstance(source, CurrentSource):
-            selected = await _current_source_rows(
-                conn, workspace=workspace, entity=entity, source=source
-            )
-            if selected is None:
-                return None
-            rows[name] = selected
-        elif isinstance(source, RecordSource):
-            selected = await _record_source_rows(
-                conn, workspace=workspace, entity=entity, source=source
-            )
-            if selected is None:
-                return None
-            rows[name] = selected
-    return MappingProxyType(rows)
+    rows = await _read_source_rows(
+        conn, workspace=workspace, entity=entity, definition=definition, columns=ROW_COLUMNS
+    )
+    if rows is None:
+        return None
+    return MappingProxyType(
+        {name: tuple(derivation_record(item) for item in items) for name, items in rows.items()}
+    )
 
 
 async def _expected_heads(
@@ -780,10 +777,12 @@ async def _verify_reads(
     expected: Mapping[str, tuple[DerivationRecord, ...]],
     wm: int,
 ) -> None:
-    current = await _read_rows(conn, workspace=workspace, entity=entity, definition=definition)
+    current = await _read_source_rows(
+        conn, workspace=workspace, entity=entity, definition=definition, columns="record.id"
+    )
     if current is None:
         raise DerivationError("stale", "a current source became unready", wm=wm)
-    if {name: tuple(row.id for row in rows) for name, rows in current.items()} != {
+    if {name: tuple(row["id"] for row in rows) for name, rows in current.items()} != {
         name: tuple(row.id for row in rows) for name, rows in expected.items()
     }:
         raise DerivationError("stale", "a current source changed during Task execution", wm=wm)

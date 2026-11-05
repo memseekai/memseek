@@ -119,11 +119,12 @@ async def test_current_source_waits_for_latest_matching_record_to_be_ready() -> 
         }
     )
 
-    selected = await basis_module._current_source_rows(
+    selected = await basis_module._source_rows(
         conn,
         workspace="test",
         entity="person:1",
         source=source,
+        columns=basis_module.ROW_COLUMNS,
     )
 
     assert selected is None

@@ -602,3 +602,37 @@ async def test_stale_citation_membership_follows_each_cited_slot(
 
     assert basis is not None
     assert [row.id for row in basis.input_rows] == [first, second]
+
+
+async def test_commit_verification_rejects_a_current_read_that_moved(
+    settings: Settings, db_pool: DatabasePool
+) -> None:
+    credential = await create_workspace(db_pool, "verify-reads")
+    workspace = credential.workspace
+    catalog = _profile_catalog(settings, _snapshot())
+    definition = catalog.derivations["profile"]
+    adapter = adapter_for("snapshot")
+    await _insert_event(
+        db_pool,
+        catalog,
+        workspace=workspace,
+        text="evidence",
+        occurred_at=datetime(2026, 1, 15, tzinfo=UTC),
+    )
+    await _insert_profile_fact(db_pool, catalog, workspace=workspace, key="role")
+
+    async with db_pool.connection() as conn:
+        basis = await adapter.resolve(
+            conn, workspace=workspace, entity=ENTITY, definition=definition
+        )
+        assert basis is not None
+        await adapter.verify(
+            conn, workspace=workspace, entity=ENTITY, definition=definition, basis=basis
+        )
+    await _insert_profile_fact(db_pool, catalog, workspace=workspace, key="role")
+
+    async with db_pool.connection() as conn:
+        with pytest.raises(DerivationError, match="current source changed"):
+            await adapter.verify(
+                conn, workspace=workspace, entity=ENTITY, definition=definition, basis=basis
+            )
