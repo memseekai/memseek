@@ -45,7 +45,7 @@ from memseek.derive.candidates import (
     validate_collection_content,
 )
 from memseek.derive.emission import emission_effect, emission_status
-from memseek.derive.errors import DerivationError
+from memseek.derive.errors import DerivationError, RecordedDerivationFailure
 from memseek.derive.provenance import (
     ProvenanceValue,
     RenderedPrompt,
@@ -1779,6 +1779,10 @@ async def _persist_failed_run(
         )
 
 
+def _recorded(error: DerivationError) -> RecordedDerivationFailure:
+    return RecordedDerivationFailure(error.kind, error.detail, wm=error.wm)
+
+
 async def process_derivation_job(
     pool: DatabasePool,
     *,
@@ -1869,7 +1873,7 @@ async def process_derivation_job(
             setup_error = exc
     if setup_error is not None:
         await _persist_failed_run(pool, settings, catalog, claimed, execution, setup_error)
-        raise setup_error
+        raise _recorded(setup_error) from setup_error
     if basis is None:
         return DerivationJobResult("not_ready", high_seq=execution.high_seq)
     execution.basis = basis
@@ -1999,16 +2003,16 @@ async def process_derivation_job(
     except TimeoutError as exc:
         error = DerivationError("timeout", "derivation exceeded max_wall_s", wm=wm)
         await _persist_failed_run(pool, settings, catalog, claimed, execution, error)
-        raise error from exc
+        raise _recorded(error) from exc
     except LeaseLost:
         raise
     except DerivationError as error:
         await _persist_failed_run(pool, settings, catalog, claimed, execution, error)
-        raise
+        raise _recorded(error) from error
     except Exception as exc:
         error = DerivationError("internal", type(exc).__name__, wm=wm)
         await _persist_failed_run(pool, settings, catalog, claimed, execution, error)
-        raise error from exc
+        raise _recorded(error) from exc
     log_event(
         LOGGER,
         "info",
@@ -2071,6 +2075,7 @@ async def enqueue_derivation_job(
 __all__ = [
     "DerivationError",
     "DerivationJobResult",
+    "RecordedDerivationFailure",
     "enqueue_derivation_job",
     "process_derivation_job",
 ]
