@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from dataclasses import replace
 from typing import Any
 
@@ -467,6 +468,143 @@ async def test_existing_cyclic_lineage_is_not_extended(
                     "type": "event",
                     "text": "Must not extend corruption",
                     "derived_from": [str(parent_id)],
+                }
+            ],
+        )
+    assert raised.value.code == "parent_cycle"
+
+
+async def test_lattice_lineage_validates_without_enumerating_paths(
+    db_pool: DatabasePool,
+    settings: Settings,
+    catalog: DefinitionCatalog,
+) -> None:
+    """A lineage whose records share ancestors must not take exponential work.
+
+    Twelve layers of four records, each derived from every record of the layer
+    before, hold 4**11 distinct root-to-leaf paths per seed.  Enumerating them
+    spilled gigabytes of temporary files in production; walking the ancestor
+    set visits 48 records.
+    """
+
+    await create_workspace(db_pool, "lattice")
+    deep = settings.model_copy(update={"max_derivation_depth": 16})
+    previous: list[str] = []
+    for layer in range(12):
+        batch = await _insert(
+            db_pool,
+            deep,
+            catalog,
+            "lattice",
+            [
+                {
+                    "entity": "maria",
+                    "type": "event",
+                    "text": f"Layer {layer} record {index}",
+                    "derived_from": previous,
+                }
+                for index in range(4)
+            ],
+        )
+        previous = [str(record.id) for record in batch.inserted]
+    started = time.perf_counter()
+    leaf = await _insert(
+        db_pool,
+        deep,
+        catalog,
+        "lattice",
+        [
+            {
+                "entity": "maria",
+                "type": "event",
+                "text": "Leaf",
+                "derived_from": previous,
+            }
+        ],
+    )
+    assert time.perf_counter() - started < 5
+    row = await _row(db_pool, leaf.inserted[0].id)
+    assert row["depth"] == 12
+
+
+async def test_existing_misordered_lineage_is_not_extended(
+    db_pool: DatabasePool,
+    settings: Settings,
+    catalog: DefinitionCatalog,
+) -> None:
+    await create_workspace(db_pool, "misordered")
+    parents = await _insert(
+        db_pool,
+        settings,
+        catalog,
+        "misordered",
+        [
+            {"entity": "maria", "type": "event", "text": "Older"},
+            {"entity": "maria", "type": "event", "text": "Newer"},
+        ],
+    )
+    older_id, newer_id = (record.id for record in parents.inserted)
+    async with db_pool.connection() as conn:
+        await conn.execute(
+            "update record set derived_from = %s where id = %s",
+            ([newer_id], older_id),
+        )
+    with pytest.raises(RecordValidationError) as raised:
+        await _insert(
+            db_pool,
+            settings,
+            catalog,
+            "misordered",
+            [
+                {
+                    "entity": "maria",
+                    "type": "event",
+                    "text": "Must not extend corruption",
+                    "derived_from": [str(older_id)],
+                }
+            ],
+        )
+    assert raised.value.code == "parent_order"
+
+
+async def test_existing_two_record_cycle_is_not_extended(
+    db_pool: DatabasePool,
+    settings: Settings,
+    catalog: DefinitionCatalog,
+) -> None:
+    await create_workspace(db_pool, "loop")
+    parents = await _insert(
+        db_pool,
+        settings,
+        catalog,
+        "loop",
+        [
+            {"entity": "maria", "type": "event", "text": "One"},
+            {"entity": "maria", "type": "event", "text": "Two"},
+        ],
+    )
+    one_id, two_id = (record.id for record in parents.inserted)
+    async with db_pool.connection() as conn:
+        await conn.execute(
+            "update record set derived_from = %s where id = %s",
+            ([two_id], one_id),
+        )
+        await conn.execute(
+            "update record set derived_from = %s where id = %s",
+            ([one_id], two_id),
+        )
+    with pytest.raises(RecordValidationError) as raised:
+        await _insert(
+            db_pool,
+            settings,
+            catalog,
+            "loop",
+            [
+                {
+                    "entity": "maria",
+                    "type": "event",
+                    "text": "Must not extend corruption",
+                    "derived_from": [str(two_id)],
                 }
             ],
         )
