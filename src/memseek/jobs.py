@@ -262,7 +262,7 @@ async def complete_job(pool: AsyncConnectionPool[Any], claimed: ClaimedJob) -> d
             """
             update job
             set done_at = clock_timestamp(), lease_until = null, locked_by = null,
-                last_error_kind = null, last_error = null
+                last_error_kind = null, last_error = null, unready_since = null
             where id = %s
               and locked_by = %s
               and done_at is null
@@ -305,6 +305,7 @@ async def retry_or_dead_letter_job(
                 end,
                 lease_until = null,
                 locked_by = null,
+                unready_since = null,
                 last_error_kind = %s,
                 last_error = %s
             where id = %s
@@ -361,7 +362,7 @@ async def dead_letter_job(
             """
             update job
             set dead_at = clock_timestamp(), lease_until = null, locked_by = null,
-                last_error_kind = %s, last_error = %s
+                last_error_kind = %s, last_error = %s, unready_since = null
             where id = %s
               and locked_by = %s
               and done_at is null
@@ -388,37 +389,79 @@ async def dead_letter_job(
 
 
 async def release_not_ready_job(
-    pool: AsyncConnectionPool[Any], claimed: ClaimedJob, retry_s: int
-) -> datetime:
-    """Release an enrichment barrier without charging an execution attempt."""
+    pool: AsyncConnectionPool[Any],
+    claimed: ClaimedJob,
+    retry_s: int,
+    *,
+    timeout_s: int | None = None,
+) -> JobTransition:
+    """Release an enrichment barrier without charging an execution attempt.
+
+    The first release stamps ``unready_since``; a job still not ready
+    ``timeout_s`` later is dead-lettered as ``not_ready_timeout`` so a barrier
+    that never clears cannot hold its derive mailbox forever.
+    """
 
     if retry_s <= 0:
         raise ValueError("retry_s must be positive")
+    if timeout_s is not None and timeout_s <= 0:
+        raise ValueError("timeout_s must be positive")
     async with pool.connection() as conn:
         result = await conn.execute(
             """
-            update job
-            set run_after = clock_timestamp() + make_interval(secs => %s),
-                attempts = greatest(attempts - 1, 0),
+            update job j
+            set dead_at = case when t.timed_out then clock_timestamp() end,
+                run_after = case
+                  when t.timed_out then j.run_after
+                  else clock_timestamp() + make_interval(secs => %s)
+                end,
+                attempts = greatest(j.attempts - 1, 0),
+                unready_since = coalesce(j.unready_since, clock_timestamp()),
                 lease_until = null,
                 locked_by = null,
-                last_error_kind = null,
-                last_error = null
-            where id = %s
-              and locked_by = %s
-              and done_at is null
-              and dead_at is null
-              and lease_until > clock_timestamp()
-            returning run_after
+                last_error_kind = case when t.timed_out then 'not_ready_timeout' end,
+                last_error = case when t.timed_out then 'not ready past the unready timeout' end
+            from (
+              select id,
+                     coalesce(
+                       unready_since <= clock_timestamp() - make_interval(secs => %s::int),
+                       false
+                     ) as timed_out
+              from job
+              where id = %s
+            ) t
+            where j.id = t.id
+              and j.locked_by = %s
+              and j.done_at is null
+              and j.dead_at is null
+              and j.lease_until > clock_timestamp()
+            returning j.attempts, j.run_after, j.dead_at
             """,
-            (retry_s, claimed.id, claimed.claim_token),
+            (retry_s, timeout_s, claimed.id, claimed.claim_token),
         )
         row = await result.fetchone()
     if row is None:
         log_event(LOGGER, "warning", "job.lease_lost", job_id=str(claimed.id))
         raise LeaseLost(f"job lease lost: {claimed.id}")
-    log_event(LOGGER, "info", "job.not_ready_released", job_id=str(claimed.id))
-    return cast(datetime, row["run_after"])
+    transition = JobTransition(
+        dead=row["dead_at"] is not None,
+        attempts=int(row["attempts"]),
+        run_after=cast(datetime | None, row["run_after"]),
+        dead_at=cast(datetime | None, row["dead_at"]),
+    )
+    if transition.dead:
+        log_event(
+            LOGGER,
+            "error",
+            "job.dead_lettered",
+            job_id=str(claimed.id),
+            kind=claimed.kind,
+            attempts=transition.attempts,
+            error_kind="not_ready_timeout",
+        )
+    else:
+        log_event(LOGGER, "info", "job.not_ready_released", job_id=str(claimed.id))
+    return transition
 
 
 def _json_time(value: object) -> str | None:
@@ -530,7 +573,7 @@ async def retry_dead_job(
             updated = await conn.execute(
                 """
             update job
-            set dead_at = null, lease_until = null, locked_by = null,
+            set dead_at = null, lease_until = null, locked_by = null, unready_since = null,
                 attempts = 0, run_after = clock_timestamp(),
                 last_error_kind = null, last_error = null
             where workspace = %s and id = %s and dead_at is not null

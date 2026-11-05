@@ -463,6 +463,7 @@ async def _drain_derivation_jobs(
                     runtime.pool,
                     claimed,
                     runtime.settings.unready_retry_s,
+                    timeout_s=runtime.settings.unready_timeout_s,
                 )
                 not_ready += 1
                 continue
@@ -481,6 +482,7 @@ async def _drain_derivation_jobs(
                     runtime.pool,
                     claimed,
                     runtime.settings.unready_retry_s,
+                    timeout_s=runtime.settings.unready_timeout_s,
                 )
                 not_ready += 1
                 log_event(

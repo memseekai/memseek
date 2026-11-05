@@ -10,12 +10,14 @@ import pytest
 from psycopg.types.json import Jsonb
 from reference_catalog import declare_test_sources, materialize_reference_catalog
 
+import memseek.derive.runner as derive_runner_module
 import memseek.erase as erase_module
 import memseek.triggers as triggers_module
 import memseek.worker as worker_module
 from memseek.config import Settings
 from memseek.db import DatabasePool
 from memseek.definitions import DefinitionCatalog, load_definition_catalog
+from memseek.derive.runner import DerivationJobResult
 from memseek.worker import WorkerRuntime
 
 _NIGHTLY = """name: profile.nightly
@@ -318,3 +320,35 @@ async def test_worker_purges_finished_jobs_past_retention(
 
     remaining = "select entity from job where workspace = 'old-jobs' and kind = 'derive'"
     assert await _rows(db_pool, remaining, ()) == [{"entity": "recent"}]
+
+
+async def test_worker_dead_letters_a_derive_job_unready_past_the_timeout(
+    settings: Settings,
+    db_pool: DatabasePool,
+    cron_catalog: DefinitionCatalog,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        derive_runner_module,
+        "process_derivation_job",
+        AsyncMock(return_value=DerivationJobResult("not_ready", high_seq=0)),
+    )
+    async with db_pool.connection() as conn:
+        await conn.execute(
+            "insert into workspace (id, api_key_hash) values ('unready', %s)", ("0" * 64,)
+        )
+        await conn.execute(
+            """
+            insert into job (workspace, kind, derivation, entity, unready_since)
+            values ('unready', 'derive', 'profile', 'stuck', now() - interval '3601 seconds')
+            """
+        )
+    runtime = WorkerRuntime(
+        settings=settings.model_copy(update={"unready_timeout_s": 3600}),
+        catalog=cron_catalog,
+        pool=db_pool,
+    )
+
+    assert await worker_module._drain_derivation_jobs(runtime, worker_id="w") == (0, 1)
+    dead = "select last_error_kind from job where workspace = 'unready' and dead_at is not null"
+    assert await _rows(db_pool, dead, ()) == [{"last_error_kind": "not_ready_timeout"}]

@@ -22,7 +22,7 @@ The main settings groups are:
 | Search | `SEARCH_BACKEND`, profile overrides, Turbopuffer credentials/layout/consistency, candidate and concurrency limits |
 | Derivation | batch sizes, text/content limits, maximum depth, artifact/run limits |
 | Contradiction detection | `derivations/contradiction.yaml` and `collections/relations.yaml` — see [Contradiction detection](contradiction-detection.md) |
-| Worker and queue | `WORKER_POLL_MS`, `JOB_LEASE_S`, `JOB_HEARTBEAT_S`, `JOB_MAX_ATTEMPTS`, `UNREADY_RETRY_S`, `JOB_RETENTION_DAYS` — see [Jobs and freshness](#jobs-and-freshness) |
+| Worker and queue | `WORKER_POLL_MS`, `JOB_LEASE_S`, `JOB_HEARTBEAT_S`, `JOB_MAX_ATTEMPTS`, `UNREADY_RETRY_S`, `UNREADY_TIMEOUT_S`, `JOB_RETENTION_DAYS` — see [Jobs and freshness](#jobs-and-freshness) |
 | Artifact uses & feedback | `ARTIFACT_USE_RETENTION_DAYS`, `ARTIFACT_USE_PURGE_BATCH`, `MAX_FEEDBACK_COMMENT_CHARS`, `MAX_FEEDBACK_EVIDENCE_CHARS` — see [Artifact uses & feedback](artifact-uses.md) |
 | Computers & durable agents | `COMPUTER_RUNTIME_URL`, `COMPUTER_RUNTIME_TOKEN`, `COMPUTER_REQUEST_TIMEOUT_S`, `COMPUTER_RESPONSE_MAX_BYTES` — needed only when a Computer sets `provider: cloudflare`; see [The Cloudflare Computer runtime](computer-cloudflare.md#configuring-memseeks-side) |
 | Safety | workspace auth, `API_CORS_ORIGINS`, MCP Origin validation, workspace locks, erasure and projection settings |
@@ -188,6 +188,14 @@ curl -sS "http://127.0.0.1:8000/jobs/$JOB_ID" -H "$MEMSEEK_AUTH"
 ```
 
 Document freshness reports derivation watermark, dirty input, unready barriers, last successful run, and queued/running/dead job information. Runs record model resolution, visible/cited inputs, output IDs, and status.
+
+A derive job that is released as not ready (an enrichment barrier, or a
+derivation the workspace catalog no longer declares) retries every
+`UNREADY_RETRY_S` without spending an attempt. Once it has stayed not ready for
+`UNREADY_TIMEOUT_S` (default 3600) since its first release, it is dead-lettered
+with `last_error_kind: not_ready_timeout`, so a barrier that never clears
+cannot hold the entity's derive mailbox forever. Any real attempt outcome, or a
+retry through `POST /jobs/{id}/retry`, restarts that clock.
 
 ### Job retention
 

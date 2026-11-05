@@ -21,6 +21,7 @@ from memseek.jobs import (
     purge_finished_jobs,
     reap_expired_final_attempts,
     release_not_ready_job,
+    retry_dead_job,
     retry_or_dead_letter_job,
 )
 from memseek.locks import advisory_lock_key
@@ -469,3 +470,89 @@ async def test_job_purge_runs_on_one_worker_at_a_time(db_pool: DatabasePool) -> 
         )
         assert await purge_finished_jobs(db_pool, retention_days=14) == 0
     assert await purge_finished_jobs(db_pool, retention_days=14) == 1
+
+
+async def _unready_state(pool: DatabasePool, job_id: UUID) -> dict[str, object]:
+    async with pool.connection() as conn:
+        result = await conn.execute(
+            """
+            select unready_since is not null as unready, dead_at is not null as dead,
+                   last_error_kind, attempts
+            from job where id = %s
+            """,
+            (job_id,),
+        )
+        row = await result.fetchone()
+    assert row is not None
+    return dict(row)
+
+
+async def _claim(pool: DatabasePool) -> ClaimedJob:
+    async with pool.connection() as conn:
+        await conn.execute("update job set run_after = now()")
+    claimed = await claim_job(
+        pool, worker_id="worker", kinds=("derive",), lease_s=30, max_attempts=3
+    )
+    assert claimed is not None
+    return claimed
+
+
+async def test_not_ready_job_dead_letters_after_the_unready_timeout(
+    db_pool: DatabasePool,
+) -> None:
+    await _setup(db_pool)
+    job_id = await _insert_job(db_pool)
+
+    first = await release_not_ready_job(db_pool, await _claim(db_pool), retry_s=2, timeout_s=3600)
+    assert first.dead is False
+    assert await _unready_state(db_pool, job_id) == {
+        "unready": True,
+        "dead": False,
+        "last_error_kind": None,
+        "attempts": 0,
+    }
+
+    async with db_pool.connection() as conn:
+        await conn.execute("update job set unready_since = now() - interval '3601 seconds'")
+    timed_out = await release_not_ready_job(
+        db_pool, await _claim(db_pool), retry_s=2, timeout_s=3600
+    )
+    assert timed_out.dead is True
+    assert await _unready_state(db_pool, job_id) == {
+        "unready": True,
+        "dead": True,
+        "last_error_kind": "not_ready_timeout",
+        "attempts": 0,
+    }
+
+    await retry_dead_job(db_pool, workspace="jobs", job_id=job_id)
+    assert await _unready_state(db_pool, job_id) == {
+        "unready": False,
+        "dead": False,
+        "last_error_kind": None,
+        "attempts": 0,
+    }
+
+
+async def test_a_real_attempt_outcome_restarts_the_unready_clock(
+    db_pool: DatabasePool,
+) -> None:
+    await _setup(db_pool)
+    job_id = await _insert_job(db_pool)
+    await release_not_ready_job(db_pool, await _claim(db_pool), retry_s=2, timeout_s=3600)
+    async with db_pool.connection() as conn:
+        await conn.execute("update job set unready_since = now() - interval '3601 seconds'")
+
+    await retry_or_dead_letter_job(
+        db_pool, await _claim(db_pool), max_attempts=3, error_kind="transport", error="x"
+    )
+    assert await _unready_state(db_pool, job_id) == {
+        "unready": False,
+        "dead": False,
+        "last_error_kind": "transport",
+        "attempts": 1,
+    }
+    released = await release_not_ready_job(
+        db_pool, await _claim(db_pool), retry_s=2, timeout_s=3600
+    )
+    assert released.dead is False
