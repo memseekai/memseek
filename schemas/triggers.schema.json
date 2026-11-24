@@ -819,6 +819,20 @@
       "title": "Debounce S",
       "type": "integer"
     },
+    "max_wait_s": {
+      "anyOf": [
+        {
+          "maximum": 604800,
+          "minimum": 1,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Max Wait S"
+    },
     "name": {
       "pattern": "^[a-z][a-z0-9._-]{0,63}$",
       "title": "Name",

@@ -20,11 +20,16 @@ from datetime import UTC, datetime
 from typing import Any, Literal, LiteralString, Protocol, cast
 from uuid import UUID, uuid4
 
+import psycopg
 from jsonschema import Draft202012Validator, FormatChecker
 from psycopg.types.json import Jsonb
 
 from memseek import __version__
-from memseek.canonical_records import CanonicalRecordWrite, insert_canonical_record_tx
+from memseek.canonical_records import (
+    CanonicalRecordWrite,
+    insert_canonical_record_tx,
+    insert_canonical_records_tx,
+)
 from memseek.computers import ComputerExecutionError, execute_agent, execute_program
 from memseek.config import Settings
 from memseek.db import DatabaseConnection, DatabasePool
@@ -34,6 +39,7 @@ from memseek.derive.basis import (
     DerivationRecord,
     EvaluationBasis,
     adapter_for,
+    basis_mode,
     scope_sql,
     source_contract_hash,
 )
@@ -41,10 +47,13 @@ from memseek.derive.candidates import (
     CandidateRecord,
     CandidateSet,
     compile_candidate_set,
-    validate_collection_content,
 )
 from memseek.derive.emission import emission_effect, emission_status
-from memseek.derive.errors import DerivationError
+from memseek.derive.errors import (
+    NON_RETRYABLE_KINDS,
+    DerivationError,
+    RecordedDerivationFailure,
+)
 from memseek.derive.provenance import (
     ProvenanceValue,
     RenderedPrompt,
@@ -114,7 +123,6 @@ class _Execution:
     basis: EvaluationBasis
     wm_before: int
     predecessor: UUID | None
-    predecessor_hash: str | None
     visible_ids: set[UUID]
     final_source_ids: frozenset[UUID]
     final_visible_ids: frozenset[UUID]
@@ -139,6 +147,7 @@ class _Execution:
     output: Any = None
     outputs: tuple[CandidateRecord, ...] = ()
     candidate_set: CandidateSet | None = None
+    skipped: tuple[dict[str, Any], ...] = ()
     warning: str | None = None
 
     @property
@@ -178,32 +187,49 @@ def _renderable(item: DerivationRecord) -> RenderableRecord:
     )
 
 
+class _RowPacker:
+    """Accumulate rendered rows while their newline-joined estimate fits a budget.
+
+    The estimate is tracked in bytes as rows are added, so packing n rows costs
+    one render and one encode per row rather than a re-render of the prefix.
+    """
+
+    def __init__(self, max_tokens: int) -> None:
+        self.max_tokens = max_tokens
+        self.rows: list[str] = []
+        self._bytes = 0
+
+    def add(self, row: str) -> bool:
+        size = self._bytes + len(row.encode("utf-8")) + bool(self.rows)
+        if max(1, (size + 3) // 4) > self.max_tokens:
+            return False
+        self.rows.append(row)
+        self._bytes = size
+        return True
+
+    def render(self) -> str:
+        return render_rows(self.rows, fence=None)
+
+
 def _pack_rows(
     rows: Sequence[DerivationRecord],
     *,
     catalog: DefinitionCatalog,
     max_tokens: int,
-    label: str,
     max_records: int | None = None,
 ) -> tuple[tuple[DerivationRecord, ...], str]:
+    """Pack the longest prefix that fits; empty when even the first row does not."""
+
     selected: list[DerivationRecord] = []
-    rendered: list[str] = []
-    used_bytes = 0
+    packer = _RowPacker(max_tokens)
     for item in rows:
         if max_records is not None and len(selected) >= max_records:
             break
         row = render_record(_renderable(item), profile="derivation_input", catalog=catalog)
-        candidate_bytes = used_bytes + len(row.encode("utf-8")) + bool(selected)
-        if max(1, (candidate_bytes + 3) // 4) > max_tokens:
-            if not selected:
-                raise DerivationError(
-                    "budget", f"first {label} record does not fit its token budget"
-                )
+        if not packer.add(row):
             break
         selected.append(item)
-        rendered.append(row)
-        used_bytes = candidate_bytes
-    return tuple(selected), render_rows(rendered, fence=None)
+    return tuple(selected), packer.render()
 
 
 def _record_value(item: DerivationRecord) -> dict[str, Any]:
@@ -220,6 +246,7 @@ def _record_value(item: DerivationRecord) -> dict[str, Any]:
         "status": item.status,
         "content": dict(item.content),
         "scores": dict(item.scores),
+        "annotations": dict(item.annotations),
         "occurred_at": item.occurred_at.isoformat().replace("+00:00", "Z"),
     }
 
@@ -340,7 +367,6 @@ async def _call_json(
     if execution.prompt_tokens + execution.completion_tokens >= total_limit:
         raise DerivationError("budget", "run token budget is exhausted", wm=execution.wm_before)
 
-    attempts: list[ModelAttempt] = []
     raw = ""
     last_error = ""
     last_kind = "validation"
@@ -377,7 +403,6 @@ async def _call_json(
                 max_output_tokens=max_output_tokens,
                 context=context,
             )
-            attempts.extend(call.attempts)
             execution.model_calls.extend(_attempt_audit(call.attempts))
             raw = call.completion.text
             prompt_tokens, completion_tokens = _usage(call.attempts)
@@ -401,18 +426,17 @@ async def _call_json(
                 raise ValueError(f"model output schema{where}: {schema_error.message}")
             return ProvenanceValue(value, prompt.transitive_source_ids)
         except ModelAttemptsExhausted as exc:
-            attempts.extend(exc.attempts)
             execution.model_calls.extend(_attempt_audit(exc.attempts))
             execution.prompt_tokens += _usage(exc.attempts)[0]
             execution.completion_tokens += _usage(exc.attempts)[1]
-            last_error = "provider attempts exhausted"
-            last_kind = "transport"
+            raise DerivationError(
+                "transport", "provider attempts exhausted", wm=execution.wm_before
+            ) from exc
+        except LLMTransportError as exc:
+            raise DerivationError("transport", str(exc), wm=execution.wm_before) from exc
         except json.JSONDecodeError as exc:
             last_error = str(exc)
             last_kind = "parse"
-        except LLMTransportError as exc:
-            last_error = str(exc)
-            last_kind = "transport"
         except (TypeError, ValueError) as exc:
             last_error = str(exc)
             last_kind = "validation"
@@ -509,6 +533,7 @@ async def _retrieve(
     for item, hits in results:
         selected: list[dict[str, Any]] = []
         selected_ids: set[UUID] = set()
+        packer = _RowPacker(step.max_tokens)
         for hit in hits:
             try:
                 hit_id = UUID(str(hit["id"]))
@@ -522,17 +547,14 @@ async def _retrieve(
                 break
             if execution.retrieved_count >= execution.definition.limits.max_retrieved_records:
                 break
-            candidate = [*selected, hit]
-            rendered = _hit_render(candidate)
-            if _tokens(rendered) > step.max_tokens:
+            if not packer.add(_hit_row(hit)):
                 break
             selected.append(hit)
             selected_ids.add(hit_id)
             execution.retrieved_count += 1
             if new_id:
                 execution.visible_ids.add(hit_id)
-        rendered = _hit_render(selected)
-        source = ProvenanceValue(rendered, frozenset(selected_ids), pre_escaped=True)
+        source = ProvenanceValue(packer.render(), frozenset(selected_ids), pre_escaped=True)
         source_ids.update(source.source_ids)
         payload.append(
             {
@@ -553,20 +575,17 @@ async def _retrieve(
     return ProvenanceValue(payload, frozenset(source_ids))
 
 
-def _hit_render(hits: Sequence[Mapping[str, Any]]) -> str:
-    rows = []
-    for hit in hits:
-        identity = "/".join(str(part) for part in (hit.get("collection"), hit.get("type")) if part)
-        metadata = [
-            f"[id={hit['id']}]",
-            str(hit.get("occurred_at", "")),
-            identity,
-        ]
-        if hit.get("key") is not None:
-            metadata.append(f"key {escape_untrusted(str(hit['key']))}")
-        metadata.append(escape_untrusted(str(hit.get("text", ""))))
-        rows.append(" | ".join(metadata))
-    return render_rows(rows, fence=None)
+def _hit_row(hit: Mapping[str, Any]) -> str:
+    identity = "/".join(str(part) for part in (hit.get("collection"), hit.get("type")) if part)
+    metadata = [
+        f"[id={hit['id']}]",
+        str(hit.get("occurred_at", "")),
+        identity,
+    ]
+    if hit.get("key") is not None:
+        metadata.append(f"key {escape_untrusted(str(hit['key']))}")
+    metadata.append(escape_untrusted(str(hit.get("text", ""))))
+    return " | ".join(metadata)
 
 
 async def _resolve_view_sources(
@@ -612,6 +631,7 @@ async def _resolve_view_sources(
         hits = result.get("hits", ())
         selected: list[dict[str, Any]] = []
         selected_ids: set[UUID] = set()
+        packer = _RowPacker(source.max_tokens)
         for hit in hits:
             try:
                 hit_id = UUID(str(hit["id"]))
@@ -625,14 +645,13 @@ async def _resolve_view_sources(
                 and len(execution.visible_ids) >= execution.definition.limits.max_visible_records
             ):
                 break
-            candidate = [*selected, dict(hit)]
-            if _tokens(_hit_render(candidate)) > source.max_tokens:
+            if not packer.add(_hit_row(hit)):
                 break
             selected.append(dict(hit))
             selected_ids.add(hit_id)
             if new_id:
                 execution.visible_ids.add(hit_id)
-        rendered = _hit_render(selected)
+        rendered = packer.render()
         ids = frozenset(selected_ids)
         variables[name] = ProvenanceValue(
             {
@@ -866,7 +885,7 @@ class _RuntimeTaskContext(TaskContext):
     async def _judge_states(
         self, states: list[dict[str, Any]], config: JudgeTaskConfig
     ) -> list[Mapping[str, Answer]]:
-        """Judge every state concurrently under the run's separate judgment budget."""
+        """Judge every state concurrently; the first failure cancels the rest."""
 
         execution = self._execution
         limits = execution.limits
@@ -883,9 +902,15 @@ class _RuntimeTaskContext(TaskContext):
                 "budget", "judgments cannot fit max_judgment_tokens", wm=execution.wm_before
             )
         execution.judgments += len(states)
-        outcomes = await asyncio.gather(
-            *(
-                judge(
+        judged: list[Mapping[str, Answer]] = [{} for _ in states]
+
+        def audit(attempts: Sequence[ModelAttempt]) -> None:
+            execution.model_calls.extend(_attempt_audit(attempts))
+            execution.judgment_tokens += _usage(attempts)[0]
+
+        async def one(index: int, state: dict[str, Any]) -> None:
+            try:
+                outcome = await judge(
                     self._settings,
                     self._catalog,
                     alias,
@@ -893,24 +918,20 @@ class _RuntimeTaskContext(TaskContext):
                     config.questions,
                     context=f"derivation:{execution.definition.name}/{self._task_id}",
                 )
-                for state in states
-            ),
-            return_exceptions=True,
-        )
-        failure: BaseException | None = None
-        judged: list[Mapping[str, Answer]] = []
-        for outcome in outcomes:
-            if isinstance(outcome, BaseException):
-                attempts = outcome.attempts if isinstance(outcome, ModelAttemptsExhausted) else ()
-                failure = failure or outcome
-            else:
-                attempts = outcome.attempts
-                judged.append(outcome.judgment.answers)
-            execution.model_calls.extend(_attempt_audit(attempts))
-            execution.judgment_tokens += _usage(attempts)[0]
-        if failure is not None:
+            except ModelAttemptsExhausted as exc:
+                audit(exc.attempts)
+                raise
+            audit(outcome.attempts)
+            judged[index] = outcome.judgment.answers
+
+        try:
+            async with asyncio.TaskGroup() as group:
+                for index, state in enumerate(states):
+                    group.create_task(one(index, state))
+        except ExceptionGroup as failures:
+            failure = failures.exceptions[0]
             if not isinstance(failure, LLMTransportError | ValueError):
-                raise failure
+                raise failure from None
             raise DerivationError(
                 "transport", f"judgment failed: {failure}", wm=execution.wm_before
             ) from failure
@@ -1221,9 +1242,15 @@ async def _execute_tasks(
             raw_result = await adapter.handler(context, task_input, config)
         except DerivationError:
             raise
-        except Exception as exc:
+        except (psycopg.Error, OSError, TimeoutError, LLMTransportError) as exc:
             raise DerivationError(
-                "validation", f"Task {task.id!r}: {type(exc).__name__}", wm=execution.wm_before
+                "transport", f"Task {task.id!r}: {type(exc).__name__}", wm=execution.wm_before
+            ) from exc
+        except Exception as exc:
+            # Any other handler exception is a fault in the Task or its input;
+            # rerunning the same input reproduces it.
+            raise DerivationError(
+                "task", f"Task {task.id!r}: {type(exc).__name__}", wm=execution.wm_before
             ) from exc
         available_sources = source_ids | context.tool_source_ids
         available_citations = citation_ids | context.tool_citation_ids
@@ -1298,13 +1325,17 @@ async def _execute_tasks(
     execution.final_visible_ids = citations[root]
 
 
-_validate_collection_content = validate_collection_content
-
-
 async def _claim_owned_tx(
     conn: DatabaseConnection,
     claimed: ClaimedJob,
 ) -> None:
+    """Lock the claimed job row; callers must already hold the entity lock.
+
+    Ingest and promotion take the workspace lock, the entity lock, and then the
+    derive job row their triggers coalesce into, so taking the row first here
+    would deadlock against them.
+    """
+
     result = await conn.execute(
         """
         select 1 as owned from job
@@ -1446,6 +1477,7 @@ def _run_content(
         "final_source_ids": [str(item) for item in sorted(execution.final_source_ids, key=str)],
         "final_citation_ids": [str(item) for item in sorted(execution.final_visible_ids, key=str)],
         "output_ids": output_ids,
+        "skipped": list(execution.skipped),
         "config_hash": execution.config_hash,
         "contract_hash": execution.definition.definition_hash,
         "source_hash": source_contract_hash(execution.definition),
@@ -1518,8 +1550,8 @@ async def _commit_execution(
     )
     async with pool.connection() as conn, conn.transaction():
         await acquire_workspace_lock(conn, claimed.workspace)
-        await _claim_owned_tx(conn, claimed)
         await acquire_entity_locks(conn, claimed.workspace, (claimed.entity or "",))
+        await _claim_owned_tx(conn, claimed)
         await adapter_for(execution.definition.driver.kind).verify(
             conn,
             workspace=claimed.workspace,
@@ -1583,12 +1615,15 @@ async def _commit_execution(
         )
         from memseek.projections import on_records_ready_tx
 
+        # The run record is control state, not a trigger stimulus: evaluating
+        # here would coalesce into the still-claimed job. Triggers are
+        # re-evaluated once, after the job is marked done.
         await on_records_ready_tx(
             conn,
             workspace=claimed.workspace,
             records=({"id": run_id},),
-            catalog=catalog,
         )
+        output_writes: list[CanonicalRecordWrite] = []
         for draft in execution.outputs:
             continuity_depths: list[int] = []
             derived_depths: list[int] = []
@@ -1617,8 +1652,7 @@ async def _commit_execution(
                 raise DerivationError(
                     "budget", "derived output exceeds MAX_DERIVATION_DEPTH", wm=execution.wm_before
                 )
-            await insert_canonical_record_tx(
-                conn,
+            output_writes.append(
                 CanonicalRecordWrite(
                     id=draft.id,
                     workspace=claimed.workspace,
@@ -1634,9 +1668,9 @@ async def _commit_execution(
                     run_id=run_id,
                     depth=depth,
                     derived_from=(run_id, *draft.citations),
-                ),
-                settings,
+                )
             )
+        await insert_canonical_records_tx(conn, output_writes, settings)
         await _complete_claim_tx(conn, claimed)
         if execution.basis.mode == "changes":
             await _enqueue_successor_tx(
@@ -1671,8 +1705,8 @@ async def _persist_failed_run(
     run_id = uuid4()
     async with pool.connection() as conn, conn.transaction():
         await acquire_workspace_lock(conn, claimed.workspace)
-        await _claim_owned_tx(conn, claimed)
         await acquire_entity_locks(conn, claimed.workspace, (claimed.entity or "",))
+        await _claim_owned_tx(conn, claimed)
         result = await conn.execute(
             "select id, depth from record where workspace = %s and id = any(%s::uuid[]) for share",
             (claimed.workspace, list(execution.visible_ids)),
@@ -1710,9 +1744,8 @@ async def _persist_failed_run(
             conn,
             workspace=claimed.workspace,
             records=({"id": run_id},),
-            catalog=catalog,
         )
-        non_retryable = error.kind in {"config", "budget", "erased"}
+        non_retryable = error.kind in NON_RETRYABLE_KINDS
         result = await conn.execute(
             """
             update job
@@ -1728,6 +1761,7 @@ async def _persist_failed_run(
                 end,
                 lease_until = null,
                 locked_by = null,
+                unready_since = null,
                 last_error_kind = %s,
                 last_error = %s
             where id = %s
@@ -1763,6 +1797,10 @@ async def _persist_failed_run(
         )
 
 
+def _recorded(error: DerivationError) -> RecordedDerivationFailure:
+    return RecordedDerivationFailure(error.kind, error.detail, wm=error.wm)
+
+
 async def process_derivation_job(
     pool: DatabasePool,
     *,
@@ -1778,16 +1816,10 @@ async def process_derivation_job(
     if definition is None:
         raise DerivationError("config", f"unknown derivation {claimed.derivation!r}")
     now = datetime.now(UTC)
-    basis_mode = (
-        "corpus"
-        if definition.driver.kind == "snapshot"
-        else "citation_repair"
-        if definition.driver.kind == "stale_citations"
-        else "changes"
-    )
+    mode = basis_mode(definition.driver.kind)
     empty_basis = EvaluationBasis(
-        mode=basis_mode,
-        from_seq=0 if basis_mode == "changes" else None,
+        mode=mode,
+        from_seq=0 if mode == "changes" else None,
         through_seq=0,
         predecessor_run_id=None,
         predecessor_source_hash=None,
@@ -1805,7 +1837,6 @@ async def process_derivation_job(
         basis=empty_basis,
         wm_before=0,
         predecessor=None,
-        predecessor_hash=None,
         visible_ids=set(),
         final_source_ids=frozenset(),
         final_visible_ids=frozenset(),
@@ -1848,18 +1879,18 @@ async def process_derivation_job(
                 workspace=claimed.workspace,
                 entity=claimed.entity,
                 definition=definition,
+                config_hash=execution.config_hash,
             )
         except DerivationError as exc:
             setup_error = exc
     if setup_error is not None:
         await _persist_failed_run(pool, settings, catalog, claimed, execution, setup_error)
-        raise setup_error
+        raise _recorded(setup_error) from setup_error
     if basis is None:
         return DerivationJobResult("not_ready", high_seq=execution.high_seq)
     execution.basis = basis
     execution.wm_before = basis.watermark
     execution.predecessor = basis.predecessor_run_id
-    execution.predecessor_hash = basis.predecessor_source_hash
     execution.high_seq = basis.through_seq
     wm = basis.watermark
     input_rows = basis.input_rows
@@ -1873,7 +1904,6 @@ async def process_derivation_job(
                 rows,
                 catalog=catalog,
                 max_tokens=source.max_tokens,
-                label=f"source {name}",
             )
             if len(packed) != len(rows):
                 raise DerivationError("budget", f"source {name!r} exceeds its token budget", wm=wm)
@@ -1882,17 +1912,23 @@ async def process_derivation_job(
             visible_ids.update(item.id for item in packed)
         if len(visible_ids) > definition.limits.max_visible_records:
             raise DerivationError("budget", "current sources exceed max_visible_records", wm=wm)
+        room = max(0, definition.limits.max_visible_records - len(visible_ids))
         packed_input, source_rendered = _pack_rows(
             input_rows,
             catalog=catalog,
             max_tokens=definition.driver.max_tokens,
-            label=f"source {definition.driver_name}",
-            max_records=max(0, definition.limits.max_visible_records - len(visible_ids)),
+            max_records=room,
         )
+        oversized: DerivationRecord | None = None
         if input_rows and not packed_input:
-            raise DerivationError(
-                "budget", "no source record fits the visible-record budget", wm=wm
-            )
+            if room == 0:
+                raise DerivationError(
+                    "budget", "no source record fits the visible-record budget", wm=wm
+                )
+            if basis.mode == "changes":
+                # A record that alone exceeds the driver's token budget would
+                # fail every attempt and pin the cursor; step past it instead.
+                oversized = input_rows[0]
         if basis.mode in {"corpus", "citation_repair"} and len(packed_input) != len(input_rows):
             raise DerivationError(
                 "budget",
@@ -1902,7 +1938,11 @@ async def process_derivation_job(
         visible_ids.update(item.id for item in packed_input)
         if len(visible_ids) > definition.limits.max_visible_records:
             raise DerivationError("budget", "sources exceed max_visible_records", wm=wm)
-        high_seq = _next_high_seq(basis, packed_input, watermark=wm)
+        high_seq = (
+            oversized.seq
+            if oversized is not None
+            else _next_high_seq(basis, packed_input, watermark=wm)
+        )
         execution.basis = replace(
             basis,
             input_rows=packed_input,
@@ -1921,7 +1961,7 @@ async def process_derivation_job(
             read_values=read_values,
         )
         async with asyncio.timeout(definition.limits.max_wall_s):
-            if input_rows or definition.driver.allow_empty:
+            if oversized is None and (input_rows or definition.driver.allow_empty):
                 await _resolve_view_sources(
                     execution,
                     pool,
@@ -1956,21 +1996,34 @@ async def process_derivation_job(
                 # so it must not acquire model-visible provenance parents.
                 execution.visible_ids = set()
                 execution.final_visible_ids = frozenset()
+                if oversized is not None:
+                    execution.skipped = (
+                        {"seq": oversized.seq, "id": str(oversized.id), "reason": "budget"},
+                    )
+                    log_event(
+                        LOGGER,
+                        "warning",
+                        "derive.input_skipped",
+                        workspace=claimed.workspace,
+                        derivation=definition.name,
+                        seq=oversized.seq,
+                        reason="budget",
+                    )
             execution.completed_at = datetime.now(UTC)
         run_id = await _commit_execution(pool, settings, catalog, claimed, execution)
     except TimeoutError as exc:
-        error = DerivationError("budget", "derivation exceeded MAX_RUN_WALL_S", wm=wm)
+        error = DerivationError("timeout", "derivation exceeded max_wall_s", wm=wm)
         await _persist_failed_run(pool, settings, catalog, claimed, execution, error)
-        raise error from exc
+        raise _recorded(error) from exc
     except LeaseLost:
         raise
     except DerivationError as error:
         await _persist_failed_run(pool, settings, catalog, claimed, execution, error)
-        raise
+        raise _recorded(error) from error
     except Exception as exc:
         error = DerivationError("internal", type(exc).__name__, wm=wm)
         await _persist_failed_run(pool, settings, catalog, claimed, execution, error)
-        raise error from exc
+        raise _recorded(error) from exc
     log_event(
         LOGGER,
         "info",
@@ -2007,6 +2060,8 @@ async def enqueue_derivation_job(
         raise ValueError("workspace and entity must be non-empty and entity cannot be '*'")
     if run_after is not None and (run_after.tzinfo is None or run_after.utcoffset() is None):
         raise ValueError("run_after must include a timezone")
+    from memseek.triggers import coalesce_derive_stimulus_tx
+
     async with pool.connection() as conn, conn.transaction():
         await acquire_workspace_lock(conn, workspace)
         if run_after is None:
@@ -2017,27 +2072,21 @@ async def enqueue_derivation_job(
             when = row["now"].astimezone(UTC)
         else:
             when = run_after
-        result = await conn.execute(
-            """
-            insert into job (workspace, kind, derivation, entity, run_after, payload)
-            values (%s, 'derive', %s, %s, %s, '{"manual": true}')
-            on conflict (workspace, derivation, entity)
-              where kind = 'derive' and done_at is null and dead_at is null
-            do update set payload = job.payload || excluded.payload,
-                          run_after = least(job.run_after, excluded.run_after)
-            returning id, run_after, (xmax = 0) as inserted
-            """,
-            (workspace, derivation, entity, when),
+        return await coalesce_derive_stimulus_tx(
+            conn,
+            workspace=workspace,
+            derivation=derivation,
+            entity=entity,
+            reason="manual",
+            due=when,
+            coalesce="earliest",
         )
-        row = await result.fetchone()
-    if row is None:
-        raise RuntimeError("derive job enqueue returned no row")
-    return cast(UUID, row["id"]), not bool(row["inserted"]), cast(datetime, row["run_after"])
 
 
 __all__ = [
     "DerivationError",
     "DerivationJobResult",
+    "RecordedDerivationFailure",
     "enqueue_derivation_job",
     "process_derivation_job",
 ]

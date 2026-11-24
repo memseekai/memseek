@@ -362,11 +362,15 @@ async def evaluate_ready_triggers_tx(
         return
     from memseek.triggers import evaluate_ready_triggers_tx as evaluate_triggers
 
+    collections: dict[str, set[str]] = {}
+    for record in records:
+        collections.setdefault(record.entity, set()).add(record.collection)
     await evaluate_triggers(
         conn,
         workspace=workspace,
-        entities=tuple(record.entity for record in records),
+        entities=tuple(collections),
         catalog=catalog,
+        collections=collections,
     )
 
 

@@ -279,7 +279,7 @@ async def test_projection_backend_failure_log_excludes_payload_and_exception_mes
     monkeypatch.setattr(worker_module, "_retry_claim", retry)
 
     async def await_direct(
-        runtime: WorkerRuntime, claimed_job: object, operation: Awaitable[Any]
+        runtime: WorkerRuntime, claimed_job: object, operation: Awaitable[Any], **_kwargs: Any
     ) -> Any:
         del runtime, claimed_job
         return await operation
@@ -333,6 +333,8 @@ async def test_worker_pass_logs_only_bounded_counters(
         "_drain_backfill_jobs",
         AsyncMock(return_value=(0, 0)),
     )
+    monkeypatch.setattr(jobs_module, "reap_expired_final_attempts", AsyncMock(return_value=0))
+    monkeypatch.setattr(jobs_module, "purge_finished_jobs", AsyncMock(return_value=0))
 
     result = await run_worker_once(_worker_runtime(settings), worker_id="test-worker")
 
@@ -426,7 +428,7 @@ async def test_derivation_config_failure_is_dead_lettered_without_exposing_detai
     )
 
     async def await_direct(
-        runtime: WorkerRuntime, claimed_job: object, operation: Awaitable[Any]
+        runtime: WorkerRuntime, claimed_job: object, operation: Awaitable[Any], **_kwargs: Any
     ) -> Any:
         del runtime, claimed_job
         return await operation
@@ -530,6 +532,8 @@ async def test_run_worker_once_contains_one_failing_lane(
     monkeypatch.setattr(
         artifact_uses_module, "purge_expired_artifact_uses", AsyncMock(return_value=0)
     )
+    monkeypatch.setattr(jobs_module, "reap_expired_final_attempts", AsyncMock(return_value=0))
+    monkeypatch.setattr(jobs_module, "purge_finished_jobs", AsyncMock(return_value=0))
 
     result = await run_worker_once(_worker_runtime(settings), worker_id="test-worker")
 

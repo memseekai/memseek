@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import json
 import re
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Literal, Never
@@ -222,7 +222,22 @@ def _validate_write(record: CanonicalRecordWrite, settings: Settings) -> dict[st
     }
 
 
-async def _newest_parent_seq(conn: DatabaseConnection, record: CanonicalRecordWrite) -> int:
+async def _parent_seqs(
+    conn: DatabaseConnection, records: Sequence[CanonicalRecordWrite]
+) -> dict[UUID, tuple[str, int]]:
+    parent_ids = {parent for record in records for parent in record.derived_from}
+    if not parent_ids:
+        return {}
+    result = await conn.execute(
+        "select id, workspace, seq from record where id = any(%s::uuid[])",
+        (list(parent_ids),),
+    )
+    return {row["id"]: (row["workspace"], int(row["seq"])) for row in await result.fetchall()}
+
+
+def _newest_parent_seq(
+    record: CanonicalRecordWrite, parents: Mapping[UUID, tuple[str, int]]
+) -> int:
     """Prove every parent exists in the record's workspace; return the newest seq.
 
     Checking direct parents is enough to keep the whole lineage valid: a
@@ -230,24 +245,73 @@ async def _newest_parent_seq(conn: DatabaseConnection, record: CanonicalRecordWr
     proven by this check when its own child was inserted.
     """
 
-    if not record.derived_from:
-        return 0
-    result = await conn.execute(
-        """
-        select count(*) as found,
-               count(*) filter (where workspace = %s) as same_workspace,
-               coalesce(max(seq), 0) as newest_seq
-        from record
-        where id = any(%s::uuid[])
-        """,
-        (record.workspace, list(record.derived_from)),
-    )
-    row = await result.fetchone()
-    if row is None or row["found"] != len(record.derived_from):
+    found = [parents[parent] for parent in record.derived_from if parent in parents]
+    if len(found) != len(record.derived_from):
         _fail("parent_not_found", "every parent must exist")
-    if row["same_workspace"] != row["found"]:
+    if any(workspace != record.workspace for workspace, _ in found):
         _fail("parent_workspace", "every parent must belong to the record's workspace")
-    return int(row["newest_seq"])
+    return max((seq for _, seq in found), default=0)
+
+
+_INSERT_SQL = """
+    insert into record (
+      id, workspace, collection, collection_version, collection_hash,
+      entity, key, type, status, content, embedding, embedding_space,
+      scores, annotations, annotation_meta, enrichment_meta, enrichment_error,
+      enriched_at, run_id, depth, derived_from, dedupe_key, occurred_at
+    )
+    values (
+      %s, %s, %s, %s, %s,
+      %s, %s, %s, %s, %s, null, null,
+      %s, %s, %s, %s, %s,
+      case when %s then now() else null end, %s, %s, %s, %s, coalesce(%s, now())
+    )
+    on conflict (workspace, dedupe_key) where dedupe_key is not null do nothing
+    returning id, seq, enriched_at
+"""
+
+
+def _insert_params(record: CanonicalRecordWrite, normalized: Mapping[str, Any]) -> tuple[Any, ...]:
+    return (
+        record.id,
+        record.workspace,
+        record.collection,
+        record.collection_version,
+        record.collection_hash,
+        record.entity,
+        record.key,
+        record.type,
+        record.status,
+        Jsonb(normalized["content"]),
+        Jsonb(normalized["scores"]),
+        Jsonb(normalized["annotations"]),
+        Jsonb(normalized["annotation_meta"]),
+        Jsonb(normalized["enrichment_meta"]),
+        record.enrichment_error,
+        record.ready,
+        record.run_id,
+        record.depth,
+        list(record.derived_from),
+        record.dedupe_key,
+        record.occurred_at,
+    )
+
+
+def _inserted(
+    record: CanonicalRecordWrite, row: Mapping[str, Any], newest_parent_seq: int
+) -> CanonicalRecordInsert:
+    returned_id = row.get("id")
+    seq = row.get("seq")
+    if returned_id != record.id:
+        _fail("insert_return", "canonical record insert returned an unexpected id")
+    if isinstance(seq, bool) or not isinstance(seq, int) or seq < 1:
+        _fail("insert_return", "canonical record insert returned an invalid sequence")
+    if newest_parent_seq >= seq:
+        _fail("parent_order", "every parent must be older than its child")
+    ready = row.get("enriched_at") is not None
+    if ready is not record.ready:
+        _fail("insert_return", "canonical record insert returned an unexpected ready state")
+    return CanonicalRecordInsert(id=record.id, seq=seq, ready=ready)
 
 
 async def insert_canonical_record_tx(
@@ -267,65 +331,50 @@ async def insert_canonical_record_tx(
     if dedupe_conflict not in {"error", "return_none"}:
         _fail("dedupe_mode", "unsupported dedupe conflict mode")
     normalized = _validate_write(record, settings)
-    newest_parent_seq = await _newest_parent_seq(conn, record)
-    result = await conn.execute(
-        """
-        insert into record (
-          id, workspace, collection, collection_version, collection_hash,
-          entity, key, type, status, content, embedding, embedding_space,
-          scores, annotations, annotation_meta, enrichment_meta, enrichment_error,
-          enriched_at, run_id, depth, derived_from, dedupe_key, occurred_at
-        )
-        values (
-          %s, %s, %s, %s, %s,
-          %s, %s, %s, %s, %s, null, null,
-          %s, %s, %s, %s, %s,
-          case when %s then now() else null end, %s, %s, %s, %s, coalesce(%s, now())
-        )
-        on conflict (workspace, dedupe_key) where dedupe_key is not null do nothing
-        returning id, seq, enriched_at
-        """,
-        (
-            record.id,
-            record.workspace,
-            record.collection,
-            record.collection_version,
-            record.collection_hash,
-            record.entity,
-            record.key,
-            record.type,
-            record.status,
-            Jsonb(normalized["content"]),
-            Jsonb(normalized["scores"]),
-            Jsonb(normalized["annotations"]),
-            Jsonb(normalized["annotation_meta"]),
-            Jsonb(normalized["enrichment_meta"]),
-            record.enrichment_error,
-            record.ready,
-            record.run_id,
-            record.depth,
-            list(record.derived_from),
-            record.dedupe_key,
-            record.occurred_at,
-        ),
-    )
+    newest_parent_seq = _newest_parent_seq(record, await _parent_seqs(conn, (record,)))
+    result = await conn.execute(_INSERT_SQL, _insert_params(record, normalized))
     row = await result.fetchone()
     if row is None:
         if dedupe_conflict == "return_none" and record.dedupe_key is not None:
             return None
         _fail("insert_return", "canonical record insert returned no row")
-    returned_id = row.get("id")
-    seq = row.get("seq")
-    if returned_id != record.id:
-        _fail("insert_return", "canonical record insert returned an unexpected id")
-    if isinstance(seq, bool) or not isinstance(seq, int) or seq < 1:
-        _fail("insert_return", "canonical record insert returned an invalid sequence")
-    if newest_parent_seq >= seq:
-        _fail("parent_order", "every parent must be older than its child")
-    ready = row.get("enriched_at") is not None
-    if ready is not record.ready:
-        _fail("insert_return", "canonical record insert returned an unexpected ready state")
-    return CanonicalRecordInsert(id=record.id, seq=seq, ready=ready)
+    return _inserted(record, row, newest_parent_seq)
+
+
+async def insert_canonical_records_tx(
+    conn: DatabaseConnection,
+    records: Sequence[CanonicalRecordWrite],
+    settings: Settings,
+) -> tuple[CanonicalRecordInsert, ...]:
+    """Validate every row, then insert them all in one pipelined batch.
+
+    Each row gets the same checks as ``insert_canonical_record_tx``. Parents
+    must already exist: a row cannot cite another row of the same batch.
+    """
+
+    if not records:
+        return ()
+    normalized = [_validate_write(record, settings) for record in records]
+    parents = await _parent_seqs(conn, records)
+    newest = [_newest_parent_seq(record, parents) for record in records]
+    inserted: list[CanonicalRecordInsert] = []
+    async with conn.cursor() as cursor:
+        await cursor.executemany(
+            _INSERT_SQL,
+            [
+                _insert_params(record, values)
+                for record, values in zip(records, normalized, strict=True)
+            ],
+            returning=True,
+        )
+        for index, record in enumerate(records):
+            if index:
+                cursor.nextset()
+            row = await cursor.fetchone()
+            if row is None:
+                _fail("insert_return", "canonical record insert returned no row")
+            inserted.append(_inserted(record, row, newest[index]))
+    return tuple(inserted)
 
 
 __all__ = [
@@ -333,4 +382,5 @@ __all__ = [
     "CanonicalRecordInvariantError",
     "CanonicalRecordWrite",
     "insert_canonical_record_tx",
+    "insert_canonical_records_tx",
 ]

@@ -15,6 +15,7 @@ from memseek.canonical_records import (
     CanonicalRecordInvariantError,
     CanonicalRecordWrite,
     insert_canonical_record_tx,
+    insert_canonical_records_tx,
 )
 from memseek.config import Settings
 from memseek.db import DatabaseConnection, DatabasePool
@@ -208,3 +209,35 @@ async def test_canonical_writer_rejects_missing_and_foreign_parents(
         )
     assert child is not None
     assert child.seq > local.seq
+
+
+async def test_batched_writer_inserts_in_order_and_proves_each_rows_parents(
+    db_pool: DatabasePool, settings: Settings
+) -> None:
+    await create_workspace(db_pool, "home")
+    async with db_pool.connection() as conn, conn.transaction():
+        parent = await insert_canonical_record_tx(
+            conn, replace(_write(), workspace="home"), settings
+        )
+    assert parent is not None
+
+    children = [replace(_write(), workspace="home", derived_from=(parent.id,)) for _ in range(3)]
+    async with db_pool.connection() as conn, conn.transaction():
+        inserted = await insert_canonical_records_tx(conn, children, settings)
+    assert [item.id for item in inserted] == [child.id for child in children]
+    assert [item.seq for item in inserted] == sorted(item.seq for item in inserted)
+    assert inserted[0].seq > parent.seq
+
+    orphan = replace(_write(), workspace="home", derived_from=(uuid4(),))
+    async with db_pool.connection() as conn:
+        with pytest.raises(CanonicalRecordInvariantError) as raised:
+            async with conn.transaction():
+                await insert_canonical_records_tx(
+                    conn, [replace(_write(), workspace="home"), orphan], settings
+                )
+        count = await (
+            await conn.execute("select count(*) as rows from record where workspace = 'home'")
+        ).fetchone()
+    assert raised.value.code == "parent_not_found"
+    assert count is not None
+    assert count["rows"] == 4

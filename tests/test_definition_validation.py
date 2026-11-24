@@ -951,6 +951,48 @@ accumulator:
     assert metric.metric.aggregate == "max"
 
 
+def test_max_wait_caps_a_settle_window(catalog_root: Path) -> None:
+    _write_trigger(
+        catalog_root,
+        "capped_quiet.yaml",
+        """name: profile.capped_quiet
+processor: profile
+quiet:
+  collections: [main]
+  types: [chat]
+  statuses: [active]
+  after_s: 900
+max_wait_s: 3600
+""",
+    )
+
+    catalog = load_definition_catalog(_settings(catalog_root))
+
+    assert catalog.triggers["profile.capped_quiet"].max_wait_s == 3600
+
+
+@pytest.mark.parametrize(
+    "pacing",
+    [
+        "write: {collections: [main], statuses: [active]}\nmax_wait_s: 60\n",
+        "write: {collections: [main], statuses: [active]}\ndebounce_s: 120\nmax_wait_s: 60\n",
+        "quiet: {collections: [main], statuses: [active], after_s: 900}\nmax_wait_s: 600\n",
+        "write: {collections: [main], statuses: [active]}\ndebounce_s: 60\nmax_wait_s: 0\n",
+    ],
+    ids=["nothing-to-cap", "below-debounce", "below-quiet", "zero"],
+)
+def test_max_wait_must_cap_a_settle_window(catalog_root: Path, pacing: str) -> None:
+    trigger = _write_trigger(
+        catalog_root,
+        "bad_max_wait.yaml",
+        f"name: profile.bad_max_wait\nprocessor: profile\n{pacing}",
+    )
+
+    error = _load_error(catalog_root, code="schema")
+
+    assert error.file == str(trigger)
+
+
 def test_quiet_trigger_rejects_scope_outside_driving_source(catalog_root: Path) -> None:
     trigger = _write_trigger(
         catalog_root,

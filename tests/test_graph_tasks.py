@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import re
 import shutil
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
+from unittest.mock import patch
 
 import httpx
 import pytest
@@ -15,6 +17,7 @@ from memseek.auth import create_workspace
 from memseek.config import Settings
 from memseek.db import DatabasePool, create_pool
 from memseek.definitions import load_definition_catalog
+from memseek.derive import tasks_graph
 from memseek.derive.runner import process_derivation_job
 from memseek.derive.tasks import task_adapter
 from memseek.derive.tasks_graph import (
@@ -217,6 +220,40 @@ def test_extract_relations_emits_mentions_only_when_enabled_and_honors_overrides
         ("companies/atlas", "works_at"),
         ("companies/echo", "mentions"),
     ]
+
+
+def test_extract_relations_reads_page_level_roles_once_per_page() -> None:
+    filler = " ".join(["unrelated"] * 12)
+    body = f"Kai is a senior engineer at a company. {filler} " + " ".join(
+        f"See companies/c{index}. {filler}" for index in range(6)
+    )
+    source = ExtractRelationsInput.model_validate(
+        {
+            "records": [
+                _page(
+                    "00000000-0000-0000-0000-000000000009",
+                    "people/kai",
+                    page_type="person",
+                    body=body,
+                )
+            ]
+        }
+    )
+
+    tasks_graph._page_role.cache_clear()
+    with patch.object(tasks_graph.re, "search", wraps=re.search) as search:
+        edges = extract_page_edges(source.records, ExtractRelationsConfig(context_chars=40))
+
+    role_patterns = {
+        tasks_graph._PARTNER_ROLE_PATTERN,
+        tasks_graph._ADVISOR_ROLE_PATTERN,
+        tasks_graph._EMPLOYEE_ROLE_PATTERN,
+    }
+    role_searches = [call for call in search.call_args_list if call.args[0] in role_patterns]
+    assert [(edge.content.object, edge.content.predicate) for edge in edges] == [
+        (f"companies/c{index}", "works_at") for index in range(6)
+    ]
+    assert len(role_searches) == 3
 
 
 def test_extract_relations_resolves_bare_wikilinks_against_titles_and_keeps_ambiguity() -> None:

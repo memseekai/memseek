@@ -112,6 +112,7 @@ def triggers_payload(catalog: DefinitionCatalog) -> dict[str, Any]:
                 "retraction": dumped(trigger.retraction),
                 "cooldown_s": trigger.cooldown_s,
                 "debounce_s": trigger.debounce_s,
+                "max_wait_s": trigger.max_wait_s,
             }
         )
     return {"triggers": triggers}
