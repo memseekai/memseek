@@ -45,7 +45,7 @@ from __future__ import annotations
 
 import json
 import re
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 from uuid import UUID
@@ -166,20 +166,21 @@ def _lookup(path: str, variables: Mapping[str, Any]) -> Any:
 def _resolved_source_ids(node: Any) -> frozenset[UUID]:
     """Collect provenance from a value and every nested :class:`ProvenanceValue`."""
 
+    found: set[UUID] = set()
+    _collect_source_ids(node, found)
+    return frozenset(found)
+
+
+def _collect_source_ids(node: Any, found: set[UUID]) -> None:
     if isinstance(node, ProvenanceValue):
-        inner = _resolved_source_ids(node.value)
-        return node.source_ids | inner
-    if isinstance(node, Mapping):
-        combined: frozenset[UUID] = frozenset()
+        found.update(node.source_ids)
+        _collect_source_ids(node.value, found)
+    elif isinstance(node, Mapping):
         for item in node.values():
-            combined = combined | _resolved_source_ids(item)
-        return combined
-    if isinstance(node, (list, tuple)):
-        combined = frozenset()
+            _collect_source_ids(item, found)
+    elif isinstance(node, (list, tuple)):
         for item in node:
-            combined = combined | _resolved_source_ids(item)
-        return combined
-    return frozenset()
+            _collect_source_ids(item, found)
 
 
 def _strip_provenance(node: Any) -> Any:
@@ -219,8 +220,6 @@ def _stringify(value: Any, *, trusted: bool, pre_escaped: bool) -> str:
 def _reference_shape(value: str) -> re.Match[str] | None:
     """Return the exact-reference match, rejecting stray template delimiters."""
 
-    for match in _REFERENCE_RE.finditer(value):
-        del match
     remainder = _REFERENCE_RE.sub("", value)
     if "{{" in remainder:
         raise TemplateError("unsupported or unbalanced template expression", code="template_syntax")
@@ -316,15 +315,3 @@ def foreach_items(
             code="foreach_cap",
         )
     return list(payload), provenance
-
-
-def union_source_ids(values: Iterable[Any]) -> frozenset[UUID]:
-    """Return the deduplicated union of provenance across arbitrary values."""
-
-    combined: frozenset[UUID] = frozenset()
-    for value in values:
-        if isinstance(value, ProvenanceValue):
-            combined = combined | value.source_ids | _resolved_source_ids(value.value)
-        else:
-            combined = combined | _resolved_source_ids(value)
-    return combined

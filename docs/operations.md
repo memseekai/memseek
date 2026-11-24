@@ -22,6 +22,7 @@ The main settings groups are:
 | Search | `SEARCH_BACKEND`, profile overrides, Turbopuffer credentials/layout/consistency, candidate and concurrency limits |
 | Derivation | batch sizes, text/content limits, maximum depth, artifact/run limits |
 | Contradiction detection | `derivations/contradiction.yaml` and `collections/relations.yaml` — see [Contradiction detection](contradiction-detection.md) |
+| Worker and queue | `WORKER_POLL_MS`, `JOB_LEASE_S`, `JOB_HEARTBEAT_S`, `JOB_MAX_ATTEMPTS`, `JOB_MAX_RUNTIME_S`, `UNREADY_RETRY_S`, `UNREADY_TIMEOUT_S`, `JOB_RETENTION_DAYS` — see [Jobs and freshness](#jobs-and-freshness) |
 | Artifact uses & feedback | `ARTIFACT_USE_RETENTION_DAYS`, `ARTIFACT_USE_PURGE_BATCH`, `MAX_FEEDBACK_COMMENT_CHARS`, `MAX_FEEDBACK_EVIDENCE_CHARS` — see [Artifact uses & feedback](artifact-uses.md) |
 | Computers & durable agents | `COMPUTER_RUNTIME_URL`, `COMPUTER_RUNTIME_TOKEN`, `COMPUTER_REQUEST_TIMEOUT_S`, `COMPUTER_RESPONSE_MAX_BYTES` — needed only when a Computer sets `provider: cloudflare`; see [The Cloudflare Computer runtime](computer-cloudflare.md#configuring-memseeks-side) |
 | Safety | workspace auth, `API_CORS_ORIGINS`, MCP Origin validation, workspace locks, erasure and projection settings |
@@ -187,6 +188,35 @@ curl -sS "http://127.0.0.1:8000/jobs/$JOB_ID" -H "$MEMSEEK_AUTH"
 ```
 
 Document freshness reports derivation watermark, dirty input, unready barriers, last successful run, and queued/running/dead job information. Runs record model resolution, visible/cited inputs, output IDs, and status.
+
+Every job attempt runs under a lease of `JOB_LEASE_S` that the worker renews
+every `JOB_HEARTBEAT_S`. A projection, invocation, cron, retention, or backfill
+attempt is also capped at `JOB_MAX_RUNTIME_S` (default 900) of wall time; one
+that overruns is cancelled and retried with `last_error_kind: TimeoutError`.
+Derivations are capped by `MAX_RUN_WALL_S` instead.
+
+A derive job that is released as not ready (an enrichment barrier, or a
+derivation the workspace catalog no longer declares) retries every
+`UNREADY_RETRY_S` without spending an attempt. Once it has stayed not ready for
+`UNREADY_TIMEOUT_S` (default 3600) since its first release, it is dead-lettered
+with `last_error_kind: not_ready_timeout`, so a barrier that never clears
+cannot hold the entity's derive mailbox forever. Any real attempt outcome, or a
+retry through `POST /jobs/{id}/retry`, restarts that clock.
+
+### Job retention
+
+Finished jobs are queue bookkeeping, not history. A worker deletes done and
+dead jobs once they are older than `JOB_RETENTION_DAYS` (default 14; `0` keeps
+them forever). The sweep runs at most every ten minutes per worker, deletes in
+batches of 1,000, and runs on one worker at a time across the deployment. It
+logs `jobs.finished_purged` when it removed any.
+
+Run records are not touched, so `/runs` still answers for every attempt. A
+purged job's `GET /jobs/{id}` returns 404, and a dead-lettered derive job older
+than the window stops showing as `dead` in document freshness: retry or
+investigate dead jobs within the window. The newest job of each package
+retention policy is always kept, because the scheduler would otherwise
+schedule the same purge tick again.
 
 ## Erasure and projection repair
 

@@ -34,7 +34,7 @@ along the way. For how to *use* any of it, see
   recheck, and index projection all prefer the newest annotation present. A field
   repointed along a chain is an additive publish.
 - [x] **Phase 5 — migration derivations.** The deterministic `map_records` Task
-  (`keep`/`set`/`drop`/`carry_key`) turns a snapshot pipeline into a
+  (`keep`/`set`/`carry_key`) turns a snapshot pipeline into a
   copy-forward-with-lineage migration. No new persistence concept was needed.
 - [x] **Phase 6 — online re-embed.** The `record_embedding` staging table,
   `memseek reembed --space` / `--cutover`, coverage-gated promotion, and

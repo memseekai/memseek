@@ -72,23 +72,16 @@ class MapRecordsConfig(TaskConfigModel):
     keep: tuple[str, ...] = Field(default=("text",), max_length=32)
     # Properties computed from a path, a constant, or a default.
     set: dict[str, FieldMapping] = Field(default_factory=dict, max_length=32)
-    # Drop properties the new contract no longer declares.
-    drop: tuple[str, ...] = Field(default=(), max_length=32)
     # Keyed collections carry the source key forward unless told otherwise.
     carry_key: bool = True
 
     @model_validator(mode="after")
     def coherent_mapping(self) -> MapRecordsConfig:
-        if "text" in self.drop:
-            raise ValueError("text cannot be dropped")
         if "text" not in self.keep and "text" not in self.set:
             raise ValueError("every record requires text, so keep or set must produce it")
         overlap = set(self.keep) & set(self.set)
         if overlap:
             raise ValueError(f"keep and set cannot both produce {sorted(overlap)}")
-        dropped = set(self.drop) & (set(self.keep) | set(self.set))
-        if dropped:
-            raise ValueError(f"drop cannot name mapped properties: {sorted(dropped)}")
         return self
 
 
@@ -171,9 +164,7 @@ async def map_records(
     for record in value.records:
         source_ids.append(record.id)
         content: dict[str, Any] = {
-            name: record.content[name]
-            for name in config.keep
-            if name in record.content and name not in config.drop
+            name: record.content[name] for name in config.keep if name in record.content
         }
         for name, mapping in config.set.items():
             if mapping.value is not None:

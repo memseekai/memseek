@@ -13,4 +13,16 @@ class DerivationError(RuntimeError):
         super().__init__(detail)
 
 
-__all__ = ["DerivationError"]
+NON_RETRYABLE_KINDS = frozenset({"config", "budget", "erased", "task"})
+
+
+class RecordedDerivationFailure(DerivationError):
+    """A failure whose run receipt and job transition are already committed.
+
+    The worker must not apply its own retry or dead-letter transition to it:
+    the claim is already released, so a second transition only reports a
+    false lease loss.
+    """
+
+
+__all__ = ["NON_RETRYABLE_KINDS", "DerivationError", "RecordedDerivationFailure"]
