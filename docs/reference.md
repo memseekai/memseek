@@ -133,5 +133,5 @@ When this guide and the implementation differ, verify the current release agains
 - `src/memseek/derive/tasks.py` for the trusted task task type Interface and built-ins.
 - `src/memseek/computers.py` and `src/memseek/invocations.py` for Computer execution and durable runs.
 - `src/memseek/search/spec.py` for SearchSpec fields and limits.
-- `src/memseek/config.py` for runtime settings and environment names.
+- `src/memseek/config.py` for runtime settings and environment names, documented in [Configuration reference](configuration.md).
 - `examples/crm_profile_catalog/` for a complete package.

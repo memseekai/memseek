@@ -16,7 +16,7 @@ The main settings groups are:
 
 | Area | Important settings |
 | --- | --- |
-| Database | `DATABASE_URL`, pool sizes, migration settings, [session guardrails](#database-guardrails) |
+| Database | `DATABASE_URL`, [session guardrails](#database-guardrails) |
 | LLM | provider API keys, `LLM_FAKE`, concurrency, context/prompt/output limits |
 | Catalog | `CATALOG_FILE` points to the root `catalog.yaml`; its source map selects every definition and configuration file |
 | Search | `SEARCH_BACKEND`, profile overrides, Turbopuffer credentials/layout/consistency, candidate and concurrency limits |
@@ -27,7 +27,7 @@ The main settings groups are:
 | Computers & durable agents | `COMPUTER_RUNTIME_URL`, `COMPUTER_RUNTIME_TOKEN`, `COMPUTER_REQUEST_TIMEOUT_S`, `COMPUTER_RESPONSE_MAX_BYTES` — needed only when a Computer sets `provider: cloudflare`; see [The Cloudflare Computer runtime](computer-cloudflare.md#configuring-memseeks-side) |
 | Safety | workspace auth, `API_CORS_ORIGINS`, MCP Origin validation, workspace locks, erasure and projection settings |
 
-Use `.env.example` and `src/memseek/config.py` as the authoritative environment-name reference for the current release. Secrets belong in process configuration, not catalog YAML.
+[Configuration reference](configuration.md) lists every setting, its default, and what it does. Secrets belong in process configuration, not catalog YAML.
 
 ### Database guardrails
 

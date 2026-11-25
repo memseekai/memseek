@@ -172,6 +172,7 @@ nav:
       - The Cloudflare Computer runtime: computer-cloudflare.md
       - Claude Code plugin: claude-code-plugin.md
       - Operations: operations.md
+      - Configuration reference: configuration.md
   - Evolve and operate:
       - Changing definitions: changing-definitions.md
       - Evaluation bases & Candidate Sets: evaluation-bases.md
