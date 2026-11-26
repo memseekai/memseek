@@ -269,6 +269,20 @@ with `gpt-6-luna` and Jev turned up the following:
 - **Stale workspaces.** The logs showed every older workspace in the local
   database failing to load its catalog on each cron pass. They use a retired
   catalog format or have none.
+- **A judge that needs the task.** After a promoted skill made the agent fail
+  fast and politely, Jev passed runs it had failed before. The episode's
+  `Task:` line held the generic harness prompt, not the task, so a short "the
+  file is missing" read as done. The example's `run_task` now puts the task's
+  text in the prompt, and Jev judges both kinds of run as unaccomplished.
+- **The loop pays off across two cycles.** With an empty skill, a missing-file
+  task took 6 model calls, 10 tool calls and 47.9 s, ending in a search of the
+  whole disk. After promoting the drafted skill, a new missing-file task took
+  4 model calls, 7 tool calls and 12.6 s, searched only the agent's own
+  folder, and gave the same answer. The trace showed both.
+- **A sleeping laptop looks like a hung run.** One run took 853 s against a
+  150 s limit. The Mac had gone into idle sleep a second after the run
+  started, freezing every timer; `pmset -g log` shows it. Keep the machine
+  awake, for example with `caffeinate -i`, for long local runs.
 
 ## Production
 
