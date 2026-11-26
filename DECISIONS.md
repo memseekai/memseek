@@ -1102,3 +1102,21 @@ consumed: a run that keeps failing on one input never reaches the records
 queued behind it. A newer record, or an operator's `retry-job`, still runs it.
 A record written during a run that then dead-letters waits for the next one.
 After a failure the runtime evaluates only triggers that read run records.
+
+## Derivation jobs are traces built from their run audit — 2026-11-26
+
+Every derivation job exports a trace when `TRACE_EXPORT_URL` is set: a root
+span for the job and one span per Task, built from the `_system` run record
+after it is written. Building from the audit means the trace cannot disagree
+with what Memseek recorded, and failures need no separate instrumentation. The
+worker mints the run id when it claims the job; the trace id is that run id, so
+a later job links to the jobs whose records it read by reading their `run_id`,
+and the job's log lines carry it as `trace_id`. The audit now records each
+Task's start offset and model-call count for this.
+
+Traces join by links, not parents: a job links to its input jobs, an `agent`
+Task to the Agent run it started, a `trace` Task to the runs it read, and an
+Agent run back to its job. Each Agent run stays a whole trace, so the `trace`
+Task's reads and byte budget cover exactly one run. Job spans carry identities
+and timings, never content. Logs ship to VictoriaLogs through Vector without
+any code in Memseek.

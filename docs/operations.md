@@ -384,6 +384,9 @@ the two states are distinguishable while operating.
 
 ## Troubleshooting
 
+To collect the worker's and API's logs and each derivation job's trace, see
+[Following Memseek](observability.md).
+
 | Symptom | Check |
 | --- | --- |
 | `401 unauthorized` | Export the one-time workspace key as `MEMSEEK_API_KEY`. |

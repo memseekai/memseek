@@ -50,6 +50,9 @@ class AgentRun:
     status: RunStatus
     error_kind: str | None = None
     metrics: Mapping[str, Any] | None = None
+    # The derivation run's trace and span, linked from this run's root span.
+    # Not part of the run record.
+    parent: tuple[str, str] | None = None
 
     def ended_as(self, error_kind: str) -> AgentRun:
         """The same run, failed with the kind its caller settled on."""

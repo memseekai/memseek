@@ -81,7 +81,7 @@ from memseek.graph import GraphTraversalError, GraphTraversalRequest, traverse_g
 from memseek.llm.registry import CompletionOutput, LLMTransportError
 from memseek.llm.runtime import ModelAttempt, ModelAttemptsExhausted, complete, judge
 from memseek.locks import acquire_entity_locks, acquire_workspace_lock
-from memseek.logging import log_event
+from memseek.logging import log_event, trace_context
 from memseek.materialization import MaterializationError, build_agent_materialization
 from memseek.models import ClaimedJob, LeaseLost
 from memseek.render import (
@@ -96,6 +96,7 @@ from memseek.search.named_views import ViewNotFound, execute_view
 from memseek.search.spec import SearchSpec
 from memseek.templates import TemplateError
 from memseek.trace_store import OPERATION, TraceStoreError, fetch_trace, render_episode
+from memseek.tracing import derive_trace_ids, schedule_derive_export
 
 LOGGER = logging.getLogger(__name__)
 _FENCE_RE = re.compile(r"^\s*```(?:json)?\s*\n?(.*?)\n?```\s*$", re.DOTALL)
@@ -153,6 +154,8 @@ class _Execution:
     trace_reads: list[dict[str, Any]] = field(default_factory=list)
     judgments: int = 0
     judgment_tokens: int = 0
+    # Minted when the job starts, so its log lines and spans share it.
+    run_id: UUID = field(default_factory=uuid4)
     output: Any = None
     outputs: tuple[CandidateRecord, ...] = ()
     candidate_set: CandidateSet | None = None
@@ -966,7 +969,11 @@ class _RuntimeTaskContext(TaskContext):
             raise DerivationError(exc.kind, exc.detail, wm=self._execution.wm_before) from exc
         trace = fetched.trace
         root = trace.root(str(content["agent_run_id"])) if trace is not None else None
-        receipt: dict[str, Any] = {"record_id": str(record["id"]), "trace_id": str(trace_id)}
+        receipt: dict[str, Any] = {
+            "task": self._task_id,
+            "record_id": str(record["id"]),
+            "trace_id": str(trace_id),
+        }
         if trace is not None:
             receipt.update(spans=len(trace.spans), bytes=trace.bytes, sha256=trace.sha256)
         if trace is None or root is None:
@@ -981,7 +988,9 @@ class _RuntimeTaskContext(TaskContext):
             reason = fetched.missing or "no_root_span"
             self._execution.trace_reads.append({**receipt, "outcome": reason})
             return None, reason
-        self._execution.trace_reads.append({**receipt, "outcome": "read"})
+        self._execution.trace_reads.append(
+            {**receipt, "root_span_id": root.span_id, "outcome": "read"}
+        )
         return (
             {
                 "id": str(record["id"]),
@@ -1296,6 +1305,7 @@ class _RuntimeTaskContext(TaskContext):
                     "task_id": self._task_id,
                 },
                 on_run=self._execution.agent_runs.append,
+                parent=derive_trace_ids(self._execution.run_id),
             )
         except ComputerExecutionError as exc:
             raise DerivationError(exc.code, exc.detail, wm=self._execution.wm_before) from exc
@@ -1369,6 +1379,7 @@ async def _execute_tasks(
             citation_ids,
         )
         started = datetime.now(UTC)
+        calls_before = len(execution.model_calls)
         try:
             raw_result = await adapter.handler(context, task_input, config)
         except DerivationError:
@@ -1444,7 +1455,9 @@ async def _execute_tasks(
                 "source_ids": [str(value) for value in sorted(result_sources, key=str)],
                 "citation_ids": [str(value) for value in sorted(result_citations, key=str)],
                 "output_hash": hashlib.sha256(encoded).hexdigest(),
+                "start_ms": max(0, int((started - execution.started_at).total_seconds() * 1_000)),
                 "ms": max(0, int((datetime.now(UTC) - started).total_seconds() * 1_000)),
+                "model_calls": len(execution.model_calls) - calls_before,
             }
         )
 
@@ -1675,7 +1688,7 @@ async def _commit_execution(
     claimed: ClaimedJob,
     execution: _Execution,
 ) -> UUID:
-    run_id = uuid4()
+    run_id = execution.run_id
     output_definition = execution.definition.emit
     collection = catalog.resolve_collection(
         output_definition.collection, output_definition.collection_version
@@ -1823,6 +1836,7 @@ async def _commit_execution(
             entity=claimed.entity or "",
             catalog=catalog,
         )
+    await _export_derive_trace(pool, settings, claimed, execution, run_content)
     return run_id
 
 
@@ -1890,7 +1904,14 @@ async def _persist_failed_run(
     error: DerivationError,
 ) -> None:
     execution.completed_at = datetime.now(UTC)
-    run_id = uuid4()
+    run_id = execution.run_id
+    audit = _run_content(
+        execution,
+        run_id=run_id,
+        status="failed",
+        error_kind=error.kind,
+        error=error.detail[:500],
+    )
     async with pool.connection() as conn, conn.transaction():
         await acquire_workspace_lock(conn, claimed.workspace)
         await acquire_entity_locks(conn, claimed.workspace, (claimed.entity or "",))
@@ -1913,13 +1934,7 @@ async def _persist_failed_run(
                 collection_hash=SYSTEM_COLLECTION_HASH,
                 entity=claimed.entity or "",
                 type="run",
-                content=_run_content(
-                    execution,
-                    run_id=run_id,
-                    status="failed",
-                    error_kind=error.kind,
-                    error=error.detail[:500],
-                ),
+                content=audit,
                 ready=True,
                 depth=max((parents[item] for item in parent_ids), default=0),
                 derived_from=parent_ids,
@@ -1999,6 +2014,42 @@ async def _persist_failed_run(
             attempts=int(transition["attempts"]),
             error_kind=error.kind,
         )
+    await _export_derive_trace(pool, settings, claimed, execution, audit)
+
+
+async def _export_derive_trace(
+    pool: DatabasePool,
+    settings: Settings,
+    claimed: ClaimedJob,
+    execution: _Execution,
+    audit: Mapping[str, Any],
+) -> None:
+    """Export the committed run's spans, linked to the runs that wrote its inputs."""
+
+    if not settings.trace_export_url:
+        return
+    input_ids = list((audit.get("basis") or {}).get("input_ids") or ())
+    upstream: list[UUID] = []
+    if input_ids:
+        try:
+            async with pool.connection() as conn:
+                result = await conn.execute(
+                    "select distinct run_id from record "
+                    "where workspace = %s and id = any(%s::uuid[]) and run_id is not null",
+                    (claimed.workspace, input_ids),
+                )
+                upstream = [cast(UUID, row["run_id"]) for row in await result.fetchall()]
+        except psycopg.Error as exc:
+            log_event(LOGGER, "warning", "trace.links_failed", exception_type=type(exc).__name__)
+    schedule_derive_export(
+        audit,
+        settings,
+        run_id=execution.run_id,
+        workspace=claimed.workspace,
+        entity=claimed.entity or "",
+        agent_runs=execution.agent_runs,
+        upstream_run_ids=upstream,
+    )
 
 
 def _recorded(error: DerivationError) -> RecordedDerivationFailure:
@@ -2011,8 +2062,30 @@ async def process_derivation_job(
     claimed: ClaimedJob,
     settings: Settings,
     catalog: DefinitionCatalog,
+    run_id: UUID | None = None,
 ) -> DerivationJobResult:
-    """Execute one claimed derive job with bounded retries."""
+    """Execute one claimed derive job with bounded retries.
+
+    ``run_id`` names the run record and the trace this attempt writes; a
+    caller that logs around the job mints it first, so its lines share it.
+    """
+
+    run_id = run_id or uuid4()
+    with trace_context(*derive_trace_ids(run_id)):
+        return await _process_derivation_job(
+            pool, claimed=claimed, settings=settings, catalog=catalog, run_id=run_id
+        )
+
+
+async def _process_derivation_job(
+    pool: DatabasePool,
+    *,
+    claimed: ClaimedJob,
+    settings: Settings,
+    catalog: DefinitionCatalog,
+    run_id: UUID,
+) -> DerivationJobResult:
+    """The job itself, inside its trace context."""
 
     if claimed.kind != "derive" or claimed.derivation is None or claimed.entity is None:
         raise DerivationError("config", "claimed job is not an entity-scoped derive job")
@@ -2073,6 +2146,7 @@ async def process_derivation_job(
         retrieval_trace=[],
         context_trace=[],
         task_trace=[],
+        run_id=run_id,
     )
     setup_error: DerivationError | None = None
     basis: EvaluationBasis | None = None

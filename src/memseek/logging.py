@@ -4,6 +4,9 @@ from __future__ import annotations
 
 import json
 import logging
+from collections.abc import Iterator
+from contextlib import contextmanager
+from contextvars import ContextVar
 from datetime import UTC, datetime
 from typing import Any, Literal, TextIO
 
@@ -11,6 +14,21 @@ LogLevel = Literal["debug", "info", "warning", "error", "critical"]
 _SENSITIVE_FIELDS = frozenset(
     {"api_key", "authorization", "content", "error", "message", "prompt", "secret"}
 )
+
+# The trace and span the current work belongs to, so a log line can be found
+# from its trace and a trace from its log lines. Per asyncio task.
+_TRACE: ContextVar[tuple[str, str] | None] = ContextVar("memseek_trace", default=None)
+
+
+@contextmanager
+def trace_context(trace_id: str, span_id: str) -> Iterator[None]:
+    """Stamp every log line written inside the block with this trace and span."""
+
+    token = _TRACE.set((trace_id, span_id))
+    try:
+        yield
+    finally:
+        _TRACE.reset(token)
 
 
 class JsonFormatter(logging.Formatter):
@@ -23,6 +41,8 @@ class JsonFormatter(logging.Formatter):
             "logger": record.name,
             "event": getattr(record, "event", record.getMessage()),
         }
+        if (trace := _TRACE.get()) is not None:
+            document["trace_id"], document["span_id"] = trace
         fields = getattr(record, "event_fields", None)
         if isinstance(fields, dict):
             document.update(fields)

@@ -522,6 +522,7 @@ async def execute_agent(
     parent_run_key: str | None = None,
     origin: Mapping[str, Any] | None = None,
     on_run: Callable[[AgentRun], None] | None = None,
+    parent: tuple[str, str] | None = None,
 ) -> ComputerResult:
     try:
         computer = catalog.resolve_computer(computer_ref)
@@ -656,6 +657,7 @@ async def execute_agent(
                 status="ok" if error_kind is None else "failed",
                 error_kind=error_kind,
                 metrics=(result_seen.receipt.get("metrics") if result_seen is not None else None),
+                parent=parent,
             )
             if on_run is not None:
                 on_run(run)

@@ -28,6 +28,8 @@ node_modules/
 .env.sh
 .DS_Store
 *.log
+# Logs a host-run API or worker tees for Vector to ship (observability/vector.yaml).
+logs/
 
 # PostgreSQL scratch data
 pgdata/

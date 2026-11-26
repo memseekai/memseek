@@ -173,6 +173,8 @@ nav:
       - The Cloudflare Computer runtime: computer-cloudflare.md
       - Claude Code plugin: claude-code-plugin.md
       - Operations: operations.md
+      - Following Memseek: observability.md
+      - Victoria in Memseek: victoria.md
       - Configuration reference: configuration.md
   - Evolve and operate:
       - Changing definitions: changing-definitions.md

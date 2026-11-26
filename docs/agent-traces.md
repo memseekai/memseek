@@ -5,6 +5,9 @@ Agent's runs export OpenTelemetry spans (prompts, responses, tool calls,
 timings) to a trace store you run, such as VictoriaTraces. Memseek stores no
 spans.
 
+The store, its setup and what was verified against it are summarized in
+[Victoria in Memseek](victoria.md).
+
 ## Turn tracing on
 
 1. Run a trace store that accepts OTLP/HTTP, and set `TRACE_EXPORT_URL` to its
@@ -132,7 +135,8 @@ value escapes `<`, `>` and `&` in what it stores.
 ## Run it locally
 
 ```sh
-docker compose --profile traces up -d postgres victoriatraces
+docker compose up -d postgres
+docker compose --profile observability up -d
 export TRACE_EXPORT_URL=http://127.0.0.1:10428/insert/opentelemetry/v1/traces
 export TRACE_STORE_URL=http://127.0.0.1:10428/select/jaeger
 ```
@@ -141,6 +145,9 @@ Run the API and worker on the host, where pi is installed. Read one run's trace
 with `curl http://127.0.0.1:10428/select/jaeger/api/traces/<trace_id>`.
 
 ### See the traces
+
+Each Agent run's root span links to the derivation job that started it; see
+[Following Memseek](observability.md) for job traces and logs.
 
 
 VictoriaTraces serves its own UI, VMUI, at

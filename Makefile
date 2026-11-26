@@ -20,6 +20,7 @@ help:
 	@echo "support-triage-demo  Triage a customer's support inbox with TypeSafe Jev against the Docker stack"
 	@echo "pi-trace       Follow what the newest pi run is doing, turn by turn (ROOT=<session dir> for another)"
 	@echo "traces-test    Trace a pi run into a local VictoriaTraces, print its episode and a VMUI timeline link"
+	@echo "observability  Start VictoriaLogs, Vector and VictoriaTraces to follow the worker and API"
 	@echo "cloudflare-agent-smoke  Run a real Workers AI Agent against one durable Computer"
 	@echo "cloudflare-agent-smoke-local  Run the same canary against wrangler dev, nothing deployed"
 	@echo "cloudflare-agent-smoke-setup  Ask for runtime settings and prepare the live canary"
@@ -149,6 +150,14 @@ support-triage-demo:
 
 pi-trace:
 	@node harnesses/pi/trace.mjs $(ROOT) --follow $(if $(FULL),--full,)
+
+# Logs and traces of the worker and API; see docs/observability.md. A worker
+# run on the host ships its logs with `... 2>&1 | tee -a logs/worker.log`.
+observability:
+	@mkdir -p logs
+	@$(COMPOSE) --profile observability up -d --wait victorialogs vector victoriatraces
+	@echo "logs   http://127.0.0.1:9428/select/vmui/"
+	@echo "traces http://127.0.0.1:10428/select/vmui/"
 
 # Needs the test database (`make database`) and node on PATH. The store keeps
 # running afterwards, so the printed VMUI link stays open.

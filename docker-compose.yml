@@ -160,7 +160,8 @@ services:
       - /var/lib/postgresql/data
     profiles: ["test"]
 
-  # A trace store for traced Agents, started with `--profile traces`. Traced runs
+  # A trace store for traced Agents and derivation jobs, started with
+  # `--profile traces`. Traced runs
   # export to /insert/opentelemetry/v1/traces and the trace Task reads
   # /select/jaeger. Browse the spans in its UI at
   # http://127.0.0.1:10428/select/vmui/. It listens on loopback only, because the pi worker runs on
@@ -173,8 +174,37 @@ services:
       - "127.0.0.1:10428:10428"
     volumes:
       - memseek-traces:/storage
-    profiles: ["traces"]
+    profiles: ["traces", "observability"]
+
+  # Memseek's own log lines, started with `--profile logs` (or `observability`
+  # for logs and traces together). Every derivation job's lines carry its
+  # trace_id, the same id as its trace in victoriatraces. Browse them in
+  # VMUI at http://127.0.0.1:9428/select/vmui/.
+  victorialogs:
+    image: victoriametrics/victoria-logs:v1.53.0
+    command: ["-storageDataPath=/storage", "-retentionPeriod=30d"]
+    ports:
+      - "127.0.0.1:9428:9428"
+    volumes:
+      - memseek-logs:/storage
+    profiles: ["logs", "observability"]
+
+  # Reads this project's container logs through the Docker socket, and *.log
+  # files a host-run API or worker tees into ./logs; see observability/vector.yaml.
+  vector:
+    image: timberio/vector:0.59.0-alpine
+    command: ["--config", "/etc/vector/vector.yaml"]
+    volumes:
+      - ./observability/vector.yaml:/etc/vector/vector.yaml:ro
+      - ./logs:/logs:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - memseek-vector:/var/lib/vector
+    depends_on:
+      - victorialogs
+    profiles: ["logs", "observability"]
 
 volumes:
   memseek-data:
   memseek-traces:
+  memseek-logs:
+  memseek-vector:
