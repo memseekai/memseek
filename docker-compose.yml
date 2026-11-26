@@ -106,6 +106,11 @@ services:
       # invocations, so it is the one that talks to the Computer runtime.
       COMPUTER_RUNTIME_URL: ${COMPUTER_RUNTIME_URL:-}
       COMPUTER_RUNTIME_TOKEN: ${COMPUTER_RUNTIME_TOKEN:-}
+      # Agent traces: where traced runs export, and where the trace Task reads.
+      TRACE_EXPORT_URL: ${TRACE_EXPORT_URL:-}
+      TRACE_EXPORT_TOKEN: ${TRACE_EXPORT_TOKEN:-}
+      TRACE_STORE_URL: ${TRACE_STORE_URL:-}
+      TRACE_STORE_TOKEN: ${TRACE_STORE_TOKEN:-}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
@@ -155,5 +160,71 @@ services:
       - /var/lib/postgresql/data
     profiles: ["test"]
 
+  # A trace store for traced Agents and derivation jobs, started with
+  # `--profile traces`. Traced runs
+  # export to /insert/opentelemetry/v1/traces and the trace Task reads
+  # /select/jaeger. Browse the spans in its UI at
+  # http://127.0.0.1:10428/select/vmui/. It listens on loopback only, because the pi worker runs on
+  # the host; a container reaches it as http://victoriatraces:10428. It has no
+  # auth: put it behind one before it holds real prompts.
+  victoriatraces:
+    image: victoriametrics/victoria-traces:v0.13.0
+    command: ["-storageDataPath=/storage", "-retentionPeriod=30d"]
+    ports:
+      - "127.0.0.1:10428:10428"
+    volumes:
+      - memseek-traces:/storage
+    profiles: ["traces", "observability"]
+
+  # Memseek's own log lines, started with `--profile logs` (or `observability`
+  # for logs and traces together). Every derivation job's lines carry its
+  # trace_id, the same id as its trace in victoriatraces. Browse them in
+  # VMUI at http://127.0.0.1:9428/select/vmui/.
+  victorialogs:
+    image: victoriametrics/victoria-logs:v1.53.0
+    command: ["-storageDataPath=/storage", "-retentionPeriod=30d"]
+    ports:
+      - "127.0.0.1:9428:9428"
+    volumes:
+      - memseek-logs:/storage
+    profiles: ["logs", "observability"]
+
+  # Reads this project's container logs through the Docker socket, and *.log
+  # files a host-run API or worker tees into ./logs; see observability/vector.yaml.
+  vector:
+    image: timberio/vector:0.59.0-alpine
+    command: ["--config", "/etc/vector/vector.yaml"]
+    volumes:
+      - ./observability/vector.yaml:/etc/vector/vector.yaml:ro
+      - ./logs:/logs:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - memseek-vector:/var/lib/vector
+    depends_on:
+      - victorialogs
+    profiles: ["logs", "observability"]
+
+  # Evaluates observability/vmalert-rules.yaml against the log lines every
+  # minute. It sends no notifications: active alerts show at
+  # http://127.0.0.1:8880/vmalert/alerts. Point -notifier.url at an
+  # Alertmanager to deliver them.
+  vmalert:
+    image: victoriametrics/vmalert:v1.156.0
+    command:
+      - -rule=/etc/vmalert/rules.yaml
+      - -rule.defaultRuleType=vlogs
+      - -datasource.url=http://victorialogs:9428
+      - -notifier.blackhole
+      - -httpListenAddr=:8880
+    ports:
+      - "127.0.0.1:8880:8880"
+    volumes:
+      - ./observability/vmalert-rules.yaml:/etc/vmalert/rules.yaml:ro
+    depends_on:
+      - victorialogs
+    profiles: ["logs", "observability"]
+
 volumes:
   memseek-data:
+  memseek-traces:
+  memseek-logs:
+  memseek-vector:

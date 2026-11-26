@@ -4,6 +4,8 @@ entry: [python3, run.py]
 requires:
   - {bin: python3, install: "https://www.python.org"}
 skills_dir: .agents/skills
+# It reports the trace variables it was given, so tests can see who got them.
+trace: otlp
 # Whichever provider the example catalog's scraper alias names, the key reaches the harness.
 model_env:
   anthropic: ECHO_MODEL_KEY

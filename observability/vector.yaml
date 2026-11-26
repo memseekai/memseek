@@ -1,0 +1,54 @@
+# Ships Memseek's JSON log lines to VictoriaLogs, from two places:
+#
+#   - this compose project's api, worker, migrate and setup containers;
+#   - *.log files under ./logs, where an API or worker running on the host
+#     writes with `... 2>&1 | tee -a logs/worker.log`.
+#
+# Each line keeps its own fields. `service` says where it came from: the compose
+# service, or the log file's name. Lines that are not JSON, such as Uvicorn's
+# access log, arrive with level "raw" and the line as their event.
+data_dir: /var/lib/vector
+
+sources:
+  containers:
+    type: docker_logs
+    include_containers: [memseek-api-, memseek-worker-, memseek-migrate-, memseek-setup-]
+  host:
+    type: file
+    include: [/logs/*.log]
+    read_from: beginning
+
+transforms:
+  memseek:
+    type: remap
+    inputs: [containers, host]
+    source: |
+      service = "unknown"
+      if exists(.label."com.docker.compose.service") {
+        service = string!(.label."com.docker.compose.service")
+      } else if exists(.file) {
+        parts = split(string!(.file), "/")
+        service = replace(string!(parts[-1]), ".log", "")
+      }
+      received = .timestamp
+      line = string!(.message)
+      parsed, err = parse_json(line)
+      if err == null && is_object(parsed) {
+        . = object!(parsed)
+      } else {
+        . = {"event": line, "level": "raw", "timestamp": received}
+      }
+      .service = service
+      .msg = .event
+
+sinks:
+  victorialogs:
+    type: http
+    inputs: [memseek]
+    uri: http://victorialogs:9428/insert/jsonline?_msg_field=msg&_time_field=timestamp&_stream_fields=service,logger,level
+    encoding:
+      codec: json
+    framing:
+      method: newline_delimited
+    healthcheck:
+      enabled: false

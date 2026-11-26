@@ -772,6 +772,50 @@ answer, because a typed answer is either valid or rejected.
 complete derivations: one that labels tickets, and one that screens tickets
 before an `llm` task writes escalation notes.
 
+### Built-in `trace`
+
+`trace` reads the trace of each run in its input from the deployment's trace
+store and renders it as an episode: the task, numbered model and tool steps,
+the final output or error, and the skills the agent read. Its input is the
+records of a source over the built-in `agent_runs` collection, which the
+runtime writes for every run of an Agent that declares `trace:`. See
+[Agent traces](agent-traces.md).
+
+```yaml
+sources:
+  runs: {kind: changes, collections: [agent_runs], types: [run_failed], max_records: 10}
+limits: {max_trace_reads: 10, max_judgments: 10, max_llm_calls: 0}
+tasks:
+  - id: episodes
+    use: trace
+    input: "{{runs.records}}"
+    with:
+      max_chars: 16000                  # default 16000, 1000 to 60000
+      select: {agents: [worker]}        # optional
+```
+
+`select` narrows which runs are read. Its fields are `agents`, `derivations`,
+`origins` (`derivation` or `invocation`), `error_kinds` and `skills`. A run
+matches when every field you set has one matching value. Runs it skips are
+still consumed, so the source's cursor moves past them.
+
+The result is `{items: [...], skipped: [...]}`. Each item has the run record's
+`id`, so a following `judge` can cite it, plus `trace_id`, `status`,
+`error_kind`, `agent`, `text` (the episode), `spans`, `tool_calls` and
+`tool_errors`. A run is skipped when it has no trace id, when the store no
+longer has its trace (`not_found`), when the trace is larger than
+`TRACE_STORE_MAX_BYTES` (`too_large`), or when the trace lacks the run's root
+span (`no_root_span`).
+
+A trace that is missing less than `TRACE_STORE_SETTLE_S` seconds after its run
+ended may still be arriving, so the run fails with `transport` and is retried.
+Give the trigger a `debounce_s` of about the same length to avoid that retry.
+An unreachable store also fails with `transport`. A store URL that does not
+answer like a Jaeger query API fails with `config`.
+
+Each read is recorded in the run audit under `trace_reads`, with the trace id,
+span count, size, and the sha256 of what the store returned.
+
 ### Built-in `computer` and `agent`
 
 Two more built-ins hand the work to a sandboxed workspace instead of doing it
@@ -1251,6 +1295,12 @@ Two limits apply only to [`judge`](#built-in-judge) tasks:
 - `max_judgment_tokens` (default 400,000) is the most input tokens that all of
   a run's judgment calls can send. Memseek estimates a task's tokens before it
   sends them, and adds the usage TypeSafe reports afterwards.
+
+One limit applies only to [`trace`](#built-in-trace) tasks:
+
+- `max_trace_reads` is the most traces one run can read, up to 100. It
+  **defaults to `0`** and must be at least the `max_records` of the source the
+  `trace` task reads, so a full batch never fails its budget.
 
 Catalog compilation also verifies task-specific static bounds where possible.
 Installed tasks are trusted async deployment code; they remain unable to

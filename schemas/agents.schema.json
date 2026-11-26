@@ -93,6 +93,17 @@
           ],
           "default": null,
           "title": "Harness"
+        },
+        "trace": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AgentTrace"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         }
       },
       "required": [
@@ -132,6 +143,25 @@
         }
       },
       "title": "AgentLimits",
+      "type": "object"
+    },
+    "AgentTrace": {
+      "additionalProperties": false,
+      "description": "Opting an Agent into trace export and run records.\n\n``content`` has no default: whether full prompts and responses leave the run\nfor an external trace store is a privacy choice the author makes explicitly.",
+      "properties": {
+        "content": {
+          "enum": [
+            "full",
+            "metadata"
+          ],
+          "title": "Content",
+          "type": "string"
+        }
+      },
+      "required": [
+        "content"
+      ],
+      "title": "AgentTrace",
       "type": "object"
     }
   },

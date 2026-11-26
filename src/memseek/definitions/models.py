@@ -1142,6 +1142,16 @@ class AgentLimits(StrictModel):
     max_output_bytes: int = Field(default=10_485_760, ge=1, le=67_108_864)
 
 
+class AgentTrace(StrictModel):
+    """Opting an Agent into trace export and run records.
+
+    ``content`` has no default: whether full prompts and responses leave the run
+    for an external trace store is a privacy choice the author makes explicitly.
+    """
+
+    content: Literal["full", "metadata"]
+
+
 class AgentDefinition(VersionedDefinition):
     model: ProcessorName
     instructions: str
@@ -1156,11 +1166,12 @@ class AgentDefinition(VersionedDefinition):
     # The agent loop that runs this Agent, named by its `harnesses/<name>/`
     # module. None is the Computer's built-in loop.
     harness: PublicName | None = None
+    trace: AgentTrace | None = None
 
     @model_serializer(mode="wrap")
     def _serialize(self, handler: Any) -> dict[str, Any]:
         dumped = dict(handler(self))
-        for field_name in ("toolset", "harness"):
+        for field_name in ("toolset", "harness", "trace"):
             if getattr(self, field_name) is None:
                 dumped.pop(field_name, None)
         return dumped

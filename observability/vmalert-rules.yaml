@@ -1,0 +1,57 @@
+# Alerts on Memseek's log lines in VictoriaLogs, evaluated by vmalert.
+#
+# vmalert adds `_time:<interval>` to each expr, so every rule here looks at the
+# last minute. A row that passes the rule's `| filter` is one active alert;
+# with no filter, any row is. A `stats` without `by` always returns one row,
+# even a count of 0, so those rules need a filter. Thresholds are starting
+# points: tune them to your workload.
+groups:
+  - name: memseek
+    type: vlogs
+    interval: 1m
+    rules:
+      # One job retries at most a few times, with growing backoff (5 s, 20 s, ...).
+      # More failures than that in a minute, for one derivation in one
+      # workspace, means new jobs keep failing: a loop or a broken dependency.
+      - alert: DerivationFailingRepeatedly
+        expr: >-
+          event:in(job.retry_scheduled, job.dead_lettered)
+          | stats by (workspace, derivation) count() as failures
+          | filter failures:>3
+        labels:
+          severity: critical
+        annotations:
+          summary: "{{ $labels.derivation }} failed {{ $value }} times in a minute in {{ $labels.workspace }}"
+
+      - alert: DerivationDeadLettered
+        expr: >-
+          event:=job.dead_lettered
+          | stats by (workspace, derivation, error_kind) count() as dead
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.derivation }} gave up with {{ $labels.error_kind }} in {{ $labels.workspace }}"
+
+      - alert: TraceExportFailing
+        expr: 'event:=trace.export_failed | stats count() as failed | filter failed:>0'
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $value }} span exports failed in a minute; check TRACE_EXPORT_URL and the trace store"
+
+      - alert: AgentRunRecordsNotWritten
+        expr: 'event:=agent_runs.write_failed | stats count() as failed | filter failed:>0'
+        labels:
+          severity: critical
+        annotations:
+          summary: "{{ $value }} Agent run records could not be written; derivations reading runs will miss them"
+
+      - alert: ProjectionLagging
+        expr: >-
+          event:=projection.lag
+          | stats max(queue_lag_ms) as lag_ms
+          | filter lag_ms:>60000
+        labels:
+          severity: warning
+        annotations:
+          summary: "A projection job waited {{ $value }} ms in the queue"

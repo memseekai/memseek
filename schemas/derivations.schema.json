@@ -722,6 +722,13 @@
           "minimum": 1,
           "title": "Max Judgment Tokens",
           "type": "integer"
+        },
+        "max_trace_reads": {
+          "default": 0,
+          "maximum": 100,
+          "minimum": 0,
+          "title": "Max Trace Reads",
+          "type": "integer"
         }
       },
       "title": "PipelineLimits",

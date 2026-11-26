@@ -44,6 +44,19 @@ The process environment holds `PATH`, `HOME`, the model key named by
 `model_env`, and each skill pack's declared variables. Nothing else from the
 worker's environment is passed.
 
+A harness whose manifest sets `trace: otlp` also receives, when the Agent
+declares `trace:` and the deployment sets `TRACE_EXPORT_URL`:
+
+| Variable | Meaning |
+|---|---|
+| `TRACEPARENT` | The W3C trace context. Its span is the run's root span, which the worker exports; parent every span on it. |
+| `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` | Where to POST OTLP spans. |
+| `OTEL_EXPORTER_OTLP_TRACES_HEADERS` | `authorization=Bearer <token>`, when an ingest token is set. |
+| `MEMSEEK_TRACE_CONTENT` | `full` to include prompts, responses, tool arguments and results; `metadata` to leave them out. |
+
+The harness exports, never the agent it runs: remove these variables from the
+agent's environment. Skill packs never receive them.
+
 ## Input
 
 `.harness/input.json`:

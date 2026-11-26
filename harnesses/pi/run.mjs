@@ -9,6 +9,7 @@ import { finished } from "node:stream/promises";
 import { createWriteStream, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { agentEnvironment, createTracer } from "./otel.mjs";
 
 const MAX_EVENTS = 200;
 const KILL_GRACE_MS = 5_000;
@@ -54,6 +55,8 @@ if (typeof input.model.params?.thinking === "string") {
 
 const started = Date.now();
 let child = null;
+// Spans for the trace store, when the worker handed this run a TRACEPARENT.
+const tracer = createTracer(process.env, input);
 
 let stopped = null;
 function stop(reason) {
@@ -130,7 +133,7 @@ function observe(event) {
 function runPi(extra, prompt) {
   child = spawn("pi", [...args, ...extra, "--", prompt], {
     cwd: join(root, "workspace"),
-    env: { ...process.env, MEMSEEK_HARNESS_ROOT: root },
+    env: { ...agentEnvironment(process.env), MEMSEEK_HARNESS_ROOT: root },
     stdio: ["ignore", "pipe", "pipe"],
   });
   child.stderr.on("data", (chunk) => {
@@ -141,8 +144,10 @@ function runPi(extra, prompt) {
     if (!line.trim()) return;
     try {
       const event = JSON.parse(line);
-      if (!NOISY_EVENTS.has(event?.type)) eventLog.write(`${line}\n`);
+      if (NOISY_EVENTS.has(event?.type)) return;
+      eventLog.write(`${line}\n`);
       observe(event);
+      tracer.observe(event);
     } catch {
       // A non-JSON line is pi talking to a human; it carries nothing we count.
     }
@@ -182,8 +187,10 @@ function parseEnvelope(text) {
 }
 
 // Exit 2 tells the provider the run spent its budget, so it is not retried.
-function fail(message, code = 1) {
+// Failed runs are the ones worth tracing, so their last spans are sent first.
+async function fail(message, code = 1) {
   process.stderr.write(`pi harness: ${message}\n`);
+  await tracer.close();
   process.exit(code);
 }
 
@@ -195,6 +202,7 @@ for (let resume = 1; resume <= MAX_RESUMES; resume += 1) {
   if (!session) break;
   const reason = lastStopReason === "error" ? "model_error" : code !== 0 ? "exit" : "no_envelope";
   record("harness_resume", { attempt: resume, reason });
+  tracer.resume(resume, reason);
   eventLog.write(`${JSON.stringify({ type: "harness_resume", attempt: resume, reason })}\n`);
   finalText = "";
   [code, signal] = await runPi(["--session", session], RESUME_PROMPT);
@@ -220,10 +228,11 @@ function exportTranscript() {
   }
 }
 
-if (stopped) fail(stopped, 2);
-if (code !== 0) fail(`pi exited ${code ?? signal}`);
-if (!envelope) fail("final assistant message holds no {value, citation_ids} envelope");
-if (!Array.isArray(envelope.citation_ids ?? [])) fail("envelope citation_ids is not a list");
+if (stopped) await fail(stopped, 2);
+if (code !== 0) await fail(`pi exited ${code ?? signal}`);
+if (!envelope) await fail("final assistant message holds no {value, citation_ids} envelope");
+if (!Array.isArray(envelope.citation_ids ?? [])) await fail("envelope citation_ids is not a list");
+await tracer.close();
 
 const output = {
   value: envelope.value,

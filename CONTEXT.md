@@ -105,6 +105,24 @@ what lets a candidate Pipeline select it with an ordinary Source. With an
 artifact snapshot it cites that snapshot; without one it carries identity and
 hashes as metadata and claims no provenance edge to the original sources.
 
+## Agent Run Record
+
+One runtime-written event record per run of an Agent that opted into tracing,
+in the built-in `agent_runs` collection. It carries the run's trace id, how the
+run ended, the Agent and skills it used, and its metrics, never the trace
+itself or error text. Derivations select runs by reading these records.
+
+## Trace Store
+
+The deployment's OTLP trace store, outside Memseek, which holds every span of a
+traced run: prompts, responses, tool calls, timings. Memseek exports to it and
+reads one trace per run record through the trace Task; it never stores spans.
+
+## Episode
+
+A bounded, deterministic rendering of one traced run, produced by the trace Task
+from the run record and its trace, for later Tasks to judge or summarize.
+
 ## Structural Graph
 
 A bounded projection of ordinary canonical event records into directed edges.

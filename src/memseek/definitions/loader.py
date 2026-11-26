@@ -35,6 +35,7 @@ from memseek.derive.tasks import (
     LLMTaskConfig,
     SearchTaskConfig,
     TemplateTaskConfig,
+    TraceTaskConfig,
     import_task_modules,
     task_adapter,
     task_implementation_hashes,
@@ -112,6 +113,28 @@ def _programmatic_value(value: Any) -> Any:
 
 
 @dataclass(frozen=True, slots=True)
+class _Write:
+    """One collection and type a derivation causes to be written."""
+
+    collection: str
+    type: str
+    status: str
+    collection_version: int | None
+
+
+@dataclass(frozen=True, slots=True)
+class _BuiltInCollection:
+    """A collection the runtime writes, added to every catalog that uses its feature."""
+
+    name: str
+    search_profile: str
+    document: Mapping[str, Any]
+    declared_in: Path
+    because: str
+    when: str
+
+
+@dataclass(frozen=True, slots=True)
 class DefinitionSources:
     """Python-authored definition inputs for the normal catalog compiler.
 
@@ -148,16 +171,18 @@ class DefinitionSources:
         standalone trigger definitions remain explicit.
         """
 
+        from memseek.agent_runs import AGENT_RUNS_COLLECTION
         from memseek.lessons import LESSONS_COLLECTION
 
         inline = {f"{name}.default" for name in catalog.derivations}
-        # The lessons collection is built in whenever a skill learns, so it is
-        # synthesized again on compile rather than carried as an input.
-        synthesized = (
-            {(LESSONS_COLLECTION, 1)}
-            if any(toolset.learning_sources for toolset in catalog.toolsets.values())
-            else set()
-        )
+        # Built-in collections are synthesized again on compile rather than
+        # carried as inputs: lessons when a skill learns, agent runs when an
+        # Agent is traced.
+        synthesized: set[tuple[str, int]] = set()
+        if any(toolset.learning_sources for toolset in catalog.toolsets.values()):
+            synthesized.add((LESSONS_COLLECTION, 1))
+        if any(agent.trace is not None for agent in catalog.agents.values()):
+            synthesized.add((AGENT_RUNS_COLLECTION, 1))
         return cls(
             models=catalog.models,
             processors=tuple(catalog.processors.values()),
@@ -959,14 +984,6 @@ class _CatalogBuilder:
                 self.search_profiles[name] = _hashed(definition)
 
     def _load_collections(self) -> None:
-        # Imported here: the lessons module sits above the definitions package.
-        from memseek.lessons import (
-            LESSONS_COLLECTION,
-            LESSONS_REF,
-            LESSONS_SEARCH_PROFILE,
-        )
-        from memseek.lessons import collection_document as lessons_collection_document
-
         documents = [
             (path, index, raw)
             for path, document in self._documents("collections_dir")
@@ -974,27 +991,26 @@ class _CatalogBuilder:
                 _sequence(_mapping(document, path, "collection file"), "collections", path)
             )
         ]
-        learning = self._first_learning_toolset()
-        if learning is not None:
-            # A skill that learns needs somewhere to keep lessons; every catalog
-            # gets the same built-in collection rather than writing its own.
-            if LESSONS_SEARCH_PROFILE not in self.search_profiles:
+        for built_in in self._built_in_collections():
+            # A feature that needs somewhere to keep its records gets the same
+            # built-in collection in every catalog rather than one per author.
+            if built_in.search_profile not in self.search_profiles:
                 raise DefinitionError(
                     "reference",
-                    f"a toolset source sets learning, and the built-in {LESSONS_REF} "
-                    f"collection uses the {LESSONS_SEARCH_PROFILE!r} search profile, which "
-                    "this catalog does not declare",
-                    file=learning,
+                    f"{built_in.because}, and the built-in {built_in.name}@1 collection uses "
+                    f"the {built_in.search_profile!r} search profile, which this catalog does "
+                    "not declare",
+                    file=built_in.declared_in,
                 )
             for path, _, raw in documents:
-                if isinstance(raw, Mapping) and raw.get("name") == LESSONS_COLLECTION:
+                if isinstance(raw, Mapping) and raw.get("name") == built_in.name:
                     raise DefinitionError(
                         "duplicate",
-                        f"collection {LESSONS_COLLECTION!r} is built in when a skill learns; "
+                        f"collection {built_in.name!r} is built in when {built_in.when}; "
                         "rename this one",
                         file=path,
                     )
-            documents.append((learning, 0, lessons_collection_document()))
+            documents.append((built_in.declared_in, 0, built_in.document))
         for path, index, raw in documents:
             definition = _parse(CollectionDefinition, raw, path, context=f"collections[{index}]")
             key = (definition.name, definition.version)
@@ -1426,6 +1442,8 @@ class _CatalogBuilder:
                             file=path,
                             path=f"tasks[{index}].with.max_steps",
                         )
+            if isinstance(config, TraceTaskConfig):
+                self._validate_trace_task(definition, task.input, index, path)
             if isinstance(config, JudgeTaskConfig):
                 judge_tasks += 1
                 if not isinstance(task.input, str) or not re.fullmatch(
@@ -2986,6 +3004,54 @@ class _CatalogBuilder:
                 file=self.settings.context_policies_dir,
             )
 
+    def _built_in_collections(self) -> tuple[_BuiltInCollection, ...]:
+        """The built-in collections this catalog needs, read ahead of parsing.
+
+        Collections load before toolsets and Agents, and a built-in collection
+        must exist before anything that reads it is validated.
+        """
+
+        # Imported here: both modules sit above the definitions package.
+        from memseek.agent_runs import AGENT_RUNS_COLLECTION, AGENT_RUNS_SEARCH_PROFILE
+        from memseek.agent_runs import collection_document as agent_runs_document
+        from memseek.lessons import LESSONS_COLLECTION, LESSONS_SEARCH_PROFILE
+        from memseek.lessons import collection_document as lessons_document
+
+        built: list[_BuiltInCollection] = []
+        if (learning := self._first_learning_toolset()) is not None:
+            built.append(
+                _BuiltInCollection(
+                    name=LESSONS_COLLECTION,
+                    search_profile=LESSONS_SEARCH_PROFILE,
+                    document=lessons_document(),
+                    declared_in=learning,
+                    because="a toolset source sets learning",
+                    when="a skill learns",
+                )
+            )
+        if (traced := self._first_traced_agent()) is not None:
+            built.append(
+                _BuiltInCollection(
+                    name=AGENT_RUNS_COLLECTION,
+                    search_profile=AGENT_RUNS_SEARCH_PROFILE,
+                    document=agent_runs_document(),
+                    declared_in=traced,
+                    because="an Agent declares trace",
+                    when="an Agent is traced",
+                )
+            )
+        return tuple(built)
+
+    def _first_traced_agent(self) -> Path | None:
+        """The agent file of the first Agent that declares ``trace``, read ahead of parsing."""
+
+        for path, document in self._documents("agents_dir", missing_ok=True):
+            agents = document.get("agents") if isinstance(document, Mapping) else None
+            for agent in agents if isinstance(agents, list) else []:
+                if isinstance(agent, Mapping) and agent.get("trace") is not None:
+                    return path
+        return None
+
     def _first_learning_toolset(self) -> Path | None:
         """The toolset file of the first source that sets ``learning``, read ahead of parsing.
 
@@ -3439,7 +3505,7 @@ class _CatalogBuilder:
             if not isinstance(documents, list):
                 raise DefinitionError("shape", "packages must be a list", file=path)
             for index, document in enumerate(documents):
-                definition = self._with_lessons(
+                definition = self._with_built_ins(
                     _parse(PackageDefinition, document, path, context=f"packages[{index}]")
                 )
                 key = (definition.name, definition.version)
@@ -3447,9 +3513,10 @@ class _CatalogBuilder:
                 self._validate_package(definition, path)
                 self.packages[key] = _hashed(definition)
 
-    def _with_lessons(self, definition: PackageDefinition) -> PackageDefinition:
-        """A package that ships a learning toolset ships the built-in lessons collection."""
+    def _with_built_ins(self, definition: PackageDefinition) -> PackageDefinition:
+        """A package ships the built-in collections its toolsets and Agents need."""
 
+        from memseek.agent_runs import AGENT_RUNS_REF
         from memseek.lessons import LESSONS_REF
 
         learns = any(
@@ -3457,9 +3524,19 @@ class _CatalogBuilder:
             for name, version in map(split_exact_reference, definition.toolsets)
             if (name, int(version)) in self.toolsets
         )
-        if not learns or LESSONS_REF in definition.collections:
+        traced = any(
+            self.agents[(name, int(version))].trace is not None
+            for name, version in map(split_exact_reference, definition.agents)
+            if (name, int(version)) in self.agents
+        )
+        needed = [
+            ref
+            for ref, used in ((LESSONS_REF, learns), (AGENT_RUNS_REF, traced))
+            if used and ref not in definition.collections
+        ]
+        if not needed:
             return definition
-        return definition.model_copy(update={"collections": (*definition.collections, LESSONS_REF)})
+        return definition.model_copy(update={"collections": (*definition.collections, *needed)})
 
     def _validate_package(self, definition: PackageDefinition, path: Path) -> None:
         exact_groups: tuple[tuple[str, tuple[str, ...], Mapping[tuple[str, int], Any]], ...] = (
@@ -4295,49 +4372,118 @@ class _CatalogBuilder:
             )
         return view
 
+    def _validate_trace_task(
+        self, definition: PipelineDefinition, task_input: Any, index: int, path: Path
+    ) -> None:
+        """A trace Task reads one source's run records, within an explicit budget."""
+
+        match = (
+            re.fullmatch(r"{{\s*([A-Za-z_][A-Za-z0-9_]*)\.records\s*}}", task_input)
+            if isinstance(task_input, str)
+            else None
+        )
+        if match is None or match.group(1) not in definition.sources:
+            raise DefinitionError(
+                "task_input",
+                "trace Task input must be one source's records, such as {{runs.records}}",
+                file=path,
+                path=f"tasks[{index}].input",
+            )
+        bound = getattr(definition.sources[match.group(1)], "max_records", 1)
+        reads = definition.limits.max_trace_reads
+        # A batch larger than the budget would fail as budget, which is never
+        # retried, and pin the source's cursor for good.
+        if reads < max(bound, 1):
+            raise DefinitionError(
+                "budget",
+                f"a trace Task over {match.group(1)!r} needs limits.max_trace_reads of at "
+                f"least its max_records ({bound})",
+                file=path,
+                path="limits.max_trace_reads",
+            )
+
+    def _derivation_writes(self, producer: PipelineDefinition) -> tuple[_Write, ...]:
+        """What a derivation writes: its emission, and the run records of its traced Agents.
+
+        Run records are written by the runtime rather than emitted, but a
+        derivation that reads them is woken by the derivations that run those
+        Agents, so they are edges of the automatic graph like any emission.
+        """
+
+        from memseek.agent_runs import AGENT_RUNS_COLLECTION, RUN_TYPES
+
+        writes = [
+            _Write(
+                collection=producer.emit.collection,
+                type=producer.emit.type,
+                status=emission_status(producer.emit),
+                collection_version=producer.emit.collection_version,
+            )
+        ]
+        for task in producer.tasks:
+            if task.use != "agent":
+                continue
+            config = task_adapter(task.use).validate_config(task.config)
+            if not isinstance(config, AgentTaskConfig):
+                continue
+            name, version = split_exact_reference(config.agent)
+            agent = self.agents.get((name, int(version)))
+            if agent is None or agent.trace is None:
+                continue
+            writes.extend(
+                _Write(
+                    collection=AGENT_RUNS_COLLECTION,
+                    type=run_type,
+                    status="active",
+                    collection_version=1,
+                )
+                for run_type in RUN_TYPES.values()
+            )
+        return tuple(writes)
+
     def _validate_automatic_graph(self) -> None:
         edges: dict[str, set[str]] = {name: set() for name in self.derivations}
         for producer_name, producer in self.derivations.items():
-            emission = producer.emit
-            for consumer_name, consumer in self.derivations.items():
-                triggers = [
-                    trigger
-                    for trigger in self.triggers.values()
-                    if trigger.processor == consumer_name
-                ]
+            for emission in self._derivation_writes(producer):
+                for consumer_name, consumer in self.derivations.items():
+                    triggers = [
+                        trigger
+                        for trigger in self.triggers.values()
+                        if trigger.processor == consumer_name
+                    ]
 
-                def emission_activates(
-                    scope: Any,
-                    emission: Any = emission,
-                    producer: str = producer_name,
-                    consumer: str = consumer_name,
-                ) -> bool:
-                    if producer == consumer and getattr(scope, "ignore_own_outputs", False):
-                        return False
-                    return (
-                        emission.collection in scope.collections
-                        and (not scope.types or emission.type in scope.types)
-                        and emission_status(emission) in scope.statuses
-                        and (
-                            not scope.collection_versions.get(emission.collection)
-                            or emission.collection_version
-                            in scope.collection_versions[emission.collection]
+                    def emission_activates(
+                        scope: Any,
+                        emission: Any = emission,
+                        producer: str = producer_name,
+                        consumer: str = consumer_name,
+                    ) -> bool:
+                        if producer == consumer and getattr(scope, "ignore_own_outputs", False):
+                            return False
+                        return (
+                            emission.collection in scope.collections
+                            and (not scope.types or emission.type in scope.types)
+                            and emission.status in scope.statuses
+                            and (
+                                not scope.collection_versions.get(emission.collection)
+                                or emission.collection_version
+                                in scope.collection_versions[emission.collection]
+                            )
                         )
-                    )
 
-                for trigger in triggers:
-                    scope_matches = any(
-                        emission_activates(scope) for scope in trigger.observed_scopes.values()
-                    )
-                    input_matches = emission_activates(consumer.driver)
-                    guarded_matches = (
-                        trigger.accumulator is not None
-                        or trigger.read
-                        or trigger.census is not None
-                        or trigger.lifecycle is not None
-                    ) and input_matches
-                    if scope_matches or guarded_matches:
-                        edges[producer_name].add(consumer_name)
+                    for trigger in triggers:
+                        scope_matches = any(
+                            emission_activates(scope) for scope in trigger.observed_scopes.values()
+                        )
+                        input_matches = emission_activates(consumer.driver)
+                        guarded_matches = (
+                            trigger.accumulator is not None
+                            or trigger.read
+                            or trigger.census is not None
+                            or trigger.lifecycle is not None
+                        ) and input_matches
+                        if scope_matches or guarded_matches:
+                            edges[producer_name].add(consumer_name)
         indegree = dict.fromkeys(edges, 0)
         for targets in edges.values():
             for target in targets:

@@ -161,6 +161,7 @@ nav:
       - Artifacts: artifacts.md
       - Artifact uses & feedback: artifact-uses.md
       - Computers, Programs & Agents: computers.md
+      - Agent traces: agent-traces.md
       - Toolsets: toolsets.md
       - How skill lessons work: skill-lessons.md
       - Packages: packages.md
@@ -172,6 +173,8 @@ nav:
       - The Cloudflare Computer runtime: computer-cloudflare.md
       - Claude Code plugin: claude-code-plugin.md
       - Operations: operations.md
+      - Following Memseek: observability.md
+      - Victoria in Memseek: victoria.md
       - Configuration reference: configuration.md
   - Evolve and operate:
       - Changing definitions: changing-definitions.md

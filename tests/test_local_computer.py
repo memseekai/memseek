@@ -481,6 +481,7 @@ def _pi_harness(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake_pi: str) -
     )
     shutil.copy(REPOSITORY_ROOT / "harnesses/pi/run.mjs", harness / "run.mjs")
     shutil.copy(REPOSITORY_ROOT / "harnesses/pi/memseek-tools.mjs", harness / "memseek-tools.mjs")
+    shutil.copy(REPOSITORY_ROOT / "harnesses/pi/otel.mjs", harness / "otel.mjs")
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir(exist_ok=True)
     (bin_dir / "pi").write_text(fake_pi)

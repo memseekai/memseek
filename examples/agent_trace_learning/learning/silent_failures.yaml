@@ -1,0 +1,29 @@
+# yaml-language-server: $schema=../../../schemas/derivations.schema.json
+# A run that ended without an error may still have missed its task. Jev reads
+# the episode; the ones it judges unaccomplished become evidence.
+name: silent_failures
+trigger:
+  write: {collections: [agent_runs], types: [run_ok]}
+  debounce_s: 30
+sources:
+  runs: {kind: changes, collections: [agent_runs], types: [run_ok], max_records: 10}
+limits: {max_llm_calls: 0, max_judgments: 10, max_judgment_tokens: 200000, max_trace_reads: 10}
+tasks:
+  - id: episodes
+    use: trace
+    input: "{{runs.records}}"
+    with: {max_chars: 16000, select: {agents: [worker]}}
+  - id: review
+    use: judge
+    input: "{{episodes.items}}"
+    with:
+      model: jev
+      questions:
+        accomplished:
+          type: noul
+          instructions: "Did the agent in `item.text` accomplish the task stated in it?"
+      keep: {accomplished: {noul_lte: 0.3}}
+      records:
+        text: "{{item.text}}"
+        content: {kind: silent_failure}
+emit: {from: "{{review.records}}", collection: outcomes, type: exception, max_records: 10}

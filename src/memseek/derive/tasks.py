@@ -14,7 +14,7 @@ import inspect
 import math
 from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Protocol, cast
+from typing import TYPE_CHECKING, Any, Literal, Protocol, cast
 from uuid import UUID
 
 from pydantic import Field, TypeAdapter, model_validator
@@ -122,6 +122,23 @@ class JudgeTaskConfig(TaskConfigModel):
         return compile_keep(self.questions, self.keep or {})
 
 
+class TraceSelect(StrictModel):
+    """Which run records the trace Task reads; every listed field must match."""
+
+    agents: tuple[str, ...] = ()
+    derivations: tuple[str, ...] = ()
+    origins: tuple[Literal["derivation", "invocation"], ...] = ()
+    error_kinds: tuple[str, ...] = ()
+    skills: tuple[str, ...] = ()
+
+
+class TraceTaskConfig(TaskConfigModel):
+    """Read each selected run record's trace and render it as a bounded episode."""
+
+    max_chars: int = Field(default=16_000, ge=1_000, le=60_000)
+    select: TraceSelect | None = None
+
+
 type TaskConfig = TaskConfigModel
 
 
@@ -146,6 +163,10 @@ class TaskContext(Protocol):
     async def run_agent(self, value: Any, config: TaskConfig) -> TaskResult[Any]: ...
 
     def render(self, template: str) -> TaskResult[str]: ...
+
+    async def read_traces(
+        self, value: Any, config: TraceTaskConfig
+    ) -> TaskResult[dict[str, Any]]: ...
 
 
 type TaskHandler = Callable[[TaskContext, Any, TaskConfig], Awaitable[TaskResult[Any] | Any]]
@@ -253,6 +274,10 @@ async def _template(context: TaskContext, value: Any, config: TaskConfig) -> Tas
     return context.render(cast(TemplateTaskConfig, config).template)
 
 
+async def _trace(context: TaskContext, value: Any, config: TaskConfig) -> TaskResult[Any]:
+    return await context.read_traces(value, cast(TraceTaskConfig, config))
+
+
 def _builtin_hash(name: str) -> str:
     return hashlib.sha256(f"memseek-task-v1:{name}".encode()).hexdigest()
 
@@ -276,6 +301,12 @@ register_task(
     handler=_search,
 )
 register_task(
+    "trace",
+    implementation_hash=_builtin_hash("trace"),
+    config_model=TraceTaskConfig,
+    handler=_trace,
+)
+register_task(
     "template",
     implementation_hash=_builtin_hash("template"),
     config_model=TemplateTaskConfig,
@@ -293,6 +324,8 @@ __all__ = [
     "TaskContext",
     "TaskResult",
     "TemplateTaskConfig",
+    "TraceSelect",
+    "TraceTaskConfig",
     "import_task_modules",
     "register_task",
     "task_adapter",

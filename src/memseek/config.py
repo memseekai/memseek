@@ -151,6 +151,19 @@ class Settings(BaseSettings):
     computer_request_timeout_s: int = 300
     computer_response_max_bytes: int = 16_777_216
 
+    # Where traced Agents' spans go, as an OTLP/HTTP traces endpoint. Empty
+    # exports nothing. The token is ingest-only: it reaches the harness.
+    trace_export_url: str = ""
+    trace_export_token: str = ""
+    # Where the trace Task reads a run's trace: a Jaeger-compatible query API.
+    # The token reads every workspace's traces, so it stays in the worker.
+    trace_store_url: str = ""
+    trace_store_token: str = ""
+    trace_store_timeout_s: float = 10.0
+    trace_store_max_bytes: int = 8_388_608
+    # How long after a run ends its trace may still be arriving in the store.
+    trace_store_settle_s: int = 30
+
     # The `local` Computer provider runs each session in a directory below this
     # root, on the machine the worker runs on.
     local_computer_root: Path = Field(default_factory=lambda: Path.home() / ".memseek/computers")
@@ -396,15 +409,28 @@ class Settings(BaseSettings):
             raise ValueError("RRF_RANK_CONSTANT must be between 1 and 1000")
         if self.turbopuffer_base_url:
             self._validate_url("TURBOPUFFER_BASE_URL", self.turbopuffer_base_url)
+        if self.trace_export_url:
+            self._validate_url("TRACE_EXPORT_URL", self.trace_export_url, allow_service_hosts=True)
+        if self.trace_store_url:
+            self._validate_url("TRACE_STORE_URL", self.trace_store_url, allow_service_hosts=True)
+        if self.trace_store_timeout_s <= 0 or self.trace_store_max_bytes <= 0:
+            raise ValueError("TRACE_STORE_TIMEOUT_S and TRACE_STORE_MAX_BYTES must be positive")
+        if self.trace_store_settle_s < 0:
+            raise ValueError("TRACE_STORE_SETTLE_S cannot be negative")
         return self
 
     @staticmethod
-    def _validate_url(name: str, value: str) -> None:
+    def _validate_url(name: str, value: str, *, allow_service_hosts: bool = False) -> None:
         parsed = urlsplit(value)
         if parsed.scheme not in {"http", "https"} or not parsed.netloc:
             raise ValueError(f"{name} must be an absolute HTTP(S) URL")
-        if parsed.scheme != "https" and parsed.hostname not in {"localhost", "127.0.0.1", "::1"}:
-            raise ValueError(f"{name} must use HTTPS except on localhost")
+        if parsed.scheme == "https" or parsed.hostname in {"localhost", "127.0.0.1", "::1"}:
+            return
+        # A single-label host is a service on a private network, such as a
+        # compose service name, which never resolves on the public internet.
+        if allow_service_hosts and parsed.hostname and "." not in parsed.hostname:
+            return
+        raise ValueError(f"{name} must use HTTPS except on localhost")
 
 
 def get_settings() -> Settings:

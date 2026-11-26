@@ -1,0 +1,56 @@
+# yaml-language-server: $schema=../../../schemas/collections.schema.json
+collections:
+  - name: tasks
+    version: 1
+    active: true
+    mode: event
+    schema:
+      type: object
+      required: [text]
+      properties:
+        text: {type: string, minLength: 1}
+      additionalProperties: false
+    required_processors: []
+    search_profile: pg_default
+
+  - name: task_results
+    version: 1
+    active: true
+    mode: event
+    schema:
+      type: object
+      required: [text]
+      properties:
+        text: {type: string, minLength: 1}
+      additionalProperties: false
+    required_processors: []
+    search_profile: pg_default
+
+  # Evidence for the skill derivation: what went wrong, judged from traces.
+  - name: outcomes
+    version: 1
+    active: true
+    mode: event
+    schema:
+      type: object
+      required: [text]
+      properties:
+        text: {type: string}
+        kind: {type: string}
+      additionalProperties: true
+    required_processors: []
+    search_profile: pg_default
+
+  - name: skills
+    version: 1
+    active: true
+    mode: keyed
+    schema:
+      type: object
+      required: [text]
+      properties:
+        text: {type: string}
+        tombstone: {type: boolean}
+      additionalProperties: true
+    required_processors: []
+    search_profile: pg_default

@@ -1,0 +1,13 @@
+# yaml-language-server: $schema=../../../schemas/computers.schema.json
+computers:
+  - name: worker_workspace
+    version: 1
+    active: true
+    # The harness runs on the worker's machine, where pi is installed.
+    provider: local
+    writable: [/workspace, /outbox]
+    runtime: {default: container}
+    capabilities: {filesystem: true, exec: true, network: false}
+    writeback:
+      - {path: /outbox/final-result.json, type: final_result, review: false}
+    retention: {workspace_days: 7, preserve: [/outbox]}

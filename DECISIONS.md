@@ -1047,3 +1047,76 @@ A structured listing has deterministic `order_by` positions but no relevance
 function. It now returns `rank`, `score: null`, no `rank_score`, and
 `ranking: {kind: structured, scored: false}` instead of manufacturing a zero
 that looked like a failed relevance judgment.
+
+## Agent traces live in a trace store — 2026-11-26
+
+### Traces go to an off-the-shelf store, opted in per Agent
+
+An Agent that declares `trace: {content: full | metadata}` has its runs traced.
+The worker mints each run's trace and root span ids, passes the harness a W3C
+`TRACEPARENT`, and exports the root span itself once the run has ended, so the
+span exists and carries the outcome even when the harness was killed. A harness
+that declares `trace: otlp` exports the spans below it to the same OTLP
+endpoint. Spans go to a deployment-configured trace store
+(`TRACE_EXPORT_URL`), never to Memseek. `content` has no default: shipping full
+prompts and responses to a store outside Memseek is a choice the author makes
+in the definition. Without the block, nothing leaves the run.
+
+The worker writes OTLP/JSON directly rather than adopting an OpenTelemetry
+SDK. It exports one span per run, and an SDK would add a provider lifecycle and
+a blocking flush beside the worker heartbeat for that one span.
+
+### Who may export and who may read
+
+The trace variables reach only the harness process, never skill-pack
+subprocesses, and only a harness that declares tracing. The export token is
+ingest-only. The token that reads the store stays in the worker, so an Agent
+gains no path to other runs' traces. Agents gain no network path either: the
+harness wrapper exports, not the agent's tools.
+
+### What Memseek keeps
+
+Memseek stores no spans. For each traced run it keeps one runtime-written run
+record in a built-in collection, carrying the trace id, status, error kind,
+identities, mounted skills, and metrics, but no error text: that stays in the
+private run audit. Derivations select runs from those records and read a run's
+trace through one built-in, budgeted, receipted Task. What a derivation emits
+from it is bounded evidence in ordinary records, which erasure covers. Raw
+traces in the store are outside erasure; the store's retention bounds them.
+
+This amends earlier entries without reversing them. Learning Signal
+`execution_refs` stay informational and unfetchable; only run-record trace ids
+are readable, and only by the trace Task. Failure audit still writes no
+Pipeline outputs, but it records the run records of the Agent runs that failed.
+A run record's edge to its run is a control edge, like the predecessor edge, so
+it adds no derivation depth and the learning loop can repeat.
+
+A failed run's inputs no longer re-arm its own derivation. Run records make a
+failure produce writes, so a derivation reading them can succeed on the same
+entity, and its full trigger re-evaluation used to re-enqueue the failed
+derivation while its inputs were still pending. That undid the retry backoff
+and revived dead-lettered jobs, in a loop with no external input. Write,
+retraction and quiet conditions now fire only on records written after the
+latest failed run since the last success, not merely above the inputs it
+consumed: a run that keeps failing on one input never reaches the records
+queued behind it. A newer record, or an operator's `retry-job`, still runs it.
+A record written during a run that then dead-letters waits for the next one.
+After a failure the runtime evaluates only triggers that read run records.
+
+## Derivation jobs are traces built from their run audit — 2026-11-26
+
+Every derivation job exports a trace when `TRACE_EXPORT_URL` is set: a root
+span for the job and one span per Task, built from the `_system` run record
+after it is written. Building from the audit means the trace cannot disagree
+with what Memseek recorded, and failures need no separate instrumentation. The
+worker mints the run id when it claims the job; the trace id is that run id, so
+a later job links to the jobs whose records it read by reading their `run_id`,
+and the job's log lines carry it as `trace_id`. The audit now records each
+Task's start offset and model-call count for this.
+
+Traces join by links, not parents: a job links to its input jobs, an `agent`
+Task to the Agent run it started, a `trace` Task to the runs it read, and an
+Agent run back to its job. Each Agent run stays a whole trace, so the `trace`
+Task's reads and byte budget cover exactly one run. Job spans carry identities
+and timings, never content. Logs ship to VictoriaLogs through Vector without
+any code in Memseek.

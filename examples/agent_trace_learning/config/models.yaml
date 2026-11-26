@@ -1,0 +1,47 @@
+# yaml-language-server: $schema=../../../schemas/models.schema.json
+# The agent runs under the pi harness, which calls its model itself. Jev answers
+# the judge Tasks' questions. The skill derivation uses an LLM.
+providers:
+  anthropic:
+    adapter: openai_compat
+    base_url: https://api.anthropic.com/v1
+    api_key_env: ANTHROPIC_API_KEY
+  openai:
+    adapter: openai_compat
+    base_url: https://api.openai.com/v1
+    api_key_env: PROVIDER_OPENAI_COMPAT_API_KEY
+  typesafe:
+    adapter: typesafe
+    base_url: https://api.typesafe.ai
+    api_key_env: TYPESAFE_API_KEY
+    json_capability: none
+  offline:
+    adapter: fake
+    base_url: https://embeddings.invalid/v1
+
+aliases:
+  worker:
+    targets: ["openai:gpt-6-luna"]
+    params: {max_output_tokens: 8000}
+    context_tokens: 200000
+  strong:
+    targets: ["openai:gpt-6-luna"]
+    params: {max_output_tokens: 4000}
+    context_tokens: 200000
+  cheap:
+    targets: ["openai:gpt-6-luna"]
+    params: {max_output_tokens: 2000}
+    context_tokens: 200000
+  # Pinned: keep thresholds are calibrated against one Jev version.
+  jev:
+    targets: ["typesafe:jev-1.13.0"]
+
+embedding:
+  provider: offline
+  model: fake-embedding
+  dimensions: 1536
+  space: agent-trace-learning-v1
+
+defaults:
+  derivation: strong
+  fold: strong

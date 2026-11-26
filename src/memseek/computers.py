@@ -17,12 +17,14 @@ import time
 from collections.abc import AsyncIterator, Awaitable, Callable, Mapping
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from typing import Any, Literal, Protocol
-from uuid import UUID
+from uuid import UUID, uuid4
 
 import httpx
 from jsonschema import Draft202012Validator, FormatChecker
 
+from memseek.agent_runs import AgentRun, mounted_skills
 from memseek.config import Settings
 from memseek.definitions import DefinitionCatalog
 from memseek.definitions.models import (
@@ -33,6 +35,12 @@ from memseek.definitions.models import (
 )
 from memseek.definitions.toolsets import effective_computer
 from memseek.evidence_spine import ContextPressure
+from memseek.tracing import (
+    HarnessTelemetry,
+    new_trace_ids,
+    schedule_root_span_export,
+    traceparent,
+)
 
 
 class ComputerExecutionError(RuntimeError):
@@ -75,6 +83,9 @@ class ComputerRequest:
     # what it was before either existed.
     materialization: Mapping[str, Any] | None = None
     toolset: Mapping[str, Any] | None = None
+    # Never part of the body: it is not signed, sent, or in the result-cache
+    # key. Only a local harness that declares tracing receives it.
+    telemetry: HarnessTelemetry | None = None
 
     def as_json(self) -> dict[str, Any]:
         executor: dict[str, Any]
@@ -509,6 +520,9 @@ async def execute_agent(
     max_steps: int,
     mode: Literal["derivation", "invocation"] = "derivation",
     parent_run_key: str | None = None,
+    origin: Mapping[str, Any] | None = None,
+    on_run: Callable[[AgentRun], None] | None = None,
+    parent: tuple[str, str] | None = None,
 ) -> ComputerResult:
     try:
         computer = catalog.resolve_computer(computer_ref)
@@ -554,6 +568,7 @@ async def execute_agent(
             "context_exhausted",
             "protected Agent context cannot fit the declared context policy",
         )
+    trace_ids = new_trace_ids() if agent.trace is not None else None
     request = ComputerRequest(
         mode=mode,
         workspace=workspace,
@@ -589,17 +604,65 @@ async def execute_agent(
                 "action": pressure.action,
             },
         },
+        telemetry=(
+            HarnessTelemetry(
+                traceparent=traceparent(*trace_ids),
+                endpoint=settings.trace_export_url,
+                token=settings.trace_export_token,
+                content=agent.trace.content,
+            )
+            if trace_ids is not None and agent.trace is not None and settings.trace_export_url
+            else None
+        ),
     )
     provider = _provider_for(settings, computer.provider)
-    result = await provider.execute(request)
-    _validate_json(output_schema, result.value, "Agent output")
-    encoded = _canonical_bytes(result.value)
-    if len(encoded) > max_output_bytes:
-        raise ComputerExecutionError("budget", "Agent output exceeds declared byte limit")
-    if result.steps > max_steps:
-        raise ComputerExecutionError("budget", "Agent exceeded declared step limit")
-    if not result.citation_ids <= citation_ids:
-        raise ComputerExecutionError("provenance", "Agent widened citation authority")
+    if trace_ids is None or agent.trace is None:
+        result = await provider.execute(request)
+        _check_agent_result(result, output_schema, max_output_bytes, max_steps, citation_ids)
+    else:
+        started_at = datetime.now(UTC)
+        result_seen: ComputerResult | None = None
+        error_kind: str | None = "internal"
+        try:
+            result_seen = await provider.execute(request)
+            _check_agent_result(
+                result_seen, output_schema, max_output_bytes, max_steps, citation_ids
+            )
+            error_kind = None
+        except ComputerExecutionError as exc:
+            error_kind = exc.code
+            raise
+        except asyncio.CancelledError:
+            error_kind = "cancelled"
+            raise
+        finally:
+            run = AgentRun(
+                agent_run_id=uuid4(),
+                trace_id=trace_ids[0],
+                root_span_id=trace_ids[1],
+                workspace=workspace,
+                entity=entity,
+                mode=mode,
+                origin=dict(origin or {}),
+                agent={
+                    "ref": agent_ref,
+                    "hash": agent.definition_hash,
+                    "harness": agent.harness,
+                    "model": agent.model,
+                },
+                skills=mounted_skills(materialization, context_files),
+                content=agent.trace.content,
+                started_at=started_at,
+                ended_at=datetime.now(UTC),
+                status="ok" if error_kind is None else "failed",
+                error_kind=error_kind,
+                metrics=(result_seen.receipt.get("metrics") if result_seen is not None else None),
+                parent=parent,
+            )
+            if on_run is not None:
+                on_run(run)
+            schedule_root_span_export(run, settings)
+        result = result_seen
     return ComputerResult(
         value=result.value,
         citation_ids=result.citation_ids,
@@ -627,6 +690,23 @@ async def execute_agent(
         steps=result.steps,
         awaiting_input=result.awaiting_input,
     )
+
+
+def _check_agent_result(
+    result: ComputerResult,
+    output_schema: Mapping[str, Any],
+    max_output_bytes: int,
+    max_steps: int,
+    citation_ids: frozenset[UUID],
+) -> None:
+    _validate_json(output_schema, result.value, "Agent output")
+    encoded = _canonical_bytes(result.value)
+    if len(encoded) > max_output_bytes:
+        raise ComputerExecutionError("budget", "Agent output exceeds declared byte limit")
+    if result.steps > max_steps:
+        raise ComputerExecutionError("budget", "Agent exceeded declared step limit")
+    if not result.citation_ids <= citation_ids:
+        raise ComputerExecutionError("provenance", "Agent widened citation authority")
 
 
 __all__ = [

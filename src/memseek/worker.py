@@ -26,7 +26,8 @@ from memseek.db import (
     open_pool,
     verify_storage_compatibility,
 )
-from memseek.logging import configure_logging, log_event
+from memseek.logging import configure_logging, log_event, trace_context
+from memseek.tracing import derive_trace_ids, drain_exports
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -144,7 +145,11 @@ async def worker_lifespan(
         )
         log_event(LOGGER, "info", "worker.started")
         async with computer_provider_lifespan(runtime_settings):
-            yield runtime
+            try:
+                yield runtime
+            finally:
+                # Root spans of runs that just ended are still in flight.
+                await drain_exports()
     except BaseException as exc:
         log_event(
             LOGGER,
@@ -502,82 +507,87 @@ async def _drain_derivation_jobs(
         )
         if claimed is None:
             return completed, not_ready
-        try:
-            catalog = await _catalog_for(runtime, claimed.workspace)
-            if claimed.derivation not in getattr(catalog, "derivations", {}):
-                await release_not_ready_job(
-                    runtime.pool,
+        # The run id is the job's trace id, so every line logged while it runs
+        # can be found from its trace and the other way round.
+        run_id = uuid4()
+        with trace_context(*derive_trace_ids(run_id)):
+            try:
+                catalog = await _catalog_for(runtime, claimed.workspace)
+                if claimed.derivation not in getattr(catalog, "derivations", {}):
+                    await release_not_ready_job(
+                        runtime.pool,
+                        claimed,
+                        runtime.settings.unready_retry_s,
+                        timeout_s=runtime.settings.unready_timeout_s,
+                    )
+                    not_ready += 1
+                    continue
+                result = await _with_heartbeat(
+                    runtime,
                     claimed,
-                    runtime.settings.unready_retry_s,
-                    timeout_s=runtime.settings.unready_timeout_s,
+                    process_derivation_job(
+                        runtime.pool,
+                        claimed=claimed,
+                        settings=runtime.settings,
+                        catalog=catalog,
+                        run_id=run_id,
+                    ),
                 )
-                not_ready += 1
-                continue
-            result = await _with_heartbeat(
-                runtime,
-                claimed,
-                process_derivation_job(
-                    runtime.pool,
-                    claimed=claimed,
-                    settings=runtime.settings,
-                    catalog=catalog,
-                ),
-            )
-            if result.disposition == "not_ready":
-                await release_not_ready_job(
-                    runtime.pool,
-                    claimed,
-                    runtime.settings.unready_retry_s,
-                    timeout_s=runtime.settings.unready_timeout_s,
-                )
-                not_ready += 1
+                if result.disposition == "not_ready":
+                    await release_not_ready_job(
+                        runtime.pool,
+                        claimed,
+                        runtime.settings.unready_retry_s,
+                        timeout_s=runtime.settings.unready_timeout_s,
+                    )
+                    not_ready += 1
+                    log_event(
+                        LOGGER,
+                        "info",
+                        "derive.not_ready",
+                        job_id=str(claimed.id),
+                        workspace=claimed.workspace,
+                        derivation=claimed.derivation,
+                        entity_sha256=_entity_log_hash(claimed.workspace, claimed.entity),
+                        attempts=claimed.attempts,
+                        high_seq=result.high_seq,
+                    )
+                    continue
+                completed += 1
                 log_event(
                     LOGGER,
                     "info",
-                    "derive.not_ready",
+                    "derive.completed",
                     job_id=str(claimed.id),
                     workspace=claimed.workspace,
                     derivation=claimed.derivation,
                     entity_sha256=_entity_log_hash(claimed.workspace, claimed.entity),
                     attempts=claimed.attempts,
                     high_seq=result.high_seq,
+                    output_count=result.output_count,
                 )
+            except LeaseLost:
                 continue
-            completed += 1
-            log_event(
-                LOGGER,
-                "info",
-                "derive.completed",
-                job_id=str(claimed.id),
-                workspace=claimed.workspace,
-                derivation=claimed.derivation,
-                entity_sha256=_entity_log_hash(claimed.workspace, claimed.entity),
-                attempts=claimed.attempts,
-                high_seq=result.high_seq,
-                output_count=result.output_count,
-            )
-        except LeaseLost:
-            continue
-        except DerivationError as exc:
-            if isinstance(exc, RecordedDerivationFailure):
-                continue
-            try:
-                if exc.kind in NON_RETRYABLE_KINDS:
-                    await dead_letter_job(
-                        runtime.pool,
-                        claimed,
-                        error_kind=exc.kind,
-                        error=f"derive: {exc.kind}",
-                    )
-                else:
+            except DerivationError as exc:
+                if isinstance(exc, RecordedDerivationFailure):
+                    continue
+                try:
+                    if exc.kind in NON_RETRYABLE_KINDS:
+                        await dead_letter_job(
+                            runtime.pool,
+                            claimed,
+                            error_kind=exc.kind,
+                            error=f"derive: {exc.kind}",
+                        )
+                    else:
+                        await _retry_claim(runtime, claimed, exc)
+                except LeaseLost:
+                    continue
+            except Exception as exc:
+                try:
                     await _retry_claim(runtime, claimed, exc)
-            except LeaseLost:
-                continue
-        except Exception as exc:
-            try:
-                await _retry_claim(runtime, claimed, exc)
-            except LeaseLost:
-                continue
+                except LeaseLost:
+                    continue
 
 
 async def _drain_invocation_jobs(runtime: WorkerRuntime, *, worker_id: str) -> int:
