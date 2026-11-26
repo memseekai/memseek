@@ -27,7 +27,8 @@ those runs. Storing spans is a solved problem, so Memseek does not do it.
 - **VictoriaTraces fits that boundary.** It is a single binary that ingests
   OTLP and serves the Jaeger API, with its own UI and query language.
 - **One family for logs and traces.** VictoriaLogs uses the same query language
-  (LogsQL) and the same UI (VMUI), so one skill covers both.
+  (LogsQL) and the same UI (VMUI), so one skill covers both. vmalert runs
+  alert rules written in that same language.
 
 The decisions are recorded in [DECISIONS.md](https://github.com/memseekai/memseek/blob/main/DECISIONS.md)
 under "Agent traces live in a trace store" and "Derivation jobs are traces
@@ -40,6 +41,7 @@ built from their run audit".
 | `victoriatraces` | `victoriametrics/victoria-traces:v0.13.0` | 10428 | Spans, 30 days | `traces`, `observability` |
 | `victorialogs` | `victoriametrics/victoria-logs:v1.53.0` | 9428 | Log lines, 30 days | `logs`, `observability` |
 | `vector` | `timberio/vector:0.59.0-alpine` | none | Nothing; ships logs | `logs`, `observability` |
+| `vmalert` | `victoriametrics/vmalert:v1.156.0` | 8880 | Nothing; evaluates alert rules on the logs | `logs`, `observability` |
 
 None of them has auth. They listen on loopback only, which suits local
 development and nothing else; see [Production](#production).
@@ -59,6 +61,7 @@ flowchart LR
   W -- "JSON log lines" --> F[./logs/*.log or\ncontainer stdout]
   A -- "JSON log lines" --> F
   F --> V[Vector] -- "jsonline" --> VL[(VictoriaLogs)]
+  VL -- "LogsQL every minute" --> VA[vmalert]
   VT --> UI1[VMUI :10428]
   VL --> UI2[VMUI :9428]
 ```
@@ -74,7 +77,7 @@ flowchart LR
 ## Set it up
 
 ```sh
-make observability          # starts all three; prints both UI links
+make observability          # starts all four; prints the UI links
 ```
 
 Then give the worker these settings:
@@ -192,6 +195,14 @@ Every line written during a derivation job carries `trace_id` and `span_id`,
 the same ids as the job's trace. That includes `run.completed`,
 `derive.completed`, `job.retry_scheduled` and `job.dead_lettered`.
 
+## Alerts
+
+vmalert evaluates five rules on the log lines every minute: a derivation
+failing repeatedly, a dead letter, a failed span export, an Agent run record
+that could not be written, and a lagging projection. They show at
+<http://127.0.0.1:8880/vmalert/alerts>; see [Following Memseek](observability.md#alerts)
+for the table and for sending them to an Alertmanager.
+
 ## Looking at it
 
 **Traces** at <http://127.0.0.1:10428/select/vmui/>:
@@ -232,6 +243,7 @@ v1.53.0, and the code or docs follow it.
 | Parents arrive as `CHILD_OF` references, links as `FOLLOWS_FROM` | The reader uses `CHILD_OF` only |
 | The Jaeger API returns a trace at once, while VMUI search can take up to a minute to show new spans | The `trace` Task reads through the Jaeger API; the docs warn about search |
 | LogsQL field names containing `:` need quotes | The documented queries quote them |
+| In vmalert, a `stats` without `by` returns a row even for a count of 0, so the rule fires constantly | Those rules end with `\| filter <count>:>0` |
 | The VMUI trace view reads `/select/tempo/api/v2/traces/{id}` and takes `#/trace?trace_id=` | Test output and docs link to it |
 | pi events that arrive together got equal millisecond timestamps, so the store ordered them arbitrarily | The pi harness's span clock now advances at least one microsecond per span |
 
@@ -297,8 +309,6 @@ with `gpt-6-luna` and Jev turned up the following:
 
 ## Not done yet
 
-- **Alerts.** vmalert rules on LogsQL, such as a derivation claimed many times
-  a minute, any dead letter, or any `trace.export_failed`.
 - **More job kinds.** Processor, projection and invocation jobs log but export
   no job trace.
 - **`job.claimed`** is logged before the run id exists, so it has `job_id` but
@@ -318,5 +328,6 @@ with `gpt-6-luna` and Jev turned up the following:
 | `src/memseek/logging.py` | JSON log lines and the trace context that stamps them |
 | `harnesses/pi/otel.mjs` | The pi harness's span exporter |
 | `observability/vector.yaml` | Log shipping |
+| `observability/vmalert-rules.yaml` | Alert rules |
 | `docker-compose.yml` | The three services and their profiles |
 | `docs/agent-traces.md`, `docs/observability.md` | The user guides |

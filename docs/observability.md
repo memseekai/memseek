@@ -17,15 +17,16 @@ the run audit in `_system` stays the record of what each job did.
 docker compose --profile observability up -d
 ```
 
-This starts three services:
+This starts four services:
 
 | Service | What it does | UI |
 |---|---|---|
 | `victorialogs` | Stores log lines, 30 days | <http://127.0.0.1:9428/select/vmui/> |
 | `vector` | Ships Memseek's log lines to `victorialogs` | none |
+| `vmalert` | Evaluates alert rules on the log lines every minute | <http://127.0.0.1:8880/vmalert/alerts> |
 | `victoriatraces` | Stores spans, 30 days | <http://127.0.0.1:10428/select/vmui/> |
 
-`--profile logs` starts only the first two, and `--profile traces` only the
+`--profile logs` starts the first three, and `--profile traces` only the
 last. All three listen on loopback and have no auth.
 
 ### Where the logs come from
@@ -128,6 +129,31 @@ In the traces UI:
 
 A loop where one derivation keeps re-running on the same entity shows up as
 `job.claimed` lines for it many times a minute.
+
+## Alerts
+
+`vmalert` evaluates
+[observability/vmalert-rules.yaml](https://github.com/memseekai/memseek/blob/main/observability/vmalert-rules.yaml)
+against the last minute of log lines, every minute:
+
+| Alert | Fires when | Severity |
+|---|---|---|
+| `DerivationFailingRepeatedly` | One derivation in one workspace logs more than 3 retries or dead letters in a minute | critical |
+| `DerivationDeadLettered` | A derivation job gives up | warning |
+| `TraceExportFailing` | Any span export fails | warning |
+| `AgentRunRecordsNotWritten` | Any Agent run record cannot be written | critical |
+| `ProjectionLagging` | A projection job waited more than 60 s in the queue | warning |
+
+A single job retries at most a few times with growing backoff, so repeated
+failures within a minute mean new jobs keep failing. That is how a derivation
+that re-triggers itself shows up.
+
+The service sends no notifications: active alerts show in its UI and at
+`/api/v1/alerts`. To deliver them, replace `-notifier.blackhole` in
+`docker-compose.yml` with `-notifier.url` pointing at an Alertmanager.
+
+A rule whose `stats` has no `by` always returns one row, even a count of 0, so
+it needs a `| filter count:>0` style condition, or it fires all the time.
 
 ## Limits
 

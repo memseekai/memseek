@@ -203,6 +203,26 @@ services:
       - victorialogs
     profiles: ["logs", "observability"]
 
+  # Evaluates observability/vmalert-rules.yaml against the log lines every
+  # minute. It sends no notifications: active alerts show at
+  # http://127.0.0.1:8880/vmalert/alerts. Point -notifier.url at an
+  # Alertmanager to deliver them.
+  vmalert:
+    image: victoriametrics/vmalert:v1.156.0
+    command:
+      - -rule=/etc/vmalert/rules.yaml
+      - -rule.defaultRuleType=vlogs
+      - -datasource.url=http://victorialogs:9428
+      - -notifier.blackhole
+      - -httpListenAddr=:8880
+    ports:
+      - "127.0.0.1:8880:8880"
+    volumes:
+      - ./observability/vmalert-rules.yaml:/etc/vmalert/rules.yaml:ro
+    depends_on:
+      - victorialogs
+    profiles: ["logs", "observability"]
+
 volumes:
   memseek-data:
   memseek-traces:

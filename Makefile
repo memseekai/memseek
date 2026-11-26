@@ -8,7 +8,7 @@ TEST_DATABASE_URL ?= $(COMPOSE_TEST_DATABASE_URL)
 COMPUTER_RUNTIME_PORT ?= 8799
 COMPUTER_RUNTIME_SECRET ?= local-computer-demo
 
-.PHONY: help sync format lint typecheck build docs docs-build reference catalog-graph database database-down migrate migration-current quickstart up down logs check test e2e computer-demo computer-demo-cloudflare site-scrape-demo support-triage-demo pi-trace cloudflare-agent-smoke cloudflare-agent-smoke-local cloudflare-agent-smoke-setup
+.PHONY: help sync format lint typecheck build docs docs-build reference catalog-graph database database-down migrate migration-current quickstart up down logs check test e2e computer-demo computer-demo-cloudflare site-scrape-demo support-triage-demo pi-trace traces-test observability cloudflare-agent-smoke cloudflare-agent-smoke-local cloudflare-agent-smoke-setup
 
 help:
 	@echo "up             Run the whole local stack in Docker: postgres, api, worker, catalog"
@@ -20,7 +20,7 @@ help:
 	@echo "support-triage-demo  Triage a customer's support inbox with TypeSafe Jev against the Docker stack"
 	@echo "pi-trace       Follow what the newest pi run is doing, turn by turn (ROOT=<session dir> for another)"
 	@echo "traces-test    Trace a pi run into a local VictoriaTraces, print its episode and a VMUI timeline link"
-	@echo "observability  Start VictoriaLogs, Vector and VictoriaTraces to follow the worker and API"
+	@echo "observability  Start VictoriaLogs, Vector, vmalert and VictoriaTraces to follow the worker and API"
 	@echo "cloudflare-agent-smoke  Run a real Workers AI Agent against one durable Computer"
 	@echo "cloudflare-agent-smoke-local  Run the same canary against wrangler dev, nothing deployed"
 	@echo "cloudflare-agent-smoke-setup  Ask for runtime settings and prepare the live canary"
@@ -155,9 +155,10 @@ pi-trace:
 # run on the host ships its logs with `... 2>&1 | tee -a logs/worker.log`.
 observability:
 	@mkdir -p logs
-	@$(COMPOSE) --profile observability up -d --wait victorialogs vector victoriatraces
+	@$(COMPOSE) --profile observability up -d --wait victorialogs vector vmalert victoriatraces
 	@echo "logs   http://127.0.0.1:9428/select/vmui/"
 	@echo "traces http://127.0.0.1:10428/select/vmui/"
+	@echo "alerts http://127.0.0.1:8880/vmalert/alerts"
 
 # Needs the test database (`make database`) and node on PATH. The store keeps
 # running afterwards, so the printed VMUI link stays open.

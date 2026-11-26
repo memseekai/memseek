@@ -133,6 +133,7 @@ async def test_a_judged_failure_is_a_chain_of_linked_traces_and_logged_under_the
     retried = next(line for line in lines if line["event"] == "job.retry_scheduled")
     completed = next(line for line in lines if line["event"] == "run.completed")
     assert retried["trace_id"] == assessment.hex
+    assert (retried["workspace"], retried["derivation"]) == (workspace, "renewal_assessment")
     assert (completed["trace_id"], completed["span_id"]) == (judging.hex, judging.hex[16:])
 
 

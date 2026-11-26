@@ -2011,6 +2011,8 @@ async def _persist_failed_run(
             event,
             job_id=str(claimed.id),
             kind=claimed.kind,
+            workspace=claimed.workspace,
+            derivation=execution.definition.name,
             attempts=int(transition["attempts"]),
             error_kind=error.kind,
         )
