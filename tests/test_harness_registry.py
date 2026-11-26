@@ -31,6 +31,7 @@ def test_the_shipped_pi_manifest_parses() -> None:
             "openai": "OPENAI_API_KEY",
             "openrouter": "OPENROUTER_API_KEY",
         },
+        "trace": "otlp",
     }
     assert manifest.command() == ["node", str(REPOSITORY_ROOT / "harnesses" / "pi" / "run.mjs")]
 

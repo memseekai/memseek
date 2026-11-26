@@ -1,0 +1,7 @@
+# yaml-language-server: $schema=../../../schemas/context_policies.schema.json
+context_policies:
+  - name: worker_budget
+    version: 1
+    active: true
+    max_input_tokens: 64000
+    reserve_output_tokens: 8000

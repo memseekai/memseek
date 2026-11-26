@@ -1,0 +1,16 @@
+# yaml-language-server: $schema=../../../schemas/agents.schema.json
+agents:
+  - name: worker
+    version: 1
+    active: true
+    model: worker
+    instructions: worker_instructions@1
+    toolset: worker_tools@1
+    harness: pi
+    # Every run exports its trace and writes one agent_runs record. Full
+    # content sends prompts, responses and tool I/O to the trace store.
+    trace: {content: full}
+    computers: [worker_workspace@1]
+    context_policy: worker_budget@1
+    # Within the 180 s a derivation may run.
+    limits: {max_steps: 24, max_wall_s: 150, max_output_bytes: 1048576}

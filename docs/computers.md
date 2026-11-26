@@ -1442,6 +1442,25 @@ agents:
       - {name: browser, kind: skillpack, pack: browser-harness}
 ```
 
+### Tracing an Agent's runs
+
+`trace:` on an Agent exports each run's trace to the deployment's trace store
+and records the run for derivations to learn from. `content` is required:
+`full` sends prompts, responses, tool arguments and results; `metadata` sends
+names, statuses, timings and token counts only.
+
+```yaml
+agents:
+  - name: site_scraper
+    # ...
+    harness: pi
+    trace: {content: full}
+```
+
+The worker exports the run's root span on every provider. Spans from inside the
+run come from a harness that declares `trace: otlp`. See
+[Agent traces](agent-traces.md).
+
 ### The `local` provider
 
 Harnessed Agents run on `provider: local`. It is a development and evaluation

@@ -1,0 +1,10 @@
+# yaml-language-server: $schema=../../../schemas/processors.schema.json
+# Nothing is read by similarity, so nothing is embedded. Document ordering names
+# a score, so a constant one exists.
+processors:
+  - name: importance
+    kind: score
+    source: constant
+    input: {collections: [tasks, task_results, outcomes, skills]}
+    scale: [1, 10]
+    value: 5

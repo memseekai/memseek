@@ -204,8 +204,16 @@ See [Computers, Programs & Agents](computers.md).
 | `SKILLPACK_PATHS` | `["<repository>/skillpacks"]` | A JSON array of directories searched for skill pack modules. The first match wins. |
 | `SKILLPACK_CACHE` | `~/.memseek/skillpacks` | Where the files a skill pack copies into a workspace are cached, once per pinned ref. |
 
-The `COMPUTER_*` names have no `MEMSEEK_` prefix. A prefixed variable is
-ignored. [The Cloudflare Computer runtime](computer-cloudflare.md#configuring-memseeks-side)
+| `TRACE_EXPORT_URL` | empty | The OTLP/HTTP traces endpoint that runs of traced Agents export to. Empty exports nothing. HTTPS is required except on localhost or a single-label host such as a compose service name. See [Agent traces](agent-traces.md). |
+| `TRACE_EXPORT_TOKEN` | empty | An ingest-only bearer token for `TRACE_EXPORT_URL`. It is passed to tracing harnesses, so it must not grant read access. |
+| `TRACE_STORE_URL` | empty | The Jaeger-compatible query API the `trace` task reads runs' traces from, for example VictoriaTraces' `/select/jaeger`. Empty makes `trace` fail with `config`. |
+| `TRACE_STORE_TOKEN` | empty | The bearer token for `TRACE_STORE_URL`. It can read every workspace's traces, so only the worker holds it. |
+| `TRACE_STORE_TIMEOUT_S` | `10` | The timeout for one trace read. |
+| `TRACE_STORE_MAX_BYTES` | `8388608` | The largest trace a read accepts. A larger trace is skipped as `too_large`. |
+| `TRACE_STORE_SETTLE_S` | `30` | How long after a run ends its trace may still be arriving. A missing trace younger than this retries the run; an older one is skipped. |
+
+The `COMPUTER_*` and `TRACE_*` names have no `MEMSEEK_` prefix. A prefixed
+variable is ignored. [The Cloudflare Computer runtime](computer-cloudflare.md#configuring-memseeks-side)
 covers the runtime side.
 
 ## Worker and job queue

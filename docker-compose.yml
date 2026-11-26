@@ -106,6 +106,11 @@ services:
       # invocations, so it is the one that talks to the Computer runtime.
       COMPUTER_RUNTIME_URL: ${COMPUTER_RUNTIME_URL:-}
       COMPUTER_RUNTIME_TOKEN: ${COMPUTER_RUNTIME_TOKEN:-}
+      # Agent traces: where traced runs export, and where the trace Task reads.
+      TRACE_EXPORT_URL: ${TRACE_EXPORT_URL:-}
+      TRACE_EXPORT_TOKEN: ${TRACE_EXPORT_TOKEN:-}
+      TRACE_STORE_URL: ${TRACE_STORE_URL:-}
+      TRACE_STORE_TOKEN: ${TRACE_STORE_TOKEN:-}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
@@ -155,5 +160,21 @@ services:
       - /var/lib/postgresql/data
     profiles: ["test"]
 
+  # A trace store for traced Agents, started with `--profile traces`. Traced runs
+  # export to /insert/opentelemetry/v1/traces and the trace Task reads
+  # /select/jaeger. Browse the spans in its UI at
+  # http://127.0.0.1:10428/select/vmui/. It listens on loopback only, because the pi worker runs on
+  # the host; a container reaches it as http://victoriatraces:10428. It has no
+  # auth: put it behind one before it holds real prompts.
+  victoriatraces:
+    image: victoriametrics/victoria-traces:v0.13.0
+    command: ["-storageDataPath=/storage", "-retentionPeriod=30d"]
+    ports:
+      - "127.0.0.1:10428:10428"
+    volumes:
+      - memseek-traces:/storage
+    profiles: ["traces"]
+
 volumes:
   memseek-data:
+  memseek-traces:

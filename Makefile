@@ -19,6 +19,7 @@ help:
 	@echo "site-scrape-demo  Scrape URL=... twice with pi + browser-harness; the second run uses the playbook"
 	@echo "support-triage-demo  Triage a customer's support inbox with TypeSafe Jev against the Docker stack"
 	@echo "pi-trace       Follow what the newest pi run is doing, turn by turn (ROOT=<session dir> for another)"
+	@echo "traces-test    Trace a pi run into a local VictoriaTraces, print its episode and a VMUI timeline link"
 	@echo "cloudflare-agent-smoke  Run a real Workers AI Agent against one durable Computer"
 	@echo "cloudflare-agent-smoke-local  Run the same canary against wrangler dev, nothing deployed"
 	@echo "cloudflare-agent-smoke-setup  Ask for runtime settings and prepare the live canary"
@@ -148,6 +149,12 @@ support-triage-demo:
 
 pi-trace:
 	@node harnesses/pi/trace.mjs $(ROOT) --follow $(if $(FULL),--full,)
+
+# Needs the test database (`make database`) and node on PATH. The store keeps
+# running afterwards, so the printed VMUI link stays open.
+traces-test:
+	@$(COMPOSE) --profile traces up -d --wait victoriatraces
+	@MEMSEEK_LIVE_TRACES=http://127.0.0.1:10428 $(UV) run pytest -s -q tests/test_agent_traces.py -k live
 
 # A live, database-free deployment canary. Settings reads these from the
 # environment or the repository's untracked .env:

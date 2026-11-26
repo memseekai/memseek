@@ -1,0 +1,34 @@
+# yaml-language-server: $schema=../../../schemas/derivations.schema.json
+# A run that failed outright: read its trace, have Jev name the cause, and keep
+# the episode as evidence for the skill.
+name: failed_runs
+trigger:
+  write: {collections: [agent_runs], types: [run_failed]}
+  # Give the trace store time to index the run's last spans.
+  debounce_s: 30
+sources:
+  runs: {kind: changes, collections: [agent_runs], types: [run_failed], max_records: 10}
+limits: {max_llm_calls: 0, max_judgments: 10, max_judgment_tokens: 200000, max_trace_reads: 10}
+tasks:
+  - id: episodes
+    use: trace
+    input: "{{runs.records}}"
+    with: {max_chars: 16000, select: {agents: [worker]}}
+  - id: review
+    use: judge
+    input: "{{episodes.items}}"
+    with:
+      model: jev
+      questions:
+        cause:
+          type: choice
+          instructions: "What made the agent run described in `item.text` fail?"
+          criteria:
+            tool: "A tool or command failed and the agent could not recover"
+            approach: "The agent took a wrong approach to the task"
+            limits: "The agent ran out of steps or time while making progress"
+            environment: "Something outside the agent's control failed"
+      records:
+        text: "{{item.text}}"
+        content: {kind: failed_run}
+emit: {from: "{{review.records}}", collection: outcomes, type: exception, max_records: 10}

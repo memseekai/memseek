@@ -161,6 +161,7 @@ nav:
       - Artifacts: artifacts.md
       - Artifact uses & feedback: artifact-uses.md
       - Computers, Programs & Agents: computers.md
+      - Agent traces: agent-traces.md
       - Toolsets: toolsets.md
       - How skill lessons work: skill-lessons.md
       - Packages: packages.md

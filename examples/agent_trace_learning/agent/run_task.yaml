@@ -1,0 +1,59 @@
+# yaml-language-server: $schema=../../../schemas/derivations.schema.json
+# Runs the traced worker on each new task. Its own output is the task result;
+# the runtime also writes one agent_runs record per run, however it ends.
+name: run_task
+trigger:
+  write:
+    collections: [tasks]
+    types: [task]
+    statuses: [active]
+sources:
+  new_tasks:
+    kind: changes
+    collections: [tasks]
+    types: [task]
+    statuses: [active]
+    keyed: false
+    max_records: 1
+    max_tokens: 4000
+    allow_empty: false
+limits:
+  max_tasks: 1
+  max_llm_calls: 0
+  max_wall_s: 180
+  max_computer_runs: 1
+  max_agent_steps: 24
+tasks:
+  - id: work
+    use: agent
+    # A harness's task text is the input's `prompt`; the rest is in inputs/.
+    input:
+      prompt: Complete the task in inputs/input.json and return its result.
+      task: "{{new_tasks.records}}"
+    with:
+      agent: worker@1
+      computer: worker_workspace@1
+      context_policy: worker_budget@1
+      output: /outbox/final-result.json
+      output_schema:
+        type: object
+        required: [records]
+        properties:
+          records:
+            type: array
+            maxItems: 1
+            items:
+              type: object
+              required: [text, citations]
+              properties:
+                text: {type: string, minLength: 1}
+                citations:
+                  type: array
+                  minItems: 1
+                  items: {type: string, format: uuid}
+              additionalProperties: false
+emit:
+  from: "{{work.records}}"
+  collection: task_results
+  type: result
+  max_records: 1

@@ -27,6 +27,7 @@ from memseek.db import (
     verify_storage_compatibility,
 )
 from memseek.logging import configure_logging, log_event
+from memseek.tracing import drain_exports
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -144,7 +145,11 @@ async def worker_lifespan(
         )
         log_event(LOGGER, "info", "worker.started")
         async with computer_provider_lifespan(runtime_settings):
-            yield runtime
+            try:
+                yield runtime
+            finally:
+                # Root spans of runs that just ended are still in flight.
+                await drain_exports()
     except BaseException as exc:
         log_event(
             LOGGER,

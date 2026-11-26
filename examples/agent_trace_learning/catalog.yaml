@@ -1,0 +1,38 @@
+# yaml-language-server: $schema=../../schemas/catalog.schema.json
+name: agent_trace_learning
+version: 1.0.0
+description: >-
+  A traced agent whose skill improves from its own runs: failures and silent
+  failures, judged from their traces, become reviewed skill changes.
+config:
+  models: config/models.yaml
+  ranking: config/ranking.yaml
+  search_profiles: config/search_profiles.yaml
+
+# The agent and what it runs on
+agents:
+  worker@1: agent/agent.yaml
+toolsets:
+  worker_tools@1: agent/tools.yaml
+computers:
+  worker_workspace@1: agent/workspace.yaml
+context_policies:
+  worker_budget@1: agent/budget.yaml
+artifacts:
+  worker_instructions@1: agent/artifacts.yaml
+  learned_skill@1: agent/artifacts.yaml
+
+# What it works on, and what it learns
+collections:
+  tasks@1: learning/collections.yaml
+  task_results@1: learning/collections.yaml
+  outcomes@1: learning/collections.yaml
+  skills@1: learning/collections.yaml
+processors:
+  importance: learning/processors.yaml
+
+derivations:
+  run_task: agent/run_task.yaml
+  failed_runs: learning/failed_runs.yaml
+  silent_failures: learning/silent_failures.yaml
+  skill: learning/skill.yaml

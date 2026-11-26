@@ -106,10 +106,22 @@ def _scope_clauses(
 
 @dataclass(frozen=True, slots=True)
 class _RunState:
-    """What the latest successful run left behind for one processor and entity."""
+    """What the latest successful run left behind for one processor and entity.
+
+    ``failed_through`` is the position of the latest failed run since then.
+    Records written before it already armed a job that retries or
+    dead-lettered, including ones the run never reached behind the input it
+    keeps failing on, so they must not re-arm the processor's arrival
+    triggers; only newer records, or an operator's retry, do.
+    """
 
     watermark: int
     last_success: datetime | None
+    failed_through: int = 0
+
+    @property
+    def arrival_watermark(self) -> int:
+        return max(self.watermark, self.failed_through)
 
 
 async def _run_state(
@@ -121,16 +133,28 @@ async def _run_state(
 ) -> _RunState:
     result = await conn.execute(
         """
-        select (content->>'high_seq')::bigint as watermark,
-               content->>'completed_at' as completed_at
-        from record
-        where workspace = %s and entity = %s
-          and collection = '_system' and type = 'run'
-          and content->>'operation' = 'derive'
-          and content->>'processor' = %s
-          and content->>'status' in ('ok', 'noop')
-        order by seq desc
-        limit 1
+        with runs as (
+          select seq, content
+          from record
+          where workspace = %s and entity = %s
+            and collection = '_system' and type = 'run'
+            and content->>'operation' = 'derive'
+            and content->>'processor' = %s
+        ), success as (
+          select seq, (content->>'high_seq')::bigint as watermark,
+                 content->>'completed_at' as completed_at
+          from runs
+          where content->>'status' in ('ok', 'noop')
+          order by seq desc
+          limit 1
+        )
+        select success.watermark, success.completed_at,
+               (select max(runs.seq)
+                from runs
+                where runs.content->>'status' = 'failed'
+                  and runs.seq > coalesce(success.seq, 0)) as failed_through
+        from (select 1) one
+        left join success on true
         """,
         (workspace, entity, derivation),
     )
@@ -140,6 +164,7 @@ async def _run_state(
     return _RunState(
         watermark=int(row["watermark"] or 0),
         last_success=_parse_completed_at(row["completed_at"]),
+        failed_through=int(row["failed_through"] or 0),
     )
 
 
@@ -884,6 +909,7 @@ async def evaluate_entity_triggers_tx(
             )
             run_states[definition.name] = state
         watermark = state.watermark
+        arrival_watermark = state.arrival_watermark
         arrivals: list[TriggerCondition] = []
         if trigger.write is not None and await _scope_matches(
             conn,
@@ -891,7 +917,7 @@ async def evaluate_entity_triggers_tx(
             entity=entity,
             scope=trigger.write,
             catalog=catalog,
-            watermark=watermark,
+            watermark=arrival_watermark,
             processor=trigger.processor,
         ):
             arrivals.append("write")
@@ -919,7 +945,7 @@ async def evaluate_entity_triggers_tx(
             entity=entity,
             scope=trigger.retraction,
             catalog=catalog,
-            watermark=watermark,
+            watermark=arrival_watermark,
             processor=trigger.processor,
             extra_clauses=("row.key is not null", f"{_TOMBSTONE_SQL} = true"),
         ):
@@ -949,7 +975,7 @@ async def evaluate_entity_triggers_tx(
             entity=entity,
             scope=trigger.quiet,
             catalog=catalog,
-            watermark=watermark,
+            watermark=arrival_watermark,
             processor=trigger.processor,
         )
         deadline = (

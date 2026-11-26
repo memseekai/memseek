@@ -361,13 +361,15 @@ class PipelineLimits(StrictModel):
     # would exhaust the LLM budgets at once, at a small fraction of the cost.
     max_judgments: int = Field(default=0, ge=0, le=10_000)
     max_judgment_tokens: int = Field(default=400_000, ge=1)
+    # Reads of a run's trace from the trace store, by the trace Task.
+    max_trace_reads: int = Field(default=0, ge=0, le=100)
 
     @model_serializer(mode="wrap")
     def _serialize(self, handler: Any) -> dict[str, Any]:
         dumped = dict(handler(self))
-        # Default judgment budgets stay out of the dump, so pipelines that do
-        # not judge keep the hash they had before these limits existed.
-        for name in ("max_judgments", "max_judgment_tokens"):
+        # Default judgment and trace budgets stay out of the dump, so pipelines
+        # that use neither keep the hash they had before these limits existed.
+        for name in ("max_judgments", "max_judgment_tokens", "max_trace_reads"):
             if getattr(self, name) == type(self).model_fields[name].default:
                 dumped.pop(name, None)
         return dumped

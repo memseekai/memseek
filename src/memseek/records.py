@@ -22,6 +22,7 @@ from jsonschema import Draft202012Validator, FormatChecker
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from memseek import __version__
+from memseek.agent_runs import AGENT_RUNS_COLLECTION
 from memseek.canonical_records import (
     CanonicalRecordInvariantError,
     CanonicalRecordWrite,
@@ -384,6 +385,12 @@ def _prepare_record(
         if item.collection.startswith("_"):
             raise RecordValidationError(
                 "reserved_collection", "public collections may not begin with '_'"
+            )
+        if item.collection == AGENT_RUNS_COLLECTION:
+            # The runtime writes these: a forged run record could name another
+            # run's trace for the trace Task to read.
+            raise RecordValidationError(
+                "reserved_collection", f"{AGENT_RUNS_COLLECTION!r} is written by the runtime only"
             )
         _validate_name(item.collection, "collection")
         _validate_name(item.type, "type")

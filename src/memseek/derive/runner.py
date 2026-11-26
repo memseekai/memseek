@@ -15,7 +15,7 @@ import json
 import logging
 import re
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from typing import Any, Literal, LiteralString, Protocol, cast
 from uuid import UUID, uuid4
@@ -25,7 +25,9 @@ from jsonschema import Draft202012Validator, FormatChecker
 from psycopg.types.json import Jsonb
 
 from memseek import __version__
+from memseek.agent_runs import AGENT_RUNS_COLLECTION, AGENT_RUNS_REF, AgentRun, run_record
 from memseek.canonical_records import (
+    CanonicalRecordInvariantError,
     CanonicalRecordWrite,
     insert_canonical_record_tx,
     insert_canonical_records_tx,
@@ -69,6 +71,8 @@ from memseek.derive.tasks import (
     SearchTaskConfig,
     TaskContext,
     TaskResult,
+    TraceSelect,
+    TraceTaskConfig,
     task_adapter,
 )
 from memseek.derive.tasks_computer import AgentTaskConfig, ComputerTaskConfig
@@ -91,6 +95,7 @@ from memseek.search.engine import SearchRequestError, execute_search
 from memseek.search.named_views import ViewNotFound, execute_view
 from memseek.search.spec import SearchSpec
 from memseek.templates import TemplateError
+from memseek.trace_store import OPERATION, TraceStoreError, fetch_trace, render_episode
 
 LOGGER = logging.getLogger(__name__)
 _FENCE_RE = re.compile(r"^\s*```(?:json)?\s*\n?(.*?)\n?```\s*$", re.DOTALL)
@@ -142,6 +147,10 @@ class _Execution:
     task_trace: list[dict[str, Any]] | None = None
     computer_trace: list[dict[str, Any]] | None = None
     computer_runs: int = 0
+    # Traced Agent runs, recorded however each ended, including by timeout.
+    agent_runs: list[AgentRun] = field(default_factory=list)
+    # One receipt per trace the trace Task read, for the run audit.
+    trace_reads: list[dict[str, Any]] = field(default_factory=list)
     judgments: int = 0
     judgment_tokens: int = 0
     output: Any = None
@@ -778,6 +787,23 @@ def _referenced_source_ids(
     return frozenset()
 
 
+def _trace_selected(record: Mapping[str, Any], select: TraceSelect | None) -> bool:
+    if select is None:
+        return True
+    content = record.get("content", {})
+    agent = str(content.get("agent", {}).get("ref", "")).split("@", 1)[0]
+    origin = content.get("origin", {})
+    skills = {str(skill.get("name")) for skill in content.get("skills", ())}
+    checks = (
+        (select.agents, {agent, str(content.get("agent", {}).get("ref", ""))}),
+        (select.derivations, {str(origin.get("derivation", ""))}),
+        (select.origins, {str(origin.get("kind", ""))}),
+        (select.error_kinds, {str(content.get("error_kind", ""))}),
+        (select.skills, skills),
+    )
+    return all(not wanted or bool(set(wanted) & present) for wanted, present in checks)
+
+
 class _RuntimeTaskContext(TaskContext):
     """Constrained Task capability Implementation for one call."""
 
@@ -880,6 +906,101 @@ class _RuntimeTaskContext(TaskContext):
             output,
             source_ids=self._config_source_ids,
             citation_ids=self._config_citation_ids - rejected,
+        )
+
+    async def read_traces(self, value: Any, config: TraceTaskConfig) -> TaskResult[dict[str, Any]]:
+        """Render each selected run record's trace as an episode that cites the record.
+
+        Only a run record this Task was given can be read, and the trace must
+        carry that record's root span, so a Task never reads a trace the
+        runtime did not record for this workspace. A trace that is still
+        arriving retries the run; one that is gone is skipped, so the cursor
+        moves past it.
+        """
+
+        records = value if isinstance(value, list) else [value]
+        for record in records:
+            if not isinstance(record, Mapping) or record.get("collection") != AGENT_RUNS_COLLECTION:
+                raise DerivationError(
+                    "validation",
+                    f"Task {self._task_id!r} reads agent_runs records only",
+                    wm=self._execution.wm_before,
+                )
+            if self._citable_id(record) is None:
+                raise DerivationError(
+                    "validation",
+                    f"Task {self._task_id!r} received a run record it may not cite",
+                    wm=self._execution.wm_before,
+                )
+        selected = [record for record in records if _trace_selected(record, config.select)]
+        limits = self._execution.limits
+        if len(self._execution.trace_reads) + len(selected) > limits.max_trace_reads:
+            raise DerivationError(
+                "budget", "trace reads exceed max_trace_reads", wm=self._execution.wm_before
+            )
+        items: list[dict[str, Any]] = []
+        skipped: list[dict[str, str]] = []
+        for record in selected:
+            episode, reason = await self._read_trace(record, config.max_chars)
+            if episode is None:
+                skipped.append({"id": str(record["id"]), "reason": reason})
+            else:
+                items.append(episode)
+        cited = frozenset(UUID(item["id"]) for item in items)
+        return TaskResult(
+            {"items": items, "skipped": skipped},
+            source_ids=self._config_source_ids,
+            citation_ids=cited,
+        )
+
+    async def _read_trace(
+        self, record: Mapping[str, Any], max_chars: int
+    ) -> tuple[dict[str, Any] | None, str]:
+        content = record["content"]
+        trace_id = content.get("trace_id")
+        if not trace_id:
+            return None, "no_trace"
+        try:
+            fetched = await fetch_trace(self._settings, str(trace_id))
+        except TraceStoreError as exc:
+            raise DerivationError(exc.kind, exc.detail, wm=self._execution.wm_before) from exc
+        trace = fetched.trace
+        root = trace.root(str(content["agent_run_id"])) if trace is not None else None
+        receipt: dict[str, Any] = {"record_id": str(record["id"]), "trace_id": str(trace_id)}
+        if trace is not None:
+            receipt.update(spans=len(trace.spans), bytes=trace.bytes, sha256=trace.sha256)
+        if trace is None or root is None:
+            ended = datetime.fromisoformat(str(record["occurred_at"]).replace("Z", "+00:00"))
+            age = (datetime.now(UTC) - ended).total_seconds()
+            if fetched.missing != "too_large" and age < self._settings.trace_store_settle_s:
+                raise DerivationError(
+                    "transport",
+                    "the run's trace is still arriving in the trace store",
+                    wm=self._execution.wm_before,
+                )
+            reason = fetched.missing or "no_root_span"
+            self._execution.trace_reads.append({**receipt, "outcome": reason})
+            return None, reason
+        self._execution.trace_reads.append({**receipt, "outcome": "read"})
+        return (
+            {
+                "id": str(record["id"]),
+                "trace_id": str(trace_id),
+                "status": content.get("status"),
+                "error_kind": content.get("error_kind"),
+                "agent": content.get("agent", {}).get("ref"),
+                "text": render_episode(record, trace, max_chars),
+                "spans": len(trace.spans),
+                "tool_calls": sum(
+                    1 for span in trace.spans if span.attributes.get(OPERATION) == "execute_tool"
+                ),
+                "tool_errors": sum(
+                    1
+                    for span in trace.spans
+                    if span.attributes.get(OPERATION) == "execute_tool" and span.error
+                ),
+            },
+            "read",
         )
 
     async def _judge_states(
@@ -1165,6 +1286,16 @@ class _RuntimeTaskContext(TaskContext):
                     agent.limits.max_output_bytes,
                 ),
                 max_steps=max_steps,
+                origin={
+                    "kind": "derivation",
+                    "derivation": self._execution.definition.name,
+                    "config_hash": self._execution.config_hash,
+                    "job_id": (
+                        str(self._execution.job_id) if self._execution.job_id is not None else None
+                    ),
+                    "task_id": self._task_id,
+                },
+                on_run=self._execution.agent_runs.append,
             )
         except ComputerExecutionError as exc:
             raise DerivationError(exc.code, exc.detail, wm=self._execution.wm_before) from exc
@@ -1501,6 +1632,7 @@ def _run_content(
         "context_trace": execution.context_trace or [],
         "task_trace": execution.task_trace or [],
         "computer_trace": execution.computer_trace or [],
+        **({"trace_reads": execution.trace_reads} if execution.trace_reads else {}),
         "usage": {
             "prompt_tokens": execution.prompt_tokens,
             "completion_tokens": execution.completion_tokens,
@@ -1623,6 +1755,7 @@ async def _commit_execution(
             workspace=claimed.workspace,
             records=({"id": run_id},),
         )
+        await _write_agent_runs_tx(conn, settings, catalog, execution, run_id)
         output_writes: list[CanonicalRecordWrite] = []
         for draft in execution.outputs:
             continuity_depths: list[int] = []
@@ -1693,6 +1826,61 @@ async def _commit_execution(
     return run_id
 
 
+async def _write_agent_runs_tx(
+    conn: DatabaseConnection,
+    settings: Settings,
+    catalog: DefinitionCatalog,
+    execution: _Execution,
+    run_id: UUID,
+    *,
+    error_kind: str | None = None,
+) -> bool:
+    """Record the run's traced Agent runs beside its audit; never fail the audit.
+
+    A run the derivation's own failure cancelled, such as by its wall limit,
+    is recorded with the derivation's error kind. The rows use the
+    projection-only hook: like the run record they are control state, and
+    triggers are evaluated once, after the job transition.
+    """
+
+    if not execution.agent_runs:
+        return False
+    runs = [
+        run.ended_as(error_kind)
+        if error_kind is not None and run.error_kind == "cancelled"
+        else run
+        for run in execution.agent_runs
+    ]
+    try:
+        collection = catalog.resolve_collection(AGENT_RUNS_REF)
+        async with conn.transaction():
+            inserted = await insert_canonical_records_tx(
+                conn,
+                [
+                    run_record(run, collection, run_id=run_id, derived_from=(run_id,))
+                    for run in runs
+                ],
+                settings,
+            )
+            from memseek.projections import on_records_ready_tx
+
+            await on_records_ready_tx(
+                conn,
+                workspace=execution.workspace,
+                records=tuple({"id": row.id} for row in inserted),
+            )
+    except (KeyError, CanonicalRecordInvariantError, psycopg.Error) as exc:
+        log_event(
+            LOGGER,
+            "error",
+            "agent_runs.write_failed",
+            run_id=str(run_id),
+            exception_type=type(exc).__name__,
+        )
+        return False
+    return True
+
+
 async def _persist_failed_run(
     pool: DatabasePool,
     settings: Settings,
@@ -1745,6 +1933,9 @@ async def _persist_failed_run(
             workspace=claimed.workspace,
             records=({"id": run_id},),
         )
+        wrote_agent_runs = await _write_agent_runs_tx(
+            conn, settings, catalog, execution, run_id, error_kind=error.kind
+        )
         non_retryable = error.kind in NON_RETRYABLE_KINDS
         result = await conn.execute(
             """
@@ -1785,6 +1976,19 @@ async def _persist_failed_run(
         transition = await result.fetchone()
         if transition is None:
             raise LeaseLost(f"job lease lost: {claimed.id}")
+        if wrote_agent_runs:
+            # Only triggers that read run records: this job's own sources are
+            # still pending, and re-evaluating its trigger would undo the retry
+            # backoff and re-enqueue it after a dead letter.
+            from memseek.triggers import evaluate_entity_triggers_tx
+
+            await evaluate_entity_triggers_tx(
+                conn,
+                workspace=claimed.workspace,
+                entity=claimed.entity or "",
+                catalog=catalog,
+                collections=(AGENT_RUNS_COLLECTION,),
+            )
         event = "job.dead_lettered" if transition["dead_at"] is not None else "job.retry_scheduled"
         log_event(
             LOGGER,

@@ -2,18 +2,23 @@
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
+import logging
 from collections.abc import Mapping
 from typing import Annotated, Any, Literal
 from uuid import UUID, uuid4
 
+import psycopg
 from jsonschema import Draft202012Validator
 from jsonschema.exceptions import SchemaError
 from psycopg import errors
 from psycopg.types.json import Jsonb
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from memseek.agent_runs import AGENT_RUNS_REF, AgentRun, run_record
+from memseek.canonical_records import CanonicalRecordInvariantError, insert_canonical_records_tx
 from memseek.computers import ComputerExecutionError, ComputerResult, execute_agent, execute_program
 from memseek.config import Settings
 from memseek.db import DatabaseConnection, DatabasePool
@@ -21,8 +26,10 @@ from memseek.definitions import DefinitionCatalog
 from memseek.definitions.base import split_exact_reference
 from memseek.evidence_spine import persist_completion_memory_tx
 from memseek.locks import acquire_workspace_lock
+from memseek.logging import log_event
 from memseek.materialization import MaterializationError, build_agent_materialization
 
+LOGGER = logging.getLogger(__name__)
 TERMINAL_INVOCATION_STATUSES = frozenset({"succeeded", "failed", "cancelled", "context_exhausted"})
 _MAX_PROVIDER_EVENTS = 512
 _MAX_PROVIDER_EVENT_BYTES = 65_536
@@ -509,6 +516,8 @@ async def execute_invocation(
         if invocation["parent_session_id"] is not None
         else None
     )
+    agent_runs: list[AgentRun] = []
+    context_ids: frozenset[UUID] = frozenset()
 
     try:
         task = dict(invocation["task"])
@@ -575,6 +584,12 @@ async def execute_invocation(
                 max_steps=agent.limits.max_steps,
                 mode="invocation",
                 parent_run_key=parent_run_key,
+                origin={
+                    "kind": "invocation",
+                    "invocation_id": str(invocation_id),
+                    "session_id": str(invocation["session_id"]),
+                },
+                on_run=agent_runs.append,
             )
         await _complete_invocation(
             pool,
@@ -612,6 +627,64 @@ async def execute_invocation(
             pool, workspace, invocation_id, type(exc).__name__, "execution failed"
         )
         raise
+    finally:
+        # Every exit records the run, including a job timeout's cancellation.
+        if agent_runs:
+            await asyncio.shield(
+                _record_agent_runs(pool, settings, catalog, agent_runs, context_ids)
+            )
+
+
+async def _record_agent_runs(
+    pool: DatabasePool,
+    settings: Settings,
+    catalog: DefinitionCatalog,
+    runs: list[AgentRun],
+    context_ids: frozenset[UUID],
+) -> None:
+    """Write the run records of an invocation's traced Agent runs; never raise.
+
+    The records derive from the run's materialized context, so erasing a
+    source reaches them. A run whose context exceeds the provenance bound is
+    recorded without its trace id, so no evidence can be read from a trace its
+    provenance would not reach.
+    """
+
+    parents = tuple(sorted(context_ids, key=str))
+    readable = len(parents) <= settings.max_derived_from
+    try:
+        collection = catalog.resolve_collection(AGENT_RUNS_REF)
+        async with pool.connection() as conn, conn.transaction():
+            await acquire_workspace_lock(conn, runs[0].workspace)
+            inserted = await insert_canonical_records_tx(
+                conn,
+                [
+                    run_record(
+                        run,
+                        collection,
+                        derived_from=parents if readable else (),
+                        readable_trace=readable,
+                    )
+                    for run in runs
+                ],
+                settings,
+            )
+            from memseek.projections import on_records_ready_tx
+
+            await on_records_ready_tx(
+                conn,
+                workspace=runs[0].workspace,
+                records=tuple({"id": row.id} for row in inserted),
+                catalog=catalog,
+            )
+    except (KeyError, CanonicalRecordInvariantError, psycopg.Error) as exc:
+        log_event(
+            LOGGER,
+            "error",
+            "agent_runs.write_failed",
+            agent_run_id=str(runs[0].agent_run_id),
+            exception_type=type(exc).__name__,
+        )
 
 
 async def _context_exhausted_invocation(

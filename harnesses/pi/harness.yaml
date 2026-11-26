@@ -8,6 +8,8 @@ requires:
 # passes each mounted skill with --skill, so discovery does not depend on pi
 # trusting the project directory.
 skills_dir: .agents/skills
+# run.mjs exports pi's model and tool spans under the TRACEPARENT it is given.
+trace: otlp
 model_env:
   anthropic: ANTHROPIC_API_KEY
   openai: OPENAI_API_KEY

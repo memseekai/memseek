@@ -297,7 +297,12 @@ class LocalComputerProvider:
         (root / HARNESS_INPUT_PATH).parent.mkdir(parents=True, exist_ok=True)
         (root / HARNESS_INPUT_PATH).write_text(harness_input.model_dump_json(), encoding="utf-8")
 
-        output = harness.run(manifest, root, env, wall_s=agent.limits.max_wall_s)
+        # The trace variables go to the harness alone, never to skill packs,
+        # and only to a harness that says it exports spans.
+        harness_env = dict(env)
+        if manifest.trace == "otlp" and request.telemetry is not None:
+            harness_env.update(request.telemetry.environment())
+        output = harness.run(manifest, root, harness_env, wall_s=agent.limits.max_wall_s)
         if not learning.lessons:
             (root / LESSONS_PATH.lstrip("/")).unlink(missing_ok=True)
         outbox, rejected = _collect_outbox(root, request, context_files, schemas)

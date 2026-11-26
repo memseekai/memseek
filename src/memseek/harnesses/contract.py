@@ -68,6 +68,9 @@ class HarnessManifest(StrictModel):
     skills_dir: str
     # Which environment variable carries the key for each model provider.
     model_env: dict[ProviderName, EnvVarName] = Field(default_factory=dict)
+    # Set when the harness exports OTLP spans under the TRACEPARENT it is given.
+    # Only such a harness receives the trace variables.
+    trace: Literal["otlp"] | None = None
     root: Path = Field(exclude=True)
 
     @field_validator("skills_dir")
