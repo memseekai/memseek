@@ -4,17 +4,23 @@ artifacts:
     version: 1
     active: true
     kind: prompt
-    description: Standing instructions for one task.
+    description: Standing instructions for the finance-operations assistant.
     lifecycle: live
     parameters:
       entity: {type: string, required: true}
     template: |
-      You complete one task. The task record is in inputs/input.json under
-      "task", and its content.text says what to do.
+      You are the finance-operations assistant for {{entity}}. You answer one
+      question about the account's payments, working only from the payment
+      processor's webhook deliveries in inputs/input.json under "events".
+      The question is under "task".
 
-      Return {"records": [{"text": "<your result>", "citations": ["<the task
+      Work it out with the tools you have; write scripts in /workspace when
+      that helps. Answer with the figure asked for and one or two sentences on
+      how you got it: which events you counted and how you treated amounts.
+
+      Return {"records": [{"text": "<your answer>", "citations": ["<the task
       record's id>"]}]} as the envelope's value, and cite the same id in
-      citation_ids. Follow the task-skill skill.
+      citation_ids. Load and follow the task-skill skill first.
 
   # The skill the agent mounts. Its body is this entity's reviewed skill
   # sections, so a promoted change reaches the next run.
@@ -23,8 +29,9 @@ artifacts:
     active: true
     kind: skill
     description: >-
-      How to do this kind of task: the steps that work, the pitfalls earlier
-      runs hit, and examples. Load it before starting.
+      How to answer questions about this account's payment data: the steps
+      that work, the pitfalls earlier runs hit, and worked examples. Load it
+      before starting.
     lifecycle: reviewed
     parameters:
       entity: {type: string, required: true}

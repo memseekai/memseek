@@ -1,13 +1,42 @@
 # yaml-language-server: $schema=../../../schemas/derivations.schema.json
-# A run that ended without an error may still have missed its task. Jev reads
-# the episode; the ones it judges unaccomplished become evidence.
+# A run that ended without an error may still have answered wrongly. This is
+# the review a careful finance lead would do, in three steps:
+#
+#   episodes  read each run's trace and write it out step by step
+#   review    Jev checks each final answer against the payout statement
+#   diagnose  for each wrong answer, find the root cause in the steps and
+#             the data, and recompute the right figure to confirm it
+#
+# The diagnoses become evidence for the skill.
 name: silent_failures
 trigger:
   write: {collections: [agent_runs], types: [run_ok]}
+  # Gives the trace store time to receive the run's last spans, and judges
+  # runs that finish close together in one pass.
   debounce_s: 30
 sources:
   runs: {kind: changes, collections: [agent_runs], types: [run_ok], max_records: 10}
-limits: {max_llm_calls: 0, max_judgments: 10, max_judgment_tokens: 200000, max_trace_reads: 10}
+  # The processor's payout statement for the month. The agent never sees it.
+  statement:
+    kind: record
+    collection: payouts
+    key: "2026-10"
+  # The webhook deliveries the agent worked from, so the diagnosis can point
+  # at the exact events behind a wrong figure.
+  events:
+    kind: current
+    collections: [payment_events]
+    max_records: 200
+    max_tokens: 30000
+model: strong
+limits:
+  max_llm_calls: 3
+  max_judgments: 10
+  max_judgment_tokens: 200000
+  max_trace_reads: 10
+  max_total_tokens: 90000
+  max_visible_records: 250
+  max_wall_s: 150
 tasks:
   - id: episodes
     use: trace
@@ -18,12 +47,73 @@ tasks:
     input: "{{episodes.items}}"
     with:
       model: jev
+      context:
+        statement: "{{statement.records}}"
       questions:
-        accomplished:
+        correct:
           type: noul
-          instructions: "Did the agent in `item.text` accomplish the task stated in it?"
-      keep: {accomplished: {noul_lte: 0.3}}
+          instructions: >-
+            The episode in `item.text` shows an agent answering a question
+            about October 2026 payments: the question, each step it took, and
+            its final answer. Check the final answer against the payout
+            statement in `context.statement`. Is the figure the agent reported
+            consistent with the statement?
+          criteria:
+            true: "The reported figure agrees with the statement, or follows from it"
+            false: "The figure contradicts the statement, or the agent gave no figure"
+      keep: {correct: {noul_lte: 0.3}}
       records:
         text: "{{item.text}}"
-        content: {kind: silent_failure}
-emit: {from: "{{review.records}}", collection: outcomes, type: exception, max_records: 10}
+        content: {kind: wrong_answer}
+  - id: diagnose
+    use: llm
+    with:
+      output_schema:
+        type: object
+        required: [records]
+        properties:
+          records:
+            type: array
+            maxItems: 10
+            items:
+              type: object
+              required: [text, citations]
+              properties:
+                text: {type: string, minLength: 1}
+                citations:
+                  type: array
+                  minItems: 1
+                  items: {type: string, format: uuid}
+              additionalProperties: false
+        additionalProperties: false
+      max_output_tokens: 3000
+      prompt: |
+        You review answers a finance assistant gave from an account's payment
+        webhooks. A reviewer marked the runs below wrong against the payout
+        statement. For each one, find out why.
+
+        PAYOUT STATEMENT (the reference; in euros):
+        <data untrusted="true">{{statement.records}}</data>
+
+        WEBHOOK DELIVERIES THE AGENT WORKED FROM (amounts in cents, `created`
+        is a Unix timestamp in UTC):
+        <data untrusted="true">{{events.records}}</data>
+
+        WRONG RUNS (each is one run written out from its trace: the question,
+        every step with its arguments and output, the final answer, and the
+        reviewer's verdict; cite each run by the UUID in its `citations`):
+        <data untrusted="true">{{review.records}}</data>
+
+        For each wrong run:
+        1. Recompute the asked-for figure correctly from the deliveries, and
+           check it against the statement.
+        2. Compare it with the agent's figure, and name the exact deliveries
+           or events that account for the difference.
+        3. From the agent's steps, say what in its method let them in or kept
+           them out, and what method would have been right.
+
+        Return one record per run, citing that run's UUID:
+        {"records":[{"text":"Question: ... Agent answered ...; correct is ...
+        Difference: ... (event ids). Cause: ... Right method: ...",
+        "citations":["uuid"]}]}
+emit: {from: "{{diagnose.records}}", collection: outcomes, type: exception, max_records: 10}

@@ -1311,7 +1311,14 @@ class _RuntimeTaskContext(TaskContext):
             raise DerivationError(exc.code, exc.detail, wm=self._execution.wm_before) from exc
         self.tool_source_ids |= context_ids
         self.tool_citation_ids |= context_ids
-        self._record_computer_receipt(result.receipt, executor=config.agent)
+        receipt = dict(result.receipt)
+        traced = [
+            run for run in self._execution.agent_runs if run.origin.get("task_id") == self._task_id
+        ]
+        if traced:
+            # The audit points straight at the run's trace, not only through links.
+            receipt["trace_id"] = traced[-1].trace_id
+        self._record_computer_receipt(receipt, executor=config.agent)
         return TaskResult(
             result.value,
             source_ids=available_sources,

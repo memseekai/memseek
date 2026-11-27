@@ -2,8 +2,9 @@
 name: agent_trace_learning
 version: 1.0.0
 description: >-
-  A traced agent whose skill improves from its own runs: failures and silent
-  failures, judged from their traces, become reviewed skill changes.
+  A traced finance-operations agent answers questions from an account's raw
+  payment webhooks. Its runs are judged from their traces against the payout
+  statement, and the mistakes become reviewed changes to the skill it loads.
 config:
   models: config/models.yaml
   ranking: config/ranking.yaml
@@ -28,6 +29,8 @@ collections:
   task_results@1: learning/collections.yaml
   outcomes@1: learning/collections.yaml
   skills@1: learning/collections.yaml
+  payment_events@1: learning/collections.yaml
+  payouts@1: learning/collections.yaml
 processors:
   importance: learning/processors.yaml
 

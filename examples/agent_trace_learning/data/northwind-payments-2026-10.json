@@ -1,0 +1,485 @@
+{
+  "account": "Northwind Traders",
+  "about": "Webhook deliveries from Northwind Traders' payment processor for October 2026, as stored in Memseek. Fictional data with the usual traps: amounts in cents, retried deliveries of the same event, test-mode events, refunds as separate events, and deliveries whose event falls outside the month.",
+  "deliveries": [
+    {
+      "delivery_id": "dlv_0001",
+      "received_at": "2026-10-02T09:14:11Z",
+      "event": {
+        "id": "evt_0001",
+        "type": "charge.succeeded",
+        "created": 1790932447,
+        "livemode": true,
+        "data": {
+          "object": {
+            "id": "ch_01",
+            "object": "charge",
+            "customer": "Blue Door Café",
+            "amount": 4800,
+            "currency": "eur",
+            "status": "succeeded"
+          }
+        }
+      }
+    },
+    {
+      "delivery_id": "dlv_0002",
+      "received_at": "2026-10-03T11:02:44Z",
+      "event": {
+        "id": "evt_0002",
+        "type": "charge.succeeded",
+        "created": 1791025361,
+        "livemode": true,
+        "data": {
+          "object": {
+            "id": "ch_02",
+            "object": "charge",
+            "customer": "Harbor Bakery",
+            "amount": 12500,
+            "currency": "eur",
+            "status": "succeeded"
+          }
+        }
+      }
+    },
+    {
+      "delivery_id": "dlv_0003",
+      "received_at": "2026-10-05T16:20:17Z",
+      "event": {
+        "id": "evt_0003",
+        "type": "charge.succeeded",
+        "created": 1791217212,
+        "livemode": true,
+        "data": {
+          "object": {
+            "id": "ch_03",
+            "object": "charge",
+            "customer": "Mill Street Deli",
+            "amount": 2399,
+            "currency": "eur",
+            "status": "succeeded"
+          }
+        }
+      }
+    },
+    {
+      "delivery_id": "dlv_0004",
+      "received_at": "2026-10-09T08:45:32Z",
+      "event": {
+        "id": "evt_0004",
+        "type": "charge.succeeded",
+        "created": 1791535530,
+        "livemode": true,
+        "data": {
+          "object": {
+            "id": "ch_04",
+            "object": "charge",
+            "customer": "Blue Door Café",
+            "amount": 4800,
+            "currency": "eur",
+            "status": "succeeded"
+          }
+        }
+      }
+    },
+    {
+      "delivery_id": "dlv_0005",
+      "received_at": "2026-10-11T14:31:08Z",
+      "event": {
+        "id": "evt_0005",
+        "type": "charge.succeeded",
+        "created": 1791729065,
+        "livemode": true,
+        "data": {
+          "object": {
+            "id": "ch_05",
+            "object": "charge",
+            "customer": "Larkspur Hotel",
+            "amount": 86000,
+            "currency": "eur",
+            "status": "succeeded"
+          }
+        }
+      }
+    },
+    {
+      "delivery_id": "dlv_0006",
+      "received_at": "2026-10-11T14:33:08Z",
+      "event": {
+        "id": "evt_0005",
+        "type": "charge.succeeded",
+        "created": 1791729065,
+        "livemode": true,
+        "data": {
+          "object": {
+            "id": "ch_05",
+            "object": "charge",
+            "customer": "Larkspur Hotel",
+            "amount": 86000,
+            "currency": "eur",
+            "status": "succeeded"
+          }
+        }
+      }
+    },
+    {
+      "delivery_id": "dlv_0007",
+      "received_at": "2026-10-12T10:00:01Z",
+      "event": {
+        "id": "evt_0006",
+        "type": "charge.succeeded",
+        "created": 1791799200,
+        "livemode": false,
+        "data": {
+          "object": {
+            "id": "ch_t1",
+            "object": "charge",
+            "customer": "Test Customer",
+            "amount": 99900,
+            "currency": "eur",
+            "status": "succeeded"
+          }
+        }
+      }
+    },
+    {
+      "delivery_id": "dlv_0008",
+      "received_at": "2026-10-14T13:08:01Z",
+      "event": {
+        "id": "evt_0007",
+        "type": "charge.succeeded",
+        "created": 1791983275,
+        "livemode": true,
+        "data": {
+          "object": {
+            "id": "ch_06",
+            "object": "charge",
+            "customer": "Harbor Bakery",
+            "amount": 12500,
+            "currency": "eur",
+            "status": "succeeded"
+          }
+        }
+      }
+    },
+    {
+      "delivery_id": "dlv_0009",
+      "received_at": "2026-10-15T17:40:21Z",
+      "event": {
+        "id": "evt_0008",
+        "type": "charge.refunded",
+        "created": 1792086019,
+        "livemode": true,
+        "data": {
+          "object": {
+            "id": "re_01",
+            "object": "refund",
+            "charge": "ch_05",
+            "customer": "Larkspur Hotel",
+            "amount": 6000,
+            "currency": "eur",
+            "status": "succeeded"
+          }
+        }
+      }
+    },
+    {
+      "delivery_id": "dlv_0010",
+      "received_at": "2026-10-15T17:41:23Z",
+      "event": {
+        "id": "evt_0008",
+        "type": "charge.refunded",
+        "created": 1792086019,
+        "livemode": true,
+        "data": {
+          "object": {
+            "id": "re_01",
+            "object": "refund",
+            "charge": "ch_05",
+            "customer": "Larkspur Hotel",
+            "amount": 6000,
+            "currency": "eur",
+            "status": "succeeded"
+          }
+        }
+      }
+    },
+    {
+      "delivery_id": "dlv_0011",
+      "received_at": "2026-10-16T10:02:14Z",
+      "event": {
+        "id": "evt_0009",
+        "type": "charge.succeeded",
+        "created": 1792144931,
+        "livemode": true,
+        "data": {
+          "object": {
+            "id": "ch_07",
+            "object": "charge",
+            "customer": "Corner Grocer",
+            "amount": 7350,
+            "currency": "eur",
+            "status": "succeeded"
+          }
+        }
+      }
+    },
+    {
+      "delivery_id": "dlv_0012",
+      "received_at": "2026-10-16T10:05:52Z",
+      "event": {
+        "id": "evt_0010",
+        "type": "charge.succeeded",
+        "created": 1792145148,
+        "livemode": true,
+        "data": {
+          "object": {
+            "id": "ch_08",
+            "object": "charge",
+            "customer": "Corner Grocer",
+            "amount": 7350,
+            "currency": "eur",
+            "status": "succeeded"
+          }
+        }
+      }
+    },
+    {
+      "delivery_id": "dlv_0013",
+      "received_at": "2026-10-18T19:12:28Z",
+      "event": {
+        "id": "evt_0011",
+        "type": "charge.failed",
+        "created": 1792350746,
+        "livemode": true,
+        "data": {
+          "object": {
+            "id": "ch_f1",
+            "object": "charge",
+            "customer": "Ostra Kitchen",
+            "amount": 15900,
+            "currency": "eur",
+            "status": "failed",
+            "failure_code": "card_declined"
+          }
+        }
+      }
+    },
+    {
+      "delivery_id": "dlv_0014",
+      "received_at": "2026-10-19T12:33:07Z",
+      "event": {
+        "id": "evt_0012",
+        "type": "charge.succeeded",
+        "created": 1792413182,
+        "livemode": true,
+        "data": {
+          "object": {
+            "id": "ch_09",
+            "object": "charge",
+            "customer": "Mill Street Deli",
+            "amount": 2399,
+            "currency": "eur",
+            "status": "succeeded"
+          }
+        }
+      }
+    },
+    {
+      "delivery_id": "dlv_0015",
+      "received_at": "2026-10-20T09:58:47Z",
+      "event": {
+        "id": "evt_0013",
+        "type": "charge.refunded",
+        "created": 1792490324,
+        "livemode": true,
+        "data": {
+          "object": {
+            "id": "re_02",
+            "object": "refund",
+            "charge": "ch_03",
+            "customer": "Mill Street Deli",
+            "amount": 2399,
+            "currency": "eur",
+            "status": "succeeded"
+          }
+        }
+      }
+    },
+    {
+      "delivery_id": "dlv_0016",
+      "received_at": "2026-10-22T15:16:39Z",
+      "event": {
+        "id": "evt_0014",
+        "type": "charge.succeeded",
+        "created": 1792682197,
+        "livemode": true,
+        "data": {
+          "object": {
+            "id": "ch_10",
+            "object": "charge",
+            "customer": "Larkspur Hotel",
+            "amount": 43000,
+            "currency": "eur",
+            "status": "succeeded"
+          }
+        }
+      }
+    },
+    {
+      "delivery_id": "dlv_0017",
+      "received_at": "2026-10-23T10:00:01Z",
+      "event": {
+        "id": "evt_0015",
+        "type": "charge.succeeded",
+        "created": 1792749600,
+        "livemode": false,
+        "data": {
+          "object": {
+            "id": "ch_t2",
+            "object": "charge",
+            "customer": "Test Customer",
+            "amount": 50000,
+            "currency": "eur",
+            "status": "succeeded"
+          }
+        }
+      }
+    },
+    {
+      "delivery_id": "dlv_0018",
+      "received_at": "2026-10-24T10:00:01Z",
+      "event": {
+        "id": "evt_0016",
+        "type": "charge.refunded",
+        "created": 1792836000,
+        "livemode": false,
+        "data": {
+          "object": {
+            "id": "re_t1",
+            "object": "refund",
+            "charge": "ch_t1",
+            "customer": "Test Customer",
+            "amount": 99900,
+            "currency": "eur",
+            "status": "succeeded"
+          }
+        }
+      }
+    },
+    {
+      "delivery_id": "dlv_0019",
+      "received_at": "2026-10-25T18:49:07Z",
+      "event": {
+        "id": "evt_0017",
+        "type": "charge.succeeded",
+        "created": 1792954143,
+        "livemode": true,
+        "data": {
+          "object": {
+            "id": "ch_11",
+            "object": "charge",
+            "customer": "Ostra Kitchen",
+            "amount": 15900,
+            "currency": "eur",
+            "status": "succeeded"
+          }
+        }
+      }
+    },
+    {
+      "delivery_id": "dlv_0020",
+      "received_at": "2026-10-25T18:54:04Z",
+      "event": {
+        "id": "evt_0017",
+        "type": "charge.succeeded",
+        "created": 1792954143,
+        "livemode": true,
+        "data": {
+          "object": {
+            "id": "ch_11",
+            "object": "charge",
+            "customer": "Ostra Kitchen",
+            "amount": 15900,
+            "currency": "eur",
+            "status": "succeeded"
+          }
+        }
+      }
+    },
+    {
+      "delivery_id": "dlv_0021",
+      "received_at": "2026-10-30T08:21:53Z",
+      "event": {
+        "id": "evt_0018",
+        "type": "charge.succeeded",
+        "created": 1793348510,
+        "livemode": true,
+        "data": {
+          "object": {
+            "id": "ch_12",
+            "object": "charge",
+            "customer": "Blue Door Café",
+            "amount": 4800,
+            "currency": "eur",
+            "status": "succeeded"
+          }
+        }
+      }
+    },
+    {
+      "delivery_id": "dlv_0022",
+      "received_at": "2026-11-01T00:05:14Z",
+      "event": {
+        "id": "evt_0019",
+        "type": "charge.succeeded",
+        "created": 1793491512,
+        "livemode": true,
+        "data": {
+          "object": {
+            "id": "ch_13",
+            "object": "charge",
+            "customer": "Harbor Bakery",
+            "amount": 12500,
+            "currency": "eur",
+            "status": "succeeded"
+          }
+        }
+      }
+    },
+    {
+      "delivery_id": "dlv_0023",
+      "received_at": "2026-10-01T00:01:01Z",
+      "event": {
+        "id": "evt_0020",
+        "type": "charge.succeeded",
+        "created": 1790812720,
+        "livemode": true,
+        "data": {
+          "object": {
+            "id": "ch_00",
+            "object": "charge",
+            "customer": "Ostra Kitchen",
+            "amount": 9900,
+            "currency": "eur",
+            "status": "succeeded"
+          }
+        }
+      }
+    }
+  ],
+  "statement": {
+    "period": "2026-10",
+    "currency": "eur",
+    "charges": {
+      "count": 12,
+      "gross": "2,037.98"
+    },
+    "refunds": {
+      "count": 2,
+      "total": "83.99"
+    },
+    "net": "1,953.99",
+    "note": "The processor's payout statement for October 2026, in euros. Test-mode activity is excluded."
+  }
+}

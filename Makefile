@@ -8,7 +8,7 @@ TEST_DATABASE_URL ?= $(COMPOSE_TEST_DATABASE_URL)
 COMPUTER_RUNTIME_PORT ?= 8799
 COMPUTER_RUNTIME_SECRET ?= local-computer-demo
 
-.PHONY: help sync format lint typecheck build docs docs-build reference catalog-graph database database-down migrate migration-current quickstart up down logs check test e2e computer-demo computer-demo-cloudflare site-scrape-demo support-triage-demo pi-trace traces-test observability cloudflare-agent-smoke cloudflare-agent-smoke-local cloudflare-agent-smoke-setup
+.PHONY: help sync format lint typecheck build docs docs-build reference catalog-graph database database-down migrate migration-current quickstart up down logs check test e2e computer-demo computer-demo-cloudflare site-scrape-demo support-triage-demo pi-trace traces-test observability trace-learning-demo cloudflare-agent-smoke cloudflare-agent-smoke-local cloudflare-agent-smoke-setup
 
 help:
 	@echo "up             Run the whole local stack in Docker: postgres, api, worker, catalog"
@@ -147,6 +147,11 @@ support-triage-demo:
 	@env -u MEMSEEK_API_KEY \
 		DATABASE_URL="postgresql://postgres:postgres@127.0.0.1:$${MEMSEEK_DB_PORT:-5433}/memseek" \
 		$(UV) run python examples/support_triage.py
+
+# Needs the API and worker running on the host with tracing on; see
+# docs/agent-trace-learning-example.md.
+trace-learning-demo:
+	@$(UV) run python examples/agent_trace_learning.py $(ARGS)
 
 pi-trace:
 	@node harnesses/pi/trace.mjs $(ROOT) --follow $(if $(FULL),--full,)

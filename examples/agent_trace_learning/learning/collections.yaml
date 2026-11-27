@@ -54,3 +54,43 @@ collections:
       additionalProperties: true
     required_processors: []
     search_profile: pg_default
+
+  # What the agent works from: one record per webhook delivery from the
+  # payment processor, keyed by delivery id. A retried delivery repeats an
+  # event under a new delivery id, exactly as processors do.
+  - name: payment_events
+    version: 1
+    active: true
+    mode: keyed
+    schema:
+      type: object
+      required: [text, delivery_id, event]
+      properties:
+        text: {type: string}
+        delivery_id: {type: string}
+        received_at: {type: string}
+        event: {type: object}
+      additionalProperties: false
+    required_processors: []
+    search_profile: pg_default
+
+  # What reviewers check answers against: the processor's monthly payout
+  # statement, keyed by month. The agent never sees it.
+  - name: payouts
+    version: 1
+    active: true
+    mode: keyed
+    schema:
+      type: object
+      required: [text, period]
+      properties:
+        text: {type: string}
+        period: {type: string}
+        currency: {type: string}
+        charges: {type: object}
+        refunds: {type: object}
+        net: {type: string}
+        note: {type: string}
+      additionalProperties: false
+    required_processors: []
+    search_profile: pg_default
