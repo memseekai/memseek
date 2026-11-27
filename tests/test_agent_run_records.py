@@ -167,6 +167,14 @@ async def test_a_successful_derivation_records_its_traced_agent_run_at_depth_zer
     assert content["metrics"] == {"steps": 3, "tool_calls": 2}
     assert len(content["trace_id"]) == 32
     assert "error" not in content
+    async with db_pool.connection() as conn:
+        audit = await (
+            await conn.execute("select content from record where id = %s", (run_audit["id"],))
+        ).fetchone()
+    assert audit is not None
+    assert [entry["trace_id"] for entry in audit["content"]["computer_trace"]] == [
+        content["trace_id"]
+    ]
 
 
 async def test_a_provider_failure_records_a_failed_run(

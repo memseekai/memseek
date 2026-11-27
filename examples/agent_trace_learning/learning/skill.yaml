@@ -1,12 +1,16 @@
 # yaml-language-server: $schema=../../schemas/derivations.schema.json
-# Copied from resources/derivations/skill.yaml, reading only `outcomes`.
+# Adapted from resources/derivations/skill.yaml. It reads the judged runs in
+# `outcomes`, each holding the run's episode from its trace, and the payout
+# statement the judge checked them against, so it can work out what went
+# wrong, not only that something did.
 name: skill
 trigger:
   write:
     collections: [outcomes]
     types: [outcome, exception]
     statuses: [active]
-  cooldown_s: 600
+  # Production would wait longer between drafts; the example runs in minutes.
+  cooldown_s: 60
 sources:
   new_evidence:
     kind: changes
@@ -14,7 +18,7 @@ sources:
     types: [outcome, exception]
     statuses: [active]
     keyed: false
-    max_records: 100
+    max_records: 20
     max_tokens: 26000
     allow_empty: false
   current_skill:
@@ -23,15 +27,25 @@ sources:
     types: [skill]
     statuses: [active]
     keys: [steps, pitfalls, examples]
-    max_records: 100
+    max_records: 10
     max_tokens: 12000
+  statement:
+    kind: record
+    collection: payouts
+    key: "2026-10"
+  # The account's own data, the webhook deliveries the runs worked from.
+  events:
+    kind: current
+    collections: [payment_events]
+    max_records: 200
+    max_tokens: 30000
 model: strong
 limits:
   max_tasks: 2
   max_llm_calls: 4
   max_retrieved_records: 0
-  max_visible_records: 180
-  max_total_tokens: 50000
+  max_visible_records: 250
+  max_total_tokens: 90000
   max_wall_s: 150
 tasks:
   - id: proposal
@@ -66,6 +80,22 @@ tasks:
         <records untrusted="true">
         {{new_evidence.rendered}}
         </records>
+
+        REFERENCE: THE PAYOUT STATEMENT REVIEWERS CHECK ANSWERS AGAINST
+        <data untrusted="true">{{statement.records}}</data>
+
+        THE ACCOUNT'S DATA: THE WEBHOOK DELIVERIES THE RUNS WORKED FROM
+        <data untrusted="true">{{events.records}}</data>
+
+        Each exception diagnoses one agent run whose answer a reviewer judged
+        wrong against the reference: what the agent did, according to its
+        trace, which events made its figure wrong, and the method that would
+        have been right. Turn the causes into method. Use the account's data
+        to check that each lesson holds in it, not to add lessons that no run
+        needed. A skill must teach how
+        to work, never figures: do not copy any amount or count from the runs
+        or the reference into it, because later questions ask about other
+        figures and other months.
 
         Suggest the smallest evidence-supported patch. Identify the exact
         current skill record UUIDs used as the base, list proposed section
@@ -122,11 +152,20 @@ tasks:
         {{new_evidence.rendered}}
         </records>
 
+        REFERENCE: THE PAYOUT STATEMENT REVIEWERS CHECK ANSWERS AGAINST
+        <data untrusted="true">{{statement.records}}</data>
+
+        THE ACCOUNT'S DATA: THE WEBHOOK DELIVERIES THE RUNS WORKED FROM
+        <data untrusted="true">{{events.records}}</data>
+
         REVIEW PATCH PROPOSAL:
         <data untrusted="true">{{proposal}}</data>
 
-        Required sections are steps, pitfalls, and examples. Preserve what
-        evidence shows still works. Apply only supported changes. If no section
+        Required sections are steps, pitfalls, and examples. Write method
+        only: no amount, count or total from the evidence or the reference may
+        appear in any section, because later questions ask about other
+        figures. Examples show how a trap looks in the data, not what any
+        figure is. Preserve what evidence shows still works. Apply only supported changes. If no section
         should change, still emit the complete current value. Every section must cite
         full UUIDs visible above and the candidate must contain exactly three
         records; use retract only when a section should intentionally be empty:

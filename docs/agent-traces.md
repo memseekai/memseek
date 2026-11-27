@@ -124,10 +124,12 @@ Selection is yours: the source's `types`, a trigger's `where`, the `trace`
 task's `select`, and the judge's `keep` each narrow it. Jev is one way to judge
 an episode; an `llm` task or an installed task works the same way.
 
-`examples/agent_trace_learning/` is a complete loop: a traced pi Agent runs
-each task, `failed_runs` and `silent_failures` turn its bad runs into
-`outcomes`, and the `skill` derivation proposes reviewed changes to the skill
-the Agent mounts on its next run.
+`examples/agent_trace_learning/` is a complete loop, and
+[Teach an agent from its own traces](agent-trace-learning-example.md) walks
+through it: a traced finance agent answers questions from raw payment
+webhooks, the review judges and diagnoses its wrong answers from their traces
+and the data, and the `skill` derivation turns the diagnoses into a reviewed
+skill change that fixes the next answers.
 
 Keep `text` an exact `{{item.text}}`: a template that mixes literal text with a
 value escapes `<`, `>` and `&` in what it stores.

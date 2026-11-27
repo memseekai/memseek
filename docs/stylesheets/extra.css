@@ -963,3 +963,43 @@
   height: 26px;
   color: var(--ms-blue);
 }
+
+/* ---------- trace-learning loop diagram (agent-trace-learning-example.md) ----------
+   Inline SVG drawn from the theme tokens, so it reads in both schemes. The
+   trace path is teal, the Jev review caution amber, the reference lilac. */
+.md-typeset .trace-loop {
+  margin: 1.6em 0;
+}
+.md-typeset .trace-loop .frame {
+  overflow-x: auto;
+  border: 1px solid var(--ms-border);
+  border-radius: 10px;
+  background: var(--ms-surface);
+}
+.md-typeset .trace-loop svg {
+  display: block;
+  width: 100%;
+  min-width: 720px;
+  height: auto;
+  color: var(--ms-text);
+}
+.trace-loop text { fill: currentColor; font-size: 13px; font-family: var(--md-text-font-family); }
+.trace-loop .nm { font-family: var(--ms-code); font-size: 13.5px; font-weight: 600; }
+.trace-loop .ti { font-size: 14px; font-weight: 600; }
+.trace-loop .sub { fill: var(--ms-muted); font-size: 11.5px; }
+.trace-loop .lbl { fill: var(--ms-muted); font-size: 11.5px; }
+.trace-loop .lbl-t { fill: var(--ms-teal); font-size: 11.5px; }
+.trace-loop .box { fill: var(--ms-bg); stroke: var(--ms-border-strong); stroke-width: 1.2; }
+.trace-loop .der { fill: var(--ms-bg); stroke: currentColor; stroke-width: 2; }
+.trace-loop .jev { fill: color-mix(in srgb, var(--ms-caution) 12%, transparent); stroke: var(--ms-caution); stroke-width: 2; }
+.trace-loop .store { fill: color-mix(in srgb, var(--ms-teal) 12%, transparent); stroke: var(--ms-teal); stroke-width: 1.5; stroke-dasharray: 6 4; }
+.trace-loop .ref { fill: color-mix(in srgb, var(--ms-lilac) 10%, transparent); stroke: var(--ms-lilac); stroke-width: 1.4; }
+.trace-loop .rule { stroke: color-mix(in srgb, var(--ms-caution) 40%, transparent); stroke-width: 1; }
+.trace-loop .e { fill: none; stroke: currentColor; stroke-width: 1.4; }
+.trace-loop .e-t { fill: none; stroke: var(--ms-teal); stroke-width: 2; }
+.trace-loop .e-l { fill: none; stroke: var(--ms-muted); stroke-width: 1.4; stroke-dasharray: 5 4; }
+.trace-loop .ah { fill: currentColor; }
+.trace-loop .ah-t { fill: var(--ms-teal); }
+.trace-loop .ah-l { fill: var(--ms-muted); }
+.trace-loop .t-teal { fill: var(--ms-teal); }
+.md-typeset .trace-loop figcaption { max-width: var(--ms-measure); margin: 0.6em 0 0; text-align: left; }

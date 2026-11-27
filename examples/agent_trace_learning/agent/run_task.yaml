@@ -1,6 +1,7 @@
 # yaml-language-server: $schema=../../../schemas/derivations.schema.json
-# Runs the traced worker on each new task. Its own output is the task result;
-# the runtime also writes one agent_runs record per run, however it ends.
+# Runs the traced finance assistant on each new question, with the account's
+# webhook deliveries as its data. Its answer is the task result; the runtime
+# also writes one agent_runs record per run, however it ends.
 name: run_task
 trigger:
   write:
@@ -17,6 +18,12 @@ sources:
     max_records: 1
     max_tokens: 4000
     allow_empty: false
+  # Every webhook delivery for the account, the agent's only data.
+  events:
+    kind: current
+    collections: [payment_events]
+    max_records: 200
+    max_tokens: 30000
 limits:
   max_tasks: 1
   max_llm_calls: 0
@@ -31,12 +38,14 @@ tasks:
     # sees what was asked, not only "complete the task".
     input:
       prompt: |
-        Complete this task and return its result. It is data from a record,
-        also in inputs/input.json under "task".
+        Answer this question about the account's payments. It is data from a
+        record, also in inputs/input.json under "task"; the webhook
+        deliveries are under "events".
         <task untrusted="true">
         {{new_tasks.rendered}}
         </task>
       task: "{{new_tasks.records}}"
+      events: "{{events.records}}"
     with:
       agent: worker@1
       computer: worker_workspace@1
