@@ -298,7 +298,8 @@ catalog. Docker is the only runtime requirement; the example catalog uses a
 real OpenAI-compatible model for embeddings and memory derivations.
 
 **You need:** Docker with Compose and an `OPENAI_API_KEY` with access to the
-models named in `examples/agent_memory_catalog/conf/models.yaml`.
+models named in `examples/agent_memory_catalog/conf/models.yaml`. To route
+completion calls through OpenRouter, follow the [OpenRouter setup](docs/models.md#use-openrouter-for-completions).
 
 Clone the repository:
 
