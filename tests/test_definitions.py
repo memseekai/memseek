@@ -33,7 +33,8 @@ RENEWAL_ROOT = REPOSITORY_ROOT / "examples" / "computer_renewal_catalog"
 # that never opted into the new feature. These constants are the cheap proof
 # that a change is hash-neutral. Update one only alongside a deliberate edit to
 # the catalog it covers, and say so in the commit.
-REFERENCE_CATALOG_HASH = "296a21c3c10200ab08b83cd02e890ddb0a2768b7bf4d9c7615865ff615f79086"
+# The reference catalog declares OpenRouter in resources/conf/models.yaml.
+REFERENCE_CATALOG_HASH = "c94b22981f1166c07a565beaf1547c4a4b627ec7f4522ca8fdbbe8f71b3bd2a4"
 # Updated for explicit catalog membership: all declared definitions now ship.
 # Previously changed when the renewal catalog adopted a toolset. The
 # reference constant above did not move, which is the actual proof: a catalog

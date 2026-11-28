@@ -7,6 +7,10 @@ providers:
     adapter: openai_compat
     base_url: https://api.openai.com/v1
     api_key_env: OPENAI_API_KEY
+  openrouter:
+    adapter: openai_compat
+    base_url: https://openrouter.ai/api/v1
+    api_key_env: OPENROUTER_API_KEY
   # A System One judgment endpoint. It answers typed questions about a state
   # and writes no text, so it serves `source: judgment` processors and the
   # `judge` derivation Task only.

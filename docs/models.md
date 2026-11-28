@@ -97,6 +97,38 @@ These last three describe the *endpoint*, so an endpoint that cannot honor
 schema-constrained output says so next to its own URL rather than in a
 process-wide setting that would also, wrongly, describe every other endpoint.
 
+## Use OpenRouter for completions
+
+The default Docker Compose catalog declares an `openrouter` provider using the
+`openai_compat` adapter. To route a completion alias through it:
+
+1. Set `OPENROUTER_API_KEY` in the repository-root `.env`. Compose passes it
+   to the API and worker. The default embedding model still uses `OPENAI_API_KEY`.
+2. Edit `examples/agent_memory_catalog/conf/models.yaml`. Under `aliases.cheap`,
+   replace the `targets` line with the example below. Set `aliases.strong.targets`
+   as well if you want both aliases to use OpenRouter. Use the full model ID
+   from OpenRouter, including the publisher and slash.
+
+   ```yaml
+   targets: ["openrouter:openai/gpt-4.1-mini"]
+   ```
+
+3. Run `make up` to rebuild the stack with the edited catalog and publish it
+   to the workspace.
+
+For a custom catalog, add this entry under `providers` in the file named by
+`config.models` in its `catalog.yaml`, then update its aliases and republish:
+
+```yaml
+openrouter:
+  adapter: openai_compat
+  base_url: https://openrouter.ai/api/v1
+  api_key_env: OPENROUTER_API_KEY
+```
+
+Choose a model that supports structured outputs for derivations that request
+JSON Schema. [OpenRouter structured outputs](https://openrouter.ai/docs/guides/features/structured-outputs)
+
 ## Alias fields
 
 - **`targets`** (required) — one or more `provider:model` strings, where
